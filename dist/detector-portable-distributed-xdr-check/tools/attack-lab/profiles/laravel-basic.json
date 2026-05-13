@@ -1,0 +1,52 @@
+{
+  "name": "laravel-basic",
+  "description": "Basic Laravel web attack profile: normal traffic, brute force, scan, injection, privilege probing, and anomaly-like search burst.",
+  "defaults": {
+    "base_url": "http://127.0.0.1:8000",
+    "count": 60,
+    "sleep_ms": 20,
+    "source_ip": "203.0.113.50",
+    "spoof_ip": true
+  },
+  "steps": [
+    {
+      "name": "normal-browsing",
+      "type": "normal",
+      "count": 8
+    },
+    {
+      "name": "bruteforce-login",
+      "type": "bruteforce",
+      "count": 24
+    },
+    {
+      "name": "directory-scan",
+      "type": "scan",
+      "count": 36,
+      "payload_file": "payloads/scan-paths.txt"
+    },
+    {
+      "name": "injection-search",
+      "type": "injection",
+      "count": 10,
+      "path": "/search",
+      "param": "q",
+      "payload_files": [
+        "payloads/sqli.txt",
+        "payloads/xss.txt"
+      ]
+    },
+    {
+      "name": "privilege-probing",
+      "type": "request",
+      "count": 4,
+      "method": "GET",
+      "path": "/admin"
+    },
+    {
+      "name": "anomaly-search-burst",
+      "type": "anomaly",
+      "count": 32
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+{"EventID":4625,"TimeCreated":"2026-05-12T02:10:00Z","Computer":"web-prod-01","EventData":{"TargetUserName":"admin","IpAddress":"203.0.113.50","LogonType":"3"}}
+{"EventID":4625,"TimeCreated":"2026-05-12T02:10:05Z","Computer":"web-prod-01","EventData":{"TargetUserName":"admin","IpAddress":"203.0.113.50","LogonType":"3"}}
+{"EventID":4688,"TimeCreated":"2026-05-12T02:11:00Z","Computer":"win-client-07","EventData":{"NewProcessName":"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe","CreatorProcessName":"C:\\Windows\\explorer.exe"}}

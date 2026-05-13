@@ -1,0 +1,35 @@
+{
+  "name": "mitre-advanced-telemetry-coverage",
+  "techniques": [
+    {
+      "tactic": "Persistence",
+      "technique": "T1053",
+      "name": "Scheduled Task/Job",
+      "expected": true
+    },
+    {
+      "tactic": "Lateral Movement",
+      "technique": "T1021",
+      "name": "Remote Services",
+      "expected": true
+    },
+    {
+      "tactic": "Discovery",
+      "technique": "T1046",
+      "name": "Network Service Discovery",
+      "expected": true
+    },
+    {
+      "tactic": "Defense Evasion",
+      "technique": "T1497",
+      "name": "Virtualization/Sandbox Evasion",
+      "expected": true
+    },
+    {
+      "tactic": "Command and Control",
+      "technique": "T1071.004",
+      "name": "DNS",
+      "expected": true
+    }
+  ]
+}

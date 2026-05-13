@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alerts.created.v1",
+  "title": "Topic alerts.created v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "alert.created" },
+    "payload": {
+      "type": "object",
+      "required": ["alert", "alert_id", "alert_fingerprint", "created_at"],
+      "properties": {
+        "trace_id": { "type": ["string", "null"] },
+        "alert": { "type": "object" },
+        "alert_id": { "type": "string" },
+        "alert_fingerprint": { "type": "string" },
+        "created_at": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "validation_status": "PASS",
+  "dataset": "D:\\project\\Detector\\storage\\logs\\xdr_realistic_large.jsonl",
+  "events": 52500,
+  "workers": 6,
+  "duration_minutes": 240,
+  "labels": {
+    "benign": 49875,
+    "malicious": 2625
+  },
+  "domains": {
+    "email": 6564,
+    "endpoint": 6563,
+    "dns": 6562,
+    "saas": 6562,
+    "identity": 6891,
+    "cloud": 6562,
+    "firewall": 6562,
+    "proxy": 6234
+  },
+  "campaigns": {
+    "count": 329,
+    "avg_chain_length": 7.98,
+    "max_chain_length": 8
+  },
+  "throughput_metrics": {
+    "events_per_second": 126046.4,
+    "worker_capacity_eps": 13200,
+    "saturation_ratio": 1.0
+  },
+  "latency_percentiles_ms": {
+    "p50": 23.592,
+    "p90": 28.296,
+    "p95": 29.304,
+    "p99": 34.596
+  },
+  "quality_estimates": {
+    "tp": 2625,
+    "fp": 0,
+    "tn": 49875,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "per_domain": {
+      "cloud": {
+        "tn": 6234,
+        "tp": 328
+      },
+      "dns": {
+        "tn": 6234,
+        "tp": 328
+      },
+      "email": {
+        "tn": 6235,
+        "tp": 329
+      },
+      "endpoint": {
+        "tn": 6235,
+        "tp": 328
+      },
+      "firewall": {
+        "tn": 6234,
+        "tp": 328
+      },
+      "identity": {
+        "tn": 6235,
+        "tp": 656
+      },
+      "proxy": {
+        "tn": 6234
+      },
+      "saas": {
+        "tn": 6234,
+        "tp": 328
+      }
+    }
+  },
+  "stream_metrics": {
+    "distributed_replay_workers": 6,
+    "consumer_lag": 787,
+    "retry_count": 262,
+    "dead_letter_count": 0,
+    "backpressure_ratio": 1.0,
+    "replay_stability": 1.0
+  },
+  "storage_pressure_metrics": {
+    "pressure_ratio": 0.21,
+    "estimated_raw_gb": 63.0,
+    "estimated_index_gb": 36.75,
+    "retention_tier": "hot"
+  },
+  "correlation_degradation": {
+    "score": 0.3092,
+    "warning": true,
+    "drivers": [
+      "noise",
+      "storage_pressure",
+      "stream_saturation"
+    ]
+  },
+  "recovery_metrics": {
+    "restart_validation": "passed",
+    "replay_resume_supported": true,
+    "dlq_replay_supported": true,
+    "estimated_recovery_seconds": 55.6
+  },
+  "service_extraction_health": {
+    "ingestion_gateway": {
+      "status": "scaffolded",
+      "language": "go",
+      "path": "services/ingestion-gateway"
+    },
+    "telemetry_normalizer": {
+      "status": "scaffolded",
+      "language": "go",
+      "path": "services/normalizer-worker"
+    },
+    "xdr_correlation": {
+      "status": "laravel_python_bridge",
+      "migration": "pending worker extraction"
+    },
+    "ai_rag": {
+      "status": "scaffolded",
+      "language": "python_fastapi",
+      "path": "services/ai-rag-service"
+    },
+    "soc_control_plane": {
+      "status": "laravel_retained"
+    }
+  }
+}

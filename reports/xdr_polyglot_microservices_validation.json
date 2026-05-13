@@ -1,0 +1,238 @@
+{
+  "status": "PASS",
+  "checked_at": "2026-05-13T08:00:04.271373+00:00",
+  "architecture": "polyglot-microservices",
+  "languages": {
+    "control_plane": "php-laravel",
+    "stream_workers": "go",
+    "soc_services": "python-fastapi"
+  },
+  "event_flow": [
+    "telemetry.raw",
+    "telemetry.normalized",
+    "xdr.alerts",
+    "alerts.created",
+    "incidents.updated"
+  ],
+  "checks": {
+    "ingestion_gateway": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "service": "ingestion-gateway",
+        "status": "ok",
+        "topic": "telemetry.raw"
+      }
+    },
+    "normalizer_worker": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "input": "telemetry.raw",
+        "output": "telemetry.normalized",
+        "service": "telemetry-normalizer",
+        "status": "ok"
+      }
+    },
+    "correlation_worker": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "keep_alive": true,
+        "mode": "shadow",
+        "service": "xdr-correlation",
+        "status": "ok"
+      }
+    },
+    "ai_rag_service": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "service": "ai-rag",
+        "provider": "heuristic"
+      }
+    },
+    "alert_writer": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "service": "alert-writer",
+        "mode": "event-driven",
+        "consumes": "xdr.alerts",
+        "produces": "alerts.created"
+      }
+    },
+    "incident_builder": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "service": "incident-builder",
+        "mode": "event-driven",
+        "consumes": "alerts.created",
+        "produces": "incidents.updated"
+      }
+    },
+    "redpanda_topics": {
+      "ok": true,
+      "status": 200,
+      "body": [
+        "security_events",
+        "telemetry.raw",
+        "telemetry.normalized",
+        "xdr.alerts",
+        "alerts.created",
+        "incidents.updated",
+        "ai.analysis.requests",
+        "ai.analysis.results",
+        "xdr.alerts.dlq",
+        "alerts.created.dlq",
+        "incidents.builder.dlq",
+        "incidents.updated.dlq"
+      ]
+    },
+    "clickhouse": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "text": "Ok."
+      }
+    },
+    "opensearch": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "name": "e2427f15dfeb",
+        "cluster_name": "docker-cluster",
+        "cluster_uuid": "R9l1ghR1RYGKFvx4bAt8ZQ",
+        "version": {
+          "distribution": "opensearch",
+          "number": "2.15.0",
+          "build_type": "tar",
+          "build_hash": "61dbcd0795c9bfe9b81e5762175414bc38bbcadf",
+          "build_date": "2024-06-20T03:26:49.193630411Z",
+          "build_snapshot": false,
+          "lucene_version": "9.10.0",
+          "minimum_wire_compatibility_version": "7.10.0",
+          "minimum_index_compatibility_version": "7.0.0"
+        },
+        "tagline": "The OpenSearch Project: https://opensearch.org/"
+      }
+    },
+    "qdrant": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "text": "healthz check passed"
+      }
+    },
+    "signed_ingestion": {
+      "ok": true,
+      "status": 202,
+      "body": {
+        "accepted": 3,
+        "latency_ms": 458
+      },
+      "events": 3
+    }
+  },
+  "metrics": {
+    "ingestion_gateway": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "accepted": 9,
+        "publish_errors": 0,
+        "rejected": 0,
+        "requests": 3
+      }
+    },
+    "normalizer_worker": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "consumer_errors": 0,
+        "consumer_polls": 204,
+        "forwarded": 9,
+        "goroutines": 24,
+        "heap_alloc_mb": 2.9481658935546875,
+        "malformed": 0,
+        "processed": 9,
+        "publish_errors": 0,
+        "queue_capacity": 200000,
+        "queue_depth": 0
+      }
+    },
+    "correlation_worker": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "alerts": 9,
+        "consumer_errors": 0,
+        "consumer_polls": 201,
+        "goroutines": 8,
+        "heap_alloc_mb": 2.3361053466796875,
+        "input_topic": "telemetry.normalized",
+        "last_latency_ms": 0,
+        "output_topic": "xdr.alerts",
+        "processed": 9,
+        "publish_errors": 0,
+        "published": 9
+      }
+    },
+    "alert_writer": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "batches": 4,
+        "alerts_seen": 10,
+        "alerts_written": 4,
+        "duplicates": 6,
+        "postgres_failures": 0,
+        "opensearch_failures": 0,
+        "dlq_count": 4,
+        "retry_count": 0,
+        "write_latency_ms_last": 137.528,
+        "write_latency_ms_total": 8208.445833006408,
+        "idempotency_cache_size": 4,
+        "consumer_polls": 1097,
+        "consumer_errors": 0,
+        "events_published": 10,
+        "contract_validation_failures": 4,
+        "operational_events_stored": 10
+      }
+    },
+    "incident_builder": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "batches": 5,
+        "alerts_seen": 28,
+        "incidents_built": 12,
+        "incident_updates": 12,
+        "failures": 0,
+        "dlq_count": 0,
+        "idempotent_links": 0,
+        "latency_ms_last": 37.949,
+        "latency_ms_total": 1085.6030010036193,
+        "consumer_polls": 1112,
+        "consumer_errors": 0,
+        "events_published": 12,
+        "contract_validation_failures": 0,
+        "operational_events_stored": 12
+      }
+    },
+    "ai_rag_service": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "analysis_requests": 0,
+        "retrieval_requests": 0,
+        "embedding_requests": 0,
+        "latency_ms_total": 0.0
+      }
+    }
+  }
+}

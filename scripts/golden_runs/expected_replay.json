@@ -1,0 +1,49 @@
+{
+  "normal": {
+    "name": "normal",
+    "events": 6,
+    "invalid": 0,
+    "rules": {},
+    "ml_counts": {
+      "normal": 6
+    },
+    "ml_signature": "215ee0b0b71ff5083df433e8b44414f5a0c83975a2b3c0f8ea3b91c7d2d854c7"
+  },
+  "bruteforce": {
+    "name": "bruteforce",
+    "events": 15,
+    "invalid": 0,
+    "rules": {
+      "BRUTE_FORCE_IP": 4
+    },
+    "ml_counts": {
+      "bruteforce": 15
+    },
+    "ml_signature": "9659f916294e6238f7c96255862886e606de3f0195d44bbdff781d5456824b5b"
+  },
+  "scan": {
+    "name": "scan",
+    "events": 25,
+    "invalid": 0,
+    "rules": {
+      "SCAN_BURST": 6
+    },
+    "ml_counts": {
+      "scan": 25
+    },
+    "ml_signature": "e31037ce9a4f3fe1024173b7298744b3dbe47d6dd16cc12b5525a8de85938d42"
+  },
+  "injection": {
+    "name": "injection",
+    "events": 4,
+    "invalid": 0,
+    "rules": {
+      "INJECTION_INDICATOR": 4
+    },
+    "ml_counts": {
+      "injection": 2,
+      "scan": 2
+    },
+    "ml_signature": "8cc94f3132f37d07807a8de9322aecd58cc9463c4efc94586bd17c3b6c333f69"
+  }
+}

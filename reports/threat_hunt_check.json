@@ -1,0 +1,63 @@
+{
+  "events": 3,
+  "hunts": {
+    "powershell_network": [
+      {
+        "schema_version": 1,
+        "ts": "2026-05-12T02:01:00Z",
+        "telemetry_type": "network",
+        "event_type": "connection_attempt",
+        "host_id": "win-client-07",
+        "src_ip": "10.0.8.77",
+        "dst_ip": "198.51.100.88",
+        "protocol": "tcp",
+        "process_name": "powershell.exe",
+        "dst_port": 443,
+        "source_adapter": "sysmon-json",
+        "raw": {
+          "EventID": 3,
+          "UtcTime": "2026-05-12T02:01:00Z",
+          "Computer": "win-client-07",
+          "EventData": {
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "DestinationIp": "198.51.100.88",
+            "DestinationPort": "443",
+            "SourceIp": "10.0.8.77",
+            "Protocol": "tcp"
+          }
+        },
+        "event_id": "7beb43b8a159278c5925a3644cb784a4ecbbb434",
+        "enrichment": {
+          "sysmon": {
+            "sysmon_event_id": 3,
+            "category": "network"
+          },
+          "entity": {
+            "host": "win-client-07",
+            "src_ip": "10.0.8.77",
+            "dst_ip": "198.51.100.88",
+            "process": "powershell.exe",
+            "user_hash": null
+          },
+          "network_scope": {
+            "src_private": true,
+            "dst_private": true
+          },
+          "risk_signals": [
+            "high_attention_process"
+          ],
+          "risk_score_hint": 0.4
+        }
+      }
+    ],
+    "repeated_dns": [],
+    "admin_port_fanout": [],
+    "failed_login_sources": []
+  },
+  "summary": {
+    "powershell_network": 1,
+    "repeated_dns": 0,
+    "admin_port_fanout": 0,
+    "failed_login_sources": 0
+  }
+}

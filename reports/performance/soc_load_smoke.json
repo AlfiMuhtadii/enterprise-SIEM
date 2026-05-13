@@ -1,0 +1,48 @@
+{
+  "base_url": "http://127.0.0.1:8000",
+  "duration_sec": 2,
+  "concurrency": 2,
+  "paths": [
+    "/health/live",
+    "/health/ready"
+  ],
+  "http": {
+    "requests": 14,
+    "throughput_rps": 7.0,
+    "errors": 0,
+    "status_counts": {
+      "200": 14
+    },
+    "latency_ms": {
+      "avg": 306.32,
+      "p50": 255.49,
+      "p95": 457.12,
+      "p99": 603.92,
+      "max": 603.92
+    },
+    "by_path": {
+      "/health/live": {
+        "requests": 7,
+        "p95_ms": 457.12,
+        "avg_ms": 296.26
+      },
+      "/health/ready": {
+        "requests": 7,
+        "p95_ms": 603.92,
+        "avg_ms": 316.38
+      }
+    }
+  },
+  "telemetry_ingestion_validation": {
+    "enabled": false
+  },
+  "ops_metrics_before": {
+    "available": false,
+    "reason": "cookie not provided"
+  },
+  "ops_metrics_after": {
+    "available": false,
+    "reason": "cookie not provided"
+  },
+  "generated_at": "2026-05-11T21:35:14Z"
+}

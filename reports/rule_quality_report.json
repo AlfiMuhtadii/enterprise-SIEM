@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-05-11T08:58:51.238544+00:00",
+  "rule_file": "storage/app/telemetry_rules.json",
+  "rule_count": 6,
+  "errors": [],
+  "regression": {
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "total": 3
+    },
+    "tests": [
+      {
+        "rule_id": "TEL-PERSIST-001",
+        "case": "scheduled task produces persistence alert",
+        "expected_alert": true,
+        "observed_alerts": 1,
+        "status": "PASS"
+      },
+      {
+        "rule_id": "TEL-EVADE-001",
+        "case": "sandbox probe produces evasion alert",
+        "expected_alert": true,
+        "observed_alerts": 1,
+        "status": "PASS"
+      },
+      {
+        "rule_id": "TEL-LATERAL-001",
+        "case": "three admin ports to internal hosts",
+        "expected_alert": true,
+        "observed_alerts": 1,
+        "status": "PASS"
+      }
+    ]
+  }
+}

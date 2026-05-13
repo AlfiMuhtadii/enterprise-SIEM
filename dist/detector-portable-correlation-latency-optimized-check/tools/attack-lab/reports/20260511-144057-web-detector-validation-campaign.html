@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Attack Lab Campaign Report</title>
+<style>body{font-family:Arial,sans-serif;margin:32px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px}pre{background:#111;color:#eee;padding:12px;white-space:pre-wrap}</style>
+</head><body>
+<h1>Attack Lab Campaign Report</h1>
+<p><b>Campaign:</b> web-detector-validation</p>
+<p><b>Campaign ID:</b> 20260511-144020-web-detector-validation</p>
+<p><b>Target:</b> http://127.0.0.1:8000</p>
+<p><b>Requests:</b> 169 | <b>Failed:</b> 0 | <b>Duration:</b> 36346 ms</p>
+<p><b>State:</b> D:\project\Detector\tools\attack-lab\state\20260511-144020-web-detector-validation.json</p>
+<h2>Steps</h2><table><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Requests</th><th>Failed</th><th>Reason</th></tr></thead><tbody><tr><td>baseline</td><td>profile</td><td>completed</td><td>33</td><td>0</td><td></td></tr>
+<tr><td>full-web-chain</td><td>profile</td><td>completed</td><td>114</td><td>0</td><td></td></tr>
+<tr><td>crawl-after-chain</td><td>crawl</td><td>completed</td><td>2</td><td>0</td><td></td></tr>
+<tr><td>injection-focus</td><td>profile</td><td>completed</td><td>20</td><td>0</td><td></td></tr></tbody></table>
+<h2>Detector Alert Report</h2><pre>=== Ingest JSONL ===
+Processed: 224
+Inserted: 224
+Invalid: 0
+Offset: 389028
+=== Replay Detector ===
+replayed_events=930
+invalid_events_dropped=0
+alerts_attempted=1866
+responses_attempted=1807
+
+=== Alert Report ===
+Window: last 15 minutes
+
+Alert summary:
++---------------------+-------+
+| alert_type          | total |
++---------------------+-------+
+| ANOMALY_BEHAVIOR    | 14    |
+| ML_SCAN             | 12    |
+| ML_BRUTEFORCE       | 12    |
+| SCAN_BURST          | 6     |
+| CREDENTIAL_STUFFING | 6     |
+| BRUTE_FORCE_IP      | 6     |
+| LOW_AND_SLOW_SCAN   | 3     |
++---------------------+-------+
+
+Latest alerts:
++------------------------+---------------------+----------+--------------+--------------------+
+| detected_at            | alert_type          | severity | ip           | score              |
++------------------------+---------------------+----------+--------------+--------------------+
+| 2026-05-11 14:40:52+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.70 | 0.5042734969809337 |
+| 2026-05-11 14:40:42+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |
+| 2026-05-11 14:40:39+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999974806086 |
+| 2026-05-11 14:40:34+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |
+| 2026-05-11 14:40:32+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.4                |
+| 2026-05-11 14:40:30+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.6837606738724524 |
+| 2026-05-11 14:40:30+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9718785714402446 |
+| 2026-05-11 14:40:26+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9676771004768823 |
+| 2026-05-11 14:40:25+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.6367521275437215 |
+| 2026-05-11 14:40:24+07 | SCAN_BURST          | medium   | 127.0.0.1    | 0.375              |
+| 2026-05-11 14:40:23+07 | LOW_AND_SLOW_SCAN   | medium   | 127.0.0.1    | 0.4                |
+| 2026-05-11 14:40:22+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5042734969809337 |
+| 2026-05-11 14:40:21+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999988267805 |
+| 2026-05-11 14:33:30+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.8                |
+| 2026-05-11 14:33:30+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.45               |
+| 2026-05-11 14:33:30+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 1                  |
+| 2026-05-11 14:33:23+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |
+| 2026-05-11 14:33:23+07 | LOW_AND_SLOW_SCAN   | medium   | 203.0.113.50 | 0.4                |
+| 2026-05-11 14:33:21+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999905692324 |
+| 2026-05-11 14:33:16+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |
++------------------------+---------------------+----------+--------------+--------------------+</pre>
+</body></html>

@@ -1,0 +1,170 @@
+{
+  "validation_status": "CUTOVER_READY",
+  "mode": "go",
+  "effective_engine": "go",
+  "fallback_active": false,
+  "fallback_reason": null,
+  "source_of_truth": "go",
+  "comparison_engine": "legacy_shadow",
+  "scope": "identity-cloud",
+  "events": 27,
+  "runs": 2,
+  "python_laravel_correlation": {
+    "latency_ms": 0.661,
+    "throughput_eps": 27000.0,
+    "alert_count": 8,
+    "p95_latency_ms": 0.893,
+    "avg_throughput_eps": 27000.0
+  },
+  "go_correlation": {
+    "latency_ms": 2.417,
+    "worker_latency_ms": 0,
+    "throughput_eps": 11172.26,
+    "alert_count": 8,
+    "p95_latency_ms": 2.558,
+    "worker_p95_latency_ms": 0.0,
+    "avg_throughput_eps": 10862.86
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 2.417,
+    "worker_latency_ms": 0,
+    "throughput_eps": 11172.26,
+    "alert_count": 8,
+    "p95_latency_ms": 2.558,
+    "worker_p95_latency_ms": 0.0,
+    "avg_throughput_eps": 10862.86,
+    "compatibility_alias": true
+  },
+  "comparison": {
+    "alert_count_delta": 0,
+    "alert_type_match_rate": 1.0,
+    "evidence_match_rate": 1.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_RISKY_IP_LOGIN": 1,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 1,
+      "IDENTITY_PRIVILEGE_ESCALATION": 1,
+      "IDENTITY_MFA_FAILURE_BURST": 1,
+      "IDENTITY_FAILED_LOGIN_ACROSS_SERVICES": 1,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 1,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 1,
+      "CLOUD_NEW_ACCESS_KEY": 1
+    },
+    "go": {
+      "CLOUD_NEW_ACCESS_KEY": 1,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 1,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 1,
+      "IDENTITY_FAILED_LOGIN_ACROSS_SERVICES": 1,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 1,
+      "IDENTITY_MFA_FAILURE_BURST": 1,
+      "IDENTITY_PRIVILEGE_ESCALATION": 1,
+      "IDENTITY_RISKY_IP_LOGIN": 1
+    },
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "IDENTITY_FAILED_LOGIN_ACROSS_SERVICES": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "IDENTITY_MFA_FAILURE_BURST": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "IDENTITY_PRIVILEGE_ESCALATION": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      },
+      "IDENTITY_RISKY_IP_LOGIN": {
+        "python": 1,
+        "go": 1,
+        "delta": 0
+      }
+    }
+  },
+  "diff": {
+    "missing_in_go_count": 0,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "cutover_monitoring": {
+    "alert_count_delta": 0,
+    "go_p95_latency_ms": 2.558,
+    "go_error_rate": 0,
+    "go_worker_health": {
+      "healthy": true,
+      "latency_ms": 28.145,
+      "url": "http://127.0.0.1:8093",
+      "body": {
+        "mode": "shadow",
+        "service": "xdr-correlation",
+        "status": "ok"
+      }
+    },
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics",
+    "scope_guard": "endpoint/dns/proxy remain legacy until separate golden, parity, and latency gates pass"
+  },
+  "cutover_plan": [
+    "Default remains shadow.",
+    "Use XDR_CORRELATION_ENGINE=go only for XDR_CORRELATION_SCOPE=identity-cloud.",
+    "Legacy remains shadow comparison when Go is active.",
+    "Fallback to legacy automatically when Go worker is unhealthy and fallback is enabled.",
+    "Endpoint/DNS/proxy require separate golden test, large replay parity, and latency gate before expansion."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "alerts": 15686,
+      "goroutines": 3,
+      "heap_alloc_mb": 1.2214736938476562,
+      "last_latency_ms": 0,
+      "processed": 345674
+    }
+  },
+  "cutover_gate": {
+    "passed": true,
+    "alert_count_delta_ratio": 0.0,
+    "gates": {
+      "alert_type_match_rate_gt_0_95": true,
+      "alert_count_delta_lt_0_02": true,
+      "evidence_match_gt_0_98": true,
+      "go_p95_latency_lt_300ms": true,
+      "duplicate_rate_zero": true
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-05-12T21:20:38.766433+00:00",
+  "scope": "identity-cloud",
+  "analysis": {
+    "fallback_events_total": 2,
+    "intentional_rollback_validation_events": 2,
+    "spontaneous_fallback_events": 0,
+    "spontaneous_fallback_target": 0,
+    "meets_target": true
+  },
+  "trigger_matrix": {
+    "timeout": false,
+    "gc_spike": false,
+    "stream_reconnect": false,
+    "redpanda_lag": false,
+    "healthcheck_transient": false,
+    "backpressure": false,
+    "forced_rollback_validation": true
+  },
+  "active_go_health": {
+    "healthy": true,
+    "latency_ms": 29.51,
+    "url": "http://127.0.0.1:8093",
+    "body": {
+      "mode": "shadow",
+      "service": "xdr-correlation",
+      "status": "ok"
+    }
+  },
+  "triggers": [
+    {
+      "source": "reports/xdr_cutover_auto_fallback_identity_cloud_saas.json",
+      "reason": "go_worker_unhealthy",
+      "classification": "intentional_rollback_validation",
+      "category": "forced_timeout",
+      "evidence": "rollback validation intentionally used http://127.0.0.1:1 to simulate unhealthy worker"
+    },
+    {
+      "source": "reports/xdr_rollback_validation_report.json",
+      "reason": "go_worker_unhealthy",
+      "classification": "intentional_rollback_validation",
+      "category": "forced_timeout",
+      "evidence": "rollback validation intentionally used http://127.0.0.1:1 to simulate unhealthy worker"
+    }
+  ],
+  "conclusion": "Observed fallback events were intentional rollback-validation triggers; no spontaneous fallback was observed in the active cutover run."
+}

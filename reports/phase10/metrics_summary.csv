@@ -1,0 +1,4 @@
+method,accuracy,macro_f1,weighted_f1
+rules_only,0.473684,0.528578,0.608563
+ml_only,0.936842,0.802393,0.933442
+hybrid,0.968421,0.879622,0.971011

@@ -1,0 +1,77 @@
+{
+  "name": "web-basic-coverage",
+  "generated_at": "2026-05-11T07:45:56.577846+00:00",
+  "window_minutes": 15,
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1.0
+  },
+  "alert_counts": {
+    "ANOMALY_BEHAVIOR": 9,
+    "BRUTE_FORCE_IP": 4,
+    "CREDENTIAL_STUFFING": 4,
+    "EXPLOIT_CHAIN_SUSPECTED": 1,
+    "LOW_AND_SLOW_SCAN": 2,
+    "ML_BRUTEFORCE": 5,
+    "ML_INJECTION": 1,
+    "ML_SCAN": 5,
+    "SCAN_BURST": 6
+  },
+  "matrix": [
+    {
+      "id": "credential-attack",
+      "description": "Brute force or credential stuffing must be detected.",
+      "expected_any_of": [
+        "BRUTE_FORCE_IP",
+        "CREDENTIAL_STUFFING",
+        "ML_BRUTEFORCE"
+      ],
+      "min_count": 1,
+      "observed_count": 13,
+      "status": "PASS",
+      "severity": "high"
+    },
+    {
+      "id": "reconnaissance-scan",
+      "description": "Directory/path scanning must be detected.",
+      "expected_any_of": [
+        "SCAN_BURST",
+        "LOW_AND_SLOW_SCAN",
+        "ML_SCAN"
+      ],
+      "min_count": 1,
+      "observed_count": 13,
+      "status": "PASS",
+      "severity": "medium"
+    },
+    {
+      "id": "payload-injection",
+      "description": "Injection payload indicators or ML injection classification should be detected.",
+      "expected_any_of": [
+        "INJECTION_INDICATOR",
+        "ML_INJECTION",
+        "ANOMALY_BEHAVIOR"
+      ],
+      "min_count": 1,
+      "observed_count": 10,
+      "status": "PASS",
+      "severity": "medium"
+    },
+    {
+      "id": "advanced-correlation",
+      "description": "Advanced mode should emit at least one correlation/anomaly style finding.",
+      "expected_any_of": [
+        "LOW_AND_SLOW_SCAN",
+        "EXPLOIT_CHAIN_SUSPECTED",
+        "ANOMALY_BEHAVIOR",
+        "C2_BEACON_PATTERN"
+      ],
+      "min_count": 1,
+      "observed_count": 12,
+      "status": "PASS",
+      "severity": "medium"
+    }
+  ]
+}

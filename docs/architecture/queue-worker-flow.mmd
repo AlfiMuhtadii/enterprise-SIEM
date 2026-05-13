@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant App as Laravel App
+  participant Jobs as jobs table
+  participant Worker as Queue Worker
+  participant External as Notification/Webhook
+  participant Failed as failed_jobs
+  App->>Jobs: enqueue notification/export/workflow job
+  Worker->>Jobs: reserve job
+  Worker->>External: execute delivery/action
+  alt success
+    Worker->>Jobs: delete job
+  else failure
+    Worker->>Jobs: retry until max attempts
+    Worker->>Failed: persist failed job
+  end

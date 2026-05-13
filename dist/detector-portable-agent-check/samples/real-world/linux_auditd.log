@@ -1,0 +1,2 @@
+type=USER_AUTH msg=audit(1778541200.100:101): pid=1201 uid=0 auid=4294967295 ses=4294967295 msg='op=PAM:authentication acct="admin" exe="/usr/sbin/sshd" hostname=203.0.113.50 addr=203.0.113.50 terminal=ssh res=failed'
+type=SYSCALL msg=audit(1778541260.100:102): arch=c000003e syscall=59 success=yes exe="/usr/bin/curl" comm="curl" key="process_exec"

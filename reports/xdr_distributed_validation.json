@@ -1,0 +1,136 @@
+{
+  "validation_status": "FAIL",
+  "input": "D:\\project\\Detector\\storage\\logs\\xdr_m365_sample.jsonl",
+  "event_count": 2,
+  "health": {
+    "redpanda": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 368.8722999941092,
+      "topics": [
+        "security_events"
+      ],
+      "error": ""
+    },
+    "clickhouse": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 1.5124999918043613,
+      "error": ""
+    },
+    "opensearch": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 3.6151999956928194,
+      "body": {
+        "cluster_name": "docker-cluster",
+        "status": "green",
+        "timed_out": false,
+        "number_of_nodes": 1,
+        "number_of_data_nodes": 1,
+        "discovered_master": true,
+        "discovered_cluster_manager": true,
+        "active_primary_shards": 3,
+        "active_shards": 3,
+        "relocating_shards": 0,
+        "initializing_shards": 0,
+        "unassigned_shards": 0,
+        "delayed_unassigned_shards": 0,
+        "number_of_pending_tasks": 0,
+        "number_of_in_flight_fetch": 0,
+        "task_max_waiting_in_queue_millis": 0,
+        "active_shards_percent_as_number": 100.0
+      },
+      "error": ""
+    },
+    "qdrant": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 1.268000021809712,
+      "body": {
+        "title": "qdrant - vector search engine",
+        "version": "1.12.1",
+        "commit": "9c20e9e27960228019b4606f137ca82b42fc3e66"
+      },
+      "error": ""
+    }
+  },
+  "streams": {
+    "telemetry.raw": {
+      "produced": 0,
+      "failed": 2
+    },
+    "telemetry.normalized": {
+      "produced": 0,
+      "failed": 2
+    }
+  },
+  "storage": {
+    "clickhouse_schema": {
+      "ok": true,
+      "statuses": [
+        200,
+        200,
+        200,
+        200
+      ],
+      "errors": []
+    },
+    "clickhouse_raw": {
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 11.106999998446554,
+      "body": "",
+      "error": ""
+    },
+    "clickhouse_normalized": {
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 14.713600015966222,
+      "body": "",
+      "error": ""
+    },
+    "opensearch_template": {
+      "ok": true,
+      "status": 200,
+      "error": "{\"acknowledged\":true}"
+    },
+    "opensearch_index": {
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 224.8451999912504,
+      "body": "{\"took\":235,\"errors\":false,\"items\":[{\"index\":{\"_index\":\"xdr-telemetry\",\"_id\":\"1b01a837f61be3f2aff61f33fa92c314eac24866\",\"_version\":1,\"result\":\"created\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":0,\"_primary_term\":1,\"status\":201}},{\"index\":{\"_index\":\"xdr-telemetry\",\"_id\":\"9fab20b53f6400203dc8dfabaa63e38a12496ffc\",\"_version\":1,\"result\":\"created\",\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0},\"_seq_no\":1,\"_primary_term\":1,\"status\":201}}]}",
+      "error": ""
+    },
+    "qdrant_collection": {
+      "ok": true,
+      "status": 200,
+      "error": "{\"result\":true,\"status\":\"ok\",\"time\":0.508468359}"
+    },
+    "qdrant_upsert": {
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 13.66930000949651,
+      "body": "{\"result\":{\"operation_id\":0,\"status\":\"acknowledged\"},\"status\":\"ok\",\"time\":0.003282332}",
+      "error": ""
+    },
+    "qdrant_search": {
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 14.756999997189268,
+      "body": "{\"result\":[],\"status\":\"ok\",\"time\":0.003822622}",
+      "error": ""
+    }
+  },
+  "metrics": {
+    "end_to_end_latency_ms": 63919.38,
+    "ingestion_throughput_eps": 0.03,
+    "storage_success_count": 8,
+    "stream_success": false,
+    "replay_stability": 1.0
+  },
+  "dashboard_visibility": {
+    "metrics_api": "/soc/api/metrics",
+    "soc_dashboard": "/soc"
+  }
+}

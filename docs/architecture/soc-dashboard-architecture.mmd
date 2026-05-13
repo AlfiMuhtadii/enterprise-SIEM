@@ -1,0 +1,13 @@
+flowchart LR
+  Browser[SOC Analyst Browser] --> Routes[Authenticated SOC Routes]
+  Routes --> RBAC[RBAC Middleware]
+  RBAC --> Controllers[SOC Controllers]
+  Controllers --> Incidents[(security_incidents)]
+  Controllers --> Alerts[(security_alerts)]
+  Controllers --> Telemetry[(telemetry_events)]
+  Controllers --> Audit[(security_audit_trails)]
+  Controllers --> Metrics[Ops Metrics]
+  Metrics --> Browser
+  Incidents --> Browser
+  Alerts --> Browser
+  Audit --> Browser

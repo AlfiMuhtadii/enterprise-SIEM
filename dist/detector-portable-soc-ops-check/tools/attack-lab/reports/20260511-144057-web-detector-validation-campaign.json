@@ -1,0 +1,49 @@
+{
+  "campaign_id": "20260511-144020-web-detector-validation",
+  "campaign": "web-detector-validation",
+  "target": "http://127.0.0.1:8000",
+  "total_requests": 169,
+  "failed_requests": 0,
+  "duration_ms": 36346,
+  "state_file": "D:\\project\\Detector\\tools\\attack-lab\\state\\20260511-144020-web-detector-validation.json",
+  "steps": [
+    {
+      "id": "baseline",
+      "type": "profile",
+      "status": "completed",
+      "scenario": "real-source-local",
+      "total_requests": 33,
+      "failed_requests": 0,
+      "duration_ms": 4342
+    },
+    {
+      "id": "full-web-chain",
+      "type": "profile",
+      "status": "completed",
+      "scenario": "laravel-basic",
+      "total_requests": 114,
+      "failed_requests": 0,
+      "duration_ms": 25208
+    },
+    {
+      "id": "crawl-after-chain",
+      "type": "crawl",
+      "status": "completed",
+      "scenario": "crawl",
+      "total_requests": 2,
+      "failed_requests": 0,
+      "duration_ms": 432
+    },
+    {
+      "id": "injection-focus",
+      "type": "profile",
+      "status": "completed",
+      "scenario": "injection-focused",
+      "total_requests": 20,
+      "failed_requests": 0,
+      "duration_ms": 2871
+    }
+  ],
+  "alert_report": "=== Ingest JSONL ===\nProcessed: 224\nInserted: 224\nInvalid: 0\nOffset: 389028\n=== Replay Detector ===\nreplayed_events=930\ninvalid_events_dropped=0\nalerts_attempted=1866\nresponses_attempted=1807\n\n=== Alert Report ===\nWindow: last 15 minutes\n\nAlert summary:\n+---------------------+-------+\n| alert_type          | total |\n+---------------------+-------+\n| ANOMALY_BEHAVIOR    | 14    |\n| ML_SCAN             | 12    |\n| ML_BRUTEFORCE       | 12    |\n| SCAN_BURST          | 6     |\n| CREDENTIAL_STUFFING | 6     |\n| BRUTE_FORCE_IP      | 6     |\n| LOW_AND_SLOW_SCAN   | 3     |\n+---------------------+-------+\n\nLatest alerts:\n+------------------------+---------------------+----------+--------------+--------------------+\n| detected_at            | alert_type          | severity | ip           | score              |\n+------------------------+---------------------+----------+--------------+--------------------+\n| 2026-05-11 14:40:52+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.70 | 0.5042734969809337 |\n| 2026-05-11 14:40:42+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |\n| 2026-05-11 14:40:39+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999974806086 |\n| 2026-05-11 14:40:34+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |\n| 2026-05-11 14:40:32+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.4                |\n| 2026-05-11 14:40:30+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.6837606738724524 |\n| 2026-05-11 14:40:30+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9718785714402446 |\n| 2026-05-11 14:40:26+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9676771004768823 |\n| 2026-05-11 14:40:25+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.6367521275437215 |\n| 2026-05-11 14:40:24+07 | SCAN_BURST          | medium   | 127.0.0.1    | 0.375              |\n| 2026-05-11 14:40:23+07 | LOW_AND_SLOW_SCAN   | medium   | 127.0.0.1    | 0.4                |\n| 2026-05-11 14:40:22+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5042734969809337 |\n| 2026-05-11 14:40:21+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999988267805 |\n| 2026-05-11 14:33:30+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.8                |\n| 2026-05-11 14:33:30+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.45               |\n| 2026-05-11 14:33:30+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 1                  |\n| 2026-05-11 14:33:23+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |\n| 2026-05-11 14:33:23+07 | LOW_AND_SLOW_SCAN   | medium   | 203.0.113.50 | 0.4                |\n| 2026-05-11 14:33:21+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999905692324 |\n| 2026-05-11 14:33:16+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |\n+------------------------+---------------------+----------+--------------+--------------------+",
+  "report_file": ""
+}

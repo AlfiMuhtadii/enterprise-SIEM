@@ -1,0 +1,923 @@
+{
+  "scenario": "laravel-basic",
+  "target": "http://127.0.0.1:8000",
+  "total_requests": 114,
+  "failed_requests": 0,
+  "duration_ms": 31960,
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/",
+      "status": 200,
+      "elapsed_ms": 1889,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 254,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=library",
+      "status": 200,
+      "elapsed_ms": 134,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=dashboard",
+      "status": 200,
+      "elapsed_ms": 103,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=book+catalog",
+      "status": 200,
+      "elapsed_ms": 115,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/",
+      "status": 200,
+      "elapsed_ms": 103,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 122,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=library",
+      "status": 200,
+      "elapsed_ms": 98,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 1086,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 522,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 509,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 502,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 478,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 496,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 511,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 493,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 501,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 484,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 511,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 502,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 480,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 510,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 492,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 617,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 512,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 586,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 630,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 496,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 548,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 559,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 500,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/login",
+      "status": 200,
+      "elapsed_ms": 473,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.env",
+      "status": 404,
+      "elapsed_ms": 188,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/wp-admin",
+      "status": 404,
+      "elapsed_ms": 119,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/phpMyAdmin",
+      "status": 404,
+      "elapsed_ms": 100,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/vendor",
+      "status": 404,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/server-status",
+      "status": 404,
+      "elapsed_ms": 111,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/backup.zip",
+      "status": 404,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin.php",
+      "status": 404,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/config.php",
+      "status": 404,
+      "elapsed_ms": 110,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.git/config",
+      "status": 404,
+      "elapsed_ms": 118,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/.env",
+      "status": 404,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/storage/logs/laravel.log",
+      "status": 404,
+      "elapsed_ms": 167,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/scan/path-11",
+      "status": 404,
+      "elapsed_ms": 105,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.env",
+      "status": 404,
+      "elapsed_ms": 97,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/wp-admin",
+      "status": 404,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/phpMyAdmin",
+      "status": 404,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/vendor",
+      "status": 404,
+      "elapsed_ms": 112,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/server-status",
+      "status": 404,
+      "elapsed_ms": 93,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/backup.zip",
+      "status": 404,
+      "elapsed_ms": 96,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin.php",
+      "status": 404,
+      "elapsed_ms": 96,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/config.php",
+      "status": 404,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.git/config",
+      "status": 404,
+      "elapsed_ms": 105,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/.env",
+      "status": 404,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/storage/logs/laravel.log",
+      "status": 404,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/scan/path-23",
+      "status": 404,
+      "elapsed_ms": 119,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.env",
+      "status": 404,
+      "elapsed_ms": 125,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/wp-admin",
+      "status": 404,
+      "elapsed_ms": 118,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/phpMyAdmin",
+      "status": 404,
+      "elapsed_ms": 126,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/vendor",
+      "status": 404,
+      "elapsed_ms": 111,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/server-status",
+      "status": 404,
+      "elapsed_ms": 133,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/backup.zip",
+      "status": 404,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin.php",
+      "status": 404,
+      "elapsed_ms": 113,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/config.php",
+      "status": 404,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/.git/config",
+      "status": 404,
+      "elapsed_ms": 106,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/.env",
+      "status": 404,
+      "elapsed_ms": 97,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/storage/logs/laravel.log",
+      "status": 404,
+      "elapsed_ms": 96,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/scan/path-35",
+      "status": 404,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%27+OR+1%3D1--",
+      "status": 200,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=1+UNION+SELECT+email%2Cpassword+FROM+users",
+      "status": 200,
+      "elapsed_ms": 92,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=admin%27+AND+SLEEP%281%29--",
+      "status": 200,
+      "elapsed_ms": 96,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%22+OR+%221%22%3D%221",
+      "status": 200,
+      "elapsed_ms": 109,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=1%3B+DROP+TABLE+users--",
+      "status": 200,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E",
+      "status": 200,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=javascript%3Aalert%281%29",
+      "status": 200,
+      "elapsed_ms": 113,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%22%3E%3Cimg+src%3Dx+onerror%3Dalert%281%29%3E",
+      "status": 200,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%3Csvg+onload%3Dalert%281%29%3E",
+      "status": 200,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=%3Cbody+onload%3Dalert%281%29%3E",
+      "status": 200,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin",
+      "status": 200,
+      "elapsed_ms": 252,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin",
+      "status": 200,
+      "elapsed_ms": 289,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin",
+      "status": 200,
+      "elapsed_ms": 207,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/admin",
+      "status": 200,
+      "elapsed_ms": 239,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-0-6678",
+      "status": 200,
+      "elapsed_ms": 109,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-1-7815",
+      "status": 200,
+      "elapsed_ms": 92,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-2-2356",
+      "status": 200,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=loan-3-5585",
+      "status": 200,
+      "elapsed_ms": 104,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=member-4-8870",
+      "status": 200,
+      "elapsed_ms": 118,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=catalog-5-4762",
+      "status": 200,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-6-1202",
+      "status": 200,
+      "elapsed_ms": 113,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=loan-7-4277",
+      "status": 200,
+      "elapsed_ms": 103,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-8-1886",
+      "status": 200,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-9-6280",
+      "status": 200,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-10-8968",
+      "status": 200,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-11-4800",
+      "status": 200,
+      "elapsed_ms": 97,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=catalog-12-6959",
+      "status": 200,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=member-13-7292",
+      "status": 200,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=catalog-14-5669",
+      "status": 200,
+      "elapsed_ms": 121,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-15-4825",
+      "status": 200,
+      "elapsed_ms": 93,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-16-7004",
+      "status": 200,
+      "elapsed_ms": 93,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-17-8060",
+      "status": 200,
+      "elapsed_ms": 95,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=loan-18-5788",
+      "status": 200,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-19-3153",
+      "status": 200,
+      "elapsed_ms": 94,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-20-7761",
+      "status": 200,
+      "elapsed_ms": 110,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=report-21-6977",
+      "status": 200,
+      "elapsed_ms": 104,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-22-8183",
+      "status": 200,
+      "elapsed_ms": 114,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=loan-23-5053",
+      "status": 200,
+      "elapsed_ms": 105,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=loan-24-7686",
+      "status": 200,
+      "elapsed_ms": 96,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=faculty-25-7183",
+      "status": 200,
+      "elapsed_ms": 117,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-26-7659",
+      "status": 200,
+      "elapsed_ms": 116,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=archive-27-6314",
+      "status": 200,
+      "elapsed_ms": 115,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=journal-28-4865",
+      "status": 200,
+      "elapsed_ms": 92,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=member-29-3962",
+      "status": 200,
+      "elapsed_ms": 92,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=isbn-30-5176",
+      "status": 200,
+      "elapsed_ms": 115,
+      "ok": true,
+      "error": ""
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/search?q=faculty-31-7201",
+      "status": 200,
+      "elapsed_ms": 104,
+      "ok": true,
+      "error": ""
+    }
+  ],
+  "alert_report": "=== Ingest JSONL ===\nProcessed: 167\nInserted: 167\nInvalid: 0\nOffset: 294401\n=== Replay Detector ===\nreplayed_events=706\ninvalid_events_dropped=0\nalerts_attempted=1427\nresponses_attempted=1376\n\n=== Alert Report ===\nWindow: last 15 minutes\n\nAlert summary:\n+---------------------+-------+\n| alert_type          | total |\n+---------------------+-------+\n| ML_SCAN             | 10    |\n| ANOMALY_BEHAVIOR    | 10    |\n| ML_BRUTEFORCE       | 10    |\n| CREDENTIAL_STUFFING | 5     |\n| BRUTE_FORCE_IP      | 5     |\n| SCAN_BURST          | 4     |\n| LOW_AND_SLOW_SCAN   | 2     |\n+---------------------+-------+\n\nLatest alerts:\n+------------------------+---------------------+----------+--------------+--------------------+\n| detected_at            | alert_type          | severity | ip           | score              |\n+------------------------+---------------------+----------+--------------+--------------------+\n| 2026-05-11 14:33:30+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.45               |\n| 2026-05-11 14:33:30+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 1                  |\n| 2026-05-11 14:33:30+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.8                |\n| 2026-05-11 14:33:23+07 | LOW_AND_SLOW_SCAN   | medium   | 203.0.113.50 | 0.4                |\n| 2026-05-11 14:33:23+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |\n| 2026-05-11 14:33:21+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999905692324 |\n| 2026-05-11 14:33:16+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |\n| 2026-05-11 14:33:14+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.4                |\n| 2026-05-11 14:33:08+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.5128205054043394 |\n| 2026-05-11 14:33:08+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9999978613950931 |\n| 2026-05-11 14:18:45+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.70 | 0.5042734969809337 |\n| 2026-05-11 14:10:47+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5256410180394478 |\n| 2026-05-11 14:10:47+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999412814576 |\n| 2026-05-11 14:10:34+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |\n| 2026-05-11 14:10:32+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999980710521 |\n| 2026-05-11 14:10:30+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9754891451374547 |\n| 2026-05-11 14:10:30+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.85               |\n| 2026-05-11 14:10:30+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.5666666666666667 |\n| 2026-05-11 14:10:29+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |\n| 2026-05-11 14:10:27+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.4                |\n+------------------------+---------------------+----------+--------------+--------------------+",
+  "report_file": ""
+}

@@ -1,0 +1,24 @@
+{
+  "name": "injection-focused",
+  "description": "Focused SQLi/XSS indicator test against search endpoint.",
+  "defaults": {
+    "base_url": "http://127.0.0.1:8000",
+    "count": 20,
+    "sleep_ms": 30,
+    "source_ip": "203.0.113.70",
+    "spoof_ip": true
+  },
+  "steps": [
+    {
+      "name": "search-sqli-xss",
+      "type": "injection",
+      "count": 20,
+      "path": "/search",
+      "param": "q",
+      "payload_files": [
+        "payloads/sqli.txt",
+        "payloads/xss.txt"
+      ]
+    }
+  ]
+}

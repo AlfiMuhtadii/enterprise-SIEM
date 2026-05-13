@@ -1,0 +1,9 @@
+flowchart LR
+  Incident[Critical Incident / SLA Breach] --> Policy[Notification Policy]
+  Policy --> Slack[Slack]
+  Policy --> Discord[Discord]
+  Policy --> Webhook[Generic Webhook]
+  Slack --> Logs[(notification_delivery_logs)]
+  Discord --> Logs
+  Webhook --> Logs
+  Logs --> Metrics[/Operational Metrics API/]

@@ -1,0 +1,13 @@
+method,class,precision,recall,f1,support
+rules_only,normal,0.020408,1.0,0.04,1
+rules_only,bruteforce,1.0,0.382979,0.553846,47
+rules_only,scan,1.0,0.461538,0.631579,39
+rules_only,injection,0.8,1.0,0.888889,8
+ml_only,normal,0.5,1.0,0.666667,1
+ml_only,bruteforce,1.0,0.978723,0.989247,47
+ml_only,scan,0.904762,0.974359,0.938272,39
+ml_only,injection,0.8,0.5,0.615385,8
+hybrid,normal,0.5,1.0,0.666667,1
+hybrid,bruteforce,1.0,0.978723,0.989247,47
+hybrid,scan,1.0,0.948718,0.973684,39
+hybrid,injection,0.8,1.0,0.888889,8

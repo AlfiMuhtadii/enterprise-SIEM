@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-05-11T09:01:02.948879+00:00",
+  "summary": {
+    "tp": 1,
+    "fp": 0,
+    "tn": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "avg_detection_latency_sec": null
+  },
+  "alert_distribution": {
+    "ML_BRUTEFORCE": 14,
+    "ML_SCAN": 14,
+    "ANOMALY_BEHAVIOR": 18,
+    "BRUTE_FORCE_IP": 7,
+    "CREDENTIAL_STUFFING": 7,
+    "LOW_AND_SLOW_SCAN": 3,
+    "SCAN_BURST": 8,
+    "ML_INJECTION": 1,
+    "EXPLOIT_CHAIN_SUSPECTED": 1,
+    "SANDBOX_EVASION_INDICATOR": 14,
+    "PERSISTENCE_INDICATOR": 15,
+    "ATTACK_PHASE_PROGRESSION": 62,
+    "LATERAL_MOVEMENT_SUSPECTED": 16,
+    "INTERNAL_RECON_SUSPECTED": 2,
+    "C2_DNS_BEACON_PATTERN": 24
+  },
+  "coverage_by_mitre": {
+    "T1053": 1,
+    "T1071.004": 1,
+    "T1021": 1,
+    "T1595": 1,
+    "T1046": 1,
+    "TA0000": 1,
+    "T1497": 1,
+    "T1190": 1
+  },
+  "windows": [
+    {
+      "id": "advanced-telemetry-recent",
+      "is_attack": true,
+      "status": "TP",
+      "observed_alert_types": [
+        "ANOMALY_BEHAVIOR",
+        "ATTACK_PHASE_PROGRESSION",
+        "BRUTE_FORCE_IP",
+        "C2_DNS_BEACON_PATTERN",
+        "CREDENTIAL_STUFFING",
+        "EXPLOIT_CHAIN_SUSPECTED",
+        "INTERNAL_RECON_SUSPECTED",
+        "LATERAL_MOVEMENT_SUSPECTED",
+        "LOW_AND_SLOW_SCAN",
+        "ML_BRUTEFORCE",
+        "ML_INJECTION",
+        "ML_SCAN",
+        "PERSISTENCE_INDICATOR",
+        "SANDBOX_EVASION_INDICATOR",
+        "SCAN_BURST"
+      ],
+      "observed_mitre": [
+        "T1021",
+        "T1046",
+        "T1053",
+        "T1071.004",
+        "T1190",
+        "T1497",
+        "T1595",
+        "TA0000"
+      ]
+    }
+  ]
+}

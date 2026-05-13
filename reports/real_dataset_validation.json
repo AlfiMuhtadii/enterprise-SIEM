@@ -1,0 +1,120 @@
+{
+  "manifest": "D:\\project\\Detector\\storage\\app\\real_dataset_manifest.json",
+  "normalized_files": [
+    "storage/logs/normalized_sysmon_sample.jsonl"
+  ],
+  "runs": [
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/telemetry_adapters.py",
+        "--adapter",
+        "sysmon-json",
+        "--input",
+        "storage/tmp/sysmon_sample.jsonl",
+        "--output",
+        "storage/logs/normalized_sysmon_sample.jsonl"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.11970806121826172,
+      "stdout": "adapter=sysmon-json\nnormalized=1\noutput=storage\\logs\\normalized_sysmon_sample.jsonl\n",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/telemetry_event_contract.py",
+        "--file",
+        "storage/logs/normalized_sysmon_sample.jsonl"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.07668948173522949,
+      "stdout": "Total: 1\nValid: 1\nInvalid: 0\n",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/ingest_telemetry_events.py",
+        "--file",
+        "storage/logs/normalized_sysmon_sample.jsonl",
+        "--from-start"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.2808394432067871,
+      "stdout": "Processed: 1\nInserted(attempted): 1\nInvalid: 0\nInvalidSchema: 0\nOffset: 546\nNote: actual inserted rows are deduped by telemetry event_id ON CONFLICT DO NOTHING.\n",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/telemetry_rule_engine.py",
+        "--minutes",
+        "120"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.31909894943237305,
+      "stdout": "events=82\nrules=6\nalerts_attempted=61\n",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/alert_deduplicator.py",
+        "--minutes",
+        "120"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.3459489345550537,
+      "stdout": "processed=206\nupdated=206\nsuppressed_duplicates=139\n",
+      "stderr": ""
+    },
+    {
+      "cmd": [
+        "C:\\Python314\\python.exe",
+        "scripts/incident_manager.py",
+        "--minutes",
+        "120"
+      ],
+      "returncode": 0,
+      "duration_sec": 0.4238564968109131,
+      "stdout": "incidents_upserted=23\nalerts_linked=67\n",
+      "stderr": ""
+    }
+  ],
+  "coverage": {
+    "cmd": [
+      "C:\\Python314\\python.exe",
+      "scripts/mitre_coverage_matrix.py",
+      "--expectations",
+      "tools/attack-lab/coverage/mitre-advanced-coverage.json",
+      "--minutes",
+      "120"
+    ],
+    "returncode": 0,
+    "duration_sec": 0.2912311553955078,
+    "stdout": "{\n  \"name\": \"mitre-advanced-telemetry-coverage\",\n  \"generated_at\": \"2026-05-11T09:01:02.659354+00:00\",\n  \"summary\": {\n    \"total\": 5,\n    \"passed\": 5,\n    \"failed\": 0,\n    \"pass_rate\": 1.0\n  },\n  \"matrix\": [\n    {\n      \"tactic\": \"Persistence\",\n      \"technique\": \"T1053\",\n      \"name\": \"Scheduled Task/Job\",\n      \"expected\": true,\n      \"status\": \"PASS\",\n      \"detected\": true,\n      \"alert_count\": 15,\n      \"evidence\": [\n        {\n          \"alert_type\": \"PERSISTENCE_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:36:04+07:00\"\n        },\n        {\n          \"alert_type\": \"PERSISTENCE_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:36:04+07:00\"\n        },\n        {\n          \"alert_type\": \"PERSISTENCE_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:36:04+07:00\"\n        },\n        {\n          \"alert_type\": \"PERSISTENCE_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:36:04+07:00\"\n        },\n        {\n          \"alert_type\": \"PERSISTENCE_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:36:04+07:00\"\n        }\n      ]\n    },\n    {\n      \"tactic\": \"Lateral Movement\",\n      \"technique\": \"T1021\",\n      \"name\": \"Remote Services\",\n      \"expected\": true,\n      \"status\": \"PASS\",\n      \"detected\": true,\n      \"alert_count\": 16,\n      \"evidence\": [\n        {\n          \"alert_type\": \"LATERAL_MOVEMENT_SUSPECTED\",\n          \"severity\": \"critical\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        },\n        {\n          \"alert_type\": \"LATERAL_MOVEMENT_SUSPECTED\",\n          \"severity\": \"critical\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        },\n        {\n          \"alert_type\": \"LATERAL_MOVEMENT_SUSPECTED\",\n          \"severity\": \"critical\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        },\n        {\n          \"alert_type\": \"LATERAL_MOVEMENT_SUSPECTED\",\n          \"severity\": \"critical\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        },\n        {\n          \"alert_type\": \"LATERAL_MOVEMENT_SUSPECTED\",\n          \"severity\": \"critical\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        }\n      ]\n    },\n    {\n      \"tactic\": \"Discovery\",\n      \"technique\": \"T1046\",\n      \"name\": \"Network Service Discovery\",\n      \"expected\": true,\n      \"status\": \"PASS\",\n      \"detected\": true,\n      \"alert_count\": 2,\n      \"evidence\": [\n        {\n          \"alert_type\": \"INTERNAL_RECON_SUSPECTED\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 15:36:45+07:00\"\n        },\n        {\n          \"alert_type\": \"INTERNAL_RECON_SUSPECTED\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 14:56:28+07:00\"\n        }\n      ]\n    },\n    {\n      \"tactic\": \"Defense Evasion\",\n      \"technique\": \"T1497\",\n      \"name\": \"Virtualization/Sandbox Evasion\",\n      \"expected\": true,\n      \"status\": \"PASS\",\n      \"detected\": true,\n      \"alert_count\": 14,\n      \"evidence\": [\n        {\n          \"alert_type\": \"SANDBOX_EVASION_INDICATOR\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:35:49+07:00\"\n        },\n        {\n          \"alert_type\": \"SANDBOX_EVASION_INDICATOR\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 15:35:49+07:00\"\n        },\n        {\n          \"alert_type\": \"SANDBOX_EVASION_INDICATOR\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 15:35:49+07:00\"\n        },\n        {\n          \"alert_type\": \"SANDBOX_EVASION_INDICATOR\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 15:35:49+07:00\"\n        },\n        {\n          \"alert_type\": \"SANDBOX_EVASION_INDICATOR\",\n          \"severity\": \"medium\",\n          \"detected_at\": \"2026-05-11 15:35:49+07:00\"\n        }\n      ]\n    },\n    {\n      \"tactic\": \"Command and Control\",\n      \"technique\": \"T1071.004\",\n      \"name\": \"DNS\",\n      \"expected\": true,\n      \"status\": \"PASS\",\n      \"detected\": true,\n      \"alert_count\": 24,\n      \"evidence\": [\n        {\n          \"alert_type\": \"C2_DNS_BEACON_PATTERN\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:37:03+07:00\"\n        },\n        {\n          \"alert_type\": \"C2_DNS_BEACON_PATTERN\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:37:03+07:00\"\n        },\n        {\n          \"alert_type\": \"C2_DNS_BEACON_PATTERN\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:37:03+07:00\"\n        },\n        {\n          \"alert_type\": \"C2_DNS_BEACON_PATTERN\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:37:03+07:00\"\n        },\n        {\n          \"alert_type\": \"C2_DNS_BEACON_PATTERN\",\n          \"severity\": \"high\",\n          \"detected_at\": \"2026-05-11 15:37:03+07:00\"\n        }\n      ]\n    }\n  ]\n}\n",
+    "stderr": ""
+  },
+  "benchmark": {
+    "cmd": [
+      "C:\\Python314\\python.exe",
+      "scripts/detection_benchmark.py",
+      "--labels",
+      "tools/attack-lab/coverage/telemetry-benchmark-labels.json",
+      "--minutes",
+      "120"
+    ],
+    "returncode": 0,
+    "duration_sec": 0.29273319244384766,
+    "stdout": "{\n  \"tp\": 1,\n  \"fp\": 0,\n  \"tn\": 0,\n  \"fn\": 0,\n  \"precision\": 1.0,\n  \"recall\": 1.0,\n  \"false_positive_rate\": 0.0,\n  \"false_negative_rate\": 0.0,\n  \"avg_detection_latency_sec\": null\n}\noutput=D:\\project\\Detector\\reports\\detection_benchmark.json\n",
+    "stderr": ""
+  },
+  "replay_stability": {
+    "first_returncode": 0,
+    "second_returncode": 0,
+    "stable_stdout": true,
+    "first_stdout": "events=82\nrules=6\nalerts_attempted=61\ndry_run=1\n",
+    "second_stdout": "events=82\nrules=6\nalerts_attempted=61\ndry_run=1\n"
+  }
+}

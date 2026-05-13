@@ -1,0 +1,4 @@
+#separator \x09
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	query	qtype_name	rcode_name	answers
+1778540601.000000	Ddemo1	10.0.8.77	53000	8.8.8.8	53	udp	c2-demo.example	A	NOERROR	198.51.100.88
+1778540661.000000	Ddemo2	10.0.8.77	53001	8.8.8.8	53	udp	c2-demo.example	A	NOERROR	198.51.100.88

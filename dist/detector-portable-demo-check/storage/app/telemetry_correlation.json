@@ -1,0 +1,10 @@
+{
+  "lateral_window_seconds": 300,
+  "lateral_min_internal_hosts": 3,
+  "internal_recon_window_seconds": 300,
+  "internal_recon_min_dst_ips": 10,
+  "internal_recon_min_dst_ports": 8,
+  "dns_beacon_window_seconds": 600,
+  "dns_beacon_min_hits": 6,
+  "dns_beacon_max_interval_cv": 0.35
+}

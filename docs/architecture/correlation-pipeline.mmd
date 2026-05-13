@@ -1,0 +1,10 @@
+flowchart TD
+  T[(telemetry_events)] --> W[Sliding Time Windows]
+  W --> R[Declarative Rule Engine]
+  W --> A[Anomaly / ML Detector]
+  R --> C[Confidence Scoring]
+  A --> C
+  C --> E[Evidence Chain Builder]
+  E --> D[Alert Deduplication]
+  D --> I[Incident Correlation]
+  I --> Q[Quality Metrics / Benchmarking]

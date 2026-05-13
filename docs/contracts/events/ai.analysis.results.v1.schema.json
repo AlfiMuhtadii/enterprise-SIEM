@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai.analysis.results.v1",
+  "title": "Topic ai.analysis.results v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "ai.analysis.resulted" },
+    "payload": {
+      "type": "object",
+      "required": ["incident_id", "provider", "confidence", "summary"],
+      "properties": {
+        "incident_id": { "type": "string" },
+        "provider": { "type": "string" },
+        "model": { "type": ["string", "null"] },
+        "confidence": { "type": ["string", "number"] },
+        "summary": { "type": "string" },
+        "recommended_steps": { "type": "array" },
+        "citations": { "type": "array" },
+        "safety": { "type": "object" }
+      }
+    }
+  }
+}

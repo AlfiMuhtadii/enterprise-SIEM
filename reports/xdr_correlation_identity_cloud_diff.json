@@ -1,0 +1,117 @@
+{
+  "validation_status": "CUTOVER_READY",
+  "mode": "shadow",
+  "source_of_truth": "python_laravel",
+  "scope": "identity-cloud",
+  "events": 19070,
+  "runs": 5,
+  "python_laravel_correlation": {
+    "latency_ms": 200.342,
+    "throughput_eps": 95187.28,
+    "alert_count": 1559,
+    "p95_latency_ms": 239.012,
+    "avg_throughput_eps": 92263.96
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 192.941,
+    "worker_latency_ms": 184,
+    "throughput_eps": 98838.25,
+    "alert_count": 1559,
+    "p95_latency_ms": 209.621,
+    "worker_p95_latency_ms": 199.0,
+    "avg_throughput_eps": 95805.74
+  },
+  "comparison": {
+    "alert_count_delta": 0,
+    "alert_type_match_rate": 1.0,
+    "evidence_match_rate": 1.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120
+    },
+    "go": {
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690
+    },
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 120,
+        "go": 120,
+        "delta": 0
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 217,
+        "go": 217,
+        "delta": 0
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 116,
+        "go": 116,
+        "delta": 0
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 416,
+        "go": 416,
+        "delta": 0
+      },
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": {
+        "python": 690,
+        "go": 690,
+        "delta": 0
+      }
+    }
+  },
+  "diff": {
+    "missing_in_go_count": 0,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "cutover_plan": [
+    "Keep Python/Laravel as source of truth.",
+    "Run Go shadow for identity/cloud only until alert type/evidence match is stable.",
+    "Expand shadow to endpoint/DNS/proxy after identity/cloud stability.",
+    "Move incident creation last after duplicate and evidence parity are acceptable."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "alerts": 15630,
+      "goroutines": 3,
+      "heap_alloc_mb": 29.274734497070312,
+      "last_latency_ms": 184,
+      "processed": 345485
+    }
+  },
+  "cutover_gate": {
+    "passed": true,
+    "alert_count_delta_ratio": 0.0,
+    "gates": {
+      "alert_type_match_rate_gt_0_95": true,
+      "alert_count_delta_lt_0_02": true,
+      "evidence_match_gt_0_98": true,
+      "go_p95_latency_lt_300ms": true,
+      "duplicate_rate_zero": true
+    }
+  }
+}

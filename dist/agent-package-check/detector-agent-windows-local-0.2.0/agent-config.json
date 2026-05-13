@@ -1,0 +1,10 @@
+{
+  "platform": "windows",
+  "environment": "local",
+  "server_url": "http://127.0.0.1:8000",
+  "enrollment_token": "demo-token",
+  "version": "0.2.0",
+  "default_interval_seconds": 60,
+  "stream_mode": true,
+  "generated_at": "2026-05-11T22:15:09Z"
+}

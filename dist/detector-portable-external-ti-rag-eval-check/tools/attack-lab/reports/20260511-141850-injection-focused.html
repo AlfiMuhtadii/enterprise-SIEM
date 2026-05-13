@@ -1,0 +1,80 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Attack Lab Report</title>
+<style>body{font-family:Arial,sans-serif;margin:32px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px}pre{background:#111;color:#eee;padding:12px;white-space:pre-wrap}</style>
+</head><body>
+<h1>Attack Lab Report</h1>
+<p><b>Scenario:</b> injection-focused</p>
+<p><b>Target:</b> http://127.0.0.1:8000</p>
+<p><b>Requests:</b> 20 | <b>Failed:</b> 0 | <b>Duration:</b> 5589 ms</p>
+<h2>Requests</h2><table><thead><tr><th>Method</th><th>Status</th><th>Time</th><th>URL</th><th>Error</th></tr></thead><tbody><tr><td>GET</td><td>200</td><td>123 ms</td><td>http://127.0.0.1:8000/search?q=%27+OR+1%3D1--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>117 ms</td><td>http://127.0.0.1:8000/search?q=1+UNION+SELECT+email%2Cpassword+FROM+users</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>93 ms</td><td>http://127.0.0.1:8000/search?q=admin%27+AND+SLEEP%281%29--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>111 ms</td><td>http://127.0.0.1:8000/search?q=%22+OR+%221%22%3D%221</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>93 ms</td><td>http://127.0.0.1:8000/search?q=1%3B+DROP+TABLE+users--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>110 ms</td><td>http://127.0.0.1:8000/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>110 ms</td><td>http://127.0.0.1:8000/search?q=javascript%3Aalert%281%29</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>95 ms</td><td>http://127.0.0.1:8000/search?q=%22%3E%3Cimg+src%3Dx+onerror%3Dalert%281%29%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>109 ms</td><td>http://127.0.0.1:8000/search?q=%3Csvg+onload%3Dalert%281%29%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>111 ms</td><td>http://127.0.0.1:8000/search?q=%3Cbody+onload%3Dalert%281%29%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>114 ms</td><td>http://127.0.0.1:8000/search?q=%27+OR+1%3D1--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>106 ms</td><td>http://127.0.0.1:8000/search?q=1+UNION+SELECT+email%2Cpassword+FROM+users</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>92 ms</td><td>http://127.0.0.1:8000/search?q=admin%27+AND+SLEEP%281%29--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>111 ms</td><td>http://127.0.0.1:8000/search?q=%22+OR+%221%22%3D%221</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>94 ms</td><td>http://127.0.0.1:8000/search?q=1%3B+DROP+TABLE+users--</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>115 ms</td><td>http://127.0.0.1:8000/search?q=%3Cscript%3Ealert%281%29%3C%2Fscript%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>93 ms</td><td>http://127.0.0.1:8000/search?q=javascript%3Aalert%281%29</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>107 ms</td><td>http://127.0.0.1:8000/search?q=%22%3E%3Cimg+src%3Dx+onerror%3Dalert%281%29%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>98 ms</td><td>http://127.0.0.1:8000/search?q=%3Csvg+onload%3Dalert%281%29%3E</td><td></td></tr>
+<tr><td>GET</td><td>200</td><td>108 ms</td><td>http://127.0.0.1:8000/search?q=%3Cbody+onload%3Dalert%281%29%3E</td><td></td></tr></tbody></table>
+<h2>Detector Alert Report</h2><pre>=== Ingest JSONL ===
+Processed: 159
+Inserted: 159
+Invalid: 0
+Offset: 224394
+=== Replay Detector ===
+replayed_events=539
+invalid_events_dropped=0
+alerts_attempted=993
+responses_attempted=993
+
+=== Alert Report ===
+Window: last 15 minutes
+
+Alert summary:
++---------------------+-------+
+| alert_type          | total |
++---------------------+-------+
+| ANOMALY_BEHAVIOR    | 9     |
+| ML_SCAN             | 9     |
+| ML_BRUTEFORCE       | 9     |
+| CREDENTIAL_STUFFING | 3     |
+| BRUTE_FORCE_IP      | 3     |
+| SCAN_BURST          | 2     |
++---------------------+-------+
+
+Latest alerts:
++------------------------+---------------------+----------+--------------+--------------------+
+| detected_at            | alert_type          | severity | ip           | score              |
++------------------------+---------------------+----------+--------------+--------------------+
+| 2026-05-11 14:18:45+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.70 | 0.5042734969809337 |
+| 2026-05-11 14:10:47+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5256410180394478 |
+| 2026-05-11 14:10:47+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999412814576 |
+| 2026-05-11 14:10:34+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |
+| 2026-05-11 14:10:32+07 | ML_SCAN             | medium   | 203.0.113.50 | 0.9999999980710521 |
+| 2026-05-11 14:10:30+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9754891451374547 |
+| 2026-05-11 14:10:30+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.85               |
+| 2026-05-11 14:10:30+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.5666666666666667 |
+| 2026-05-11 14:10:29+07 | CREDENTIAL_STUFFING | high     | 203.0.113.50 | 0.75               |
+| 2026-05-11 14:10:27+07 | BRUTE_FORCE_IP      | high     | 203.0.113.50 | 0.4                |
+| 2026-05-11 14:10:21+07 | ML_BRUTEFORCE       | medium   | 203.0.113.50 | 0.9942352054485926 |
+| 2026-05-11 14:10:20+07 | ANOMALY_BEHAVIOR    | medium   | 203.0.113.50 | 0.5042734969809337 |
+| 2026-05-11 14:10:06+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5085470011926366 |
+| 2026-05-11 14:10:06+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999381712568 |
+| 2026-05-11 14:07:47+07 | ANOMALY_BEHAVIOR    | high     | 203.0.113.50 | 1                  |
+| 2026-05-11 14:06:25+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999572663145 |
+| 2026-05-11 14:06:24+07 | ML_BRUTEFORCE       | medium   | 127.0.0.1    | 0.9999999999578535 |
+| 2026-05-11 14:05:56+07 | ML_SCAN             | medium   | 127.0.0.1    | 0.9999999591016876 |
+| 2026-05-11 14:05:56+07 | ANOMALY_BEHAVIOR    | medium   | 127.0.0.1    | 0.5085470011926366 |
+| 2026-05-11 14:05:38+07 | SCAN_BURST          | medium   | 203.0.113.50 | 0.375              |
++------------------------+---------------------+----------+--------------+--------------------+</pre>
+</body></html>

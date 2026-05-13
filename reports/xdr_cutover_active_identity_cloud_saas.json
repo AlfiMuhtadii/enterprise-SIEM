@@ -1,0 +1,240 @@
+{
+  "validation_status": "CUTOVER_READY",
+  "mode": "go",
+  "effective_engine": "go",
+  "fallback_active": false,
+  "fallback_reason": null,
+  "source_of_truth": "go",
+  "comparison_engine": "legacy_shadow",
+  "scope": "identity-cloud",
+  "events": 19070,
+  "runs": 5,
+  "python_laravel_correlation": {
+    "latency_ms": 203.139,
+    "throughput_eps": 93876.42,
+    "alert_count": 1559,
+    "p95_latency_ms": 206.778,
+    "avg_throughput_eps": 96331.73,
+    "runs": [
+      {
+        "latency_ms": 206.778,
+        "throughput_eps": 92224.56,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 192.801,
+        "throughput_eps": 98910.17,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 194.659,
+        "throughput_eps": 97965.94,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 193.248,
+        "throughput_eps": 98681.54,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 203.139,
+        "throughput_eps": 93876.42,
+        "alert_count": 1559
+      }
+    ]
+  },
+  "go_correlation": {
+    "latency_ms": 193.747,
+    "worker_latency_ms": 186,
+    "throughput_eps": 98427.23,
+    "alert_count": 1559,
+    "p95_latency_ms": 194.069,
+    "worker_p95_latency_ms": 195.0,
+    "avg_throughput_eps": 101636.7,
+    "runs": [
+      {
+        "latency_ms": 192.067,
+        "worker_latency_ms": 195,
+        "throughput_eps": 99288.22,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 176.689,
+        "worker_latency_ms": 172,
+        "throughput_eps": 107929.81,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 182.883,
+        "worker_latency_ms": 175,
+        "throughput_eps": 104274.43,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 194.069,
+        "worker_latency_ms": 176,
+        "throughput_eps": 98263.82,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 193.747,
+        "worker_latency_ms": 186,
+        "throughput_eps": 98427.23,
+        "alert_count": 1559
+      }
+    ]
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 193.747,
+    "worker_latency_ms": 186,
+    "throughput_eps": 98427.23,
+    "alert_count": 1559,
+    "p95_latency_ms": 194.069,
+    "worker_p95_latency_ms": 195.0,
+    "avg_throughput_eps": 101636.7,
+    "runs": [
+      {
+        "latency_ms": 192.067,
+        "worker_latency_ms": 195,
+        "throughput_eps": 99288.22,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 176.689,
+        "worker_latency_ms": 172,
+        "throughput_eps": 107929.81,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 182.883,
+        "worker_latency_ms": 175,
+        "throughput_eps": 104274.43,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 194.069,
+        "worker_latency_ms": 176,
+        "throughput_eps": 98263.82,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 193.747,
+        "worker_latency_ms": 186,
+        "throughput_eps": 98427.23,
+        "alert_count": 1559
+      }
+    ],
+    "compatibility_alias": true
+  },
+  "comparison": {
+    "alert_count_delta": 0,
+    "alert_type_match_rate": 1.0,
+    "evidence_match_rate": 1.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120
+    },
+    "go": {
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690
+    },
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 120,
+        "go": 120,
+        "delta": 0
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 217,
+        "go": 217,
+        "delta": 0
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 116,
+        "go": 116,
+        "delta": 0
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 416,
+        "go": 416,
+        "delta": 0
+      },
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": {
+        "python": 690,
+        "go": 690,
+        "delta": 0
+      }
+    }
+  },
+  "diff": {
+    "missing_in_go_count": 0,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "cutover_monitoring": {
+    "alert_count_delta": 0,
+    "go_p95_latency_ms": 194.069,
+    "go_error_rate": 0,
+    "go_worker_health": {
+      "healthy": true,
+      "latency_ms": 29.51,
+      "url": "http://127.0.0.1:8093",
+      "body": {
+        "mode": "shadow",
+        "service": "xdr-correlation",
+        "status": "ok"
+      }
+    },
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics",
+    "scope_guard": "endpoint/dns/proxy remain legacy until separate golden, parity, and latency gates pass"
+  },
+  "cutover_plan": [
+    "Default remains shadow.",
+    "Use XDR_CORRELATION_ENGINE=go only for XDR_CORRELATION_SCOPE=identity-cloud.",
+    "Legacy remains shadow comparison when Go is active.",
+    "Fallback to legacy automatically when Go worker is unhealthy and fallback is enabled.",
+    "Endpoint/DNS/proxy require separate golden test, large replay parity, and latency gate before expansion."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "alerts": 15590,
+      "goroutines": 3,
+      "heap_alloc_mb": 18.354148864746094,
+      "last_latency_ms": 186,
+      "processed": 190700
+    }
+  },
+  "cutover_gate": {
+    "passed": true,
+    "alert_count_delta_ratio": 0.0,
+    "gates": {
+      "alert_type_match_rate_gt_0_95": true,
+      "alert_count_delta_lt_0_02": true,
+      "evidence_match_gt_0_98": true,
+      "go_p95_latency_lt_300ms": true,
+      "duplicate_rate_zero": true
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "patterns": [
+    {
+      "name": "admin remote management",
+      "source": "admin_activity",
+      "src_ip": "10.10.1.10",
+      "dst_ports": [22, 3389, 5985],
+      "process_names": ["mstsc.exe", "ssh.exe", "powershell.exe"]
+    },
+    {
+      "name": "backup job",
+      "source": "backup_jobs",
+      "process_names": ["backup-agent.exe"],
+      "dst_ports": [445, 2049]
+    },
+    {
+      "name": "software update DNS",
+      "source": "software_update_behavior",
+      "domains": ["windowsupdate.com", "time.windows.com", "updates.vendor.example"]
+    },
+    {
+      "name": "monitoring system",
+      "source": "monitoring_systems",
+      "src_ip": "10.10.1.30",
+      "dst_ports": [9100, 9090, 161]
+    },
+    {
+      "name": "CI/CD traffic",
+      "source": "ci_cd_traffic",
+      "process_names": ["gitlab-runner.exe", "jenkins-agent.jar", "runner"]
+    }
+  ]
+}

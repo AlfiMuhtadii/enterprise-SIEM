@@ -1,0 +1,44 @@
+{
+  "name": "web-detector-validation",
+  "description": "Stateful campaign for validating detector coverage with normal, credential, scanning, injection, and anomaly phases.",
+  "defaults": {
+    "base_url": "http://127.0.0.1:8000",
+    "source_ip": "203.0.113.80",
+    "sleep_ms": 20,
+    "spoof_ip": true
+  },
+  "coverage_expectations": "tools/attack-lab/coverage/web-basic-coverage.json",
+  "stop_on_step_failure": false,
+  "steps": [
+    {
+      "id": "baseline",
+      "type": "profile",
+      "profile": "profiles/real-source-local.json",
+      "enabled": true
+    },
+    {
+      "id": "full-web-chain",
+      "type": "profile",
+      "profile": "profiles/laravel-basic.json",
+      "enabled": true
+    },
+    {
+      "id": "crawl-after-chain",
+      "type": "crawl",
+      "count": 25,
+      "enabled": true,
+      "when": {
+        "previous_failed_lte": 10
+      }
+    },
+    {
+      "id": "injection-focus",
+      "type": "profile",
+      "profile": "profiles/injection-focused.json",
+      "enabled": true,
+      "when": {
+        "min_total_requests": 50
+      }
+    }
+  ]
+}

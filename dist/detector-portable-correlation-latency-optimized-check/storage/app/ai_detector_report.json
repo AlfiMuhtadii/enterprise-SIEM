@@ -1,0 +1,791 @@
+{
+  "generated_at": "2026-05-09T02:17:44.164090+07:00",
+  "input": "D:\\project\\Detector\\storage\\app\\security_dataset.csv",
+  "model_artifact": "D:\\project\\Detector\\storage\\app\\ai_detector_model.pkl",
+  "predictions_file": "D:\\project\\Detector\\storage\\app\\ai_detector_predictions.csv",
+  "feature_importance_file": "D:\\project\\Detector\\storage\\app\\ai_detector_feature_importance.json",
+  "model_card_file": "D:\\project\\Detector\\storage\\app\\ai_detector_model_card.json",
+  "model_type": "logreg",
+  "split_mode": "run",
+  "train_ratio": 0.7,
+  "decision_thresholds": {
+    "normal": 0.0,
+    "bruteforce": 0.961258,
+    "scan": 0.999224,
+    "injection": 0.5
+  },
+  "samples": {
+    "total": 418,
+    "train": 323,
+    "test": 95,
+    "train_label_distribution": {
+      "normal": 1,
+      "bruteforce": 200,
+      "scan": 121,
+      "injection": 1
+    },
+    "test_label_distribution": {
+      "normal": 1,
+      "bruteforce": 47,
+      "scan": 39,
+      "injection": 8
+    }
+  },
+  "metrics": {
+    "accuracy": 0.873684,
+    "per_class": {
+      "normal": {
+        "precision": 0.125,
+        "recall": 1.0,
+        "f1": 0.222222,
+        "support": 1
+      },
+      "bruteforce": {
+        "precision": 1.0,
+        "recall": 0.893617,
+        "f1": 0.94382,
+        "support": 47
+      },
+      "scan": {
+        "precision": 0.9,
+        "recall": 0.923077,
+        "f1": 0.911392,
+        "support": 39
+      },
+      "injection": {
+        "precision": 0.8,
+        "recall": 0.5,
+        "f1": 0.615385,
+        "support": 8
+      }
+    },
+    "macro_avg_f1": 0.673205,
+    "weighted_avg_f1": 0.895254
+  },
+  "confusion_matrix": {
+    "normal": {
+      "normal": 1,
+      "bruteforce": 0,
+      "scan": 0,
+      "injection": 0
+    },
+    "bruteforce": {
+      "normal": 5,
+      "bruteforce": 42,
+      "scan": 0,
+      "injection": 0
+    },
+    "scan": {
+      "normal": 2,
+      "bruteforce": 0,
+      "scan": 36,
+      "injection": 1
+    },
+    "injection": {
+      "normal": 0,
+      "bruteforce": 0,
+      "scan": 4,
+      "injection": 4
+    }
+  },
+  "detection_latency": {
+    "runs_evaluated": 3,
+    "overall_seconds": {
+      "first_attack_prediction": {
+        "count": 3,
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0.0
+      },
+      "first_correct_class_prediction": {
+        "count": 3,
+        "mean": 0.0,
+        "median": 0.0,
+        "p95": 0.0
+      }
+    },
+    "by_attack_type": {
+      "bruteforce": {
+        "first_attack_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "first_correct_class_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        }
+      },
+      "injection": {
+        "first_attack_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "first_correct_class_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        }
+      },
+      "scan": {
+        "first_attack_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        },
+        "first_correct_class_prediction": {
+          "count": 1,
+          "mean": 0.0,
+          "median": 0.0,
+          "p95": 0.0
+        }
+      }
+    }
+  },
+  "scenario_eval": {
+    "low_and_slow": {
+      "name": "low_and_slow",
+      "samples": 13,
+      "accuracy": 0.461538,
+      "attack_recall_binary": 0.769231
+    },
+    "burst": {
+      "name": "burst",
+      "samples": 69,
+      "accuracy": 0.971014,
+      "attack_recall_binary": 0.971014
+    },
+    "scan_generalization_new_paths": {
+      "name": "scan_generalization_new_paths",
+      "samples": 2,
+      "accuracy": 0.0,
+      "attack_recall_binary": 0.0
+    }
+  },
+  "calibration": {
+    "overall": {
+      "avg_confidence": 0.988421,
+      "accuracy": 0.873684
+    },
+    "bins": [
+      {
+        "range": [
+          0.0,
+          0.1
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.1,
+          0.2
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.2,
+          0.3
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.3,
+          0.4
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.4,
+          0.5
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.5,
+          0.6
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.6,
+          0.7
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.7,
+          0.8
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.8,
+          0.9
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.9,
+          1.0
+        ],
+        "samples": 95,
+        "accuracy": 0.873684,
+        "avg_confidence": 0.988421
+      }
+    ]
+  },
+  "feature_importance": {
+    "top_overall": [
+      {
+        "feature": "has_script_payload",
+        "mean_abs_weight": 37.7584
+      },
+      {
+        "feature": "status",
+        "mean_abs_weight": 4.564446
+      },
+      {
+        "feature": "latency_ms",
+        "mean_abs_weight": 3.254411
+      },
+      {
+        "feature": "method=POST",
+        "mean_abs_weight": 2.734334
+      },
+      {
+        "feature": "method=GET",
+        "mean_abs_weight": 1.559065
+      },
+      {
+        "feature": "has_sql_keywords",
+        "mean_abs_weight": 1.307437
+      },
+      {
+        "feature": "is_sensitive_probe",
+        "mean_abs_weight": 1.058761
+      },
+      {
+        "feature": "event_type=auth_login_failed",
+        "mean_abs_weight": 0.982499
+      },
+      {
+        "feature": "path_len",
+        "mean_abs_weight": 0.870634
+      },
+      {
+        "feature": "event_type=http_request",
+        "mean_abs_weight": 0.859295
+      },
+      {
+        "feature": "req_1m",
+        "mean_abs_weight": 0.845616
+      },
+      {
+        "feature": "req_5m",
+        "mean_abs_weight": 0.845616
+      }
+    ],
+    "by_class": {
+      "normal": {
+        "top_positive": [
+          {
+            "feature": "method=GET",
+            "weight": 3.118131
+          },
+          {
+            "feature": "unique_paths_2m",
+            "weight": 0.233488
+          },
+          {
+            "feature": "notfound_2m",
+            "weight": 0.203442
+          },
+          {
+            "feature": "event_type=http_request",
+            "weight": 0.180791
+          },
+          {
+            "feature": "is_admin_path",
+            "weight": 0.0
+          },
+          {
+            "feature": "unique_email_10m",
+            "weight": 0.0
+          },
+          {
+            "feature": "path_depth",
+            "weight": -0.467846
+          },
+          {
+            "feature": "is_scan_like_path",
+            "weight": -0.467846
+          },
+          {
+            "feature": "path_len",
+            "weight": -0.665555
+          },
+          {
+            "feature": "req_1m",
+            "weight": -1.035497
+          },
+          {
+            "feature": "req_5m",
+            "weight": -1.035497
+          },
+          {
+            "feature": "failed_1m",
+            "weight": -1.088829
+          }
+        ],
+        "top_negative": [
+          {
+            "feature": "has_script_payload",
+            "weight": -9.864346
+          },
+          {
+            "feature": "status",
+            "weight": -9.128892
+          },
+          {
+            "feature": "latency_ms",
+            "weight": -6.508823
+          },
+          {
+            "feature": "method=POST",
+            "weight": -4.452383
+          },
+          {
+            "feature": "has_sql_keywords",
+            "weight": -2.141107
+          },
+          {
+            "feature": "is_sensitive_probe",
+            "weight": -1.555178
+          },
+          {
+            "feature": "event_type=auth_login_failed",
+            "weight": -1.515044
+          },
+          {
+            "feature": "failed_1m",
+            "weight": -1.088829
+          },
+          {
+            "feature": "failed_5m",
+            "weight": -1.088829
+          },
+          {
+            "feature": "failed_10m",
+            "weight": -1.088829
+          },
+          {
+            "feature": "req_1m",
+            "weight": -1.035497
+          },
+          {
+            "feature": "req_5m",
+            "weight": -1.035497
+          }
+        ]
+      },
+      "bruteforce": {
+        "top_positive": [
+          {
+            "feature": "latency_ms",
+            "weight": 4.44067
+          },
+          {
+            "feature": "status",
+            "weight": 3.158517
+          },
+          {
+            "feature": "method=POST",
+            "weight": 2.898895
+          },
+          {
+            "feature": "event_type=auth_login_failed",
+            "weight": 0.602757
+          },
+          {
+            "feature": "event_type=http_request",
+            "weight": 0.34695
+          },
+          {
+            "feature": "failed_1m",
+            "weight": 0.165877
+          },
+          {
+            "feature": "failed_5m",
+            "weight": 0.165877
+          },
+          {
+            "feature": "failed_10m",
+            "weight": 0.165877
+          },
+          {
+            "feature": "is_admin_path",
+            "weight": 0.0
+          },
+          {
+            "feature": "unique_email_10m",
+            "weight": 0.0
+          },
+          {
+            "feature": "is_sensitive_probe",
+            "weight": -0.15135
+          },
+          {
+            "feature": "req_1m",
+            "weight": -0.312227
+          }
+        ],
+        "top_negative": [
+          {
+            "feature": "has_script_payload",
+            "weight": -34.370213
+          },
+          {
+            "feature": "method=GET",
+            "weight": -1.949188
+          },
+          {
+            "feature": "path_len",
+            "weight": -1.075713
+          },
+          {
+            "feature": "path_depth",
+            "weight": -0.723218
+          },
+          {
+            "feature": "is_scan_like_path",
+            "weight": -0.723218
+          },
+          {
+            "feature": "notfound_2m",
+            "weight": -0.602869
+          },
+          {
+            "feature": "unique_paths_2m",
+            "weight": -0.595401
+          },
+          {
+            "feature": "has_sql_keywords",
+            "weight": -0.473766
+          },
+          {
+            "feature": "req_1m",
+            "weight": -0.312227
+          },
+          {
+            "feature": "req_5m",
+            "weight": -0.312227
+          },
+          {
+            "feature": "is_sensitive_probe",
+            "weight": -0.15135
+          },
+          {
+            "feature": "is_admin_path",
+            "weight": 0.0
+          }
+        ]
+      },
+      "scan": {
+        "top_positive": [
+          {
+            "feature": "status",
+            "weight": 4.482277
+          },
+          {
+            "feature": "has_sql_keywords",
+            "weight": 2.583098
+          },
+          {
+            "feature": "method=POST",
+            "weight": 2.569774
+          },
+          {
+            "feature": "is_sensitive_probe",
+            "weight": 2.117522
+          },
+          {
+            "feature": "latency_ms",
+            "weight": 1.835857
+          },
+          {
+            "feature": "event_type=auth_login_failed",
+            "weight": 1.362242
+          },
+          {
+            "feature": "event_type=http_request",
+            "weight": 1.190849
+          },
+          {
+            "feature": "is_scan_like_path",
+            "weight": 0.633242
+          },
+          {
+            "feature": "path_depth",
+            "weight": 0.633242
+          },
+          {
+            "feature": "path_len",
+            "weight": 0.456402
+          },
+          {
+            "feature": "failed_1m",
+            "weight": 0.052746
+          },
+          {
+            "feature": "failed_5m",
+            "weight": 0.052746
+          }
+        ],
+        "top_negative": [
+          {
+            "feature": "has_script_payload",
+            "weight": -31.282242
+          },
+          {
+            "feature": "unique_paths_2m",
+            "weight": -0.490307
+          },
+          {
+            "feature": "notfound_2m",
+            "weight": -0.445897
+          },
+          {
+            "feature": "req_1m",
+            "weight": -0.343508
+          },
+          {
+            "feature": "req_5m",
+            "weight": -0.343508
+          },
+          {
+            "feature": "method=GET",
+            "weight": -0.016683
+          },
+          {
+            "feature": "is_admin_path",
+            "weight": 0.0
+          },
+          {
+            "feature": "unique_email_10m",
+            "weight": 0.0
+          },
+          {
+            "feature": "failed_1m",
+            "weight": 0.052746
+          },
+          {
+            "feature": "failed_5m",
+            "weight": 0.052746
+          },
+          {
+            "feature": "failed_10m",
+            "weight": 0.052746
+          },
+          {
+            "feature": "path_len",
+            "weight": 0.456402
+          }
+        ]
+      },
+      "injection": {
+        "top_positive": [
+          {
+            "feature": "has_script_payload",
+            "weight": 75.516801
+          },
+          {
+            "feature": "req_1m",
+            "weight": 1.691231
+          },
+          {
+            "feature": "req_5m",
+            "weight": 1.691231
+          },
+          {
+            "feature": "status",
+            "weight": 1.488099
+          },
+          {
+            "feature": "path_len",
+            "weight": 1.284866
+          },
+          {
+            "feature": "failed_1m",
+            "weight": 0.870207
+          },
+          {
+            "feature": "failed_5m",
+            "weight": 0.870207
+          },
+          {
+            "feature": "failed_10m",
+            "weight": 0.870207
+          },
+          {
+            "feature": "unique_paths_2m",
+            "weight": 0.85222
+          },
+          {
+            "feature": "notfound_2m",
+            "weight": 0.845324
+          },
+          {
+            "feature": "path_depth",
+            "weight": 0.557823
+          },
+          {
+            "feature": "is_scan_like_path",
+            "weight": 0.557823
+          }
+        ],
+        "top_negative": [
+          {
+            "feature": "event_type=http_request",
+            "weight": -1.718589
+          },
+          {
+            "feature": "method=GET",
+            "weight": -1.152259
+          },
+          {
+            "feature": "method=POST",
+            "weight": -1.016285
+          },
+          {
+            "feature": "event_type=auth_login_failed",
+            "weight": -0.449955
+          },
+          {
+            "feature": "is_sensitive_probe",
+            "weight": -0.410994
+          },
+          {
+            "feature": "is_admin_path",
+            "weight": 0.0
+          },
+          {
+            "feature": "unique_email_10m",
+            "weight": 0.0
+          },
+          {
+            "feature": "has_sql_keywords",
+            "weight": 0.031776
+          },
+          {
+            "feature": "latency_ms",
+            "weight": 0.232295
+          },
+          {
+            "feature": "is_scan_like_path",
+            "weight": 0.557823
+          },
+          {
+            "feature": "path_depth",
+            "weight": 0.557823
+          },
+          {
+            "feature": "notfound_2m",
+            "weight": 0.845324
+          }
+        ]
+      }
+    }
+  },
+  "error_analysis": {
+    "false_positive_count": 0,
+    "false_negative_count": 7,
+    "false_positive_examples": [],
+    "false_negative_examples": [
+      {
+        "ts": "2026-03-04 07:59:33+07",
+        "ip": "127.0.0.1",
+        "event_type": "http_request",
+        "path": "/login",
+        "status": 200,
+        "label": "bruteforce",
+        "pred": "normal",
+        "attack_run_id": "5"
+      },
+      {
+        "ts": "2026-03-04 07:59:33+07",
+        "ip": "203.0.113.11",
+        "event_type": "http_request",
+        "path": "/login",
+        "status": 302,
+        "label": "bruteforce",
+        "pred": "normal",
+        "attack_run_id": "5"
+      },
+      {
+        "ts": "2026-03-04 07:59:33+07",
+        "ip": "203.0.113.11",
+        "event_type": "auth_login_failed",
+        "path": "/login",
+        "status": 302,
+        "label": "bruteforce",
+        "pred": "normal",
+        "attack_run_id": "5"
+      },
+      {
+        "ts": "2026-03-04 07:59:33+07",
+        "ip": "203.0.113.11",
+        "event_type": "http_request",
+        "path": "/login",
+        "status": 302,
+        "label": "bruteforce",
+        "pred": "normal",
+        "attack_run_id": "5"
+      },
+      {
+        "ts": "2026-03-04 07:59:34+07",
+        "ip": "203.0.113.11",
+        "event_type": "http_request",
+        "path": "/login",
+        "status": 302,
+        "label": "bruteforce",
+        "pred": "normal",
+        "attack_run_id": "5"
+      },
+      {
+        "ts": "2026-03-04 07:59:54+07",
+        "ip": "198.51.100.77",
+        "event_type": "http_request",
+        "path": "/scan/8b90gFak31Ya",
+        "status": 404,
+        "label": "scan",
+        "pred": "normal",
+        "attack_run_id": "7"
+      },
+      {
+        "ts": "2026-03-04 07:59:54+07",
+        "ip": "198.51.100.77",
+        "event_type": "http_request",
+        "path": "/scan/TPduazYy4150",
+        "status": 404,
+        "label": "scan",
+        "pred": "normal",
+        "attack_run_id": "7"
+      }
+    ]
+  }
+}

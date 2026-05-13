@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-05-12T21:16:55.318550+00:00",
+  "scope": "identity-cloud",
+  "shadow": {
+    "alert_count_delta": 0,
+    "alert_type_match": 1.0,
+    "evidence_match": 1.0,
+    "severity_mismatch": 0,
+    "entity_mismatch": 0,
+    "duplicate_rate": 0.0,
+    "p95_latency_ms": 236.451,
+    "throughput_eps": 92859.83,
+    "worker_p95_latency_ms": 208.0,
+    "fallback_active": false,
+    "fallback_reason": null,
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics"
+  },
+  "active": {
+    "alert_count_delta": 0,
+    "alert_type_match": 1.0,
+    "evidence_match": 1.0,
+    "severity_mismatch": 0,
+    "entity_mismatch": 0,
+    "duplicate_rate": 0.0,
+    "p95_latency_ms": 194.069,
+    "throughput_eps": 101636.7,
+    "worker_p95_latency_ms": 195.0,
+    "fallback_active": false,
+    "fallback_reason": null,
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics"
+  },
+  "active_alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120
+    },
+    "go": {
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690
+    },
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 120,
+        "go": 120,
+        "delta": 0
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 217,
+        "go": 217,
+        "delta": 0
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 116,
+        "go": 116,
+        "delta": 0
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 416,
+        "go": 416,
+        "delta": 0
+      },
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": {
+        "python": 690,
+        "go": 690,
+        "delta": 0
+      }
+    }
+  },
+  "active_diff": {
+    "missing_in_go_count": 0,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "degraded_parity": false
+}

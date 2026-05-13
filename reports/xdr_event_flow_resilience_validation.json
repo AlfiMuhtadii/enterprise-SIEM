@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-05-13T04:15:26.806662+00:00",
+  "trace_id": "trace-resilience-1778645726",
+  "checks": {
+    "runtime_available": true,
+    "event_store_not_duplicated": true,
+    "event_store_created_when_runtime_available": true,
+    "malformed_event_sent_or_skipped": true,
+    "restart_succeeded_or_not_requested": true
+  },
+  "runtime": {
+    "alert_writer_available": true,
+    "alert_writer_metrics_before": {
+      "batches": 7,
+      "alerts_seen": 7,
+      "alerts_written": 2,
+      "duplicates": 5,
+      "postgres_failures": 0,
+      "opensearch_failures": 0,
+      "dlq_count": 3,
+      "retry_count": 0,
+      "write_latency_ms_last": 24.159,
+      "write_latency_ms_total": 557.6392130024033,
+      "idempotency_cache_size": 2,
+      "consumer_polls": 573,
+      "consumer_errors": 0,
+      "events_published": 7,
+      "contract_validation_failures": 3,
+      "operational_events_stored": 3
+    },
+    "alert_writer_metrics_after_replay": {
+      "batches": 10,
+      "alerts_seen": 10,
+      "alerts_written": 2,
+      "duplicates": 8,
+      "postgres_failures": 0,
+      "opensearch_failures": 0,
+      "dlq_count": 3,
+      "retry_count": 0,
+      "write_latency_ms_last": 24.719,
+      "write_latency_ms_total": 758.0490010077483,
+      "idempotency_cache_size": 2,
+      "consumer_polls": 581,
+      "consumer_errors": 0,
+      "events_published": 10,
+      "contract_validation_failures": 3,
+      "operational_events_stored": 4
+    },
+    "alert_writer_metrics_after_restart": {
+      "batches": 10,
+      "alerts_seen": 10,
+      "alerts_written": 2,
+      "duplicates": 8,
+      "postgres_failures": 0,
+      "opensearch_failures": 0,
+      "dlq_count": 3,
+      "retry_count": 0,
+      "write_latency_ms_last": 24.719,
+      "write_latency_ms_total": 758.0490010077483,
+      "idempotency_cache_size": 2,
+      "consumer_polls": 581,
+      "consumer_errors": 0,
+      "events_published": 10,
+      "contract_validation_failures": 3,
+      "operational_events_stored": 4
+    },
+    "malformed_event_publish": {
+      "offsets": [
+        {
+          "partition": 0,
+          "offset": 4
+        }
+      ]
+    },
+    "event_store_count": {
+      "ok": true,
+      "count": 1
+    }
+  },
+  "service_restart": [],
+  "errors": [],
+  "validation_status": "PASS"
+}

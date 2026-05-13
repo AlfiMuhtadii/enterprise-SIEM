@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#0f172a"/>
+  <rect x="36" y="36" width="1208" height="648" rx="28" fill="#111827" stroke="#334155"/>
+  <text x="72" y="92" fill="#e5e7eb" font-family="Verdana" font-size="34" font-weight="700">Exports and Audit Trail</text>
+  <text x="72" y="130" fill="#94a3b8" font-family="Verdana" font-size="18">JSONL, SIEM, STIX-like exports with audited sensitive actions.</text>
+  
+  <rect x="72" y="170" width="300" height="130" rx="18" fill="#1f2937" stroke="#334155"/>
+  <text x="96" y="208" fill="#94a3b8" font-family="Verdana" font-size="16">Export Formats</text>
+  <text x="96" y="258" fill="#38bdf8" font-family="Verdana" font-size="36" font-weight="700">3</text>
+
+  <rect x="408" y="170" width="300" height="130" rx="18" fill="#1f2937" stroke="#334155"/>
+  <text x="432" y="208" fill="#94a3b8" font-family="Verdana" font-size="16">Audit Events</text>
+  <text x="432" y="258" fill="#a78bfa" font-family="Verdana" font-size="36" font-weight="700">4</text>
+
+  <rect x="744" y="170" width="300" height="130" rx="18" fill="#1f2937" stroke="#334155"/>
+  <text x="768" y="208" fill="#94a3b8" font-family="Verdana" font-size="16">RBAC Roles</text>
+  <text x="768" y="258" fill="#22c55e" font-family="Verdana" font-size="36" font-weight="700">3</text>
+<rect x="72" y="350" width="1080" height="220" rx="18" fill="#1f2937" stroke="#334155"/><text x="100" y="405" fill="#e5e7eb" font-family="Verdana" font-size="20">soc-admin@example.com export.download jsonl</text><text x="100" y="455" fill="#e5e7eb" font-family="Verdana" font-size="20">soc-analyst@example.com incident.status DEMO-INC-001</text><text x="100" y="505" fill="#e5e7eb" font-family="Verdana" font-size="20">soc-admin@example.com incident.false_positive DEMO-INC-003</text>
+</svg>

@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant Source as Sysmon/Zeek/Suricata/Windows/Linux
+  participant Adapter as Telemetry Adapter
+  participant Contract as Schema Validator
+  participant Stream as Redpanda/Kafka REST
+  participant Worker as Stream Worker
+  participant DB as telemetry_events
+  Source->>Adapter: raw telemetry samples/logs
+  Adapter->>Contract: normalized telemetry JSONL
+  Contract-->>Adapter: valid/invalid result
+  Adapter->>Stream: async event publish
+  Stream->>Worker: partitioned consumption
+  Worker->>DB: idempotent insert by event_id

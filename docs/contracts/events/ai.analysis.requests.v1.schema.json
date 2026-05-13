@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai.analysis.requests.v1",
+  "title": "Topic ai.analysis.requests v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "ai.analysis.requested" },
+    "payload": {
+      "type": "object",
+      "required": ["incident_id", "question"],
+      "properties": {
+        "incident_id": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "object" } },
+        "question": { "type": "string" },
+        "requested_by": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

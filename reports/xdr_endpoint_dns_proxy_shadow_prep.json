@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-05-13T04:10:34.708992+00:00",
+  "validation_status": "SHADOW_PREP_READY",
+  "mode": "shadow_preparation_only",
+  "cutover_allowed": false,
+  "scope": "endpoint-dns-proxy",
+  "events": 10,
+  "labels": {
+    "benign": 3,
+    "malicious": 7
+  },
+  "malicious_campaigns": [
+    "edp-campaign-1"
+  ],
+  "alert_count": 2,
+  "alert_types": {
+    "SHADOW_DNS_PROXY_ENDPOINT_CHAIN": 1,
+    "SHADOW_ENDPOINT_NETWORK_ACTIVITY": 1
+  },
+  "latency_ms": 0.034,
+  "p95_latency_ms": 0.034,
+  "shadow_parity_gates": {
+    "expected_alert_types_present": true,
+    "no_extra_shadow_alert_types": true,
+    "malicious_campaign_detected": true,
+    "false_positive_estimate": 0,
+    "latency_under_300ms": true,
+    "duplicate_rate_zero": true
+  },
+  "diff_report": {
+    "missing_in_shadow": [],
+    "extra_in_shadow": [],
+    "severity_mismatch": [],
+    "entity_mismatch": [],
+    "note": "Shadow-only report. It does not enable active mode or change source of truth."
+  },
+  "required_before_cutover": [
+    "golden test parity against legacy",
+    "large replay parity",
+    "latency gate <300ms",
+    "duplicate rate 0",
+    "rollback validation"
+  ],
+  "alerts": [
+    {
+      "alert_type": "SHADOW_DNS_PROXY_ENDPOINT_CHAIN",
+      "actor": "beacon.bad.example",
+      "evidence_ids": [
+        "golden-5541648697999558",
+        "golden-7241680468163384",
+        "golden-1004544412967684",
+        "golden-5699036013578296",
+        "golden-6379679441882208",
+        "golden-6237971563965234",
+        "golden-4211546985001008"
+      ],
+      "severity": "high"
+    },
+    {
+      "alert_type": "SHADOW_ENDPOINT_NETWORK_ACTIVITY",
+      "actor": "host-edp-2",
+      "evidence_ids": [
+        "golden-5541648697999558",
+        "golden-7241680468163384",
+        "golden-1004544412967684",
+        "golden-5699036013578296",
+        "golden-6379679441882208",
+        "golden-6237971563965234",
+        "golden-4211546985001008"
+      ],
+      "severity": "high"
+    }
+  ]
+}

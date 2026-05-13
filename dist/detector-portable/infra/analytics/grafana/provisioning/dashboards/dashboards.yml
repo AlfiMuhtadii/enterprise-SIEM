@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "Detector Dashboards"
+    orgId: 1
+    folder: "Detector"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

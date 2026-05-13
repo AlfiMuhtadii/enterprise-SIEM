@@ -1,0 +1,341 @@
+{
+  "validation_status": "FALLBACK_TO_LEGACY",
+  "mode": "go",
+  "effective_engine": "legacy",
+  "fallback_active": true,
+  "fallback_reason": "go_worker_unhealthy",
+  "source_of_truth": "python_laravel",
+  "comparison_engine": "none",
+  "scope": "identity-cloud",
+  "events": 19070,
+  "runs": 5,
+  "python_laravel_correlation": {
+    "latency_ms": 193.981,
+    "throughput_eps": 98308.7,
+    "alert_count": 1559,
+    "p95_latency_ms": 202.14,
+    "avg_throughput_eps": 98516.41,
+    "runs": [
+      {
+        "latency_ms": 202.14,
+        "throughput_eps": 94340.6,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 191.597,
+        "throughput_eps": 99532.09,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 190.23,
+        "throughput_eps": 100246.96,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 190.407,
+        "throughput_eps": 100153.72,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 193.981,
+        "throughput_eps": 98308.7,
+        "alert_count": 1559
+      }
+    ]
+  },
+  "go_correlation": {
+    "latency_ms": 0,
+    "worker_latency_ms": 0,
+    "throughput_eps": 0,
+    "alert_count": 0,
+    "error": "go_worker_unhealthy",
+    "p95_latency_ms": 0,
+    "worker_p95_latency_ms": 0.0,
+    "avg_throughput_eps": 0.0,
+    "runs": [
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      }
+    ]
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 0,
+    "worker_latency_ms": 0,
+    "throughput_eps": 0,
+    "alert_count": 0,
+    "error": "go_worker_unhealthy",
+    "p95_latency_ms": 0,
+    "worker_p95_latency_ms": 0.0,
+    "avg_throughput_eps": 0.0,
+    "runs": [
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      },
+      {
+        "latency_ms": 0,
+        "worker_latency_ms": 0,
+        "throughput_eps": 0,
+        "alert_count": 0,
+        "error": "go_worker_unhealthy"
+      }
+    ],
+    "compatibility_alias": true
+  },
+  "comparison": {
+    "alert_count_delta": -1559,
+    "alert_type_match_rate": 0.0,
+    "evidence_match_rate": 0.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120
+    },
+    "go": {},
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 120,
+        "go": 0,
+        "delta": -120
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 217,
+        "go": 0,
+        "delta": -217
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 116,
+        "go": 0,
+        "delta": -116
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 416,
+        "go": 0,
+        "delta": -416
+      },
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": {
+        "python": 690,
+        "go": 0,
+        "delta": -690
+      }
+    }
+  },
+  "diff": {
+    "missing_in_go_count": 1559,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [
+      "CLOUD_NEW_ACCESS_KEY|target0@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target100@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target101@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target102@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target103@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target104@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target105@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target106@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target107@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target108@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target109@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target10@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target110@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target111@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target112@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target113@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target114@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target115@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target116@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target117@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target118@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target119@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target11@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target12@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target13@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target14@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target15@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target16@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target17@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target18@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target19@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target1@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target20@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target21@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target22@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target23@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target24@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target25@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target26@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target27@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target28@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target29@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target2@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target30@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target31@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target32@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target33@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target34@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target35@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target36@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target37@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target38@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target39@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target3@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target40@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target41@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target42@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target43@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target44@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target45@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target46@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target47@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target48@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target49@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target4@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target50@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target51@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target52@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target53@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target54@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target55@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target56@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target57@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target58@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target59@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target5@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target60@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target61@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target62@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target63@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target64@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target65@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target66@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target67@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target68@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target69@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target6@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target70@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target71@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target72@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target73@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target74@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target75@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target76@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target77@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target78@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target79@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target7@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target80@enterprise.example",
+      "CLOUD_NEW_ACCESS_KEY|target81@enterprise.example"
+    ],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "cutover_monitoring": {
+    "alert_count_delta": -1559,
+    "go_p95_latency_ms": 0,
+    "go_error_rate": 1,
+    "go_worker_health": {
+      "healthy": false,
+      "latency_ms": 2063.973,
+      "url": "http://127.0.0.1:1",
+      "body": {
+        "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+      }
+    },
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics",
+    "scope_guard": "endpoint/dns/proxy remain legacy until separate golden, parity, and latency gates pass"
+  },
+  "cutover_plan": [
+    "Default remains shadow.",
+    "Use XDR_CORRELATION_ENGINE=go only for XDR_CORRELATION_SCOPE=identity-cloud.",
+    "Legacy remains shadow comparison when Go is active.",
+    "Fallback to legacy automatically when Go worker is unhealthy and fallback is enabled.",
+    "Endpoint/DNS/proxy require separate golden test, large replay parity, and latency gate before expansion."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+    }
+  },
+  "cutover_gate": {
+    "passed": false,
+    "alert_count_delta_ratio": 1.0,
+    "gates": {
+      "alert_type_match_rate_gt_0_95": false,
+      "alert_count_delta_lt_0_02": false,
+      "evidence_match_gt_0_98": false,
+      "go_p95_latency_lt_300ms": true,
+      "duplicate_rate_zero": true
+    }
+  }
+}

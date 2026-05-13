@@ -1,0 +1,9 @@
+<?php
+
+return [
+    'enabled' => env('SECURITY_DETECTOR_ENABLED', true),
+    'log_path' => env('SECURITY_DETECTOR_LOG_PATH', storage_path('logs/security.jsonl')),
+    'hash_key' => env('SECURITY_DETECTOR_HASH_KEY', env('APP_KEY', 'change-me')),
+    'capture_query_paths' => array_filter(array_map('trim', explode(',', env('SECURITY_DETECTOR_CAPTURE_QUERY_PATHS', 'search,/search,api/search,/api/search,products,/products')))),
+    'ignored_paths' => array_filter(array_map('trim', explode(',', env('SECURITY_DETECTOR_IGNORED_PATHS', 'up,health,livewire/update')))),
+];

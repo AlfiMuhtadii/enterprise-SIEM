@@ -1,0 +1,115 @@
+{
+  "profile_type": "robust_behavioral_baseline",
+  "created_at": "2026-05-09T03:13:28.389765+07:00",
+  "input": "D:\\project\\Detector\\storage\\app\\security_dataset.csv",
+  "features": [
+    "status",
+    "latency_ms",
+    "path_len",
+    "path_depth",
+    "failed_1m",
+    "failed_5m",
+    "failed_10m",
+    "unique_email_10m",
+    "req_1m",
+    "req_5m",
+    "notfound_2m",
+    "unique_paths_2m"
+  ],
+  "baseline": {
+    "source": "low_risk_fallback",
+    "rows": 21,
+    "label_distribution": {
+      "normal": 2,
+      "bruteforce": 13,
+      "scan": 6
+    }
+  },
+  "scoring": {
+    "method": "mean_top3_robust_zscore",
+    "threshold": 26.30514,
+    "quantile": 0.99,
+    "min_threshold": 3.5,
+    "max_threshold": 30.0
+  },
+  "feature_stats": {
+    "status": {
+      "median": 302.0,
+      "mad": 1.0,
+      "mean": 316.57142857142856,
+      "std": 65.16540962999387
+    },
+    "latency_ms": {
+      "median": 270.0,
+      "mad": 132.0,
+      "mean": 183.71428571428572,
+      "std": 144.667810898638
+    },
+    "path_len": {
+      "median": 6.0,
+      "mad": 1.0,
+      "mean": 7.619047619047619,
+      "std": 3.993759304049858
+    },
+    "path_depth": {
+      "median": 1.0,
+      "mad": 1.0,
+      "mean": 1.0952380952380953,
+      "std": 0.29354352395090366
+    },
+    "failed_1m": {
+      "median": 1.0,
+      "mad": 1.0,
+      "mean": 0.8571428571428571,
+      "std": 0.8329931278350429
+    },
+    "failed_5m": {
+      "median": 1.0,
+      "mad": 1.0,
+      "mean": 0.8571428571428571,
+      "std": 0.8329931278350429
+    },
+    "failed_10m": {
+      "median": 1.0,
+      "mad": 1.0,
+      "mean": 0.8571428571428571,
+      "std": 0.8329931278350429
+    },
+    "unique_email_10m": {
+      "median": 0.0,
+      "mad": 1.0,
+      "mean": 0.0,
+      "std": 1.0
+    },
+    "req_1m": {
+      "median": 2.0,
+      "mad": 1.0,
+      "mean": 2.0476190476190474,
+      "std": 1.0454523047666737
+    },
+    "req_5m": {
+      "median": 2.0,
+      "mad": 1.0,
+      "mean": 2.0476190476190474,
+      "std": 1.0454523047666737
+    },
+    "notfound_2m": {
+      "median": 0.0,
+      "mad": 1.0,
+      "mean": 0.42857142857142855,
+      "std": 0.7284313590846835
+    },
+    "unique_paths_2m": {
+      "median": 1.0,
+      "mad": 1.0,
+      "mean": 1.1428571428571428,
+      "std": 0.3499271061118826
+    }
+  },
+  "training_score_summary": {
+    "min": 0.023846,
+    "median": 1.124151,
+    "p99": 26.30514,
+    "max": 26.30514
+  }
+}

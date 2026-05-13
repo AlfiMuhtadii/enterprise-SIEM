@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "incidents.updated.v1",
+  "title": "Topic incidents.updated v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "incident.updated" },
+    "payload": {
+      "type": "object",
+      "required": ["incident", "incident_id", "updated_at"],
+      "properties": {
+        "trace_id": { "type": ["string", "null"] },
+        "incident": { "type": "object" },
+        "incident_id": { "type": "string" },
+        "updated_at": { "type": "string" },
+        "source": { "type": "string" }
+      }
+    }
+  }
+}

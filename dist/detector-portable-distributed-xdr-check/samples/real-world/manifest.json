@@ -1,0 +1,15 @@
+{
+  "name": "Detector realistic telemetry trial samples",
+  "datasets": [
+    {"name": "sysmon sample", "adapter": "sysmon-json", "input": "samples/real-world/sysmon_sample.jsonl", "enabled": true},
+    {"name": "zeek conn sample", "adapter": "zeek-conn", "input": "samples/real-world/zeek_conn.log", "enabled": true},
+    {"name": "zeek dns sample", "adapter": "zeek-dns", "input": "samples/real-world/zeek_dns.log", "enabled": true},
+    {"name": "zeek http sample", "adapter": "zeek-http", "input": "samples/real-world/zeek_http.log", "enabled": true},
+    {"name": "suricata eve sample", "adapter": "suricata-eve", "input": "samples/real-world/suricata_eve.jsonl", "enabled": true},
+    {"name": "windows security sample", "adapter": "windows-security-json", "input": "samples/real-world/windows_security.jsonl", "enabled": true},
+    {"name": "linux auth sample", "adapter": "linux-auth", "input": "samples/real-world/linux_auth.log", "enabled": true},
+    {"name": "linux auditd sample", "adapter": "linux-auditd", "input": "samples/real-world/linux_auditd.log", "enabled": true}
+  ],
+  "coverage": "samples/real-world/mitre_expectations.json",
+  "labels": "samples/real-world/labels.json"
+}

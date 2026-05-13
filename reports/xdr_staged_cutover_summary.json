@@ -1,0 +1,36 @@
+{
+  "validation_status": "PASS",
+  "scope": "identity-cloud",
+  "domains": [
+    "identity",
+    "cloud",
+    "saas"
+  ],
+  "reports": {
+    "staged_cutover_report": "reports\\xdr_staged_cutover_report.json",
+    "parity_drift_report": "reports\\xdr_parity_drift_report.json",
+    "rollback_validation_report": "reports\\xdr_rollback_validation_report.json",
+    "replay_stability_report": "reports\\xdr_replay_stability_report.json",
+    "correlation_latency_trend_report": "reports\\xdr_correlation_latency_trend_report.json"
+  },
+  "raw_reports": {
+    "shadow": "reports\\xdr_cutover_shadow_identity_cloud_saas.json",
+    "active": "reports\\xdr_cutover_active_identity_cloud_saas.json",
+    "fallback": "reports\\xdr_cutover_auto_fallback_identity_cloud_saas.json"
+  },
+  "key_metrics": {
+    "alert_count_delta": 0,
+    "alert_type_match": 1.0,
+    "evidence_match": 1.0,
+    "severity_mismatch": 0,
+    "entity_mismatch": 0,
+    "duplicate_rate": 0.0,
+    "p95_latency_ms": 194.069,
+    "throughput_eps": 101636.7,
+    "worker_p95_latency_ms": 195.0,
+    "fallback_active": false,
+    "fallback_reason": null,
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics"
+  },
+  "fallback_activation_count": 2
+}

@@ -1,0 +1,25 @@
+{
+  "dataset": "xdr-cross-domain-samples",
+  "labels": [
+    {
+      "scenario": "email_identity_endpoint_chain",
+      "expected_alerts": ["XDR_PHISHING_TO_ENDPOINT_EXECUTION"],
+      "required_domains": ["email", "identity", "endpoint"]
+    },
+    {
+      "scenario": "cloud_privilege_escalation_chain",
+      "expected_alerts": ["CLOUD_NEW_ACCESS_KEY", "CLOUD_SECURITY_SETTING_MODIFIED"],
+      "required_domains": ["cloud"]
+    },
+    {
+      "scenario": "ioc_dns_endpoint_chain",
+      "expected_alerts": ["XDR_IOC_DNS_ENDPOINT_CHAIN"],
+      "required_domains": ["dns", "endpoint"]
+    },
+    {
+      "scenario": "saas_suspicious_access_chain",
+      "expected_alerts": ["SAAS_UNUSUAL_ADMIN_ACTIVITY"],
+      "required_domains": ["saas", "proxy"]
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "type": "bundle",
+  "id": "bundle--detector-export",
+  "objects": [
+    {
+      "type": "indicator",
+      "id": "indicator--06939c5f-3c27-4000-8000-a3815f48fe05",
+      "created": "2026-05-11T09:00:21.922154+00:00",
+      "modified": "2026-05-11T09:00:21.922162+00:00",
+      "name": "C2_DNS_BEACON_PATTERN",
+      "description": "high alert linked to INC-3ffe16865684a41e",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--932cf3ee-8d0a-4000-8000-7bef14329ee3",
+      "created": "2026-05-11T09:00:21.922168+00:00",
+      "modified": "2026-05-11T09:00:21.922170+00:00",
+      "name": "C2_DNS_BEACON_PATTERN",
+      "description": "high alert linked to INC-3ffe16865684a41e",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--d6df3612-88e0-4000-8000-c8734afa874f",
+      "created": "2026-05-11T09:00:21.922174+00:00",
+      "modified": "2026-05-11T09:00:21.922176+00:00",
+      "name": "C2_DNS_BEACON_PATTERN",
+      "description": "high alert linked to INC-ebb806449df75907",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--5951af62-2e7a-4000-8000-953ef1715dda",
+      "created": "2026-05-11T09:00:21.922179+00:00",
+      "modified": "2026-05-11T09:00:21.922181+00:00",
+      "name": "INTERNAL_RECON_SUSPECTED",
+      "description": "medium alert linked to INC-eba87ddcdf7ff5a3",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--dc43dd1c-d280-4000-8000-c042ba21249f",
+      "created": "2026-05-11T09:00:21.922183+00:00",
+      "modified": "2026-05-11T09:00:21.922185+00:00",
+      "name": "LATERAL_MOVEMENT_SUSPECTED",
+      "description": "critical alert linked to INC-5c73d19fc995209f",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--a6941253-8e7c-4000-8000-25784fce6c10",
+      "created": "2026-05-11T09:00:21.922187+00:00",
+      "modified": "2026-05-11T09:00:21.922189+00:00",
+      "name": "LATERAL_MOVEMENT_SUSPECTED",
+      "description": "critical alert linked to INC-5c73d19fc995209f",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--0682a841-c9c1-4000-8000-eea23a5a4737",
+      "created": "2026-05-11T09:00:21.922192+00:00",
+      "modified": "2026-05-11T09:00:21.922193+00:00",
+      "name": "ATTACK_PHASE_PROGRESSION",
+      "description": "critical alert linked to INC-2e93e9b2aa506af8",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--16fa5a32-f8d8-4000-8000-389d35dfad8e",
+      "created": "2026-05-11T09:00:21.922200+00:00",
+      "modified": "2026-05-11T09:00:21.922202+00:00",
+      "name": "ATTACK_PHASE_PROGRESSION",
+      "description": "critical alert linked to INC-2e93e9b2aa506af8",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--f5d86de2-2446-4000-8000-9ef33733c93f",
+      "created": "2026-05-11T09:00:21.922208+00:00",
+      "modified": "2026-05-11T09:00:21.922209+00:00",
+      "name": "PERSISTENCE_INDICATOR",
+      "description": "high alert linked to INC-e0469bdbd73d6814",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--2a21d774-63cb-4000-8000-22a7527fe3be",
+      "created": "2026-05-11T09:00:21.922212+00:00",
+      "modified": "2026-05-11T09:00:21.922213+00:00",
+      "name": "PERSISTENCE_INDICATOR",
+      "description": "high alert linked to INC-e0469bdbd73d6814",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--5bada9b2-8c51-4000-8000-2608a1b4c1dc",
+      "created": "2026-05-11T09:00:21.922216+00:00",
+      "modified": "2026-05-11T09:00:21.922217+00:00",
+      "name": "SANDBOX_EVASION_INDICATOR",
+      "description": "medium alert linked to INC-f00b67e1fc887887",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--094222fc-6446-4000-8000-63d03e2caf67",
+      "created": "2026-05-11T09:00:21.922220+00:00",
+      "modified": "2026-05-11T09:00:21.922222+00:00",
+      "name": "SANDBOX_EVASION_INDICATOR",
+      "description": "medium alert linked to INC-f00b67e1fc887887",
+      "pattern": "[ipv4-addr:value = '10.10.1.25']",
+      "pattern_type": "stix"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--095ec437-fade-4000-8000-8d2a55fd1dd5",
+      "created": "2026-05-11T09:00:21.922226+00:00",
+      "modified": "2026-05-11T09:00:21.922227+00:00",
+      "name": "PERSISTENCE_INDICATOR",
+      "description": "high alert linked to INC-b241f8706c5da8f3",
+      "pattern": "[ipv4-addr:value = '10.10.1.10']",
+      "pattern_type": "stix"
+    }
+  ]
+}

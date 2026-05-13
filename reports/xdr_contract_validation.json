@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "schema_version": 1,
+  "topics": [
+    "ai.analysis.completed",
+    "ai.analysis.requests",
+    "ai.analysis.results",
+    "alerts.created",
+    "incidents.updated",
+    "xdr.alerts"
+  ],
+  "errors": []
+}

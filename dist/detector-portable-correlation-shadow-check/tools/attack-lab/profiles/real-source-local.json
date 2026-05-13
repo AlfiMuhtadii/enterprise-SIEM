@@ -1,0 +1,35 @@
+{
+  "name": "real-source-local",
+  "description": "Uses real socket source IP by disabling X-Forwarded-For.",
+  "defaults": {
+    "base_url": "http://127.0.0.1:8000",
+    "count": 40,
+    "sleep_ms": 20,
+    "source_ip": "",
+    "spoof_ip": false
+  },
+  "steps": [
+    {
+      "name": "real-source-full-lite",
+      "type": "normal",
+      "count": 5
+    },
+    {
+      "name": "real-source-scan",
+      "type": "scan",
+      "count": 20,
+      "payload_file": "payloads/scan-paths.txt"
+    },
+    {
+      "name": "real-source-injection",
+      "type": "injection",
+      "count": 8,
+      "path": "/search",
+      "param": "q",
+      "payload_files": [
+        "payloads/sqli.txt",
+        "payloads/xss.txt"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "datasets": [
+    {
+      "name": "sysmon sample",
+      "adapter": "sysmon-json",
+      "input": "storage/tmp/sysmon_sample.jsonl",
+      "enabled": true
+    },
+    {
+      "name": "sysmon xml real",
+      "adapter": "sysmon-xml",
+      "input": "datasets/sysmon.xml",
+      "enabled": false
+    },
+    {
+      "name": "zeek conn real",
+      "adapter": "zeek-conn",
+      "input": "datasets/conn.log",
+      "enabled": false
+    },
+    {
+      "name": "zeek dns real",
+      "adapter": "zeek-dns",
+      "input": "datasets/dns.log",
+      "enabled": false
+    },
+    {
+      "name": "zeek http real",
+      "adapter": "zeek-http",
+      "input": "datasets/http.log",
+      "enabled": false
+    },
+    {
+      "name": "suricata eve real",
+      "adapter": "suricata-eve",
+      "input": "datasets/eve.json",
+      "enabled": false
+    },
+    {
+      "name": "windows security real",
+      "adapter": "windows-security-json",
+      "input": "datasets/windows-security.jsonl",
+      "enabled": false
+    },
+    {
+      "name": "linux auth real",
+      "adapter": "linux-auth",
+      "input": "datasets/auth.log",
+      "enabled": false
+    },
+    {
+      "name": "linux auditd real",
+      "adapter": "linux-auditd",
+      "input": "datasets/audit.log",
+      "enabled": false
+    }
+  ],
+  "coverage": "tools/attack-lab/coverage/mitre-advanced-coverage.json",
+  "labels": "tools/attack-lab/coverage/telemetry-benchmark-labels.json"
+}

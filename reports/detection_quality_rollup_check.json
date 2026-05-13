@@ -1,0 +1,21 @@
+{
+  "current_benchmark": {
+    "tp": 1,
+    "fp": 0,
+    "tn": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "avg_detection_latency_sec": null
+  },
+  "real_dataset_trial": {},
+  "history": [],
+  "quality_gates": {
+    "precision_ok": true,
+    "recall_ok": true,
+    "false_positive_rate_ok": true,
+    "dataset_replay_stable": null
+  }
+}

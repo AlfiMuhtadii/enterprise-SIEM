@@ -1,0 +1,15 @@
+flowchart LR
+  User[Users / Attackers / Admins] --> App[Protected Laravel App]
+  App --> Log[Security Event Logging]
+  Log --> Queue[Redpanda / Stream Queue]
+  Queue --> Worker[Telemetry Worker]
+  Worker --> DB[(PostgreSQL)]
+  DB --> Rules[Declarative Correlation Rules]
+  DB --> ML[ML / Anomaly Detectors]
+  Rules --> Alerts[Security Alerts]
+  ML --> Alerts
+  Alerts --> Incidents[Incident Manager]
+  Incidents --> SOC[SOC Dashboard]
+  Incidents --> Notify[Slack / Discord / Webhook]
+  SOC --> Audit[Audit Trail]
+  SOC --> Export[JSONL / SIEM / STIX Export]

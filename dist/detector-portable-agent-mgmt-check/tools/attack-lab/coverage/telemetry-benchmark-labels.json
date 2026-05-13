@@ -1,0 +1,19 @@
+{
+  "name": "telemetry-benchmark-labels",
+  "windows": [
+    {
+      "id": "advanced-telemetry-recent",
+      "start": "1970-01-01T00:00:00+00:00",
+      "end": "2999-01-01T00:00:00+00:00",
+      "is_attack": true,
+      "expected_alert_types": [
+        "PERSISTENCE_INDICATOR",
+        "SANDBOX_EVASION_INDICATOR",
+        "LATERAL_MOVEMENT_SUSPECTED",
+        "INTERNAL_RECON_SUSPECTED",
+        "C2_DNS_BEACON_PATTERN"
+      ],
+      "expected_mitre": ["T1053", "T1497", "T1021", "T1046", "T1071.004"]
+    }
+  ]
+}

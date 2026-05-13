@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai.analysis.completed.v1",
+  "title": "Operational event ai.analysis.completed v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "ai.analysis.completed" },
+    "payload": {
+      "type": "object",
+      "required": ["suggestion_id", "incident_id", "suggestion_type", "provider", "status"],
+      "properties": {
+        "suggestion_id": { "type": "string" },
+        "incident_id": { "type": "string" },
+        "suggestion_type": { "type": "string" },
+        "provider": { "type": "string" },
+        "model": { "type": ["string", "null"] },
+        "status": { "type": "string" },
+        "confidence_label": { "type": "string" },
+        "latency_ms": { "type": "number" },
+        "retrieval_citations": { "type": "array" }
+      }
+    }
+  }
+}

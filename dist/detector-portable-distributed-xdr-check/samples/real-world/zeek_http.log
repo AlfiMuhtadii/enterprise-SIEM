@@ -1,0 +1,4 @@
+#separator \x09
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	method	host	uri	status_code	user_agent
+1778540800.000000	Hdemo1	203.0.113.50	52000	10.0.0.10	80	GET	web.local	/.env	404	curl/8
+1778540801.000000	Hdemo2	203.0.113.50	52001	10.0.0.10	80	GET	web.local	/admin	403	curl/8

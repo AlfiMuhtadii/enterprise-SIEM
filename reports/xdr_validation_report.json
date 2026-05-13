@@ -1,0 +1,75 @@
+{
+  "dataset": "xdr-cross-domain-samples",
+  "mode": "readiness",
+  "expected_alerts": 5,
+  "detected_alerts": 0,
+  "coverage": 0.0,
+  "false_positive_count": 0,
+  "false_negative_count": 5,
+  "replay_stability": "not_measured",
+  "detection_consistency": "not_measured",
+  "scenarios": [
+    {
+      "scenario": "email_identity_endpoint_chain",
+      "required_domains": [
+        "email",
+        "identity",
+        "endpoint"
+      ],
+      "expected_alerts": [
+        "XDR_PHISHING_TO_ENDPOINT_EXECUTION"
+      ],
+      "detected_alerts": [],
+      "missed_alerts": [
+        "XDR_PHISHING_TO_ENDPOINT_EXECUTION"
+      ],
+      "status": "not_executed"
+    },
+    {
+      "scenario": "cloud_privilege_escalation_chain",
+      "required_domains": [
+        "cloud"
+      ],
+      "expected_alerts": [
+        "CLOUD_NEW_ACCESS_KEY",
+        "CLOUD_SECURITY_SETTING_MODIFIED"
+      ],
+      "detected_alerts": [],
+      "missed_alerts": [
+        "CLOUD_NEW_ACCESS_KEY",
+        "CLOUD_SECURITY_SETTING_MODIFIED"
+      ],
+      "status": "not_executed"
+    },
+    {
+      "scenario": "ioc_dns_endpoint_chain",
+      "required_domains": [
+        "dns",
+        "endpoint"
+      ],
+      "expected_alerts": [
+        "XDR_IOC_DNS_ENDPOINT_CHAIN"
+      ],
+      "detected_alerts": [],
+      "missed_alerts": [
+        "XDR_IOC_DNS_ENDPOINT_CHAIN"
+      ],
+      "status": "not_executed"
+    },
+    {
+      "scenario": "saas_suspicious_access_chain",
+      "required_domains": [
+        "saas",
+        "proxy"
+      ],
+      "expected_alerts": [
+        "SAAS_UNUSUAL_ADMIN_ACTIVITY"
+      ],
+      "detected_alerts": [],
+      "missed_alerts": [
+        "SAAS_UNUSUAL_ADMIN_ACTIVITY"
+      ],
+      "status": "not_executed"
+    }
+  ]
+}

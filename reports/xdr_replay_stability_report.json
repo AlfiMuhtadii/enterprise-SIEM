@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-05-12T21:16:55.318564+00:00",
+  "scope": "identity-cloud",
+  "requested_events": 50000,
+  "scoped_events": 19070,
+  "runs": 5,
+  "shadow_status": "CUTOVER_READY",
+  "active_status": "CUTOVER_READY",
+  "fallback_status": "FALLBACK_TO_LEGACY",
+  "stable": true,
+  "replay_degradation": false,
+  "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics"
+}

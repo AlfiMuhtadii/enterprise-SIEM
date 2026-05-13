@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-05-12T21:16:55.318559+00:00",
+  "manual_rollback": {
+    "requested_engine": "legacy",
+    "effective_engine": "legacy",
+    "passed": true
+  },
+  "automatic_rollback": {
+    "fallback_report_status": "FALLBACK_TO_LEGACY",
+    "fallback_report_effective_engine": "legacy",
+    "runtime_status": {
+      "configured_engine": "go",
+      "effective_engine": "legacy",
+      "scope": "identity-cloud",
+      "fallback_to_legacy": true,
+      "fallback_active": true,
+      "fallback_reason": "go_worker_unhealthy",
+      "go_worker": {
+        "healthy": false,
+        "status": "offline",
+        "url": "http://127.0.0.1:1",
+        "error": "cURL error 28: Connection timed out after 2007 milliseconds (see https://curl.haxx.se/libcurl/c/libcurl-errors.html) for http://127.0.0.1:1/health"
+      },
+      "source_of_truth": "legacy",
+      "comparison_engine": "legacy_shadow",
+      "cutover_gate": {
+        "passed": true,
+        "gates": {
+          "alert_type_match": true,
+          "alert_count_delta": true,
+          "evidence_match": true,
+          "p95_latency": true,
+          "duplicate_rate": true
+        },
+        "alert_count_delta_ratio": 0,
+        "thresholds": {
+          "alert_type_match_min": 0.95,
+          "alert_count_delta_max": 0.02,
+          "evidence_match_min": 0.98,
+          "p95_latency_ms_max": 300,
+          "duplicate_rate_max": 0
+        },
+        "report_status": "CUTOVER_READY"
+      },
+      "monitoring": {
+        "alert_count_delta": 0,
+        "p95_latency_ms": 209.621,
+        "error_rate": 1,
+        "worker_health": "offline",
+        "stream_lag": null,
+        "latest_report_status": "CUTOVER_READY"
+      },
+      "manual_rollback": {
+        "env": "XDR_CORRELATION_ENGINE=legacy",
+        "scope_note": "Only identity-cloud is eligible for Go cutover. Endpoint/DNS/proxy stay legacy."
+      }
+    },
+    "passed": true
+  },
+  "shadow_reactivation": {
+    "configured_engine": "shadow",
+    "effective_engine": "legacy",
+    "comparison_engine": "go_shadow",
+    "passed": true
+  },
+  "audit_expected": "xdr.correlation.rollback_auto is written by automatic rollback runtime validation"
+}

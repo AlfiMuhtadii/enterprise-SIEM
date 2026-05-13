@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "rules": [
+        {
+            "rule_id": "RULE-1",
+            "rule_version": "1.0.0",
+            "enabled": false,
+            "name": "Rule one",
+            "alert_type": "TEST_ALERT",
+            "severity": "medium",
+            "time_window_seconds": 60,
+            "required_event_types": [
+                "test_event"
+            ],
+            "metadata": {
+                "owner": "team-blue",
+                "status": "testing"
+            },
+            "severity_override": "high"
+        }
+    ]
+}

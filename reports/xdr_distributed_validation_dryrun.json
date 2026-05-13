@@ -1,0 +1,50 @@
+{
+  "input": "D:\\project\\Detector\\storage\\logs\\xdr_m365_sample.jsonl",
+  "event_count": 2,
+  "health": {
+    "redpanda": {
+      "ok": false,
+      "status": 0,
+      "latency_ms": 2049.3776999937836,
+      "topics": [],
+      "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+    },
+    "clickhouse": {
+      "ok": false,
+      "status": 0,
+      "latency_ms": 2043.7216999998782,
+      "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+    },
+    "opensearch": {
+      "ok": false,
+      "status": 0,
+      "latency_ms": 2066.7555000109132,
+      "body": "",
+      "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+    },
+    "qdrant": {
+      "ok": false,
+      "status": 0,
+      "latency_ms": 2070.628899993608,
+      "body": "",
+      "error": "<urlopen error [WinError 10061] No connection could be made because the target machine actively refused it>"
+    }
+  },
+  "streams": {
+    "dry_run": true
+  },
+  "storage": {
+    "dry_run": true
+  },
+  "metrics": {
+    "end_to_end_latency_ms": 27194.91,
+    "ingestion_throughput_eps": 0.07,
+    "storage_success_count": 0,
+    "stream_success": true,
+    "replay_stability": 1.0
+  },
+  "dashboard_visibility": {
+    "metrics_api": "/soc/api/metrics",
+    "soc_dashboard": "/soc"
+  }
+}

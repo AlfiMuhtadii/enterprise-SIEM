@@ -1,0 +1,34 @@
+{
+  "name": "web-basic-coverage",
+  "window_minutes": 15,
+  "expectations": [
+    {
+      "id": "credential-attack",
+      "description": "Brute force or credential stuffing must be detected.",
+      "any_of": ["BRUTE_FORCE_IP", "CREDENTIAL_STUFFING", "ML_BRUTEFORCE"],
+      "min_count": 1,
+      "severity": "high"
+    },
+    {
+      "id": "reconnaissance-scan",
+      "description": "Directory/path scanning must be detected.",
+      "any_of": ["SCAN_BURST", "LOW_AND_SLOW_SCAN", "ML_SCAN"],
+      "min_count": 1,
+      "severity": "medium"
+    },
+    {
+      "id": "payload-injection",
+      "description": "Injection payload indicators or ML injection classification should be detected.",
+      "any_of": ["INJECTION_INDICATOR", "ML_INJECTION", "ANOMALY_BEHAVIOR"],
+      "min_count": 1,
+      "severity": "medium"
+    },
+    {
+      "id": "advanced-correlation",
+      "description": "Advanced mode should emit at least one correlation/anomaly style finding.",
+      "any_of": ["LOW_AND_SLOW_SCAN", "EXPLOIT_CHAIN_SUSPECTED", "ANOMALY_BEHAVIOR", "C2_BEACON_PATTERN"],
+      "min_count": 1,
+      "severity": "medium"
+    }
+  ]
+}

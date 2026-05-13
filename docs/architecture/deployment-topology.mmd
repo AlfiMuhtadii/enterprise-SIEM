@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph ProductionHost[Production Host]
+    Proxy[Reverse Proxy / TLS]
+    App[Laravel App Container]
+    Queue[Queue Worker Container]
+    Scheduler[Scheduler Container]
+    Telemetry[Telemetry Worker Container]
+    Postgres[(PostgreSQL)]
+  end
+  subgraph Streaming[Streaming Layer]
+    Redpanda[Redpanda]
+    Console[Redpanda Console]
+  end
+  Proxy --> App
+  App --> Postgres
+  Queue --> Postgres
+  Scheduler --> Postgres
+  Telemetry --> Postgres
+  Redpanda --> Telemetry
+  Console --> Redpanda

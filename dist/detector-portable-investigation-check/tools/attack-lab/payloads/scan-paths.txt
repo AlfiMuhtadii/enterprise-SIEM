@@ -1,0 +1,12 @@
+/.env
+/wp-admin
+/phpMyAdmin
+/vendor
+/server-status
+/backup.zip
+/admin.php
+/config.php
+/.git/config
+/api/.env
+/storage/logs/laravel.log
+/scan/path-{n}

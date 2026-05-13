@@ -1,0 +1,229 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT toStartOfMinute(detected_at) AS time, count() AS alerts\nFROM security_alerts\nWHERE detected_at >= now() - INTERVAL 30 DAY\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "title": "Alerts Timeline",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "sql",
+          "format": 0,
+          "rawSql": "SELECT ip, count() AS alert_count\nFROM security_alerts\nWHERE detected_at >= now() - INTERVAL 30 DAY\n  AND ip != ''\nGROUP BY ip\nORDER BY alert_count DESC\nLIMIT 10"
+        }
+      ],
+      "title": "Top Suspicious IP",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, count() AS failed_logins\nFROM security_events\nWHERE ts >= now() - INTERVAL 30 DAY\n  AND event_type = 'auth_login_failed'\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "title": "Login Failure Trends",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, count() AS not_found_count\nFROM security_events\nWHERE ts >= now() - INTERVAL 30 DAY\n  AND status = 404\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "title": "Scan 404 Burst",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "queryType": "sql",
+          "format": 1,
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, sum(has_sql_keywords + has_script_payload) AS injection_flags\nFROM security_events\nWHERE ts >= now() - INTERVAL 30 DAY\nGROUP BY time\nORDER BY time"
+        }
+      ],
+      "title": "Injection Flags",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "security",
+    "detector",
+    "analytics"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Detector Security Overview",
+  "uid": "detector-security-overview",
+  "version": 6,
+  "weekStart": ""
+}

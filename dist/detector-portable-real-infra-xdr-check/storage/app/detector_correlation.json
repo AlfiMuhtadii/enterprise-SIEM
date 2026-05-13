@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "window_minutes": 10,
+  "distributed_window_seconds": 120,
+  "low_slow_min_paths": 12,
+  "low_slow_min_404": 6,
+  "distributed_min_failures": 20,
+  "distributed_min_ips": 3,
+  "exploit_chain_min_stages": 3,
+  "beacon_min_hits": 6,
+  "beacon_max_interval_cv": 0.35
+}

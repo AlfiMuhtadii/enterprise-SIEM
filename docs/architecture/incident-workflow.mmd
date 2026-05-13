@@ -1,0 +1,10 @@
+stateDiagram-v2
+  [*] --> open
+  open --> triaged: assign analyst
+  triaged --> investigating: investigation starts
+  investigating --> resolved: resolution summary
+  investigating --> false_positive: mark false positive
+  triaged --> escalated: SLA breach / manual escalation
+  escalated --> investigating
+  resolved --> [*]
+  false_positive --> [*]

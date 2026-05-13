@@ -1,0 +1,240 @@
+{
+  "validation_status": "CUTOVER_READY",
+  "mode": "shadow",
+  "effective_engine": "shadow",
+  "fallback_active": false,
+  "fallback_reason": null,
+  "source_of_truth": "python_laravel",
+  "comparison_engine": "go_shadow",
+  "scope": "identity-cloud",
+  "events": 19070,
+  "runs": 5,
+  "python_laravel_correlation": {
+    "latency_ms": 199.621,
+    "throughput_eps": 95531.03,
+    "alert_count": 1559,
+    "p95_latency_ms": 255.852,
+    "avg_throughput_eps": 91773.34,
+    "runs": [
+      {
+        "latency_ms": 215.891,
+        "throughput_eps": 88331.49,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 191.393,
+        "throughput_eps": 99637.81,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 189.128,
+        "throughput_eps": 100831.13,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 255.852,
+        "throughput_eps": 74535.25,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 199.621,
+        "throughput_eps": 95531.03,
+        "alert_count": 1559
+      }
+    ]
+  },
+  "go_correlation": {
+    "latency_ms": 180.801,
+    "worker_latency_ms": 187,
+    "throughput_eps": 105475.31,
+    "alert_count": 1559,
+    "p95_latency_ms": 236.451,
+    "worker_p95_latency_ms": 208.0,
+    "avg_throughput_eps": 92859.83,
+    "runs": [
+      {
+        "latency_ms": 236.451,
+        "worker_latency_ms": 208,
+        "throughput_eps": 80651.1,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 213.362,
+        "worker_latency_ms": 204,
+        "throughput_eps": 89378.82,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 190.644,
+        "worker_latency_ms": 165,
+        "throughput_eps": 100029.27,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 214.838,
+        "worker_latency_ms": 192,
+        "throughput_eps": 88764.64,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 180.801,
+        "worker_latency_ms": 187,
+        "throughput_eps": 105475.31,
+        "alert_count": 1559
+      }
+    ]
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 180.801,
+    "worker_latency_ms": 187,
+    "throughput_eps": 105475.31,
+    "alert_count": 1559,
+    "p95_latency_ms": 236.451,
+    "worker_p95_latency_ms": 208.0,
+    "avg_throughput_eps": 92859.83,
+    "runs": [
+      {
+        "latency_ms": 236.451,
+        "worker_latency_ms": 208,
+        "throughput_eps": 80651.1,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 213.362,
+        "worker_latency_ms": 204,
+        "throughput_eps": 89378.82,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 190.644,
+        "worker_latency_ms": 165,
+        "throughput_eps": 100029.27,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 214.838,
+        "worker_latency_ms": 192,
+        "throughput_eps": 88764.64,
+        "alert_count": 1559
+      },
+      {
+        "latency_ms": 180.801,
+        "worker_latency_ms": 187,
+        "throughput_eps": 105475.31,
+        "alert_count": 1559
+      }
+    ],
+    "compatibility_alias": true
+  },
+  "comparison": {
+    "alert_count_delta": 0,
+    "alert_type_match_rate": 1.0,
+    "evidence_match_rate": 1.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120
+    },
+    "go": {
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690
+    },
+    "diff": {
+      "CLOUD_NEW_ACCESS_KEY": {
+        "python": 120,
+        "go": 120,
+        "delta": 0
+      },
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": {
+        "python": 217,
+        "go": 217,
+        "delta": 0
+      },
+      "CLOUD_UNUSUAL_API_ACTIVITY": {
+        "python": 116,
+        "go": 116,
+        "delta": 0
+      },
+      "IDENTITY_IMPOSSIBLE_TRAVEL": {
+        "python": 416,
+        "go": 416,
+        "delta": 0
+      },
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": {
+        "python": 690,
+        "go": 690,
+        "delta": 0
+      }
+    }
+  },
+  "diff": {
+    "missing_in_go_count": 0,
+    "extra_in_go_count": 0,
+    "mismatched_severity_count": 0,
+    "mismatched_entity_key_count": 0,
+    "mismatched_evidence_count": 0,
+    "missing_in_go": [],
+    "extra_in_go": [],
+    "mismatched_severity": [],
+    "mismatched_entity_key": [],
+    "mismatched_evidence": []
+  },
+  "cutover_monitoring": {
+    "alert_count_delta": 0,
+    "go_p95_latency_ms": 236.451,
+    "go_error_rate": 0,
+    "go_worker_health": {
+      "healthy": true,
+      "latency_ms": 17.74,
+      "url": "http://127.0.0.1:8093",
+      "body": {
+        "mode": "shadow",
+        "service": "xdr-correlation",
+        "status": "ok"
+      }
+    },
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics",
+    "scope_guard": "endpoint/dns/proxy remain legacy until separate golden, parity, and latency gates pass"
+  },
+  "cutover_plan": [
+    "Default remains shadow.",
+    "Use XDR_CORRELATION_ENGINE=go only for XDR_CORRELATION_SCOPE=identity-cloud.",
+    "Legacy remains shadow comparison when Go is active.",
+    "Fallback to legacy automatically when Go worker is unhealthy and fallback is enabled.",
+    "Endpoint/DNS/proxy require separate golden test, large replay parity, and latency gate before expansion."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "alerts": 7795,
+      "goroutines": 3,
+      "heap_alloc_mb": 65.53898620605469,
+      "last_latency_ms": 187,
+      "processed": 95350
+    }
+  },
+  "cutover_gate": {
+    "passed": true,
+    "alert_count_delta_ratio": 0.0,
+    "gates": {
+      "alert_type_match_rate_gt_0_95": true,
+      "alert_count_delta_lt_0_02": true,
+      "evidence_match_gt_0_98": true,
+      "go_p95_latency_lt_300ms": true,
+      "duplicate_rate_zero": true
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "xdr.alerts.v1",
+  "title": "Topic xdr.alerts v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "xdr.alert.raised" },
+    "payload": {
+      "type": "object",
+      "oneOf": [
+        { "required": ["alert"] },
+        { "required": ["alerts"] }
+      ],
+      "properties": {
+        "alert": { "$ref": "#/$defs/alert" },
+        "alerts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/alert" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "alert": {
+      "type": "object",
+      "required": ["alert_type", "severity"],
+      "properties": {
+        "alert_id": { "type": ["string", "null"] },
+        "alert_type": { "type": "string" },
+        "severity": { "type": "string" },
+        "detected_at": { "type": ["string", "null"] },
+        "ip": { "type": ["string", "null"] },
+        "actor_key": { "type": ["string", "null"] },
+        "score": { "type": ["number", "null"] },
+        "evidence": { "type": "object" },
+        "raw_event": { "type": "object" },
+        "detector_name": { "type": "string" },
+        "detector_version": { "type": "string" }
+      }
+    }
+  }
+}

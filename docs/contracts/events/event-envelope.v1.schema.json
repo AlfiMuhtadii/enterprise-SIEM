@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event-envelope.v1",
+  "title": "XDR Event Envelope v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "source_service",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "minLength": 8, "maxLength": 80 },
+    "event_type": { "type": "string", "minLength": 3, "maxLength": 120 },
+    "schema_version": { "const": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "trace_id": { "type": ["string", "null"], "maxLength": 120 },
+    "source_service": { "type": "string", "maxLength": 120 },
+    "payload": { "type": "object" },
+    "metadata": { "type": "object" }
+  }
+}

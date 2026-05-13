@@ -1,0 +1,13 @@
+scenario,method,samples,accuracy,attack_recall_binary
+low_and_slow,rules_only,13,0.307692,0.461538
+low_and_slow,ml_only,13,0.615385,0.923077
+low_and_slow,hybrid,13,0.769231,0.923077
+burst,rules_only,69,0.521739,0.521739
+burst,ml_only,69,1.0,1.0
+burst,hybrid,69,1.0,1.0
+high_noise_normal,rules_only,0,,
+high_noise_normal,ml_only,0,,
+high_noise_normal,hybrid,0,,
+new_injection_variant,rules_only,8,1.0,1.0
+new_injection_variant,ml_only,8,0.5,1.0
+new_injection_variant,hybrid,8,1.0,1.0

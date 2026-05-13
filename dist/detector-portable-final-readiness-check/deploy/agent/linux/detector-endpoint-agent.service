@@ -1,0 +1,19 @@
+[Unit]
+Description=Detector Lightweight Endpoint Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/detector
+Environment=DETECTOR_SERVER_URL=http://127.0.0.1:8000
+Environment=SOC_AGENT_ENROLLMENT_TOKEN=change-me
+ExecStart=/usr/bin/python3 /opt/detector/scripts/endpoint_telemetry_agent.py --daemon --interval 60 --state-file /var/lib/detector/endpoint_agent_state.json --buffer-file /var/lib/detector/endpoint_agent_retry_queue.jsonl
+Restart=always
+RestartSec=10
+User=detector
+Group=detector
+
+[Install]
+WantedBy=multi-user.target
+

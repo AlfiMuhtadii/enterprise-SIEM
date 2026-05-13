@@ -1,0 +1,148 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Attack Lab Campaign Report</title>
+<style>body{font-family:Arial,sans-serif;margin:32px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px}pre{background:#111;color:#eee;padding:12px;white-space:pre-wrap}</style>
+</head><body>
+<h1>Attack Lab Campaign Report</h1>
+<p><b>Campaign:</b> web-detector-validation</p>
+<p><b>Campaign ID:</b> 20260511-144522-web-detector-validation</p>
+<p><b>Target:</b> http://127.0.0.1:8000</p>
+<p><b>Requests:</b> 169 | <b>Failed:</b> 0 | <b>Duration:</b> 36860 ms</p>
+<p><b>State:</b> D:\project\Detector\tools\attack-lab\state\20260511-144522-web-detector-validation.json</p>
+<h2>Steps</h2><table><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Requests</th><th>Failed</th><th>Reason</th></tr></thead><tbody><tr><td>baseline</td><td>profile</td><td>completed</td><td>33</td><td>0</td><td></td></tr>
+<tr><td>full-web-chain</td><td>profile</td><td>completed</td><td>114</td><td>0</td><td></td></tr>
+<tr><td>crawl-after-chain</td><td>crawl</td><td>completed</td><td>2</td><td>0</td><td></td></tr>
+<tr><td>injection-focus</td><td>profile</td><td>completed</td><td>20</td><td>0</td><td></td></tr></tbody></table>
+<h2>Detector Alert Report</h2><pre>=== Ingest JSONL ===
+Processed: 224
+Inserted: 224
+Invalid: 0
+Offset: 483655
+=== Replay Detector ===
+replayed_events=1154
+invalid_events_dropped=0
+alerts_attempted=2356
+responses_attempted=2245
+
+=== Alert Report ===
+Window: last 15 minutes
+
+Alert summary:
++-------------------------+-------+
+| alert_type              | total |
++-------------------------+-------+
+| ANOMALY_BEHAVIOR        | 18    |
+| ML_BRUTEFORCE           | 14    |
+| ML_SCAN                 | 14    |
+| SCAN_BURST              | 8     |
+| BRUTE_FORCE_IP          | 7     |
+| CREDENTIAL_STUFFING     | 7     |
+| LOW_AND_SLOW_SCAN       | 3     |
+| ML_INJECTION            | 1     |
+| EXPLOIT_CHAIN_SUSPECTED | 1     |
++-------------------------+-------+
+
+Latest alerts:
++------------------------+-------------------------+----------+--------------+--------------------+
+| detected_at            | alert_type              | severity | ip           | score              |
++------------------------+-------------------------+----------+--------------+--------------------+
+| 2026-05-11 14:45:52+07 | ANOMALY_BEHAVIOR        | medium   | 203.0.113.70 | 0.5042734969809337 |
+| 2026-05-11 14:45:45+07 | EXPLOIT_CHAIN_SUSPECTED | high     | 203.0.113.50 | 0.75               |
+| 2026-05-11 14:45:43+07 | ML_INJECTION            | medium   | 203.0.113.50 | 0.5440846674895504 |
+| 2026-05-11 14:45:43+07 | SCAN_BURST              | medium   | 203.0.113.50 | 0.375              |
+| 2026-05-11 14:45:40+07 | ML_SCAN                 | medium   | 203.0.113.50 | 0.9999999971746107 |
+| 2026-05-11 14:45:35+07 | CREDENTIAL_STUFFING     | high     | 203.0.113.50 | 0.75               |
+| 2026-05-11 14:45:34+07 | BRUTE_FORCE_IP          | high     | 203.0.113.50 | 0.4                |
+| 2026-05-11 14:45:30+07 | ANOMALY_BEHAVIOR        | high     | 203.0.113.50 | 1                  |
+| 2026-05-11 14:45:30+07 | ML_BRUTEFORCE           | medium   | 203.0.113.50 | 0.9775057592930823 |
+| 2026-05-11 14:45:28+07 | ML_BRUTEFORCE           | medium   | 203.0.113.50 | 0.9970203457335768 |
+| 2026-05-11 14:45:26+07 | ANOMALY_BEHAVIOR        | high     | 203.0.113.50 | 1                  |
+| 2026-05-11 14:45:25+07 | SCAN_BURST              | medium   | 127.0.0.1    | 0.375              |
+| 2026-05-11 14:45:22+07 | ML_SCAN                 | medium   | 127.0.0.1    | 0.9999999995979203 |
+| 2026-05-11 14:45:22+07 | ANOMALY_BEHAVIOR        | medium   | 127.0.0.1    | 0.5598290517330705 |
+| 2026-05-11 14:40:52+07 | ANOMALY_BEHAVIOR        | medium   | 203.0.113.70 | 0.5042734969809337 |
+| 2026-05-11 14:40:42+07 | SCAN_BURST              | medium   | 203.0.113.50 | 0.375              |
+| 2026-05-11 14:40:39+07 | ML_SCAN                 | medium   | 203.0.113.50 | 0.9999999974806086 |
+| 2026-05-11 14:40:34+07 | CREDENTIAL_STUFFING     | high     | 203.0.113.50 | 0.75               |
+| 2026-05-11 14:40:32+07 | BRUTE_FORCE_IP          | high     | 203.0.113.50 | 0.4                |
+| 2026-05-11 14:40:30+07 | ANOMALY_BEHAVIOR        | medium   | 203.0.113.50 | 0.6837606738724524 |
++------------------------+-------------------------+----------+--------------+--------------------+
+
+=== Coverage Matrix ===
+{
+  &quot;name&quot;: &quot;web-basic-coverage&quot;,
+  &quot;generated_at&quot;: &quot;2026-05-11T07:45:56.577846+00:00&quot;,
+  &quot;window_minutes&quot;: 15,
+  &quot;summary&quot;: {
+    &quot;total&quot;: 4,
+    &quot;passed&quot;: 4,
+    &quot;failed&quot;: 0,
+    &quot;pass_rate&quot;: 1.0
+  },
+  &quot;alert_counts&quot;: {
+    &quot;ANOMALY_BEHAVIOR&quot;: 9,
+    &quot;BRUTE_FORCE_IP&quot;: 4,
+    &quot;CREDENTIAL_STUFFING&quot;: 4,
+    &quot;EXPLOIT_CHAIN_SUSPECTED&quot;: 1,
+    &quot;LOW_AND_SLOW_SCAN&quot;: 2,
+    &quot;ML_BRUTEFORCE&quot;: 5,
+    &quot;ML_INJECTION&quot;: 1,
+    &quot;ML_SCAN&quot;: 5,
+    &quot;SCAN_BURST&quot;: 6
+  },
+  &quot;matrix&quot;: [
+    {
+      &quot;id&quot;: &quot;credential-attack&quot;,
+      &quot;description&quot;: &quot;Brute force or credential stuffing must be detected.&quot;,
+      &quot;expected_any_of&quot;: [
+        &quot;BRUTE_FORCE_IP&quot;,
+        &quot;CREDENTIAL_STUFFING&quot;,
+        &quot;ML_BRUTEFORCE&quot;
+      ],
+      &quot;min_count&quot;: 1,
+      &quot;observed_count&quot;: 13,
+      &quot;status&quot;: &quot;PASS&quot;,
+      &quot;severity&quot;: &quot;high&quot;
+    },
+    {
+      &quot;id&quot;: &quot;reconnaissance-scan&quot;,
+      &quot;description&quot;: &quot;Directory/path scanning must be detected.&quot;,
+      &quot;expected_any_of&quot;: [
+        &quot;SCAN_BURST&quot;,
+        &quot;LOW_AND_SLOW_SCAN&quot;,
+        &quot;ML_SCAN&quot;
+      ],
+      &quot;min_count&quot;: 1,
+      &quot;observed_count&quot;: 13,
+      &quot;status&quot;: &quot;PASS&quot;,
+      &quot;severity&quot;: &quot;medium&quot;
+    },
+    {
+      &quot;id&quot;: &quot;payload-injection&quot;,
+      &quot;description&quot;: &quot;Injection payload indicators or ML injection classification should be detected.&quot;,
+      &quot;expected_any_of&quot;: [
+        &quot;INJECTION_INDICATOR&quot;,
+        &quot;ML_INJECTION&quot;,
+        &quot;ANOMALY_BEHAVIOR&quot;
+      ],
+      &quot;min_count&quot;: 1,
+      &quot;observed_count&quot;: 10,
+      &quot;status&quot;: &quot;PASS&quot;,
+      &quot;severity&quot;: &quot;medium&quot;
+    },
+    {
+      &quot;id&quot;: &quot;advanced-correlation&quot;,
+      &quot;description&quot;: &quot;Advanced mode should emit at least one correlation/anomaly style finding.&quot;,
+      &quot;expected_any_of&quot;: [
+        &quot;LOW_AND_SLOW_SCAN&quot;,
+        &quot;EXPLOIT_CHAIN_SUSPECTED&quot;,
+        &quot;ANOMALY_BEHAVIOR&quot;,
+        &quot;C2_BEACON_PATTERN&quot;
+      ],
+      &quot;min_count&quot;: 1,
+      &quot;observed_count&quot;: 12,
+      &quot;status&quot;: &quot;PASS&quot;,
+      &quot;severity&quot;: &quot;medium&quot;
+    }
+  ]
+}</pre>
+</body></html>

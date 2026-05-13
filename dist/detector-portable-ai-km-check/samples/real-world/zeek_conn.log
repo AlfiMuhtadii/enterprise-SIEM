@@ -1,0 +1,5 @@
+#separator \x09
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	service	duration	orig_bytes	resp_bytes	conn_state
+1778540600.000000	Cdemo1	10.0.8.77	51510	198.51.100.88	443	tcp	ssl	1.0	120	80	SF
+1778540660.000000	Cdemo2	10.0.8.77	51511	198.51.100.88	443	tcp	ssl	1.1	118	83	SF
+1778540720.000000	Cdemo3	10.0.8.77	51512	198.51.100.88	443	tcp	ssl	1.0	119	82	SF

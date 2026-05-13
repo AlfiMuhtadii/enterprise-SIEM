@@ -1,0 +1,27 @@
+{
+  "trusted_admin_sources": [
+    "10.10.1.10"
+  ],
+  "approved_internal_admin_pairs": [
+    {
+      "src_ip": "10.10.1.10",
+      "dst_ip": "10.10.2.20",
+      "ports": [22, 3389, 5985]
+    }
+  ],
+  "known_dns_queries": [
+    "windowsupdate.com",
+    "time.windows.com",
+    "updates.vendor.example"
+  ],
+  "approved_persistence_events": [
+    {
+      "event_type": "scheduled_task_created",
+      "process_name": "sccm-agent.exe"
+    }
+  ],
+  "approved_process_names": [
+    "sccm-agent.exe",
+    "backup-agent.exe"
+  ]
+}

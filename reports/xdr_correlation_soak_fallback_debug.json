@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-05-13T04:14:07.494976+00:00",
+  "source_report_status": "FAIL",
+  "scope": "identity-cloud",
+  "duration_minutes_requested": 360.0,
+  "metrics": {
+    "fallback_count": 1125,
+    "failure_count": 1110,
+    "p50_latency_ms": 62.235,
+    "p95_latency_ms": 81.374,
+    "worker_p95_latency_ms": 68.0,
+    "avg_throughput_eps": 81180.25,
+    "memory_growth_mb": -15.96,
+    "goroutine_growth": 0,
+    "heap_alloc_mb_trend": {
+      "start": 24.428,
+      "end": 8.468,
+      "delta": -15.96,
+      "max": 29.86
+    },
+    "goroutine_trend": {
+      "start": 3.0,
+      "end": 3.0,
+      "delta": 0.0,
+      "max": 4.0
+    },
+    "latency_ms_trend": {
+      "start": 60.631,
+      "end": 66.178,
+      "delta": 5.547,
+      "max": 1091914.759
+    }
+  },
+  "checks": {
+    "fallback_count_zero": false,
+    "no_request_failures": false,
+    "p95_under_target": true,
+    "memory_growth_under_target": true,
+    "goroutine_growth_under_target": true
+  },
+  "fallback_event_sample_count_in_report": 20,
+  "failure_sample_count_in_report": 20,
+  "fallback_reasons": {
+    "cutover_status_failed": 15,
+    "go_worker_unhealthy": 5
+  },
+  "failure_categories": {
+    "cutover_status_command_failed": 15,
+    "worker_closed_connection": 23,
+    "host_aborted_connection": 2
+  },
+  "unhealthy_sample_count": 16,
+  "max_latency_sample": {
+    "ts": "2026-05-12T22:59:48.477631+00:00",
+    "events": 5000,
+    "alerts": 514,
+    "client_latency_ms": 1091914.759,
+    "worker_latency_ms": 7663,
+    "throughput_eps": 4.58,
+    "heap_alloc_mb": 8.181350708007812,
+    "goroutines": 3,
+    "fallback_active": false,
+    "worker_health": "healthy",
+    "stream_lag": null
+  },
+  "likely_root_causes": [
+    "Go worker or Windows host closed HTTP connections during sustained burst traffic.",
+    "Soak harness treated cutover-status command failure as fallback."
+  ],
+  "decision": "keep_shadow_or_staged_active",
+  "do_not_set_default_go": true,
+  "recommendations": [
+    "Run a shorter 10-30 minute soak with the same batch size and capture Go worker logs around the first fallback timestamp.",
+    "Separate healthcheck failures from correlate request failures in the next soak report.",
+    "Add retry/debounce for cutover status healthcheck before counting fallback.",
+    "If failures are only HTTP connection resets while p95/memory/goroutines are stable, tune server timeouts and client retry before declaring correlation logic unstable.",
+    "Keep identity/cloud/SaaS in shadow or staged-active mode until fallback_count is 0 on a 6h run."
+  ]
+}

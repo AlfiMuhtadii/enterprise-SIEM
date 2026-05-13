@@ -1,0 +1,8 @@
+{
+  "name": "real-world-sample-coverage",
+  "techniques": [
+    {"tactic": "Credential Access", "technique": "T1110", "name": "Brute Force", "expected": true},
+    {"tactic": "Command and Control", "technique": "T1071", "name": "Application Layer Protocol", "expected": true},
+    {"tactic": "Initial Access", "technique": "T1190", "name": "Exploit Public-Facing Application", "expected": true}
+  ]
+}

@@ -1,0 +1,2 @@
+{"timestamp":"2026-05-12T02:02:00.000000+0000","event_type":"alert","src_ip":"203.0.113.50","src_port":52000,"dest_ip":"10.0.0.10","dest_port":80,"proto":"TCP","alert":{"signature":"ET WEB_SERVER Possible SQL Injection Attempt","category":"Web Application Attack","severity":2}}
+{"timestamp":"2026-05-12T02:03:00.000000+0000","event_type":"dns","src_ip":"10.0.8.77","dest_ip":"8.8.8.8","proto":"UDP","dns":{"type":"query","rrname":"c2-demo.example","rrtype":"A"}}

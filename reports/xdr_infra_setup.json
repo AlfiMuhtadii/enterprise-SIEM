@@ -1,0 +1,77 @@
+{
+  "health": {
+    "redpanda": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 33.144400018500164,
+      "topics": [
+        "security_events"
+      ],
+      "error": ""
+    },
+    "clickhouse": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 15.907799999695271,
+      "error": ""
+    },
+    "opensearch": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 24.557099997764453,
+      "body": {
+        "cluster_name": "docker-cluster",
+        "status": "green",
+        "timed_out": false,
+        "number_of_nodes": 1,
+        "number_of_data_nodes": 1,
+        "discovered_master": true,
+        "discovered_cluster_manager": true,
+        "active_primary_shards": 3,
+        "active_shards": 3,
+        "relocating_shards": 0,
+        "initializing_shards": 0,
+        "unassigned_shards": 0,
+        "delayed_unassigned_shards": 0,
+        "number_of_pending_tasks": 0,
+        "number_of_in_flight_fetch": 0,
+        "task_max_waiting_in_queue_millis": 0,
+        "active_shards_percent_as_number": 100.0
+      },
+      "error": ""
+    },
+    "qdrant": {
+      "ok": true,
+      "status": 200,
+      "latency_ms": 64.01719999848865,
+      "body": {
+        "title": "qdrant - vector search engine",
+        "version": "1.12.1",
+        "commit": "9c20e9e27960228019b4606f137ca82b42fc3e66"
+      },
+      "error": ""
+    }
+  },
+  "setup": {
+    "clickhouse": {
+      "ok": true,
+      "statuses": [
+        200,
+        200,
+        200,
+        200
+      ],
+      "errors": []
+    },
+    "opensearch": {
+      "ok": true,
+      "status": 200,
+      "error": "{\"acknowledged\":true}"
+    },
+    "qdrant": {
+      "ok": true,
+      "status": 409,
+      "error": "HTTP Error 409: Conflict"
+    }
+  }
+}

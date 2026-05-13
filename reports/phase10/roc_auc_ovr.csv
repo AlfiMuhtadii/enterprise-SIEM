@@ -1,0 +1,4 @@
+method,auc_normal,auc_bruteforce,auc_scan,auc_injection,auc_macro
+rules_only,0.744681,0.691489,0.730769,0.988506,0.788861
+ml_only,0.994681,0.983156,0.906822,0.514368,0.849757
+hybrid,0.994681,0.991135,0.960623,0.988506,0.983736

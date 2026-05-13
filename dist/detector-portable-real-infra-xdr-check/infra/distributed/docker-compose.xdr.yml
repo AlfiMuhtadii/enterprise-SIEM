@@ -1,0 +1,71 @@
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.8
+    container_name: detector-redpanda
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
+      - --pandaproxy-addr
+      - 0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - 127.0.0.1:8082
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+      - "8082:8082"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: detector-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: detector_analytics
+      CLICKHOUSE_USER: detector
+      CLICKHOUSE_PASSWORD: detector
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - xdr_clickhouse_data:/var/lib/clickhouse
+
+  opensearch:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: detector-opensearch
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "DetectorAdmin123!"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - xdr_opensearch_data:/usr/share/opensearch/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: detector-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - xdr_qdrant_data:/qdrant/storage
+
+volumes:
+  xdr_clickhouse_data:
+  xdr_opensearch_data:
+  xdr_qdrant_data:

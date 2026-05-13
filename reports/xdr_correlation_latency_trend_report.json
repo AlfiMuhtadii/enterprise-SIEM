@@ -1,0 +1,110 @@
+{
+  "generated_at": "2026-05-12T21:16:55.318568+00:00",
+  "scope": "identity-cloud",
+  "shadow_p95_latency_ms": 236.451,
+  "active_p95_latency_ms": 194.069,
+  "active_worker_p95_latency_ms": 195.0,
+  "active_throughput_eps": 101636.7,
+  "shadow_runs": [
+    {
+      "latency_ms": 236.451,
+      "worker_latency_ms": 208,
+      "throughput_eps": 80651.1,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 213.362,
+      "worker_latency_ms": 204,
+      "throughput_eps": 89378.82,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 190.644,
+      "worker_latency_ms": 165,
+      "throughput_eps": 100029.27,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 214.838,
+      "worker_latency_ms": 192,
+      "throughput_eps": 88764.64,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 180.801,
+      "worker_latency_ms": 187,
+      "throughput_eps": 105475.31,
+      "alert_count": 1559
+    }
+  ],
+  "active_runs": [
+    {
+      "latency_ms": 192.067,
+      "worker_latency_ms": 195,
+      "throughput_eps": 99288.22,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 176.689,
+      "worker_latency_ms": 172,
+      "throughput_eps": 107929.81,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 182.883,
+      "worker_latency_ms": 175,
+      "throughput_eps": 104274.43,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 194.069,
+      "worker_latency_ms": 176,
+      "throughput_eps": 98263.82,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 193.747,
+      "worker_latency_ms": 186,
+      "throughput_eps": 98427.23,
+      "alert_count": 1559
+    }
+  ],
+  "legacy_shadow_runs": [
+    {
+      "latency_ms": 206.778,
+      "throughput_eps": 92224.56,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 192.801,
+      "throughput_eps": 98910.17,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 194.659,
+      "throughput_eps": 97965.94,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 193.248,
+      "throughput_eps": 98681.54,
+      "alert_count": 1559
+    },
+    {
+      "latency_ms": 203.139,
+      "throughput_eps": 93876.42,
+      "alert_count": 1559
+    }
+  ],
+  "worker_health": {
+    "healthy": true,
+    "latency_ms": 29.51,
+    "url": "http://127.0.0.1:8093",
+    "body": {
+      "mode": "shadow",
+      "service": "xdr-correlation",
+      "status": "ok"
+    }
+  },
+  "latency_gate_passed": true
+}

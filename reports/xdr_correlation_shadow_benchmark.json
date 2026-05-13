@@ -1,0 +1,71 @@
+{
+  "validation_status": "SHADOW_PASS",
+  "mode": "shadow",
+  "source_of_truth": "python_laravel",
+  "events": 50000,
+  "runs": 5,
+  "python_laravel_correlation": {
+    "latency_ms": 272.785,
+    "throughput_eps": 183294.4,
+    "alert_count": 1735,
+    "p95_latency_ms": 274.105,
+    "avg_throughput_eps": 184227.69
+  },
+  "go_shadow_correlation": {
+    "latency_ms": 451.928,
+    "worker_latency_ms": 431,
+    "throughput_eps": 110636.97,
+    "alert_count": 1644,
+    "p95_latency_ms": 474.291,
+    "worker_p95_latency_ms": 449.0,
+    "avg_throughput_eps": 110366.38
+  },
+  "comparison": {
+    "alert_count_delta": -91,
+    "alert_type_match_rate": 0.6023,
+    "evidence_match_rate": 1.0,
+    "python_duplicate_rate": 0.0,
+    "go_duplicate_rate": 0.0,
+    "false_positive_estimate_delta": "requires labeled analyst review; shadow comparison only",
+    "incident_creation_latency_ms": "not measured; Go shadow mode does not create incidents"
+  },
+  "alert_types": {
+    "python": {
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 416,
+      "IDENTITY_UNUSUAL_LOGIN_SOURCE": 690,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "XDR_PROXY_ENDPOINT_ESCALATION": 176
+    },
+    "go": {
+      "CLOUD_MASS_DOWNLOAD": 120,
+      "CLOUD_NEW_ACCESS_KEY": 120,
+      "CLOUD_SUSPICIOUS_OBJECT_ACCESS": 217,
+      "CLOUD_UNUSUAL_API_ACTIVITY": 116,
+      "IDENTITY_IMPOSSIBLE_TRAVEL": 535,
+      "IDENTITY_MFA_FAILURE_BURST": 120,
+      "IDENTITY_RISKY_IP_LOGIN": 120,
+      "XDR_PHISHING_TO_ENDPOINT_EXECUTION": 120,
+      "XDR_PROXY_ENDPOINT_ESCALATION": 176
+    }
+  },
+  "cutover_plan": [
+    "Keep Python/Laravel as source of truth.",
+    "Run Go shadow for identity/cloud only until alert type/evidence match is stable.",
+    "Expand shadow to endpoint/DNS/proxy after identity/cloud stability.",
+    "Move incident creation last after duplicate and evidence parity are acceptable."
+  ],
+  "pressure": {
+    "go_correlation_worker": {
+      "error": "permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine"
+    },
+    "go_correlation_metrics_endpoint": {
+      "alerts": 9864,
+      "goroutines": 3,
+      "heap_alloc_mb": 114.26032257080078,
+      "last_latency_ms": 431,
+      "processed": 300000
+    }
+  }
+}

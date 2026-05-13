@@ -1,0 +1,33 @@
+{
+  "package": "detector-agent-windows-local-0.2.0",
+  "version": "0.2.0",
+  "platform": "windows",
+  "environment": "local",
+  "files": [
+    {
+      "path": "agent-config.json",
+      "sha256": "a5439fbe3baba34d957e43558bd136fe22fd2ff17eec89e5dbbac449f00b53a7",
+      "bytes": 260
+    },
+    {
+      "path": "endpoint_telemetry_agent.py",
+      "sha256": "95d63dd06de5e274899b11a4a3235da9639faef2476925c75a526c01fb6a10d1",
+      "bytes": 24353
+    },
+    {
+      "path": "install-agent-service.ps1",
+      "sha256": "d0969c5ca4dc33976e6cade9f8dcb803e5e31277f1bd22afa87e6cdd5110ed6d",
+      "bytes": 722
+    },
+    {
+      "path": "README_DEPLOY.md",
+      "sha256": "f1b62d07a512d021672463db8ff45d6e08fceacf008496c8763e547adb258648",
+      "bytes": 263
+    },
+    {
+      "path": "uninstall-agent-service.ps1",
+      "sha256": "b9c0078cdf9dbc12e78bc7f4d6f5007f32fc7e3b05545b345e560a76b86cb747",
+      "bytes": 134
+    }
+  ]
+}

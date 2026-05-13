@@ -1,0 +1,4 @@
+method,runs,mean_first_alert_sec,mean_first_correct_sec
+rules_only,3,2.333333,2.333333
+ml_only,3,0.0,0.0
+hybrid,3,0.0,0.0

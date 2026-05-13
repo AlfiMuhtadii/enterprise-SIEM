@@ -1,0 +1,2 @@
+{"eventTime":"2026-05-12T02:00:00Z","eventName":"CreateAccessKey","sourceIPAddress":"198.51.100.44","recipientAccountId":"111122223333","userIdentity":{"arn":"arn:aws:iam::111122223333:user/alice","userName":"alice","accountId":"111122223333"}}
+{"eventTime":"2026-05-12T02:06:00Z","eventName":"PutBucketPolicy","sourceIPAddress":"198.51.100.44","recipientAccountId":"111122223333","userIdentity":{"arn":"arn:aws:iam::111122223333:user/alice","userName":"alice","accountId":"111122223333"}}

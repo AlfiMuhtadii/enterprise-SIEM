@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-05-12T21:16:55.318474+00:00",
+  "started_at": "2026-05-12T21:16:39.298123+00:00",
+  "scope": "identity-cloud",
+  "domains": [
+    "identity",
+    "cloud",
+    "saas"
+  ],
+  "replay_events_requested": 50000,
+  "runs": 5,
+  "shadow_report": "reports\\xdr_cutover_shadow_identity_cloud_saas.json",
+  "active_report": "reports\\xdr_cutover_active_identity_cloud_saas.json",
+  "active_source_of_truth": "go",
+  "legacy_shadow_comparison": true,
+  "go_cutover_gate_passed": true,
+  "shadow_gate_passed": true,
+  "fallback_activation_count": 2,
+  "metrics": {
+    "alert_count_delta": 0,
+    "alert_type_match": 1.0,
+    "evidence_match": 1.0,
+    "severity_mismatch": 0,
+    "entity_mismatch": 0,
+    "duplicate_rate": 0.0,
+    "p95_latency_ms": 194.069,
+    "throughput_eps": 101636.7,
+    "worker_p95_latency_ms": 195.0,
+    "fallback_active": false,
+    "fallback_reason": null,
+    "stream_lag": "not measured by local benchmark; use xdr:stream-metrics or Redpanda lag metrics"
+  },
+  "wider_migration_guard": "endpoint/dns/proxy/firewall stay legacy until separate golden, large replay parity, and latency gates pass"
+}

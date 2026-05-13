@@ -1,0 +1,163 @@
+{
+  "model_name": "application-log-attack-detector",
+  "model_type": "multiclass_logistic_regression",
+  "generated_at": "2026-05-09T02:17:44.163835+07:00",
+  "intended_use": "Near-real-time classification of Laravel application security events.",
+  "not_intended_for": [
+    "Replacing WAF controls without human-reviewed response policy",
+    "Network-layer IDS data that does not use the trained application-log schema"
+  ],
+  "classes": [
+    "normal",
+    "bruteforce",
+    "scan",
+    "injection"
+  ],
+  "input_schema": {
+    "categorical": [
+      "event_type",
+      "method"
+    ],
+    "numeric": [
+      "status",
+      "latency_ms",
+      "has_sql_keywords",
+      "has_script_payload",
+      "path_len",
+      "path_depth",
+      "is_admin_path",
+      "is_scan_like_path",
+      "is_sensitive_probe",
+      "failed_1m",
+      "failed_5m",
+      "failed_10m",
+      "unique_email_10m",
+      "req_1m",
+      "req_5m",
+      "notfound_2m",
+      "unique_paths_2m"
+    ]
+  },
+  "decision_thresholds": {
+    "normal": 0.0,
+    "bruteforce": 0.961258,
+    "scan": 0.999224,
+    "injection": 0.5
+  },
+  "metrics": {
+    "accuracy": 0.873684,
+    "per_class": {
+      "normal": {
+        "precision": 0.125,
+        "recall": 1.0,
+        "f1": 0.222222,
+        "support": 1
+      },
+      "bruteforce": {
+        "precision": 1.0,
+        "recall": 0.893617,
+        "f1": 0.94382,
+        "support": 47
+      },
+      "scan": {
+        "precision": 0.9,
+        "recall": 0.923077,
+        "f1": 0.911392,
+        "support": 39
+      },
+      "injection": {
+        "precision": 0.8,
+        "recall": 0.5,
+        "f1": 0.615385,
+        "support": 8
+      }
+    },
+    "macro_avg_f1": 0.673205,
+    "weighted_avg_f1": 0.895254
+  },
+  "calibration": {
+    "overall": {
+      "avg_confidence": 0.988421,
+      "accuracy": 0.873684
+    },
+    "bins": [
+      {
+        "range": [
+          0.0,
+          0.1
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.1,
+          0.2
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.2,
+          0.3
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.3,
+          0.4
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.4,
+          0.5
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.5,
+          0.6
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.6,
+          0.7
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.7,
+          0.8
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.8,
+          0.9
+        ],
+        "samples": 0
+      },
+      {
+        "range": [
+          0.9,
+          1.0
+        ],
+        "samples": 95,
+        "accuracy": 0.873684,
+        "avg_confidence": 0.988421
+      }
+    ]
+  },
+  "known_limitations": [
+    "Performance depends on event schema consistency between training and runtime.",
+    "New attack families outside the trained labels require labeling and retraining.",
+    "Thresholds are learned from the training split and should be reviewed after production drift."
+  ]
+}

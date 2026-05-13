@@ -1,0 +1,111 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-test-validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: detector_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d detector_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_pgsql
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          {
+            echo "APP_ENV=testing"
+            echo "APP_DEBUG=false"
+            echo "DB_CONNECTION=pgsql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=5432"
+            echo "DB_DATABASE=detector_test"
+            echo "DB_USERNAME=postgres"
+            echo "DB_PASSWORD=postgres"
+            echo "QUEUE_CONNECTION=database"
+          } >> .env
+
+      - name: PHP syntax lint
+        run: git ls-files "*.php" | xargs -n 1 php -l
+
+      - name: Python syntax lint
+        run: python -m compileall -q scripts
+
+      - name: Environment profile validation
+        run: |
+          python scripts/validate_environment.py --profile local --env-file .env.example
+          python scripts/validate_environment.py --profile production --env-file .env.production.example --allow-placeholders
+
+      - name: Migration check
+        run: php artisan migrate:fresh --force
+
+      - name: Route cache validation
+        run: |
+          php artisan route:cache
+          php artisan route:clear
+
+      - name: Run automated tests
+        run: php artisan test
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Docker Compose validation
+        run: docker compose -f infra/production/docker-compose.production.yml config --quiet
+
+      - name: Production image build verification
+        run: docker compose -f infra/production/docker-compose.production.yml build app
+
+      - name: Portable export validation
+        run: python scripts/export_portable_detector.py --output dist/detector-portable-ci --clean
+
+      - name: Real-world sample adapter validation
+        run: |
+          python scripts/telemetry_adapters.py --adapter sysmon-json --input samples/real-world/sysmon_sample.jsonl --output storage/logs/ci_sysmon.jsonl
+          python scripts/telemetry_adapters.py --adapter zeek-conn --input samples/real-world/zeek_conn.log --output storage/logs/ci_zeek_conn.jsonl
+          python scripts/telemetry_adapters.py --adapter suricata-eve --input samples/real-world/suricata_eve.jsonl --output storage/logs/ci_suricata.jsonl
+          python scripts/telemetry_event_contract.py --file storage/logs/ci_sysmon.jsonl
+          python scripts/telemetry_enrichment.py --input storage/logs/ci_sysmon.jsonl --output storage/logs/ci_sysmon_enriched.jsonl
+          python scripts/threat_hunt.py --jsonl storage/logs/ci_sysmon_enriched.jsonl --output reports/ci_threat_hunt.json

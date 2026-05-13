@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "brute_force_30s": 12,
+  "stuffing_30s": 15,
+  "stuffing_unique_emails_30s": 8,
+  "scan_30s_404": 20,
+  "scan_30s_unique_paths": 20
+}
