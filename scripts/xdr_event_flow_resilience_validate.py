@@ -13,6 +13,7 @@ database-only operational event-store check.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import subprocess
 import time
@@ -28,6 +29,7 @@ from xdr_event_contracts import envelope
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate XDR event flow idempotency/restart/DLQ behavior")
     parser.add_argument("--alert-writer-url", default="http://127.0.0.1:8095")
+    parser.add_argument("--incident-builder-url", default="http://127.0.0.1:8096")
     parser.add_argument("--redpanda-rest", default="http://127.0.0.1:8082")
     parser.add_argument("--replays", type=int, default=3)
     parser.add_argument("--restart-services", type=int, default=0)
@@ -36,12 +38,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+_TRANSIENT = (
+    http.client.RemoteDisconnected,
+    ConnectionResetError,
+    ConnectionRefusedError,
+    TimeoutError,
+    urllib.error.URLError,
+)
+
+
 def http_json(method: str, url: str, body: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Dict[str, Any]:
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        text = resp.read().decode("utf-8")
-    return json.loads(text) if text.strip() else {}
+    last_exc: Exception = RuntimeError("no attempts made")
+    for attempt in range(10):
+        try:
+            req = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                text = resp.read().decode("utf-8")
+            return json.loads(text) if text.strip() else {}
+        except _TRANSIENT as exc:
+            last_exc = exc
+            if attempt < 9:
+                time.sleep(1)
+    raise last_exc
 
 
 def http_json_with_headers(method: str, url: str, body: Dict[str, Any], headers: Dict[str, str], timeout: int = 10) -> Dict[str, Any]:
@@ -50,6 +69,19 @@ def http_json_with_headers(method: str, url: str, body: Dict[str, Any], headers:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         text = resp.read().decode("utf-8")
     return json.loads(text) if text.strip() else {}
+
+
+def wait_until_ready(url: str, timeout_seconds: int = 60) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"{url.rstrip('/')}/health", timeout=3) as resp:
+                if resp.status == 200:
+                    return
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError(f"service at {url} not ready after {timeout_seconds}s")
 
 
 def service_available(url: str) -> bool:
@@ -144,7 +176,9 @@ def main() -> int:
         after_replay = http_json("GET", f"{args.alert_writer_url.rstrip('/')}/metrics")
         if args.restart_services:
             report["service_restart"].append(restart_compose_service("alert-writer-service", root))
-            time.sleep(5)
+            wait_until_ready(args.alert_writer_url)
+            report["service_restart"].append(restart_compose_service("incident-builder-service", root))
+            wait_until_ready(args.incident_builder_url)
             post_alert_process(args.alert_writer_url, trace_id)
         after_restart = http_json("GET", f"{args.alert_writer_url.rstrip('/')}/metrics")
         report["runtime"]["alert_writer_metrics_before"] = before

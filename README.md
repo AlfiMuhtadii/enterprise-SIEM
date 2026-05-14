@@ -1,5 +1,21 @@
 ## Detector SOC/XDR Platform
 
+### Current Operational State
+
+| Component | Status |
+|---|---|
+| identity/cloud/SaaS Go correlation | staged_active — 6h soak PASS (2026-05-14) |
+| endpoint/DNS/proxy/firewall correlation | shadow-only |
+| Laravel SOC control-plane | operational |
+| Event-driven pipeline | operational |
+| Rollback capability | preserved |
+
+- Soak evidence: `docs/validation/xdr_6h_soak_pass.md`
+- Cutover status by domain: `docs/architecture/staged_cutover_status.md`
+- Reconnect/resilience fix: `docs/operations/reconnect_resilience_fix.md`
+
+---
+
 Repository ini memakai satu Docker Compose utama di root:
 
 ```powershell

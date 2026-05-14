@@ -66,8 +66,8 @@ Stored replayable events:
 Current migration posture:
 
 - Laravel remains the SOC control plane and source of truth for workflow/RBAC/dashboard.
-- Identity/cloud/SaaS Go correlation has staged cutover support.
-- Default correlation engine must remain `shadow` unless a 6h or 24h soak passes.
+- Identity/cloud/SaaS Go correlation: staged_active. 6h soak PASS confirmed 2026-05-14.
+- Correlation engine for identity-cloud scope is now `go`. Rollback to `shadow` or `legacy` is preserved.
 - Endpoint/DNS/proxy correlation is shadow-only. No active cutover for these domains yet.
 - Alert/incident flow has event contracts and event-store support.
 - Alert writer and incident builder still accept legacy unwrapped payloads for compatibility.
@@ -76,7 +76,7 @@ Current migration posture:
 Important config:
 
 ```env
-XDR_CORRELATION_ENGINE=shadow
+XDR_CORRELATION_ENGINE=go
 XDR_CORRELATION_SCOPE=identity-cloud
 XDR_CORRELATION_FALLBACK_TO_LEGACY=true
 XDR_CORRELATION_FALLBACK_FAILURE_THRESHOLD=3
@@ -93,7 +93,7 @@ Go correlation health now uses retry + circuit breaker:
 
 ## Rules And Gates
 
-Do not claim Go correlation is production/default until soak passes.
+identity/cloud/SaaS Go correlation approved for staged active after 6h soak PASS (2026-05-14). Do not claim production-grade without sustained operational evidence beyond the soak window.
 
 Required identity/cloud/SaaS cutover gates:
 
@@ -152,7 +152,7 @@ Note: do not run multiple `php artisan test` processes in parallel against the s
 
 Do not:
 
-- Set `XDR_CORRELATION_ENGINE=go` as permanent default before a clean 6h or 24h soak PASS.
+- Promote endpoint/DNS/proxy/firewall domains to active before domain-specific parity and soak validation.
 - Expand Go active cutover beyond identity/cloud/SaaS before endpoint/DNS/proxy has golden parity, large replay parity, latency gate, duplicate gate, and rollback validation.
 - Remove legacy compatibility paths from alert writer or incident builder yet.
 - Remove Laravel as SOC control plane.

@@ -138,10 +138,20 @@ def php_cutover_status(root: Path, retries: int, retry_sleep_ms: int, timeout_se
 
 
 def docker_stats(name: str) -> Dict[str, Any]:
-    proc = subprocess.run(["docker", "stats", "--no-stream", "--format", "{{json .}}", name], text=True, capture_output=True, timeout=20)
+    try:
+        proc = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format", "{{json .}}", name],
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        return {"available": False, "error": "docker_stats_timeout", "container": name}
+    except Exception as exc:
+        return {"available": False, "error": "docker_stats_failed", "details": str(exc), "container": name}
     if proc.returncode == 0 and proc.stdout.strip():
         return json.loads(proc.stdout.strip().splitlines()[-1])
-    return {"error": proc.stderr.strip()}
+    return {"available": False, "error": "docker_stats_failed", "details": proc.stderr.strip(), "container": name}
 
 
 def next_batch(events: List[Dict[str, Any]], start: int, size: int) -> tuple[List[Dict[str, Any]], int]:
@@ -304,7 +314,7 @@ def main() -> int:
         "status_failures": status_failures[:20],
         "debug_report_hint": "Run scripts/xdr_soak_fallback_debug.py against this report for root-cause classification.",
         "samples": samples,
-        "docker_stats_final": docker_stats("detector-xdr-correlation-worker"),
+        "core_soak_completed": True,
         "note": "For production confidence, run this script for 6-24 hours. Short runs are smoke/stability checks only.",
     }
     output = root / args.output
@@ -324,6 +334,12 @@ def main() -> int:
             goroutines=goroutine_growth,
         )
     )
+    stats = docker_stats("detector-xdr-correlation-worker")
+    docker_available = stats.get("available", True)
+    report["docker_stats_final"] = stats
+    report["docker_stats_available"] = docker_available
+    report["docker_stats_error"] = stats.get("error") if not docker_available else None
+    output.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     return 0 if report["validation_status"] == "PASS" else 2
 
 

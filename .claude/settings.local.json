@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\project\\\\Detector\\\\docs\\\\validation\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\project\\\\Detector\\\\docs\\\\operations\")",
+      "Bash(Write-Host \"dirs created\")",
+      "PowerShell(New-Item *)"
+    ]
+  }
+}

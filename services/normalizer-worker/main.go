@@ -19,6 +19,16 @@ import (
 	"time"
 )
 
+var httpClient = &http.Client{
+	Timeout: 15 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	},
+}
+
 type Worker struct {
 	redpandaREST string
 	inputTopic   string
@@ -29,9 +39,12 @@ type Worker struct {
 	malformed    atomic.Int64
 	forwarded    atomic.Int64
 	publishErrors atomic.Int64
-	consumerPolls atomic.Int64
-	consumerErrors atomic.Int64
-	queueDepth   atomic.Int64
+	consumerPolls         atomic.Int64
+	consumerErrors        atomic.Int64
+	queueDepth            atomic.Int64
+	reconnectCount        atomic.Int64
+	pollErrorCount        atomic.Int64
+	consumerRecreateCount atomic.Int64
 	queueCapacity int
 	producerBatch int
 	producerFlush time.Duration
@@ -67,6 +80,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
+	mux.HandleFunc("/ready", w.ready)
 	mux.HandleFunc("/metrics", w.metrics)
 	mux.HandleFunc("/v1/normalize", w.normalizeHTTP)
 	go func() {
@@ -90,6 +104,10 @@ func (w *Worker) health(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]any{"status": "ok", "service": "telemetry-normalizer", "input": w.inputTopic, "output": w.outputTopic})
 }
 
+func (w *Worker) ready(rw http.ResponseWriter, r *http.Request) {
+	writeJSON(rw, http.StatusOK, map[string]any{"status": "ready", "service": "telemetry-normalizer"})
+}
+
 func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
@@ -98,9 +116,12 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"malformed":      w.malformed.Load(),
 		"forwarded":      w.forwarded.Load(),
 		"publish_errors": w.publishErrors.Load(),
-		"consumer_polls": w.consumerPolls.Load(),
-		"consumer_errors": w.consumerErrors.Load(),
-		"queue_depth":    w.queueDepth.Load(),
+		"consumer_polls":          w.consumerPolls.Load(),
+		"consumer_errors":         w.consumerErrors.Load(),
+		"reconnect_count":         w.reconnectCount.Load(),
+		"poll_error_count":        w.pollErrorCount.Load(),
+		"consumer_recreate_count": w.consumerRecreateCount.Load(),
+		"queue_depth":             w.queueDepth.Load(),
 		"queue_capacity": w.queueCapacity,
 		"goroutines":     runtime.NumGoroutine(),
 		"heap_alloc_mb":  float64(mem.HeapAlloc) / 1024.0 / 1024.0,
@@ -108,6 +129,16 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (w *Worker) consumeLoop() {
+	for {
+		w.consumeOnce()
+		w.reconnectCount.Add(1)
+		log.Printf("normalizer consumer reconnecting in 5s")
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (w *Worker) consumeOnce() {
+	w.consumerRecreateCount.Add(1)
 	instance := fmt.Sprintf("normalizer-%d", time.Now().UnixNano())
 	baseURI, err := w.consumerCreate(w.group, instance)
 	if err != nil {
@@ -125,10 +156,10 @@ func (w *Worker) consumeLoop() {
 		records, err := w.consumerPoll(baseURI)
 		w.consumerPolls.Add(1)
 		if err != nil {
+			w.pollErrorCount.Add(1)
 			w.consumerErrors.Add(1)
-			log.Printf("normalizer consumer poll failed: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
+			log.Printf("normalizer consumer poll failed: %v — reconnecting", err)
+			return
 		}
 		if len(records) == 0 {
 			continue
@@ -162,7 +193,7 @@ func (w *Worker) consumerCreate(group string, name string) (string, error) {
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/consumers/%s", w.redpandaREST, group), bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.v2+json")
 	req.Header.Set("Accept", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +224,7 @@ func (w *Worker) consumerSubscribe(baseURI string, topic string) error {
 	payload, _ := json.Marshal(map[string]any{"topics": []string{topic}})
 	req, _ := http.NewRequest(http.MethodPost, baseURI+"/subscription", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -208,7 +239,7 @@ func (w *Worker) consumerSubscribe(baseURI string, topic string) error {
 func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 	req, _ := http.NewRequest(http.MethodGet, baseURI+"/records?timeout=1000&max_bytes=1048576", nil)
 	req.Header.Set("Accept", "application/vnd.kafka.json.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +458,7 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/topics/%s", w.redpandaREST, topic), bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.json.v2+json")
 	req.Header.Set("Accept", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -485,4 +516,3 @@ func envBool(name string, fallback bool) bool {
 	return value == "1" || value == "true" || value == "yes"
 }
 
-var _ = time.Now

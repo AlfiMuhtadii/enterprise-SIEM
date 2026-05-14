@@ -1,14 +1,90 @@
 # CLAUDE.md
 
+---
+
 # Claude Code Behavior Rules
 
-## Think First — Always
+## Step 1 — Q&A Codebase First
+On first contact with any new topic or session:
+- Read this entire file before doing anything
+- Demonstrate understanding by answering:
+  1. What is the current active blocker?
+  2. What has already been validated and passed?
+  3. What are the forbidden changes?
+  4. What are the cutover gates?
+  5. What is the current correlation engine mode and why?
+- If any answer is uncertain — ask, do not assume
+
+---
+
+## Step 2 — Think First, Always
 Before making ANY change:
 1. State what you understand about the current state
 2. State what problem you are solving
 3. State what files you plan to touch
 4. State what you will NOT touch and why
-5. Wait for confirmation before proceeding
+5. State what risks exist for this change
+6. State which feedback loop command you will run after
+7. Wait for confirmation before proceeding
+
+---
+
+## Step 3 — Feedback Loops, Always
+After every change:
+1. Run the relevant validation command immediately
+2. Show full output — never summarize or paraphrase
+3. Compare output against pass criteria below
+4. If output deviates from expected — STOP, do not proceed
+5. Wait for instruction before next step
+
+### Feedback Loop Map
+
+| Change Type              | Validation Command              |
+|--------------------------|---------------------------------|
+| Docker / infra           | docker compose config --quiet   |
+| Laravel / PHP            | php artisan test                |
+| Event contracts          | xdr_contract_validate.py        |
+| Correlation / resilience | xdr_event_flow_resilience_validate.py |
+| Full soak                | run_xdr_correlation_soak_6h.ps1 |
+
+### Pass Criteria
+
+```
+docker compose config    → exit code 0, no errors
+php artisan test         → all tests green, zero failures
+contract validate        → all contracts valid
+soak validation          → ALL gates below must pass:
+  fallback_count = 0
+  failure_count = 0
+  duplicate_rate = 0
+  goroutine_growth = 0
+  stable memory usage
+  p95_latency_ms < 300
+  no sustained latency drift
+  alert type match >= 0.95
+  evidence match >= 0.98
+  alert count delta <= 1-2%
+```
+
+### STOP Conditions
+- Any test fails
+- Any validation output deviates from baseline
+- Any gate metric out of range
+- Any forbidden file is touched
+
+If validation fails → remain shadow OR rollback to legacy. Never force promotion.
+
+---
+
+## Memory Load Order
+Load context in this order — only what is needed for the session:
+1. Current Active Blocker ← start here
+2. Forbidden Changes ← know what not to do
+3. Architecture Overview ← understand the system
+4. Standard Commands ← know how to validate
+5. Required Cutover Gates ← know pass criteria
+
+---
 
 # Operational Context
 
@@ -42,7 +118,8 @@ Distributed AI-assisted XDR-like platform with operational polyglot microservice
 
 Current architecture is already operational and validated end-to-end.
 
-Permanent correlation cutover is NOT approved yet.
+identity/cloud/SaaS Go correlation: staged active approved (6h soak PASS, 2026-05-14).
+endpoint/DNS/proxy/firewall: shadow-only, cutover not approved.
 
 ---
 
@@ -121,8 +198,9 @@ Publishes:
 
 Current state:
 
-* staged/shadow capable
-* NOT permanent default
+* identity/cloud/SaaS: staged_active (6h soak PASS, 2026-05-14)
+* endpoint/DNS/proxy/firewall: shadow-only
+* rollback capability preserved
 
 ---
 
@@ -301,37 +379,18 @@ Do NOT expand active cutover beyond current scope.
 
 # Current Active Blocker
 
-Primary blocker:
+No active blocker.
 
-* 6h soak validation NOT PASS
+6h soak: PASS (2026-05-14). Decision: staged_active for identity/cloud/SaaS.
 
-Observed failures:
+Resolved failures:
 
-* worker_closed_connection
-* host_aborted_connection
-* cutover_status_command_failed
-* php artisan xdr:correlation-cutover-status timeout
+* worker_closed_connection — fixed: consumer reconnect loop
+* host_aborted_connection — fixed: HTTP timeout hardening
+* cutover_status_command_failed — fixed: resilience validator retry handling
 
-Warm-up soak:
-
-* PASS
-
-Current investigation focus:
-
-* connection lifecycle
-* retry handling
-* health responsiveness
-* graceful reconnect
-* keepalive stability
-* Docker responsiveness
-* status command latency
-* circuit breaker behavior
-
-Do NOT:
-
-* redesign architecture
-* rewrite correlation logic
-* introduce unnecessary feature scope
+See: docs/validation/xdr_6h_soak_pass.md
+See: docs/operations/reconnect_resilience_fix.md
 
 ---
 
@@ -346,18 +405,23 @@ PASS:
 * Docker compose validation
 * polyglot microservices validation
 * warm-up soak validation
+* 6h soak validation (2026-05-14)
+* reconnect/resilience validation
 
-Observed:
+6h soak gate results:
 
-* no goroutine leak during warm-up
-* no memory leak during warm-up
-
-Recent metrics:
-
-```text
-normalizer processed=9 forwarded=9 consumer_errors=0
-correlation processed=9 alerts=9 published=9 consumer_errors=0
-```
+| Gate | Threshold | Actual |
+|---|---|---|
+| fallback_count | = 0 | 0 |
+| failure_count | = 0 | 0 |
+| status_failures | = 0 | 0 |
+| p95_latency_ms | < 300 ms | 80.65 ms |
+| worker_p95_latency_ms | < 300 ms | 61 ms |
+| memory_growth_mb | stable | −6.519 MB |
+| goroutine_growth | = 0 | 0 |
+| latency_drift | none | not drifting |
+| events_processed | — | 562,640,000 |
+| avg_throughput_eps | — | 77,981.72 |
 
 ---
 
@@ -366,8 +430,12 @@ correlation processed=9 alerts=9 published=9 consumer_errors=0
 Current correlation mode:
 
 ```env
-XDR_CORRELATION_ENGINE=shadow
+XDR_CORRELATION_ENGINE=go
+XDR_CORRELATION_SCOPE=identity-cloud
 ```
+
+Decision: staged_active for identity/cloud/SaaS.
+Rollback preserved: XDR_CORRELATION_FALLBACK_TO_LEGACY=true
 
 Current scope:
 
@@ -547,7 +615,7 @@ Not implemented:
 
 Do NOT:
 
-* permanently set XDR_CORRELATION_ENGINE=go before soak PASS
+* promote endpoint/DNS/proxy/firewall to active before domain-specific soak PASS
 * remove rollback capability
 * remove legacy compatibility paths
 * remove Laravel control-plane responsibilities

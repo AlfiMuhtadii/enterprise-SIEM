@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-13T04:15:26.806662+00:00",
-  "trace_id": "trace-resilience-1778645726",
+  "generated_at": "2026-05-14T23:49:26.525336+00:00",
+  "trace_id": "trace-resilience-1778802566",
   "checks": {
     "runtime_available": true,
     "event_store_not_duplicated": true,
@@ -11,64 +11,64 @@
   "runtime": {
     "alert_writer_available": true,
     "alert_writer_metrics_before": {
-      "batches": 7,
-      "alerts_seen": 7,
-      "alerts_written": 2,
-      "duplicates": 5,
+      "batches": 1,
+      "alerts_seen": 54,
+      "alerts_written": 14,
+      "duplicates": 40,
       "postgres_failures": 0,
-      "opensearch_failures": 0,
-      "dlq_count": 3,
+      "opensearch_failures": 1,
+      "dlq_count": 7,
       "retry_count": 0,
-      "write_latency_ms_last": 24.159,
-      "write_latency_ms_total": 557.6392130024033,
-      "idempotency_cache_size": 2,
-      "consumer_polls": 573,
+      "write_latency_ms_last": 11412.564,
+      "write_latency_ms_total": 11412.564370009932,
+      "idempotency_cache_size": 14,
+      "consumer_polls": 510,
       "consumer_errors": 0,
-      "events_published": 7,
-      "contract_validation_failures": 3,
-      "operational_events_stored": 3
+      "events_published": 54,
+      "contract_validation_failures": 6,
+      "operational_events_stored": 14
     },
     "alert_writer_metrics_after_replay": {
-      "batches": 10,
-      "alerts_seen": 10,
-      "alerts_written": 2,
-      "duplicates": 8,
+      "batches": 4,
+      "alerts_seen": 57,
+      "alerts_written": 15,
+      "duplicates": 42,
       "postgres_failures": 0,
-      "opensearch_failures": 0,
-      "dlq_count": 3,
+      "opensearch_failures": 1,
+      "dlq_count": 7,
       "retry_count": 0,
-      "write_latency_ms_last": 24.719,
-      "write_latency_ms_total": 758.0490010077483,
-      "idempotency_cache_size": 2,
-      "consumer_polls": 581,
+      "write_latency_ms_last": 132.227,
+      "write_latency_ms_total": 11763.650010019774,
+      "idempotency_cache_size": 15,
+      "consumer_polls": 516,
       "consumer_errors": 0,
-      "events_published": 10,
-      "contract_validation_failures": 3,
-      "operational_events_stored": 4
+      "events_published": 57,
+      "contract_validation_failures": 6,
+      "operational_events_stored": 15
     },
     "alert_writer_metrics_after_restart": {
-      "batches": 10,
-      "alerts_seen": 10,
-      "alerts_written": 2,
-      "duplicates": 8,
+      "batches": 2,
+      "alerts_seen": 55,
+      "alerts_written": 15,
+      "duplicates": 40,
       "postgres_failures": 0,
       "opensearch_failures": 0,
-      "dlq_count": 3,
+      "dlq_count": 6,
       "retry_count": 0,
-      "write_latency_ms_last": 24.719,
-      "write_latency_ms_total": 758.0490010077483,
-      "idempotency_cache_size": 2,
-      "consumer_polls": 581,
+      "write_latency_ms_last": 110.075,
+      "write_latency_ms_total": 722.5014099967666,
+      "idempotency_cache_size": 15,
+      "consumer_polls": 39,
       "consumer_errors": 0,
-      "events_published": 10,
-      "contract_validation_failures": 3,
-      "operational_events_stored": 4
+      "events_published": 55,
+      "contract_validation_failures": 6,
+      "operational_events_stored": 14
     },
     "malformed_event_publish": {
       "offsets": [
         {
           "partition": 0,
-          "offset": 4
+          "offset": 21
         }
       ]
     },
@@ -77,7 +77,24 @@
       "count": 1
     }
   },
-  "service_restart": [],
+  "service_restart": [
+    {
+      "service": "alert-writer-service",
+      "ok": true,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": " Container detector-xdr-alert-writer Restarting \n Container detector-xdr-alert-writer Started \n",
+      "duration_ms": 1315.828
+    },
+    {
+      "service": "incident-builder-service",
+      "ok": true,
+      "returncode": 0,
+      "stdout": "",
+      "stderr": " Container detector-xdr-incident-builder Restarting \n Container detector-xdr-incident-builder Started \n",
+      "duration_ms": 9954.093
+    }
+  ],
   "errors": [],
   "validation_status": "PASS"
 }

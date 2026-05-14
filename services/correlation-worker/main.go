@@ -23,6 +23,16 @@ import (
 	"time"
 )
 
+var httpClient = &http.Client{
+	Timeout: 15 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	},
+}
+
 type Event struct {
 	Ts             string  `json:"ts"`
 	EventID        string  `json:"event_id"`
@@ -68,8 +78,12 @@ type Worker struct {
 	latencyMS atomic.Int64
 	published atomic.Int64
 	publishErrors atomic.Int64
-	consumerPolls atomic.Int64
-	consumerErrors atomic.Int64
+	consumerPolls         atomic.Int64
+	consumerErrors        atomic.Int64
+	reconnectCount        atomic.Int64
+	pollErrorCount        atomic.Int64
+	consumerRecreateCount atomic.Int64
+	retryCount            atomic.Int64
 }
 
 func main() {
@@ -86,6 +100,7 @@ func main() {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
+	mux.HandleFunc("/ready", w.ready)
 	mux.HandleFunc("/metrics", w.metrics)
 	mux.HandleFunc("/v1/correlate", w.correlateHTTP)
 	if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
@@ -117,6 +132,10 @@ func (w *Worker) health(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]any{"status": "ok", "service": "xdr-correlation", "mode": "shadow", "keep_alive": true})
 }
 
+func (w *Worker) ready(rw http.ResponseWriter, r *http.Request) {
+	writeJSON(rw, http.StatusOK, map[string]any{"status": "ready", "service": "xdr-correlation"})
+}
+
 func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
@@ -126,9 +145,13 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"last_latency_ms": w.latencyMS.Load(),
 		"published":     w.published.Load(),
 		"publish_errors": w.publishErrors.Load(),
-		"consumer_polls": w.consumerPolls.Load(),
-		"consumer_errors": w.consumerErrors.Load(),
-		"input_topic":    w.inputTopic,
+		"consumer_polls":          w.consumerPolls.Load(),
+		"consumer_errors":         w.consumerErrors.Load(),
+		"reconnect_count":         w.reconnectCount.Load(),
+		"poll_error_count":        w.pollErrorCount.Load(),
+		"consumer_recreate_count": w.consumerRecreateCount.Load(),
+		"retry_count":             w.retryCount.Load(),
+		"input_topic":             w.inputTopic,
 		"output_topic":   w.outputTopic,
 		"goroutines":    runtime.NumGoroutine(),
 		"heap_alloc_mb": float64(mem.HeapAlloc) / 1024.0 / 1024.0,
@@ -136,6 +159,16 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (w *Worker) consumeLoop() {
+	for {
+		w.consumeOnce()
+		w.reconnectCount.Add(1)
+		log.Printf("correlation consumer reconnecting in 5s")
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (w *Worker) consumeOnce() {
+	w.consumerRecreateCount.Add(1)
 	instance := fmt.Sprintf("correlation-%d", time.Now().UnixNano())
 	baseURI, err := w.consumerCreate(w.group, instance)
 	if err != nil {
@@ -153,10 +186,10 @@ func (w *Worker) consumeLoop() {
 		records, err := w.consumerPoll(baseURI)
 		w.consumerPolls.Add(1)
 		if err != nil {
+			w.pollErrorCount.Add(1)
 			w.consumerErrors.Add(1)
-			log.Printf("correlation consumer poll failed: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
+			log.Printf("correlation consumer poll failed: %v — reconnecting", err)
+			return
 		}
 		if len(records) == 0 {
 			continue
@@ -186,12 +219,13 @@ func (w *Worker) consumeLoop() {
 		}
 		payload := map[string]any{
 			"trace_id": fmt.Sprintf("go-correlation-%d", time.Now().UnixNano()),
-			"source": "correlation-worker",
-			"scope": w.scope,
-			"alerts": alerts,
+			"source":   "correlation-worker",
+			"scope":    w.scope,
+			"alerts":   alerts,
 		}
 		if err := w.publish(w.outputTopic, []map[string]any{payload}); err != nil {
 			w.publishErrors.Add(1)
+			w.retryCount.Add(1)
 			_ = w.publish(w.dlqTopic, []map[string]any{{"error": err.Error(), "alert_count": len(alerts)}})
 			continue
 		}
@@ -208,7 +242,7 @@ func (w *Worker) consumerCreate(group string, name string) (string, error) {
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/consumers/%s", w.redpandaREST, group), bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.v2+json")
 	req.Header.Set("Accept", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -239,7 +273,7 @@ func (w *Worker) consumerSubscribe(baseURI string, topic string) error {
 	payload, _ := json.Marshal(map[string]any{"topics": []string{topic}})
 	req, _ := http.NewRequest(http.MethodPost, baseURI+"/subscription", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -254,7 +288,7 @@ func (w *Worker) consumerSubscribe(baseURI string, topic string) error {
 func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 	req, _ := http.NewRequest(http.MethodGet, baseURI+"/records?timeout=1000&max_bytes=4194304", nil)
 	req.Header.Set("Accept", "application/vnd.kafka.json.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +316,7 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/topics/%s", w.redpandaREST, topic), bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/vnd.kafka.json.v2+json")
 	req.Header.Set("Accept", "application/vnd.kafka.v2+json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -660,14 +694,6 @@ func uniqueNonEmpty(events []Event, pick func(Event) string) []string {
 	return out
 }
 
-func hasEvent(events []Event, telemetryType, eventType string) bool {
-	for _, ev := range events {
-		if ev.TelemetryType == telemetryType && ev.EventType == eventType {
-			return true
-		}
-	}
-	return false
-}
 
 func anyTelemetry(events []Event, telemetryType string) bool {
 	for _, ev := range events {
@@ -735,4 +761,3 @@ func envBool(name string, fallback bool) bool {
 	return value == "1" || value == "true" || value == "yes"
 }
 
-var _ = fmt.Sprintf
