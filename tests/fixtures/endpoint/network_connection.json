@@ -1,0 +1,22 @@
+{
+  "ts": "2026-05-15T08:01:00Z",
+  "telemetry_type": "endpoint",
+  "event_type": "network_connection",
+  "event_id": "ep-nc-fixture-001",
+  "host": "workstation-ep01.corp.test",
+  "user": "alice",
+  "source_ip": "10.0.1.100",
+  "source_port": 54321,
+  "destination_ip": "93.184.216.34",
+  "destination_port": 443,
+  "protocol": "tcp",
+  "direction": "outbound",
+  "action": "allowed",
+  "bytes_sent": 2048,
+  "bytes_received": 16384,
+  "domain": "example.com",
+  "process_name": "chrome.exe",
+  "pid": 5120,
+  "event_source": "test-edr-agent",
+  "risk_score": 0.1
+}

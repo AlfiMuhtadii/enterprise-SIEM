@@ -1,0 +1,16 @@
+{
+  "ts": "2026-05-15T08:04:00Z",
+  "telemetry_type": "endpoint",
+  "event_type": "login_event",
+  "event_id": "ep-le-fixture-001",
+  "host": "workstation-ep01.corp.test",
+  "user": "alice",
+  "action": "login_failed",
+  "result": "failure",
+  "source_ip": "10.0.1.100",
+  "logon_type": "interactive",
+  "authentication_method": "password",
+  "failure_reason": "bad_password",
+  "event_source": "test-edr-agent",
+  "risk_score": 0.6
+}

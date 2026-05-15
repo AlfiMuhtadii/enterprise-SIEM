@@ -1,0 +1,18 @@
+{
+  "ts": "2026-05-15T08:00:00Z",
+  "telemetry_type": "endpoint",
+  "event_type": "process_start",
+  "event_id": "ep-ps-fixture-001",
+  "host": "workstation-ep01.corp.test",
+  "user": "alice",
+  "process_name": "cmd.exe",
+  "process_path": "C:\\Windows\\System32\\cmd.exe",
+  "pid": 4892,
+  "ppid": 1204,
+  "parent_process_name": "explorer.exe",
+  "command_line": "cmd.exe /c whoami /all",
+  "file_hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+  "integrity_level": "medium",
+  "event_source": "test-edr-agent",
+  "risk_score": 0.45
+}

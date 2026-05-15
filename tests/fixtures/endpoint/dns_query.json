@@ -1,0 +1,17 @@
+{
+  "ts": "2026-05-15T08:02:00Z",
+  "telemetry_type": "endpoint",
+  "event_type": "dns_query",
+  "event_id": "ep-dns-fixture-001",
+  "host": "workstation-ep01.corp.test",
+  "user": "alice",
+  "domain": "c2-updates.malware-test.invalid",
+  "query_type": "A",
+  "response_code": "NOERROR",
+  "resolved_ips": ["198.51.100.42", "198.51.100.43"],
+  "source_ip": "10.0.1.100",
+  "process_name": "svchost.exe",
+  "pid": 876,
+  "event_source": "test-edr-agent",
+  "risk_score": 0.85
+}

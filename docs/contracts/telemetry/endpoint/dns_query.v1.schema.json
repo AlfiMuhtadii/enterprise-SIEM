@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.dns_query.v1",
+  "title": "Endpoint Telemetry: dns_query v1",
+  "description": "Raw telemetry event emitted when a DNS query is made from an endpoint. Captured by an EDR agent or DNS inspection driver.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "dns_query" },
+    "domain": {
+      "type": "string",
+      "maxLength": 253,
+      "description": "The fully-qualified domain name (FQDN) queried. Normalizer maps this to the 'domain' field."
+    },
+    "query_type": {
+      "type": ["string", "null"],
+      "enum": ["A", "AAAA", "MX", "TXT", "CNAME", "NS", "PTR", "SOA", "SRV", "ANY", null],
+      "description": "DNS record type requested."
+    },
+    "response_code": {
+      "type": ["string", "null"],
+      "enum": ["NOERROR", "NXDOMAIN", "SERVFAIL", "REFUSED", "FORMERR", "TIMEOUT", null],
+      "description": "DNS response code returned by the resolver."
+    },
+    "resolved_ips": {
+      "type": ["array", "null"],
+      "items": { "type": "string" },
+      "description": "List of IP addresses returned in the DNS response. Empty or null if no answer."
+    },
+    "source_ip": {
+      "type": ["string", "null"],
+      "description": "IP address of the endpoint that issued the query."
+    },
+    "process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the process that made the DNS request."
+    },
+    "pid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "PID of the process that made the DNS request."
+    }
+  },
+  "required": ["domain"]
+}

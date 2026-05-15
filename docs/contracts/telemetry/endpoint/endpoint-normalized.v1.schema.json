@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.normalized.v1",
+  "title": "Endpoint Normalized Telemetry v1",
+  "description": "Schema for normalized endpoint telemetry events published to telemetry.normalized by normalizer-worker. Produced by the endpoint normalization path in normalizeEndpoint().",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "normalization_version",
+    "normalized_event_id",
+    "raw_event_id",
+    "ts",
+    "telemetry_type",
+    "event_type",
+    "host"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Normalized schema version. Always 1 for this schema."
+    },
+    "normalization_version": {
+      "const": "endpoint-v1",
+      "description": "Endpoint normalization version string. Identifies the normalization code path."
+    },
+    "normalized_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Idempotency key for the normalized event. Equal to raw_event_id — normalization is a pure function of the raw event."
+    },
+    "raw_event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The event_id from the original raw telemetry event."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event timestamp from raw telemetry (ISO-8601 UTC)."
+    },
+    "telemetry_type": {
+      "const": "endpoint",
+      "description": "Always 'endpoint' for this schema."
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "process_start",
+        "process_exit",
+        "network_connection",
+        "dns_query",
+        "file_write",
+        "login_event"
+      ],
+      "description": "Specific endpoint event type, lowercased."
+    },
+    "host": {
+      "type": "string",
+      "description": "Hostname or device identifier of the source endpoint."
+    },
+    "user": {
+      "type": ["string", "null"],
+      "description": "Username in whose context the event occurred."
+    },
+    "risk_score": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Agent-assigned risk score, 0.0–1.0."
+    },
+    "event_source": {
+      "type": ["string", "null"],
+      "description": "EDR agent or vendor identifier."
+    },
+    "trace_id": {
+      "type": ["string", "null"],
+      "description": "Propagated trace ID. Null if not present in raw telemetry."
+    },
+    "process": {
+      "type": "object",
+      "description": "Process context. Meaningful for process_start, process_exit, network_connection, file_write. Null fields for event types where not applicable.",
+      "properties": {
+        "name":         { "type": ["string", "null"], "description": "Process image name." },
+        "pid":          { "type": ["integer", "null"], "description": "Process ID." },
+        "ppid":         { "type": ["integer", "null"], "description": "Parent process ID." },
+        "command_line": { "type": ["string", "null"], "description": "Full command line." },
+        "path":         { "type": ["string", "null"], "description": "Full path to process binary." },
+        "hash":         { "type": ["string", "null"], "description": "SHA-256 of process binary." }
+      }
+    },
+    "network": {
+      "type": "object",
+      "description": "Network context. Meaningful for network_connection. Null fields for other event types.",
+      "properties": {
+        "source_ip":        { "type": ["string", "null"], "description": "Source IP address." },
+        "destination_ip":   { "type": ["string", "null"], "description": "Destination IP address." },
+        "destination_port": { "type": ["integer", "null"], "description": "Destination TCP/UDP port." },
+        "protocol":         { "type": ["string", "null"], "description": "Network protocol, lowercased (tcp/udp/icmp/other)." }
+      }
+    },
+    "dns": {
+      "type": "object",
+      "description": "DNS context. Meaningful for dns_query. Null fields for other event types.",
+      "properties": {
+        "domain":       { "type": ["string", "null"], "description": "Queried FQDN." },
+        "resolved_ips": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "IP addresses returned in the DNS response."
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "description": "File context. Meaningful for file_write. Null fields for other event types.",
+      "properties": {
+        "path":      { "type": ["string", "null"], "description": "Full file path." },
+        "hash":      { "type": ["string", "null"], "description": "SHA-256 of file contents." },
+        "operation": { "type": ["string", "null"], "description": "File operation type, lowercased." }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "description": "Authentication context. Meaningful for login_event. Null fields for other event types.",
+      "properties": {
+        "action": { "type": ["string", "null"], "description": "Authentication action, lowercased." },
+        "result": { "type": ["string", "null"], "description": "Authentication result (success/failure), lowercased." }
+      }
+    }
+  }
+}

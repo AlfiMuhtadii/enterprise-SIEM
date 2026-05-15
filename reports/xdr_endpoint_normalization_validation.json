@@ -1,0 +1,191 @@
+{
+  "generated_at": "2026-05-15T00:12:19.924688+00:00",
+  "fixture_dir": "tests\\fixtures\\endpoint",
+  "normalizer_url": "http://127.0.0.1:8092",
+  "checks": {
+    "fixtures_loaded": true,
+    "all_required_fields_present": true,
+    "all_event_types_valid": true,
+    "normalization_idempotent": true,
+    "no_duplicate_normalized_ids": true,
+    "nested_sections_present": true,
+    "all_fixtures_normalized_ok": true
+  },
+  "fixture_results": [
+    {
+      "fixture": "dns_query",
+      "raw_event_type": "dns_query",
+      "raw_event_id": "ep-dns-fixture-001",
+      "normalization_ok": true,
+      "failures": [],
+      "normalized_event_id": "ep-dns-fixture-001",
+      "event_type_normalized": "dns_query",
+      "nested_sections": {
+        "process": true,
+        "network": true,
+        "dns": true,
+        "file": true,
+        "auth": true
+      }
+    },
+    {
+      "fixture": "file_write",
+      "raw_event_type": "file_write",
+      "raw_event_id": "ep-fw-fixture-001",
+      "normalization_ok": true,
+      "failures": [],
+      "normalized_event_id": "ep-fw-fixture-001",
+      "event_type_normalized": "file_write",
+      "nested_sections": {
+        "process": true,
+        "network": true,
+        "dns": true,
+        "file": true,
+        "auth": true
+      }
+    },
+    {
+      "fixture": "login_event",
+      "raw_event_type": "login_event",
+      "raw_event_id": "ep-le-fixture-001",
+      "normalization_ok": true,
+      "failures": [],
+      "normalized_event_id": "ep-le-fixture-001",
+      "event_type_normalized": "login_event",
+      "nested_sections": {
+        "process": true,
+        "network": true,
+        "dns": true,
+        "file": true,
+        "auth": true
+      }
+    },
+    {
+      "fixture": "network_connection",
+      "raw_event_type": "network_connection",
+      "raw_event_id": "ep-nc-fixture-001",
+      "normalization_ok": true,
+      "failures": [],
+      "normalized_event_id": "ep-nc-fixture-001",
+      "event_type_normalized": "network_connection",
+      "nested_sections": {
+        "process": true,
+        "network": true,
+        "dns": true,
+        "file": true,
+        "auth": true
+      }
+    },
+    {
+      "fixture": "process_start",
+      "raw_event_type": "process_start",
+      "raw_event_id": "ep-ps-fixture-001",
+      "normalization_ok": true,
+      "failures": [],
+      "normalized_event_id": "ep-ps-fixture-001",
+      "event_type_normalized": "process_start",
+      "nested_sections": {
+        "process": true,
+        "network": true,
+        "dns": true,
+        "file": true,
+        "auth": true
+      }
+    }
+  ],
+  "idempotency_results": [
+    {
+      "fixture": "dns_query",
+      "ok": true,
+      "message": null
+    },
+    {
+      "fixture": "file_write",
+      "ok": true,
+      "message": null
+    },
+    {
+      "fixture": "login_event",
+      "ok": true,
+      "message": null
+    },
+    {
+      "fixture": "network_connection",
+      "ok": true,
+      "message": null
+    },
+    {
+      "fixture": "process_start",
+      "ok": true,
+      "message": null
+    }
+  ],
+  "service_results": [
+    {
+      "fixture": "dns_query",
+      "service_ok": true,
+      "response": {
+        "enqueued": 1,
+        "latency_ms": 0,
+        "malformed": 0,
+        "processed": 1,
+        "queue_depth": 1
+      }
+    },
+    {
+      "fixture": "file_write",
+      "service_ok": true,
+      "response": {
+        "enqueued": 1,
+        "latency_ms": 0,
+        "malformed": 0,
+        "processed": 1,
+        "queue_depth": 2
+      }
+    },
+    {
+      "fixture": "login_event",
+      "service_ok": true,
+      "response": {
+        "enqueued": 1,
+        "latency_ms": 0,
+        "malformed": 0,
+        "processed": 1,
+        "queue_depth": 3
+      }
+    },
+    {
+      "fixture": "network_connection",
+      "service_ok": true,
+      "response": {
+        "enqueued": 1,
+        "latency_ms": 0,
+        "malformed": 0,
+        "processed": 1,
+        "queue_depth": 4
+      }
+    },
+    {
+      "fixture": "process_start",
+      "service_ok": true,
+      "response": {
+        "enqueued": 1,
+        "latency_ms": 0,
+        "malformed": 0,
+        "processed": 1,
+        "queue_depth": 5
+      }
+    }
+  ],
+  "all_failures": [],
+  "errors": [],
+  "normalizer_service_available": true,
+  "summary": {
+    "fixtures_loaded": 5,
+    "fixtures_passed": 5,
+    "fixtures_failed": 0,
+    "duplicate_ids": [],
+    "total_failures": 0
+  },
+  "validation_status": "PASS"
+}

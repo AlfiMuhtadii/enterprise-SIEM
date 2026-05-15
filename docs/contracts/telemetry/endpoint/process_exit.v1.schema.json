@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.process_exit.v1",
+  "title": "Endpoint Telemetry: process_exit v1",
+  "description": "Raw telemetry event emitted when a process terminates on an endpoint.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "process_exit" },
+    "process_name": {
+      "type": "string",
+      "maxLength": 260,
+      "description": "Process image name at time of exit."
+    },
+    "process_path": {
+      "type": ["string", "null"],
+      "maxLength": 4096,
+      "description": "Full filesystem path to the process executable."
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "OS process identifier of the exited process."
+    },
+    "ppid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Parent process identifier."
+    },
+    "parent_process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the parent process."
+    },
+    "exit_code": {
+      "type": "integer",
+      "description": "Process exit code as returned to the OS. 0 typically indicates normal exit."
+    },
+    "duration_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Total process lifetime in milliseconds from start to exit."
+    },
+    "file_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "SHA-256 hash of the process binary."
+    }
+  },
+  "required": ["process_name", "pid", "exit_code"]
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint-raw-base.v1",
+  "title": "Endpoint Raw Telemetry — Base Schema v1",
+  "description": "Common required fields for all raw endpoint telemetry sent to /v1/ingest. Event-specific schemas extend this via allOf.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "ts",
+    "telemetry_type",
+    "event_type",
+    "event_id",
+    "host"
+  ],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event timestamp — ISO-8601 UTC (e.g. 2026-05-15T08:00:00Z). Use the time the event occurred on the endpoint, not the agent submission time."
+    },
+    "telemetry_type": {
+      "const": "endpoint",
+      "description": "Always 'endpoint' for this schema family."
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "process_start",
+        "process_exit",
+        "network_connection",
+        "dns_query",
+        "file_write",
+        "login_event"
+      ],
+      "description": "Specific event type within endpoint telemetry."
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 80,
+      "description": "Unique event identifier. Used as idempotency key — must be stable if the same event is resent."
+    },
+    "host": {
+      "type": "string",
+      "maxLength": 253,
+      "description": "Hostname or device identifier of the source endpoint."
+    },
+    "user": {
+      "type": ["string", "null"],
+      "description": "Username in whose security context the event occurred."
+    },
+    "event_source": {
+      "type": ["string", "null"],
+      "description": "EDR agent name or vendor identifier (e.g. 'defender-atp', 'crowdstrike-falcon')."
+    },
+    "risk_score": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Agent-assigned or heuristic risk score in range [0.0, 1.0]. Omit if not available."
+    }
+  }
+}

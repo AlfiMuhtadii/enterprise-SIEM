@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.login_event.v1",
+  "title": "Endpoint Telemetry: login_event v1",
+  "description": "Raw telemetry event emitted when a login, logout, or authentication event is detected on an endpoint by the EDR agent. Distinct from identity telemetry (which originates from SSO/cloud identity providers).",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "login_event" },
+    "user": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Username that authenticated or attempted to authenticate. Normalizer maps to 'user' field."
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "login_success",
+        "login_failed",
+        "logout",
+        "mfa_success",
+        "mfa_failed",
+        "password_change",
+        "account_locked"
+      ],
+      "description": "Specific authentication action. Normalizer maps to 'event_type' field."
+    },
+    "result": {
+      "type": "string",
+      "enum": ["success", "failure"],
+      "description": "Outcome of the authentication attempt."
+    },
+    "source_ip": {
+      "type": ["string", "null"],
+      "description": "IP address from which the login was initiated (relevant for remote/network logons)."
+    },
+    "logon_type": {
+      "type": ["string", "null"],
+      "enum": [
+        "interactive",
+        "network",
+        "remote_interactive",
+        "service",
+        "batch",
+        "unlock",
+        null
+      ],
+      "description": "Windows logon type. Maps to Event ID 4624/4625 LogonType field. Omit on non-Windows."
+    },
+    "authentication_method": {
+      "type": ["string", "null"],
+      "enum": ["password", "mfa", "sso", "kerberos", "certificate", "ntlm", "smart_card", null],
+      "description": "Authentication mechanism used."
+    },
+    "failure_reason": {
+      "type": ["string", "null"],
+      "maxLength": 256,
+      "description": "Human-readable reason for authentication failure. Omit on success."
+    },
+    "workstation": {
+      "type": ["string", "null"],
+      "maxLength": 253,
+      "description": "Name of the workstation where the login originated (for network logons)."
+    }
+  },
+  "required": ["user", "action", "result"]
+}

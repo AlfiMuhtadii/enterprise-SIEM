@@ -1,0 +1,16 @@
+{
+  "ts": "2026-05-15T08:03:00Z",
+  "telemetry_type": "endpoint",
+  "event_type": "file_write",
+  "event_id": "ep-fw-fixture-001",
+  "host": "workstation-ep01.corp.test",
+  "user": "alice",
+  "file_path": "C:\\Users\\alice\\AppData\\Local\\Temp\\update_payload.exe",
+  "operation": "create",
+  "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "file_size": 45056,
+  "process_name": "chrome.exe",
+  "pid": 5120,
+  "event_source": "test-edr-agent",
+  "risk_score": 0.72
+}

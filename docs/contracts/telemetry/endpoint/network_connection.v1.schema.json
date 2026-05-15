@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.network_connection.v1",
+  "title": "Endpoint Telemetry: network_connection v1",
+  "description": "Raw telemetry event emitted when a network connection is established or attempted from an endpoint.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "network_connection" },
+    "source_ip": {
+      "type": "string",
+      "description": "Source IP address of the connection (local endpoint address)."
+    },
+    "source_port": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "Source (local) TCP/UDP port."
+    },
+    "destination_ip": {
+      "type": "string",
+      "description": "Destination IP address."
+    },
+    "destination_port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "Destination TCP/UDP port."
+    },
+    "protocol": {
+      "type": "string",
+      "enum": ["tcp", "udp", "icmp", "other"],
+      "description": "Network protocol. Use 'other' for protocols not listed."
+    },
+    "direction": {
+      "type": ["string", "null"],
+      "enum": ["outbound", "inbound", null],
+      "description": "Connection direction relative to the endpoint."
+    },
+    "action": {
+      "type": ["string", "null"],
+      "enum": ["allowed", "blocked", "monitored", null],
+      "description": "Firewall or agent disposition for the connection."
+    },
+    "bytes_sent": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Bytes sent from source to destination."
+    },
+    "bytes_received": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Bytes received at the source from the destination."
+    },
+    "domain": {
+      "type": ["string", "null"],
+      "maxLength": 253,
+      "description": "Resolved domain name of the destination IP, if available."
+    },
+    "process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the process that initiated or received the connection."
+    },
+    "pid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "PID of the process that owns the connection."
+    }
+  },
+  "required": ["source_ip", "destination_ip", "destination_port", "protocol"]
+}

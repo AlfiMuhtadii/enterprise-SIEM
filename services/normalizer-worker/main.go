@@ -427,6 +427,9 @@ func normalize(raw map[string]any) (map[string]any, error) {
 	if ts == "" || telemetryType == "" || eventType == "" {
 		return nil, fmt.Errorf("missing_required_fields")
 	}
+	if telemetryType == "endpoint" {
+		return normalizeEndpoint(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -447,6 +450,68 @@ func normalize(raw map[string]any) (map[string]any, error) {
 		"risk_score":      number(first(raw, "risk_score", "risk", "score")),
 		"event_source":    first(raw, "event_source", "source_adapter", "vendor"),
 	}, nil
+}
+
+func normalizeEndpoint(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "endpoint-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "event_time"),
+		"telemetry_type":        "endpoint",
+		"event_type":            strings.ToLower(first(raw, "event_type", "action", "operation")),
+		"host":                  first(raw, "host", "host_id", "device_name"),
+		"user":                  first(raw, "user"),
+		"risk_score":            number(first(raw, "risk_score", "risk", "score")),
+		"event_source":          first(raw, "event_source", "source_adapter", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"process": map[string]any{
+			"name":         first(raw, "process_name"),
+			"pid":          rawIntField(raw, "pid"),
+			"ppid":         rawIntField(raw, "ppid"),
+			"command_line": first(raw, "command_line"),
+			"path":         first(raw, "process_path"),
+			"hash":         first(raw, "file_hash", "sha256"),
+		},
+		"network": map[string]any{
+			"source_ip":        first(raw, "source_ip", "src_ip", "client_ip"),
+			"destination_ip":   first(raw, "destination_ip", "dst_ip", "server_ip"),
+			"destination_port": rawIntField(raw, "destination_port"),
+			"protocol":         strings.ToLower(first(raw, "protocol")),
+		},
+		"dns": map[string]any{
+			"domain":       first(raw, "domain", "query", "url_domain"),
+			"resolved_ips": raw["resolved_ips"],
+		},
+		"file": map[string]any{
+			"path":      first(raw, "file_path"),
+			"hash":      first(raw, "file_hash", "sha256"),
+			"operation": strings.ToLower(first(raw, "operation")),
+		},
+		"auth": map[string]any{
+			"action": strings.ToLower(first(raw, "action")),
+			"result": strings.ToLower(first(raw, "result", "outcome")),
+		},
+	}, nil
+}
+
+func rawIntField(raw map[string]any, key string) any {
+	v, ok := raw[key]
+	if !ok || v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case float64:
+		return int64(val)
+	case int64:
+		return val
+	case int:
+		return int64(val)
+	default:
+		return nil
+	}
 }
 
 func (w *Worker) publish(topic string, events []map[string]any) error {

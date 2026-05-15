@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.process_start.v1",
+  "title": "Endpoint Telemetry: process_start v1",
+  "description": "Raw telemetry event emitted when a new process is created on an endpoint. Sent to /v1/ingest with telemetry_type=endpoint.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "process_start" },
+    "process_name": {
+      "type": "string",
+      "maxLength": 260,
+      "description": "Process image name (e.g. 'cmd.exe', 'python3'). No path — basename only."
+    },
+    "process_path": {
+      "type": ["string", "null"],
+      "maxLength": 4096,
+      "description": "Full filesystem path to the process executable."
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "OS process identifier assigned at launch."
+    },
+    "ppid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Parent process identifier."
+    },
+    "parent_process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the parent process."
+    },
+    "command_line": {
+      "type": ["string", "null"],
+      "maxLength": 32768,
+      "description": "Full command line string including all arguments as seen by the OS."
+    },
+    "file_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "SHA-256 hash of the process binary (hex, 64 chars)."
+    },
+    "integrity_level": {
+      "type": ["string", "null"],
+      "enum": ["low", "medium", "high", "system", null],
+      "description": "Windows integrity level of the spawned process. Omit on non-Windows."
+    },
+    "session_id": {
+      "type": ["integer", "null"],
+      "description": "Windows session ID. Omit on non-Windows."
+    }
+  },
+  "required": ["process_name", "pid"]
+}

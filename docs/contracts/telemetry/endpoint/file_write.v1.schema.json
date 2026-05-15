@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.file_write.v1",
+  "title": "Endpoint Telemetry: file_write v1",
+  "description": "Raw telemetry event emitted on a file system write operation detected by an EDR agent. Covers create, modify, delete, and rename operations.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "file_write" },
+    "file_path": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "Full path of the file that was written, created, deleted, or renamed. Normalizer maps to 'domain' field fallback."
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["create", "modify", "delete", "rename", "overwrite"],
+      "description": "File system operation type."
+    },
+    "file_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "SHA-256 hash of file contents after the write. Omit for delete operations."
+    },
+    "file_size": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "File size in bytes after the write operation."
+    },
+    "destination_path": {
+      "type": ["string", "null"],
+      "maxLength": 4096,
+      "description": "Target path for rename operations. Null for non-rename operations."
+    },
+    "process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the process that performed the file operation."
+    },
+    "pid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "PID of the process that performed the file operation."
+    },
+    "entropy": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "maximum": 8.0,
+      "description": "Shannon entropy of file contents after write. High entropy (> 7.0) may indicate encryption or packing."
+    }
+  },
+  "required": ["file_path", "operation"]
+}
