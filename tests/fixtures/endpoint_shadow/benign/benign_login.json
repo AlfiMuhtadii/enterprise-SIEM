@@ -1,0 +1,21 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-benign-shadow-001",
+    "raw_event_id": "ep-le-benign-shadow-001",
+    "ts": "2026-05-15T09:01:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "login_event",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.05,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-benign-002",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.100", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_success", "result": "success" }
+  }
+]

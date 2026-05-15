@@ -1,0 +1,33 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-nc-benign-shadow-001",
+    "raw_event_id": "ep-nc-benign-shadow-001",
+    "ts": "2026-05-15T09:00:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "network_connection",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.05,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-benign-001",
+    "process": {
+      "name": "chrome.exe",
+      "pid": 5120,
+      "ppid": 1204,
+      "command_line": null,
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "hash": null
+    },
+    "network": {
+      "source_ip": "10.0.1.100",
+      "destination_ip": "93.184.216.34",
+      "destination_port": 443,
+      "protocol": "tcp"
+    },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

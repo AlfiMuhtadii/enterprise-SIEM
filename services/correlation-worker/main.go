@@ -67,12 +67,13 @@ type Alert struct {
 }
 
 type Worker struct {
-	redpandaREST string
-	inputTopic   string
-	outputTopic  string
-	dlqTopic     string
-	group        string
-	scope        string
+	redpandaREST      string
+	inputTopic        string
+	outputTopic       string
+	dlqTopic          string
+	shadowAlertsTopic string
+	group             string
+	scope             string
 	processed atomic.Int64
 	alerts    atomic.Int64
 	latencyMS atomic.Int64
@@ -84,6 +85,7 @@ type Worker struct {
 	pollErrorCount        atomic.Int64
 	consumerRecreateCount atomic.Int64
 	retryCount            atomic.Int64
+	shadowAlertsPublished atomic.Int64
 }
 
 func main() {
@@ -91,18 +93,20 @@ func main() {
 	flag.Parse()
 	debug.SetGCPercent(envInt("XDR_CORRELATION_GOGC", 300))
 	w := &Worker{
-		redpandaREST: env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
-		inputTopic: env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
-		outputTopic: env("XDR_ALERTS_TOPIC", "xdr.alerts"),
-		dlqTopic: env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
-		group: env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
-		scope: env("XDR_CORRELATION_SCOPE", "identity-cloud"),
+		redpandaREST:      env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
+		inputTopic:        env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
+		outputTopic:       env("XDR_ALERTS_TOPIC", "xdr.alerts"),
+		dlqTopic:          env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
+		shadowAlertsTopic: env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
+		group:             env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
+		scope:             env("XDR_CORRELATION_SCOPE", "identity-cloud"),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
 	mux.HandleFunc("/ready", w.ready)
 	mux.HandleFunc("/metrics", w.metrics)
 	mux.HandleFunc("/v1/correlate", w.correlateHTTP)
+	mux.HandleFunc("/v1/correlate-endpoint-shadow", w.correlateEndpointShadowHTTP)
 	if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
 		go w.consumeLoop()
 	}
@@ -151,6 +155,7 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"poll_error_count":        w.pollErrorCount.Load(),
 		"consumer_recreate_count": w.consumerRecreateCount.Load(),
 		"retry_count":             w.retryCount.Load(),
+		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
 		"input_topic":             w.inputTopic,
 		"output_topic":   w.outputTopic,
 		"goroutines":    runtime.NumGoroutine(),
@@ -195,7 +200,11 @@ func (w *Worker) consumeOnce() {
 			continue
 		}
 		events := make([]Event, 0, len(records))
+		rawMaps := make([]map[string]any, 0, len(records))
 		for _, record := range records {
+			if v, ok := record["value"].(map[string]any); ok {
+				rawMaps = append(rawMaps, v)
+			}
 			body, _ := json.Marshal(record["value"])
 			var event Event
 			if err := json.Unmarshal(body, &event); err != nil {
@@ -214,6 +223,20 @@ func (w *Worker) consumeOnce() {
 		w.processed.Add(int64(len(events)))
 		w.alerts.Add(int64(len(alerts)))
 		w.latencyMS.Store(elapsed)
+		if shadowAlerts := correlateEndpointShadow(rawMaps); len(shadowAlerts) > 0 {
+			w.shadowAlertsPublished.Add(int64(len(shadowAlerts)))
+			shadowPayload := map[string]any{
+				"trace_id":    fmt.Sprintf("go-endpoint-shadow-%d", time.Now().UnixNano()),
+				"source":      "correlation-worker",
+				"scope":       "endpoint-shadow",
+				"alerts":      shadowAlerts,
+				"shadow_mode": true,
+			}
+			if err := w.publish(w.shadowAlertsTopic, []map[string]any{shadowPayload}); err != nil {
+				w.publishErrors.Add(1)
+				log.Printf("endpoint shadow publish failed: %v", err)
+			}
+		}
 		if len(alerts) == 0 {
 			continue
 		}
@@ -751,6 +774,388 @@ func envInt(name string, fallback int) int {
 		return parsed
 	}
 	return fallback
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint shadow correlation — shadow-only, publishes to xdr.alerts.shadow.endpoint
+// Does NOT affect the active identity/cloud/SaaS correlation path.
+// ---------------------------------------------------------------------------
+
+type EndpointAlert struct {
+	AlertID     string         `json:"alert_id"`
+	RuleID      string         `json:"rule_id"`
+	Version     string         `json:"version"`
+	Title       string         `json:"title"`
+	Severity    string         `json:"severity"`
+	Confidence  float64        `json:"confidence"`
+	Host        string         `json:"host"`
+	User        string         `json:"user"`
+	TraceID     string         `json:"trace_id"`
+	ShadowMode  bool           `json:"shadow_mode"`
+	EvidenceIDs []string       `json:"evidence_ids"`
+	EventType   string         `json:"event_type"`
+	Evidence    map[string]any `json:"evidence"`
+}
+
+func epStr(event map[string]any, path ...string) string {
+	var current any = event
+	for _, key := range path {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = m[key]
+	}
+	if current == nil {
+		return ""
+	}
+	return fmt.Sprint(current)
+}
+
+func epInt64(event map[string]any, path ...string) int64 {
+	var current any = event
+	for _, key := range path {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return 0
+		}
+		current = m[key]
+	}
+	if current == nil {
+		return 0
+	}
+	switch v := current.(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	default:
+		return 0
+	}
+}
+
+func makeEndpointAlert(ruleID, version, title, severity string, confidence float64, event map[string]any) EndpointAlert {
+	eventID := epStr(event, "normalized_event_id")
+	if eventID == "" {
+		eventID = epStr(event, "raw_event_id")
+	}
+	sum := sha256.Sum256([]byte(ruleID + "|" + epStr(event, "host") + "|" + eventID))
+	return EndpointAlert{
+		AlertID:     hex.EncodeToString(sum[:])[:40],
+		RuleID:      ruleID,
+		Version:     version,
+		Title:       title,
+		Severity:    severity,
+		Confidence:  confidence,
+		Host:        epStr(event, "host"),
+		User:        epStr(event, "user"),
+		TraceID:     epStr(event, "trace_id"),
+		ShadowMode:  true,
+		EvidenceIDs: []string{eventID},
+		EventType:   epStr(event, "event_type"),
+		Evidence:    map[string]any{},
+	}
+}
+
+var suspiciousParentNames = map[string]bool{
+	"winword.exe": true, "excel.exe": true, "powerpnt.exe": true,
+	"outlook.exe": true, "msdt.exe": true, "mspub.exe": true,
+}
+
+var suspiciousChildNames = map[string]bool{
+	"cmd.exe": true, "powershell.exe": true, "wscript.exe": true,
+	"cscript.exe": true, "mshta.exe": true, "regsvr32.exe": true,
+	"rundll32.exe": true, "certutil.exe": true,
+}
+
+var powershellEncodedIndicators = []string{" -enc ", " -e ", "-encodedcommand", "/enc ", "/e "}
+
+var executableExtensions = []string{".exe", ".dll", ".bat", ".ps1", ".vbs", ".js", ".hta", ".scr"}
+
+var tempPathPatterns = []string{`\temp\`, `\tmp\`, `\appdata\local\temp\`, "/tmp/", "/temp/"}
+
+var internalIPPrefixes = []string{
+	"10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
+	"172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
+	"172.29.", "172.30.", "172.31.", "192.168.", "127.", "169.254.",
+}
+
+var commonServicePorts = map[int64]bool{
+	22: true, 25: true, 53: true, 80: true, 110: true, 143: true,
+	443: true, 587: true, 993: true, 995: true, 3389: true, 8080: true, 8443: true,
+}
+
+const failedLoginBurstThreshold = 3
+const dnsDomainLengthThreshold = 40
+
+func ruleParentChildProcess(events []map[string]any) []EndpointAlert {
+	pidToName := map[int64]string{}
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		pid := epInt64(ev, "process", "pid")
+		name := strings.ToLower(epStr(ev, "process", "name"))
+		if pid > 0 && name != "" {
+			pidToName[pid] = name
+		}
+	}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		child := strings.ToLower(epStr(ev, "process", "name"))
+		if !suspiciousChildNames[child] {
+			continue
+		}
+		ppid := epInt64(ev, "process", "ppid")
+		parentName := pidToName[ppid]
+		if !suspiciousParentNames[parentName] {
+			continue
+		}
+		a := makeEndpointAlert("suspicious_parent_child_process", "v1", "Suspicious Parent-Child Process", "high", 0.80, ev)
+		a.Evidence["parent_process"] = parentName
+		a.Evidence["child_process"] = child
+		a.Evidence["ppid"] = ppid
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func rulePowershellEncoded(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(epStr(ev, "process", "name"))
+		if name != "powershell.exe" && name != "pwsh.exe" {
+			continue
+		}
+		cmdLine := strings.ToLower(epStr(ev, "process", "command_line"))
+		matched := false
+		for _, indicator := range powershellEncodedIndicators {
+			if strings.Contains(cmdLine, indicator) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		a := makeEndpointAlert("powershell_encoded_command", "v1", "PowerShell Encoded Command Execution", "high", 0.85, ev)
+		a.Evidence["command_line"] = epStr(ev, "process", "command_line")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleSuspiciousTempFile(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "file_write" {
+			continue
+		}
+		filePath := strings.ToLower(epStr(ev, "file", "path"))
+		op := strings.ToLower(epStr(ev, "file", "operation"))
+		if op != "create" && op != "modify" && op != "overwrite" {
+			continue
+		}
+		inTemp := false
+		for _, pat := range tempPathPatterns {
+			if strings.Contains(filePath, pat) {
+				inTemp = true
+				break
+			}
+		}
+		if !inTemp {
+			continue
+		}
+		hasExec := false
+		for _, ext := range executableExtensions {
+			if strings.HasSuffix(filePath, ext) {
+				hasExec = true
+				break
+			}
+		}
+		if !hasExec {
+			continue
+		}
+		a := makeEndpointAlert("suspicious_temp_file_write", "v1", "Executable Written to Temporary Directory", "high", 0.78, ev)
+		a.Evidence["file_path"] = epStr(ev, "file", "path")
+		a.Evidence["operation"] = op
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleFailedLoginBurst(events []map[string]any) []EndpointAlert {
+	type loginKey struct{ host, user string }
+	failedByKey := map[loginKey][]map[string]any{}
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "login_event" {
+			continue
+		}
+		action := strings.ToLower(epStr(ev, "auth", "action"))
+		if action != "login_failed" && action != "mfa_failed" {
+			continue
+		}
+		key := loginKey{epStr(ev, "host"), epStr(ev, "user")}
+		failedByKey[key] = append(failedByKey[key], ev)
+	}
+	var alerts []EndpointAlert
+	for key, failedEvents := range failedByKey {
+		if len(failedEvents) < failedLoginBurstThreshold {
+			continue
+		}
+		a := makeEndpointAlert("failed_login_burst", "v1", "Failed Login Burst", "medium", 0.72, failedEvents[0])
+		a.Host = key.host
+		a.User = key.user
+		a.Evidence["failed_count"] = len(failedEvents)
+		a.Evidence["threshold"] = failedLoginBurstThreshold
+		ids := make([]string, 0, len(failedEvents))
+		for _, ev := range failedEvents {
+			if id := epStr(ev, "normalized_event_id"); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		a.EvidenceIDs = ids
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleSuspiciousDNS(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "dns_query" {
+			continue
+		}
+		domain := strings.ToLower(epStr(ev, "dns", "domain"))
+		if domain == "" {
+			continue
+		}
+		reason := ""
+		if len(domain) > dnsDomainLengthThreshold {
+			reason = "high_length_possible_dga"
+		} else {
+			digits := 0
+			for _, c := range domain {
+				if c >= '0' && c <= '9' {
+					digits++
+				}
+			}
+			if len(domain) > 0 && float64(digits)/float64(len(domain)) > 0.40 {
+				reason = "high_numeric_density"
+			}
+		}
+		if reason == "" {
+			continue
+		}
+		a := makeEndpointAlert("suspicious_dns_query", "v1", "Suspicious DNS Query", "medium", 0.68, ev)
+		a.Evidence["domain"] = domain
+		a.Evidence["reason"] = reason
+		a.Evidence["domain_length"] = len(domain)
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleSuspiciousOutbound(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		dstIP := epStr(ev, "network", "destination_ip")
+		dstPort := epInt64(ev, "network", "destination_port")
+		if dstIP == "" || dstPort == 0 {
+			continue
+		}
+		isInternal := false
+		for _, prefix := range internalIPPrefixes {
+			if strings.HasPrefix(dstIP, prefix) {
+				isInternal = true
+				break
+			}
+		}
+		if isInternal {
+			continue
+		}
+		if commonServicePorts[dstPort] {
+			continue
+		}
+		a := makeEndpointAlert("suspicious_outbound_connection", "v1", "Suspicious Outbound Network Connection", "medium", 0.65, ev)
+		a.Evidence["destination_ip"] = dstIP
+		a.Evidence["destination_port"] = dstPort
+		a.Evidence["protocol"] = epStr(ev, "network", "protocol")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func dedupeEndpointAlerts(alerts []EndpointAlert) []EndpointAlert {
+	seen := map[string]bool{}
+	out := make([]EndpointAlert, 0, len(alerts))
+	for _, a := range alerts {
+		if seen[a.AlertID] {
+			continue
+		}
+		seen[a.AlertID] = true
+		out = append(out, a)
+	}
+	return out
+}
+
+func correlateEndpointShadow(events []map[string]any) []EndpointAlert {
+	endpointEvents := make([]map[string]any, 0, len(events))
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") == "endpoint" {
+			endpointEvents = append(endpointEvents, ev)
+		}
+	}
+	if len(endpointEvents) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, ruleParentChildProcess(endpointEvents)...)
+	alerts = append(alerts, rulePowershellEncoded(endpointEvents)...)
+	alerts = append(alerts, ruleSuspiciousTempFile(endpointEvents)...)
+	alerts = append(alerts, ruleFailedLoginBurst(endpointEvents)...)
+	alerts = append(alerts, ruleSuspiciousDNS(endpointEvents)...)
+	alerts = append(alerts, ruleSuspiciousOutbound(endpointEvents)...)
+	return dedupeEndpointAlerts(alerts)
+}
+
+func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+	if r.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 32*1024*1024))
+	if err != nil {
+		http.Error(rw, "read_failed", http.StatusBadRequest)
+		return
+	}
+	var events []map[string]any
+	if err := json.Unmarshal(body, &events); err != nil {
+		http.Error(rw, "invalid_json", http.StatusBadRequest)
+		return
+	}
+	shadowAlerts := correlateEndpointShadow(events)
+	elapsed := time.Since(started).Milliseconds()
+	writeJSON(rw, http.StatusOK, map[string]any{
+		"events":        len(events),
+		"shadow_alerts": shadowAlerts,
+		"alert_count":   len(shadowAlerts),
+		"latency_ms":    elapsed,
+		"shadow_mode":   true,
+		"topic":         w.shadowAlertsTopic,
+	})
 }
 
 func envBool(name string, fallback bool) bool {

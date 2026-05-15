@@ -1,0 +1,54 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-pc-shadow-parent-001",
+    "raw_event_id": "ep-pc-shadow-parent-001",
+    "ts": "2026-05-15T09:15:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "process_start",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.3,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-suspicious-006",
+    "process": {
+      "name": "winword.exe",
+      "pid": 3344,
+      "ppid": 1204,
+      "command_line": "WINWORD.EXE /n C:\\Users\\alice\\Downloads\\invoice.docm",
+      "path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03"
+    },
+    "network": { "source_ip": null, "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  },
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-pc-shadow-child-001",
+    "raw_event_id": "ep-pc-shadow-child-001",
+    "ts": "2026-05-15T09:15:02Z",
+    "telemetry_type": "endpoint",
+    "event_type": "process_start",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.8,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-suspicious-006",
+    "process": {
+      "name": "cmd.exe",
+      "pid": 5678,
+      "ppid": 3344,
+      "command_line": "cmd.exe /c whoami /all && ipconfig /all",
+      "path": "C:\\Windows\\System32\\cmd.exe",
+      "hash": null
+    },
+    "network": { "source_ip": null, "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

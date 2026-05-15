@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-15T00:12:27.656944+00:00",
-  "trace_id": "trace-resilience-1778803947",
+  "generated_at": "2026-05-15T00:54:40.080573+00:00",
+  "trace_id": "trace-resilience-1778806480",
   "checks": {
     "runtime_available": true,
     "event_store_not_duplicated": true,
@@ -11,40 +11,40 @@
   "runtime": {
     "alert_writer_available": true,
     "alert_writer_metrics_before": {
-      "batches": 4,
+      "batches": 2,
       "alerts_seen": 63,
       "alerts_written": 15,
       "duplicates": 48,
       "postgres_failures": 0,
       "opensearch_failures": 0,
-      "dlq_count": 7,
+      "dlq_count": 8,
       "retry_count": 0,
-      "write_latency_ms_last": 86.666,
-      "write_latency_ms_total": 832.4724880076246,
+      "write_latency_ms_last": 309.387,
+      "write_latency_ms_total": 974.516660993686,
       "idempotency_cache_size": 15,
-      "consumer_polls": 3458,
+      "consumer_polls": 6278,
       "consumer_errors": 0,
       "events_published": 63,
-      "contract_validation_failures": 7,
-      "operational_events_stored": 22
+      "contract_validation_failures": 8,
+      "operational_events_stored": 14
     },
     "alert_writer_metrics_after_replay": {
-      "batches": 7,
+      "batches": 5,
       "alerts_seen": 66,
       "alerts_written": 15,
       "duplicates": 51,
       "postgres_failures": 0,
       "opensearch_failures": 0,
-      "dlq_count": 7,
+      "dlq_count": 8,
       "retry_count": 0,
-      "write_latency_ms_last": 25.561,
-      "write_latency_ms_total": 1117.0995289867278,
+      "write_latency_ms_last": 33.959,
+      "write_latency_ms_total": 1183.9498709887266,
       "idempotency_cache_size": 15,
-      "consumer_polls": 3463,
+      "consumer_polls": 6284,
       "consumer_errors": 0,
       "events_published": 66,
-      "contract_validation_failures": 7,
-      "operational_events_stored": 23
+      "contract_validation_failures": 8,
+      "operational_events_stored": 15
     },
     "alert_writer_metrics_after_restart": {
       "batches": 2,
@@ -53,22 +53,22 @@
       "duplicates": 48,
       "postgres_failures": 0,
       "opensearch_failures": 0,
-      "dlq_count": 7,
+      "dlq_count": 8,
       "retry_count": 0,
-      "write_latency_ms_last": 309.387,
-      "write_latency_ms_total": 974.516660993686,
+      "write_latency_ms_last": 284.053,
+      "write_latency_ms_total": 923.6290760018164,
       "idempotency_cache_size": 15,
       "consumer_polls": 1,
       "consumer_errors": 0,
       "events_published": 1,
-      "contract_validation_failures": 7,
-      "operational_events_stored": 14
+      "contract_validation_failures": 8,
+      "operational_events_stored": 13
     },
     "malformed_event_publish": {
       "offsets": [
         {
           "partition": 0,
-          "offset": 24
+          "offset": 25
         }
       ]
     },
@@ -84,7 +84,7 @@
       "returncode": 0,
       "stdout": "",
       "stderr": " Container detector-xdr-alert-writer Restarting \n Container detector-xdr-alert-writer Started \n",
-      "duration_ms": 876.315
+      "duration_ms": 1013.047
     },
     {
       "service": "incident-builder-service",
@@ -92,7 +92,7 @@
       "returncode": 0,
       "stdout": "",
       "stderr": " Container detector-xdr-incident-builder Restarting \n Container detector-xdr-incident-builder Started \n",
-      "duration_ms": 1420.562
+      "duration_ms": 1213.169
     }
   ],
   "errors": [],

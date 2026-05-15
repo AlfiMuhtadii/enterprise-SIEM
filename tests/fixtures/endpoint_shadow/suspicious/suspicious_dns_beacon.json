@@ -1,0 +1,31 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-dns-shadow-001",
+    "raw_event_id": "ep-dns-shadow-001",
+    "ts": "2026-05-15T09:13:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "dns_query",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.85,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-suspicious-004",
+    "process": {
+      "name": "svchost.exe",
+      "pid": 876,
+      "ppid": 680,
+      "command_line": null,
+      "path": null,
+      "hash": null
+    },
+    "network": { "source_ip": "10.0.1.100", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": {
+      "domain": "randomlookingdomainc2beacon12345.dynamic.invalid",
+      "resolved_ips": ["198.51.100.42"]
+    },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

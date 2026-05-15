@@ -1,0 +1,33 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-nc-shadow-001",
+    "raw_event_id": "ep-nc-shadow-001",
+    "ts": "2026-05-15T09:14:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "network_connection",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.7,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-suspicious-005",
+    "process": {
+      "name": "unknown_dropper.exe",
+      "pid": 7788,
+      "ppid": 5120,
+      "command_line": null,
+      "path": "C:\\Users\\alice\\AppData\\Local\\Temp\\unknown_dropper.exe",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "network": {
+      "source_ip": "10.0.1.100",
+      "destination_ip": "185.220.101.200",
+      "destination_port": 4444,
+      "protocol": "tcp"
+    },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

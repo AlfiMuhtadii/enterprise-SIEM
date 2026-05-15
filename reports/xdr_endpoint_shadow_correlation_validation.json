@@ -1,0 +1,152 @@
+{
+  "generated_at": "2026-05-15T00:54:34.107628+00:00",
+  "correlation_url": "http://127.0.0.1:8093",
+  "checks": {
+    "benign_fixtures_produce_no_alerts": true,
+    "suspicious_fixtures_produce_expected_alerts": true,
+    "all_alerts_shadow_mode": true,
+    "all_alerts_have_rule_id": true,
+    "trace_id_propagated": true,
+    "no_duplicate_alert_ids": true,
+    "no_active_incident_activation": true
+  },
+  "benign_results": [
+    {
+      "fixture": "benign_browser_network",
+      "expected_alerts": 0,
+      "service_response": {
+        "alert_count": 0,
+        "events": 1,
+        "latency_ms": 0,
+        "shadow_alerts": [],
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 0,
+      "ok": true
+    },
+    {
+      "fixture": "benign_login",
+      "expected_alerts": 0,
+      "service_response": {
+        "alert_count": 0,
+        "events": 1,
+        "latency_ms": 0,
+        "shadow_alerts": [],
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 0,
+      "ok": true
+    }
+  ],
+  "suspicious_results": [
+    {
+      "fixture": "suspicious_dns_beacon",
+      "expected_rule": "suspicious_dns_query",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "suspicious_dns_query"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    },
+    {
+      "fixture": "suspicious_failed_logins",
+      "expected_rule": "failed_login_burst",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "failed_login_burst"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    },
+    {
+      "fixture": "suspicious_outbound",
+      "expected_rule": "suspicious_outbound_connection",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "suspicious_outbound_connection"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    },
+    {
+      "fixture": "suspicious_parent_child",
+      "expected_rule": "suspicious_parent_child_process",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "suspicious_parent_child_process"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    },
+    {
+      "fixture": "suspicious_powershell_encoded",
+      "expected_rule": "powershell_encoded_command",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "powershell_encoded_command"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    },
+    {
+      "fixture": "suspicious_temp_file_drop",
+      "expected_rule": "suspicious_temp_file_write",
+      "service_response": {
+        "alert_count": 1,
+        "shadow_mode": true,
+        "topic": "xdr.alerts.shadow.endpoint"
+      },
+      "alert_count": 1,
+      "rule_ids_found": [
+        "suspicious_temp_file_write"
+      ],
+      "expected_rule_found": true,
+      "shape_failures": [],
+      "ok": true
+    }
+  ],
+  "all_failures": [],
+  "errors": [],
+  "correlation_service_available": true,
+  "summary": {
+    "benign_fixtures": 2,
+    "suspicious_fixtures": 6,
+    "benign_passed": 2,
+    "suspicious_passed": 6,
+    "total_failures": 0
+  },
+  "validation_status": "PASS"
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "schema_version": 1, "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-shadow-001", "raw_event_id": "ep-le-shadow-001",
+    "ts": "2026-05-15T09:12:00Z", "telemetry_type": "endpoint", "event_type": "login_event",
+    "host": "workstation-ep01.corp.test", "user": "bob", "risk_score": 0.6,
+    "event_source": "test-edr-agent", "trace_id": "shadow-trace-suspicious-003",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.101", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_failed", "result": "failure" }
+  },
+  {
+    "schema_version": 1, "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-shadow-002", "raw_event_id": "ep-le-shadow-002",
+    "ts": "2026-05-15T09:12:05Z", "telemetry_type": "endpoint", "event_type": "login_event",
+    "host": "workstation-ep01.corp.test", "user": "bob", "risk_score": 0.6,
+    "event_source": "test-edr-agent", "trace_id": "shadow-trace-suspicious-003",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.101", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_failed", "result": "failure" }
+  },
+  {
+    "schema_version": 1, "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-shadow-003", "raw_event_id": "ep-le-shadow-003",
+    "ts": "2026-05-15T09:12:10Z", "telemetry_type": "endpoint", "event_type": "login_event",
+    "host": "workstation-ep01.corp.test", "user": "bob", "risk_score": 0.6,
+    "event_source": "test-edr-agent", "trace_id": "shadow-trace-suspicious-003",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.101", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_failed", "result": "failure" }
+  },
+  {
+    "schema_version": 1, "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-shadow-004", "raw_event_id": "ep-le-shadow-004",
+    "ts": "2026-05-15T09:12:15Z", "telemetry_type": "endpoint", "event_type": "login_event",
+    "host": "workstation-ep01.corp.test", "user": "bob", "risk_score": 0.6,
+    "event_source": "test-edr-agent", "trace_id": "shadow-trace-suspicious-003",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.101", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_failed", "result": "failure" }
+  },
+  {
+    "schema_version": 1, "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-le-shadow-005", "raw_event_id": "ep-le-shadow-005",
+    "ts": "2026-05-15T09:12:20Z", "telemetry_type": "endpoint", "event_type": "login_event",
+    "host": "workstation-ep01.corp.test", "user": "bob", "risk_score": 0.6,
+    "event_source": "test-edr-agent", "trace_id": "shadow-trace-suspicious-003",
+    "process": { "name": null, "pid": null, "ppid": null, "command_line": null, "path": null, "hash": null },
+    "network": { "source_ip": "10.0.1.101", "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": "login_failed", "result": "failure" }
+  }
+]

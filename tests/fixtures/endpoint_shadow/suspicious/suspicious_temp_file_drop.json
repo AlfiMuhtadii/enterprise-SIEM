@@ -1,0 +1,32 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-fw-shadow-001",
+    "raw_event_id": "ep-fw-shadow-001",
+    "ts": "2026-05-15T09:11:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "file_write",
+    "host": "workstation-ep01.corp.test",
+    "user": "alice",
+    "risk_score": 0.72,
+    "event_source": "test-edr-agent",
+    "trace_id": "shadow-trace-suspicious-002",
+    "process": {
+      "name": "chrome.exe",
+      "pid": 5120,
+      "ppid": 1204,
+      "command_line": null,
+      "path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "hash": null
+    },
+    "network": { "source_ip": null, "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": {
+      "path": "C:\\Users\\alice\\AppData\\Local\\Temp\\update_payload.exe",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "operation": "create"
+    },
+    "auth": { "action": null, "result": null }
+  }
+]
