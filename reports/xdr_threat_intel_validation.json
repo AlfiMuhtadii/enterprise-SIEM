@@ -1,0 +1,119 @@
+{
+  "generated_at": "2026-05-15T01:14:53.185087+00:00",
+  "db_path": "storage/threat_intel/iocs_validate.db",
+  "checks": {
+    "ioc_load_success": true,
+    "duplicate_insert_safe": true,
+    "expiration_filtered": true,
+    "inactive_filtered": true,
+    "benign_not_matched": true,
+    "ioc_ip_match_generates_alert": true,
+    "ioc_domain_match_generates_alert": true,
+    "ioc_hash_match_generates_alert": true,
+    "no_duplicate_alerts": true,
+    "trace_id_propagated": true,
+    "all_alerts_shadow_mode": true,
+    "no_active_incident_activation": true
+  },
+  "store_metrics": {
+    "ioc_loaded_total": 5,
+    "ioc_duplicate_total": 3,
+    "ioc_lookup_total": 64,
+    "ioc_match_total": 20,
+    "ioc_expired_total": 1,
+    "ioc_total_in_store": 5,
+    "ioc_active_in_store": 3
+  },
+  "test_details": {
+    "ioc_load": {
+      "ok": true,
+      "stats": {
+        "inserted": 5,
+        "duplicate": 1
+      },
+      "loaded_count": 6
+    },
+    "duplicate_insert": {
+      "ok": true,
+      "first_result": "duplicate",
+      "second_result": "duplicate"
+    },
+    "expiration": {
+      "ok": true,
+      "tested_value": "192.0.2.100",
+      "expires_at": "2024-12-31T23:59:59Z",
+      "lookup_returned": "null"
+    },
+    "inactive": {
+      "ok": true,
+      "tested_value": "old-c2-sinkholed.invalid",
+      "active": false,
+      "lookup_returned": "null"
+    },
+    "benign_check": {
+      "ok": true,
+      "false_positives": []
+    },
+    "ioc_ip_match": {
+      "ok": true,
+      "alert_count": 1,
+      "alerts": [
+        {
+          "rule_id": "ioc_ip_match",
+          "ioc_id": "ioc-ip-001",
+          "trace_id": "shadow-trace-suspicious-005"
+        }
+      ]
+    },
+    "ioc_domain_match": {
+      "ok": true,
+      "alert_count": 1,
+      "alerts": [
+        {
+          "rule_id": "ioc_domain_match",
+          "ioc_id": "ioc-domain-001",
+          "trace_id": "shadow-trace-suspicious-004"
+        }
+      ]
+    },
+    "ioc_hash_match": {
+      "ok": true,
+      "alert_count": 1,
+      "alerts": [
+        {
+          "rule_id": "ioc_file_hash_match",
+          "ioc_id": "ioc-hash-001",
+          "trace_id": "shadow-trace-suspicious-002"
+        }
+      ]
+    },
+    "no_duplicates": {
+      "ok": true,
+      "alert_count_run1": 4,
+      "alert_count_run2": 4,
+      "duplicates": []
+    },
+    "trace_id": {
+      "ok": true,
+      "mismatches": 0,
+      "total_alerts": 4
+    },
+    "shadow_mode": {
+      "ok": true,
+      "non_shadow_count": 0,
+      "total_alerts": 4
+    },
+    "no_active_incident_activation": {
+      "ok": true,
+      "note": "shadow_mode=true enforced; xdr.alerts.shadow.endpoint not consumed by alert-writer"
+    }
+  },
+  "errors": [],
+  "fixture_count": {
+    "malicious_iocs": 6,
+    "benign_iocs": 4,
+    "endpoint_fixtures": 6
+  },
+  "failures": [],
+  "validation_status": "PASS"
+}

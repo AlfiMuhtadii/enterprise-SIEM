@@ -1,0 +1,22 @@
+[
+  {
+    "value": "93.184.216.34",
+    "ioc_type": "ip",
+    "description": "example.com public IP — benign, used in browser network fixture. Should NOT be in threat intel store."
+  },
+  {
+    "value": "10.0.1.100",
+    "ioc_type": "ip",
+    "description": "Internal workstation IP — RFC1918, benign. Should NOT be in threat intel store."
+  },
+  {
+    "value": "example.com",
+    "ioc_type": "domain",
+    "description": "Known-good domain — benign. Should NOT be in threat intel store."
+  },
+  {
+    "value": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+    "ioc_type": "file_hash",
+    "description": "SHA-256 of a known legitimate binary. Should NOT be in threat intel store."
+  }
+]

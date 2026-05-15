@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ioc.v1",
+  "title": "Threat Intelligence IOC v1",
+  "description": "Schema for a single Indicator of Compromise (IOC) record in the threat intelligence pipeline. All inserts are idempotent by ioc_id. Expiration and active flags control lookup eligibility.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ioc_id",
+    "ioc_type",
+    "value",
+    "created_at",
+    "normalization_version"
+  ],
+  "properties": {
+    "ioc_id": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 128,
+      "description": "Globally unique IOC identifier. Primary idempotency key — inserting the same ioc_id twice is a no-op."
+    },
+    "ioc_type": {
+      "type": "string",
+      "enum": ["ip", "domain", "url", "file_hash"],
+      "description": "Indicator type. Determines how value is matched against telemetry fields."
+    },
+    "value": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "The indicator value. For ip: IPv4/IPv6 address. For domain: FQDN (lowercased). For url: full URL. For file_hash: SHA-256 hex (lowercased)."
+    },
+    "severity": {
+      "type": ["string", "null"],
+      "enum": ["critical", "high", "medium", "low", "info", null],
+      "description": "Threat severity assigned by the source. Used in shadow alert severity field."
+    },
+    "confidence": {
+      "type": ["number", "null"],
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Source confidence in the indicator, 0.0–1.0."
+    },
+    "source": {
+      "type": ["string", "null"],
+      "maxLength": 256,
+      "description": "Feed or analyst source that provided this IOC."
+    },
+    "tags": {
+      "type": ["array", "null"],
+      "items": { "type": "string", "maxLength": 64 },
+      "description": "Classification tags (e.g., ['c2', 'malware', 'ransomware'])."
+    },
+    "first_seen": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Earliest known observation of this indicator."
+    },
+    "last_seen": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Most recent observation of this indicator."
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "UTC timestamp after which this IOC is no longer active. Null = no expiration."
+    },
+    "ttl_seconds": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Time-to-live in seconds from created_at. Used to compute expires_at if not explicitly set."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this IOC is currently active. Inactive IOCs are excluded from lookups."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when this IOC was first loaded into the store."
+    },
+    "normalization_version": {
+      "const": "ioc-v1",
+      "description": "IOC normalization version. Always 'ioc-v1' for this schema."
+    }
+  }
+}

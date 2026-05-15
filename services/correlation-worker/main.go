@@ -72,6 +72,7 @@ type Worker struct {
 	outputTopic       string
 	dlqTopic          string
 	shadowAlertsTopic string
+	iocLookupURL      string
 	group             string
 	scope             string
 	processed atomic.Int64
@@ -98,6 +99,7 @@ func main() {
 		outputTopic:       env("XDR_ALERTS_TOPIC", "xdr.alerts"),
 		dlqTopic:          env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
 		shadowAlertsTopic: env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
+		iocLookupURL:      env("XDR_IOC_LOOKUP_URL", ""),
 		group:             env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
 		scope:             env("XDR_CORRELATION_SCOPE", "identity-cloud"),
 	}
@@ -156,6 +158,8 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"consumer_recreate_count": w.consumerRecreateCount.Load(),
 		"retry_count":             w.retryCount.Load(),
 		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
+		"ioc_lookup_total":        iocLookupTotal.Load(),
+		"ioc_match_total":         iocMatchTotal.Load(),
 		"input_topic":             w.inputTopic,
 		"output_topic":   w.outputTopic,
 		"goroutines":    runtime.NumGoroutine(),
@@ -223,7 +227,7 @@ func (w *Worker) consumeOnce() {
 		w.processed.Add(int64(len(events)))
 		w.alerts.Add(int64(len(alerts)))
 		w.latencyMS.Store(elapsed)
-		if shadowAlerts := correlateEndpointShadow(rawMaps); len(shadowAlerts) > 0 {
+		if shadowAlerts := correlateEndpointShadowAll(rawMaps, w.iocLookupURL); len(shadowAlerts) > 0 {
 			w.shadowAlertsPublished.Add(int64(len(shadowAlerts)))
 			shadowPayload := map[string]any{
 				"trace_id":    fmt.Sprintf("go-endpoint-shadow-%d", time.Now().UnixNano()),
@@ -777,6 +781,162 @@ func envInt(name string, fallback int) int {
 }
 
 // ---------------------------------------------------------------------------
+// Threat intelligence IOC shadow enrichment (shadow-only, graceful degradation)
+// ---------------------------------------------------------------------------
+
+var (
+	iocLookupTotal atomic.Int64
+	iocMatchTotal  atomic.Int64
+	iocHTTPClient  = &http.Client{Timeout: 3 * time.Second}
+)
+
+func lookupIOC(iocURL, iocType, value string) map[string]any {
+	if iocURL == "" || value == "" {
+		return nil
+	}
+	iocLookupTotal.Add(1)
+	queryURL := fmt.Sprintf("%s/v1/lookup?type=%s&value=%s",
+		strings.TrimRight(iocURL, "/"),
+		iocType,
+		url.QueryEscape(value))
+	req, err := http.NewRequest(http.MethodGet, queryURL, nil)
+	if err != nil {
+		return nil
+	}
+	resp, err := iocHTTPClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil
+	}
+	matched, _ := result["matched"].(bool)
+	if !matched {
+		return nil
+	}
+	iocMatchTotal.Add(1)
+	return result
+}
+
+func iocSeverity(ioc map[string]any) string {
+	if s, ok := ioc["severity"].(string); ok && s != "" {
+		return s
+	}
+	return "medium"
+}
+
+func iocConfidence(ioc map[string]any) float64 {
+	if c, ok := ioc["confidence"].(float64); ok && c > 0 {
+		return c
+	}
+	return 0.70
+}
+
+func ruleIOCIPMatch(events []map[string]any, iocURL string) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		for _, field := range []string{"destination_ip", "source_ip"} {
+			ip := epStr(ev, "network", field)
+			if ip == "" {
+				continue
+			}
+			ioc := lookupIOC(iocURL, "ip", ip)
+			if ioc == nil {
+				continue
+			}
+			a := makeEndpointAlert("ioc_ip_match", "v1", "Endpoint IOC IP Match",
+				iocSeverity(ioc), iocConfidence(ioc), ev)
+			a.Evidence["ioc_id"] = ioc["ioc_id"]
+			a.Evidence["matched_ip"] = ip
+			a.Evidence["matched_field"] = "network." + field
+			a.Evidence["ioc_source"] = ioc["source"]
+			a.Evidence["ioc_tags"] = ioc["tags"]
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleIOCDomainMatch(events []map[string]any, iocURL string) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		domain := strings.ToLower(epStr(ev, "dns", "domain"))
+		if domain == "" {
+			continue
+		}
+		ioc := lookupIOC(iocURL, "domain", domain)
+		if ioc == nil {
+			continue
+		}
+		a := makeEndpointAlert("ioc_domain_match", "v1", "Endpoint IOC Domain Match",
+			iocSeverity(ioc), iocConfidence(ioc), ev)
+		a.Evidence["ioc_id"] = ioc["ioc_id"]
+		a.Evidence["matched_domain"] = domain
+		a.Evidence["ioc_source"] = ioc["source"]
+		a.Evidence["ioc_tags"] = ioc["tags"]
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleIOCHashMatch(events []map[string]any, iocURL string) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		for _, field := range [][]string{{"process", "hash"}, {"file", "hash"}} {
+			h := strings.ToLower(epStr(ev, field...))
+			if h == "" {
+				continue
+			}
+			ioc := lookupIOC(iocURL, "file_hash", h)
+			if ioc == nil {
+				continue
+			}
+			section := strings.Join(field, ".")
+			a := makeEndpointAlert("ioc_file_hash_match", "v1", "Endpoint IOC File Hash Match",
+				iocSeverity(ioc), iocConfidence(ioc), ev)
+			a.Evidence["ioc_id"] = ioc["ioc_id"]
+			a.Evidence["matched_hash"] = h
+			a.Evidence["matched_section"] = section
+			a.Evidence["ioc_source"] = ioc["source"]
+			a.Evidence["ioc_tags"] = ioc["tags"]
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func correlateEndpointShadowIOC(events []map[string]any, iocURL string) []EndpointAlert {
+	if iocURL == "" {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, ruleIOCIPMatch(events, iocURL)...)
+	alerts = append(alerts, ruleIOCDomainMatch(events, iocURL)...)
+	alerts = append(alerts, ruleIOCHashMatch(events, iocURL)...)
+	return alerts
+}
+
+func correlateEndpointShadowAll(events []map[string]any, iocURL string) []EndpointAlert {
+	alerts := correlateEndpointShadow(events)
+	alerts = append(alerts, correlateEndpointShadowIOC(events, iocURL)...)
+	return dedupeEndpointAlerts(alerts)
+}
+
+// ---------------------------------------------------------------------------
 // Endpoint shadow correlation — shadow-only, publishes to xdr.alerts.shadow.endpoint
 // Does NOT affect the active identity/cloud/SaaS correlation path.
 // ---------------------------------------------------------------------------
@@ -1146,7 +1306,7 @@ func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Req
 		http.Error(rw, "invalid_json", http.StatusBadRequest)
 		return
 	}
-	shadowAlerts := correlateEndpointShadow(events)
+	shadowAlerts := correlateEndpointShadowAll(events, w.iocLookupURL)
 	elapsed := time.Since(started).Milliseconds()
 	writeJSON(rw, http.StatusOK, map[string]any{
 		"events":        len(events),
