@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-05-18T08:17:02.604220+00:00",
+  "registry_path": "docs/detection/rules/registry.v1.json",
+  "checks": {
+    "registry_valid_json": true,
+    "rules_present": true,
+    "unique_rule_ids": true,
+    "required_fields_present": true,
+    "statuses_valid": true,
+    "domains_valid": true,
+    "severities_valid": true,
+    "confidence_in_range": true,
+    "confidence_floor_respected": true,
+    "mitre_mapping_present": true,
+    "protected_domain_gate": true,
+    "output_topic_matches_stage": true,
+    "shadow_only_enforced": true,
+    "shadow_only_topic_safe": true,
+    "suppression_keys_declared": true,
+    "owners_assigned": true,
+    "validation_evidence_present": true,
+    "fp_notes_present": true,
+    "deprecated_rules_documented": true,
+    "replay_fixtures_exist": true,
+    "alert_counts_non_negative": true
+  },
+  "failures": [],
+  "rule_failures": {},
+  "summary": {
+    "total_rules": 37,
+    "by_status": {
+      "staged_active": 12,
+      "shadow": 25
+    },
+    "by_domain": {
+      "identity": 6,
+      "cloud": 5,
+      "saas": 1,
+      "endpoint": 22,
+      "threat-intel": 3
+    },
+    "by_severity": {
+      "high": 28,
+      "medium": 7,
+      "critical": 2
+    }
+  },
+  "errors": [],
+  "validation_status": "PASS",
+  "registry_version": "v1"
+}

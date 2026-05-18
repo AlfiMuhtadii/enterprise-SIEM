@@ -39,31 +39,26 @@ After every change:
 
 ### Feedback Loop Map
 
-| Change Type              | Validation Command              |
-|--------------------------|---------------------------------|
-| Docker / infra           | docker compose config --quiet   |
-| Laravel / PHP            | php artisan test                |
-| Event contracts          | xdr_contract_validate.py        |
-| Correlation / resilience | xdr_event_flow_resilience_validate.py |
-| Full soak                | run_xdr_correlation_soak_6h.ps1 |
+| Change Type              | Validation Command                                |
+|--------------------------|---------------------------------------------------|
+| Docker / infra           | `docker compose config --quiet`                   |
+| Laravel / PHP            | `php artisan test`                                |
+| Event contracts          | `python scripts/xdr_contract_validate.py`         |
+| Correlation / resilience | `python scripts/xdr_event_flow_resilience_validate.py` |
+| Resilience scenarios     | `python scripts/xdr_resilience_validate.py`       |
+| Fault injection          | `python scripts/xdr_fault_injection.py`           |
+| Secret validation        | `php artisan security:validate-secrets`           |
+| Full soak                | `run_xdr_correlation_soak_6h.ps1`                 |
 
 ### Pass Criteria
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → all tests green, zero failures
+php artisan test         → 764 passed, zero failures
+python endpoint agent    → 95 tests, 0 failures
+rule registry validator  → status=PASS  rules=37  checks=21/21
 contract validate        → all contracts valid
-soak validation          → ALL gates below must pass:
-  fallback_count = 0
-  failure_count = 0
-  duplicate_rate = 0
-  goroutine_growth = 0
-  stable memory usage
-  p95_latency_ms < 300
-  no sustained latency drift
-  alert type match >= 0.95
-  evidence match >= 0.98
-  alert count delta <= 1-2%
+soak validation          → see docs/validation/VALIDATION_BASELINES.md
 ```
 
 ### STOP Conditions
@@ -80,7 +75,7 @@ If validation fails → remain shadow OR rollback to legacy. Never force promoti
 Load context in this order — only what is needed for the session:
 1. Current Active Blocker ← start here
 2. Forbidden Changes ← know what not to do
-3. Architecture Overview ← understand the system
+3. Architecture Boundaries ← understand the system
 4. Standard Commands ← know how to validate
 5. Required Cutover Gates ← know pass criteria
 
@@ -88,14 +83,9 @@ Load context in this order — only what is needed for the session:
 
 # Operational Context
 
-Read this file before making architectural or implementation changes.
-
-This is an ongoing distributed systems migration project.
-
-This is NOT a greenfield rewrite.
+This is an ongoing distributed systems migration project. NOT a greenfield rewrite.
 
 Preserve:
-
 * replay guarantees
 * event contract integrity
 * rollback capability
@@ -104,7 +94,6 @@ Preserve:
 * cutover safety
 
 Avoid:
-
 * speculative redesign
 * unnecessary rewrites
 * architecture churn
@@ -114,354 +103,245 @@ Avoid:
 
 # Project
 
+**Academic title:** Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture.
+
 Distributed AI-assisted XDR-like platform with operational polyglot microservices.
 
-Current architecture is already operational and validated end-to-end.
+Academic scope is stable and defensible as of 2026-05-18. The platform continues to evolve under controlled architectural boundaries — endpoint behavioral analytics, threat hunting, and orchestration capabilities extend iteratively within the shadow/advisory posture. Focus is on demo stability, thesis defensibility, and documentation quality.
 
-identity/cloud/SaaS Go correlation: staged active approved (6h soak PASS, 2026-05-14).
-endpoint/DNS/proxy/firewall: shadow-only, cutover not approved.
+identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
+Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
+Threat-intel/IOC correlation, DNS, proxy, firewall: shadow-only, cutover not approved.
+Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations.
+
+Academic positioning: `docs/thesis/THESIS_POSITIONING.md`
+Defense preparation: `docs/thesis/DEFENSE_PREPARATION.md`
+Diagrams: `docs/architecture/diagrams.md`
+Module inventory: `docs/architecture/FEATURE_REGISTRY.md`
+Implementation history: `docs/architecture/ARCHITECTURE_CHANGELOG.md`
 
 ---
 
-# Architecture Overview
+# Architecture Boundaries
 
-## Laravel
+## Service Responsibilities
 
-Laravel remains the SOC control plane.
-
-Responsibilities:
-
-* dashboard
-* RBAC
-* incident workflow
-* audit
-* reporting
-* operational management
-* configuration
+| Service | Technology | Primary Role |
+|---|---|---|
+| Laravel SOC | PHP/Blade | Control plane: RBAC, dashboard, incidents, investigations, response, export, entity graph, risk, hardening, resilience, scenario runner, trace, detection governance, behavioral analytics, threat hunting |
+| ingestion-gateway | Go | Signed telemetry ingestion (`POST /v1/ingest`, HMAC-SHA256), rate limiting, backpressure |
+| normalizer-worker | Go | `telemetry.raw` → `telemetry.normalized`, endpoint-v1 normalization |
+| correlation-worker | Go | identity/cloud/SaaS correlation (active) + endpoint behavioral shadow analytics — execution chains, beacon patterns, LOLBin, persistence correlation; advisory-only |
+| alert-writer-service | Python/FastAPI | `xdr.alerts` → PostgreSQL `security_alerts` + OpenSearch + `alerts.created` |
+| incident-builder-service | Python/FastAPI | `alerts.created` → `security_incidents` + `incidents.updated` |
+| ai-rag-service | Python/FastAPI | Analyst assist, Qdrant vector store, heuristic fallback |
+| endpoint-agent | Python stdlib | Lightweight behavioral endpoint visibility and orchestration foundation: process ancestry, persistence inventory, process-network correlation, long-lived tracking, behavioral snapshots, signed heartbeat, command lifecycle; posts to ingestion-gateway |
 
 Do NOT remove Laravel from control-plane responsibilities.
 
----
+## Event Flow
 
-## Go Services
-
-### ingestion-gateway
-
-Responsibilities:
-
-* telemetry ingestion
-* signed ingestion
-* rate limiting
-* admission control
-* backpressure handling
-
-Publishes:
-
-* telemetry.raw
-
----
-
-### normalizer-worker
-
-Consumes:
-
-* telemetry.raw
-
-Responsibilities:
-
-* telemetry normalization
-* schema normalization
-* event shaping
-* validation
-
-Publishes:
-
-* telemetry.normalized
-
----
-
-### correlation-worker
-
-Consumes:
-
-* telemetry.normalized
-
-Responsibilities:
-
-* identity/cloud/SaaS correlation
-* alert generation
-* replay-safe correlation
-
-Publishes:
-
-* xdr.alerts
-
-Current state:
-
-* identity/cloud/SaaS: staged_active (6h soak PASS, 2026-05-14)
-* endpoint/DNS/proxy/firewall: shadow-only
-* rollback capability preserved
-
----
-
-## Python/FastAPI Services
-
-### alert-writer-service
-
-Consumes:
-
-* xdr.alerts
-
-Responsibilities:
-
-* alert persistence
-* OpenSearch indexing
-* PostgreSQL writes
-* alert event publishing
-
-Publishes:
-
-* alerts.created
-
----
-
-### incident-builder-service
-
-Consumes:
-
-* alerts.created
-
-Responsibilities:
-
-* incident aggregation
-* incident updates
-* workflow orchestration
-
-Publishes:
-
-* incidents.updated
-
----
-
-### AI/RAG Service
-
-Responsibilities:
-
-* analyst assistance
-* AI enrichment
-* vector retrieval
-* heuristic fallback workflows
-
-Infrastructure:
-
-* Qdrant
-* embeddings
-* semantic retrieval
-
----
-
-# Infrastructure
-
-Streaming:
-
-* Redpanda
-
-Storage:
-
-* PostgreSQL
-* ClickHouse
-* OpenSearch
-* Qdrant
-
-Observability:
-
-* Grafana
-
----
-
-# Event Flow
-
-```text
+```
 telemetry source
-  -> ingestion-gateway
-  -> telemetry.raw
-  -> normalizer-worker
-  -> telemetry.normalized
-  -> correlation-worker
-  -> xdr.alerts
-  -> alert-writer-service
-  -> alerts.created
-  -> incident-builder-service
-  -> incidents.updated
-  -> Laravel SOC control-plane
+  → ingestion-gateway  (POST /v1/ingest, HMAC-SHA256 X-XDR-Signature)
+  → telemetry.raw  (Redpanda)
+  → normalizer-worker
+  → telemetry.normalized  (Redpanda)
+  → correlation-worker
+  → xdr.alerts              (identity/cloud/SaaS — active, persisted)
+  → xdr.alerts.shadow.endpoint  (endpoint shadow — NOT consumed by alert-writer)
+  → alert-writer-service
+  → security_alerts (PostgreSQL) + alerts.created (Redpanda)
+  → incident-builder-service
+  → security_incidents (PostgreSQL) + incidents.updated (Redpanda)
+  → Laravel SOC control-plane
 ```
+
+## Infrastructure
+
+| Component | Role |
+|---|---|
+| Redpanda | Kafka-compatible event streaming backbone |
+| PostgreSQL | Primary SOC state |
+| ClickHouse | Async analytics (not on alert write path) |
+| OpenSearch | Alert indexing (graceful DLQ fallback) |
+| Qdrant | Vector store for AI/RAG |
+| Grafana | Observability dashboards |
+
+Docker profiles:
+- Default: postgres, redpanda, clickhouse, opensearch, qdrant, grafana
+- `--profile strangler`: Go + Python pipeline services
+- `--profile app`: Laravel + queue worker + scheduler
+
+For module routes, RBAC details, and subsystem docs: `docs/architecture/FEATURE_REGISTRY.md`
 
 ---
 
-# Event Contracts
+# Detection Rule Registry
 
-Contracts exist under:
+Registry: `docs/detection/rules/registry.v1.json` — **37 rules total** (current).
 
-```text
-docs/contracts/events/
-```
+| Category | Count |
+|---|---|
+| staged_active (identity/cloud/SaaS) | 12 |
+| shadow (endpoint behavioral) | 22 |
+| shadow (threat-intel/IOC) | 3 |
 
-Current contracts:
+Hard gate: endpoint and threat-intel rules can **NEVER** be promoted to `staged_active` without a domain-specific 6h soak PASS. `ACTIVE_ALLOWLIST` is intentionally empty.
 
-* xdr.alerts
-* alerts.created
-* incidents.updated
-* ai.analysis.requests
-* ai.analysis.results
-* ai.analysis.completed
+Validator: `python scripts/xdr_rule_registry_validate.py` (21 checks, exit 0=PASS, 1=FAIL, 2=ERROR)
 
-Envelope format:
+---
 
-```json
-{
-  "event_id": "",
-  "event_type": "",
-  "schema_version": "",
-  "occurred_at": "",
-  "trace_id": "",
-  "source_service": "",
-  "payload": {},
-  "metadata": {}
-}
-```
+# Security Detector
 
-All new distributed service outputs should use the v1 envelope format.
+`SecurityRequestLogger` (global middleware) logs HTTP requests to `security.jsonl`.
+
+Authenticated users on internal SOC/admin paths are excluded from logging to prevent false-positive alerts.
+
+Excluded paths (authenticated users): `soc/*`, `security/alerts*`, `scenario/*`, `admin/*`, `profile/*`, `dashboard`, `threat-hunts/*`
+
+Config: `config/security_detector.php` — `ignored_paths`
+
+---
+
+# Authorization — Gate / RBAC
+
+`AuthServiceProvider::boot()` registers a `Gate::before()` hook that forwards every `soc:<permission>` ability to `Rbac::can()`.
+
+This enables `@can('soc:scenario.run')` Blade directives to work correctly. Without this hook, all `@can` calls for SOC permissions return false.
 
 ---
 
 # Event Store
 
-Replayable operational event store:
-
-```text
+```
 xdr_operational_events
 ```
 
-Requirements:
-
-* replay-safe
-* idempotent
-* deterministic
-* event-sourced
-
----
-
-# Current Migration State
-
-Current posture:
-
-* Laravel remains SOC control plane
-* Go handles high-throughput event pipeline
-* Python handles AI/event orchestration
-* Redpanda connects distributed event streams
-
-Current active Go scope:
-
-* identity
-* cloud
-* SaaS
-
-Current shadow-only domains:
-
-* endpoint
-* DNS
-* proxy
-* firewall
-
-Do NOT expand active cutover beyond current scope.
+Requirements: replay-safe, idempotent, deterministic, event-sourced. Uses `ON CONFLICT DO NOTHING`.
 
 ---
 
 # Current Active Blocker
 
-No active blocker.
+**No active blocker.**
 
 6h soak: PASS (2026-05-14). Decision: staged_active for identity/cloud/SaaS.
 
-Resolved failures:
-
-* worker_closed_connection — fixed: consumer reconnect loop
-* host_aborted_connection — fixed: HTTP timeout hardening
-* cutover_status_command_failed — fixed: resilience validator retry handling
-
-See: docs/validation/xdr_6h_soak_pass.md
-See: docs/operations/reconnect_resilience_fix.md
-
----
-
-# Proven Validation
-
-PASS:
-
-* distributed replay validation
-* parity validation
-* event contract validation
-* infrastructure validation
-* Docker compose validation
-* polyglot microservices validation
-* warm-up soak validation
-* 6h soak validation (2026-05-14)
-* reconnect/resilience validation
-
-6h soak gate results:
-
-| Gate | Threshold | Actual |
-|---|---|---|
-| fallback_count | = 0 | 0 |
-| failure_count | = 0 | 0 |
-| status_failures | = 0 | 0 |
-| p95_latency_ms | < 300 ms | 80.65 ms |
-| worker_p95_latency_ms | < 300 ms | 61 ms |
-| memory_growth_mb | stable | −6.519 MB |
-| goroutine_growth | = 0 | 0 |
-| latency_drift | none | not drifting |
-| events_processed | — | 562,640,000 |
-| avg_throughput_eps | — | 77,981.72 |
+Resolved failures (archived — do not re-introduce):
+- `worker_closed_connection` — fixed: consumer reconnect loop
+- `host_aborted_connection` — fixed: HTTP timeout hardening
+- `cutover_status_command_failed` — fixed: resilience validator retry handling
+- SOC buttons invisible — fixed: `Gate::before()` in `AuthServiceProvider`
+- `ANOMALY_BEHAVIOR`/`EXPLOIT_CHAIN_SUSPECTED` false positives — fixed: `SecurityRequestLogger` excludes authenticated SOC paths
 
 ---
 
 # Current Operational Rules
 
-Current correlation mode:
-
 ```env
 XDR_CORRELATION_ENGINE=go
 XDR_CORRELATION_SCOPE=identity-cloud
-```
-
-Decision: staged_active for identity/cloud/SaaS.
-Rollback preserved: XDR_CORRELATION_FALLBACK_TO_LEGACY=true
-
-Current scope:
-
-```env
-XDR_CORRELATION_SCOPE=identity-cloud
-```
-
-Fallback:
-
-```env
 XDR_CORRELATION_FALLBACK_TO_LEGACY=true
 ```
 
-Circuit breaker:
+Circuit breaker: 1–2 transient failures → no fallback. 3 consecutive → fallback to legacy.
 
-* 1 transient failure -> no fallback
-* 2 transient failures -> no fallback
-* 3 consecutive failures -> fallback to legacy
+Current active alert domains: identity, cloud, SaaS
+Current shadow/advisory domains:
+- **Endpoint behavioral analytics, orchestration, and retrospective threat hunting** — advisory-only, non-destructive, no active containment, no autonomous response
+- **Threat-intel/IOC** — shadow-only
+- **DNS, proxy, firewall** — shadow-only (no analytics layer implemented)
+
+**Do NOT expand active cutover beyond identity/cloud/SaaS.**
+
+For full env config and domain status table: `docs/operations/OPERATIONAL_POSTURE.md`
+
+---
+
+# Standard Commands
+
+## Laravel Tests (primary gate — run after every change)
+
+```powershell
+php artisan test
+```
+
+Current: **764 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
+
+## Endpoint Agent Python Tests
+
+```powershell
+python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
+```
+
+Current: **95 tests**, all green.
+
+## Rule Registry Validator
+
+```powershell
+python scripts/xdr_rule_registry_validate.py
+```
+
+Current: **37 rules**, 21/21 checks PASS.
+
+## Contract Validation
+
+```powershell
+python scripts/xdr_contract_validate.py --output reports/xdr_contract_validation.json
+```
+
+## Event Resilience Validation
+
+```powershell
+python scripts/xdr_event_flow_resilience_validate.py --replays 3 --restart-services 0 --send-malformed 1 --output reports/xdr_event_flow_resilience_validation.json
+```
+
+## Resilience Validation Suite
+
+```powershell
+python scripts/xdr_resilience_validate.py --output reports/resilience/resilience-validation-report.json
+python scripts/xdr_fault_injection.py --output reports/resilience/fault-injection-report.json
+php artisan resilience:validate --list
+php artisan resilience:validate --scenario=broker_restart
+php artisan resilience:validate
+```
+
+## Secret Validation
+
+```powershell
+php artisan security:validate-secrets
+php artisan security:validate-secrets --record
+```
+
+## Shadow Prep Validation
+
+```powershell
+python scripts/xdr_endpoint_dns_proxy_shadow_prep.py --output reports/xdr_endpoint_dns_proxy_shadow_prep.json
+```
+
+## Docker Validation
+
+```powershell
+docker compose config --quiet
+```
+
+## 6h Soak
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_xdr_correlation_soak_6h.ps1
+php artisan xdr:soak-analyze --report=reports/xdr_correlation_soak_6h.json --json
+python scripts/xdr_soak_fallback_debug.py --input reports/xdr_correlation_soak_6h.json --output reports/xdr_correlation_soak_fallback_debug.json
+```
+
+For full pass criteria and soak gate thresholds: `docs/validation/VALIDATION_BASELINES.md`
 
 ---
 
 # Required Cutover Gates
 
-Permanent cutover is forbidden until ALL gates PASS.
-
-Required gates:
+Permanent cutover forbidden until ALL gates PASS:
 
 * fallback_count = 0
 * failure_count = 0
@@ -472,85 +352,13 @@ Required gates:
 * no sustained latency drift
 * alert type match >= 0.95
 * evidence match >= 0.98
-* alert count delta <= 1-2%
+* alert count delta <= 1–2%
 
-If any gate fails:
-
-* remain shadow
-  OR
-* rollback to legacy
-
-Never force promotion.
-
----
-
-# Standard Commands
-
-## Run 6h Soak
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_xdr_correlation_soak_6h.ps1
-```
-
----
-
-## Analyze Soak
-
-```powershell
-php artisan xdr:soak-analyze --report=reports/xdr_correlation_soak_6h.json --json
-```
-
-```powershell
-python scripts\xdr_soak_fallback_debug.py --input reports\xdr_correlation_soak_6h.json --output reports\xdr_correlation_soak_fallback_debug.json
-```
-
----
-
-## Contract Validation
-
-```powershell
-python scripts\xdr_contract_validate.py --output reports\xdr_contract_validation.json
-```
-
----
-
-## Event Resilience Validation
-
-```powershell
-python scripts\xdr_event_flow_resilience_validate.py --replays 3 --restart-services 0 --send-malformed 1 --output reports\xdr_event_flow_resilience_validation.json
-```
-
----
-
-## Shadow Prep Validation
-
-```powershell
-python scripts\xdr_endpoint_dns_proxy_shadow_prep.py --output reports\xdr_endpoint_dns_proxy_shadow_prep.json
-```
-
----
-
-## Docker Validation
-
-```powershell
-docker compose config --quiet
-```
-
----
-
-## Laravel Tests
-
-```powershell
-php artisan test
-```
-
-Do NOT run multiple parallel Laravel test processes against the same PostgreSQL test database.
+If any gate fails → remain shadow OR rollback to legacy. **Never force promotion.**
 
 ---
 
 # Architecture Direction Lock
-
-Current strategy:
 
 * strangler migration
 * event-driven decomposition
@@ -561,7 +369,6 @@ Current strategy:
 * operational validation before promotion
 
 Avoid:
-
 * big bang rewrite
 * unnecessary service splitting
 * premature Kubernetes migration
@@ -569,31 +376,9 @@ Avoid:
 
 ---
 
-# Service Ownership
-
-Laravel:
-
-* SOC control-plane only
-
-Go:
-
-* ingestion
-* normalization
-* correlation
-* high-throughput processing
-
-Python/FastAPI:
-
-* AI/RAG
-* alert persistence
-* incident orchestration
-
----
-
 # Non Goals
 
 This project is NOT:
-
 * a full EDR
 * a kernel telemetry platform
 * a malware framework
@@ -602,7 +387,6 @@ This project is NOT:
 * a hyperscale commercial SIEM replacement
 
 Not implemented:
-
 * kernel EDR
 * live containment
 * malware prevention
@@ -615,22 +399,24 @@ Not implemented:
 
 Do NOT:
 
-* promote endpoint/DNS/proxy/firewall to active before domain-specific soak PASS
-* remove rollback capability
-* remove legacy compatibility paths
-* remove Laravel control-plane responsibilities
+* promote endpoint/DNS/proxy/firewall to active before domain-specific 6h soak PASS
+* expand Go active scope beyond identity/cloud/SaaS
+* remove rollback capability (`XDR_CORRELATION_FALLBACK_TO_LEGACY`)
+* remove Laravel as SOC control plane
 * bypass validation gates
-* claim production hyperscale XDR
-* claim full EDR
+* claim production hyperscale XDR or full EDR
 * ignore replay/idempotency guarantees
 * ignore failed validation gates
+* manually create SOC alerts/incidents from Scenario Runner (real mode must go through pipeline)
+* promote endpoint/threat-intel alert paths to `xdr.alerts` active topic
+* add credential collection, packet sniffing, kernel module, process killing, persistence install, or active response to endpoint agent
+* add entries to `ACTIVE_ALLOWLIST` in `xdr_rule_registry_validate.py` without domain-specific 6h soak PASS
+* mutate DB data inside `TraceRedactor` (redaction is presentation-layer only)
+* remove `proc_root` / `proc_net_tcp` test-override kwargs from endpoint agent collectors
+* add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
+* mark response plan as `completed_documented` without analyst explicit action
+* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`
+* bypass `InternalServiceAuthMiddleware` on `/api/internal/*` routes
+* add execution-type commands to `ALLOWED_TYPES` in endpoint response framework (Phase 1 allows only: `noop`, `collect_diagnostics`, `refresh_config`, `upload_health_snapshot`)
 
-Operational rule:
-
-If validation fails:
-
-* remain shadow
-  OR
-* rollback to legacy
-
-Never force cutover after failed soak.
+Operational rule: gate fails → remain shadow OR rollback to legacy. **Never force cutover after failed soak.**

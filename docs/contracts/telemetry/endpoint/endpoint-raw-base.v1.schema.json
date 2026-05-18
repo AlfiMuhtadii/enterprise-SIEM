@@ -30,7 +30,10 @@
         "network_connection",
         "dns_query",
         "file_write",
-        "login_event"
+        "login_event",
+        "scheduled_task_create",
+        "service_install",
+        "heartbeat"
       ],
       "description": "Specific event type within endpoint telemetry."
     },

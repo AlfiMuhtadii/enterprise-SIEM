@@ -1,0 +1,41 @@
+name: "C2 Stealth Persistence - Emotet Style"
+simulation_id: ""
+mitre_attack:
+  - T1547.001
+  - T1036.005
+  - T1071.001
+  - T1027
+  - T1059.001
+
+stages:
+  - stage: persistence
+    delay_seconds: 0
+    events:
+      - type: endpoint
+        event_class: process_creation
+        data:
+          image: "C:\\Windows\\System32\\svch0st.exe"
+          parent_image: "C:\\Windows\\explorer.exe"
+          command_line: "svch0st.exe --service"
+          sha256: "d41d8cd98f00b204e9800998ecf8427e"
+
+      - type: registry
+        event_class: set_value
+        data:
+          key: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+          value: "WindowsDefenderUpdate"
+          data: "C:\\Users\\Public\\svch0st.exe"
+
+  - stage: stealth_c2
+    delay_seconds: 15
+    repeat: 8
+    jitter_ms: [8000, 22000]
+    events:
+      - type: network
+        event_class: connection
+        data:
+          process: "svch0st.exe"
+          destination_domain: "windowsupdate.microsoft[.]com"
+          port: 443
+          bytes_out: 2340
+          bytes_in: 1200

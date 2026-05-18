@@ -1,0 +1,38 @@
+id: dns-tunneling-001
+name: "DNS Tunneling Data Exfiltration"
+description: "Simulates DNS tunneling with high volume and long subdomains"
+mitre:
+  tactic: Command and Control
+  technique: T1071.004
+  technique_name: "Application Layer Protocol: DNS"
+
+actor:
+  profile: stealthy
+  jitter: 0.5
+  source_ip_pool:
+    - 10.0.0.25
+
+timeline:
+  - time: 0s
+    action: generate_events
+    source: network
+    event_type: dns.query
+    count: 500
+    interval: 200ms
+    params:
+      domains:
+        - "a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.tunnel.evil.com"
+        - "base64encodeddatahere.tunnel.evil.com"
+        - "chunk001.tunnel.evil.com"
+        - "chunk002.tunnel.evil.com"
+
+  - time: 2m
+    action: generate_events
+    source: network
+    event_type: flow
+    count: 50
+    interval: 1s
+    params:
+      dest_ip: "8.8.8.8"
+      dest_port: 53
+      protocol: udp

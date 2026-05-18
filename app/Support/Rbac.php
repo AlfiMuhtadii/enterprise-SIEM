@@ -10,7 +10,8 @@ class Rbac
     {
         $role = $user?->role ?: 'viewer';
 
-        return in_array($role, ['admin', 'analyst', 'viewer'], true) ? $role : 'viewer';
+        $validRoles = ['admin', 'analyst', 'viewer', 'scenario_operator', 'detection_engineer'];
+        return in_array($role, $validRoles, true) ? $role : 'viewer';
     }
 
     public static function can(?User $user, string $permission): bool

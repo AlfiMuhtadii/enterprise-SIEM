@@ -27,6 +27,62 @@
                             {{ __('Rules') }}
                         </x-nav-link>
                     @endif
+                    @if (in_array(Auth::user()?->role, ['admin', 'analyst', 'scenario_operator', 'detection_engineer'], true))
+                        <x-nav-link :href="route('scenario.library')" :active="request()->routeIs('scenario.*')">
+                            {{ __('Scenarios') }}
+                        </x-nav-link>
+                    @endif
+                    @can('soc:trace.view')
+                        <x-nav-link :href="route('traces.index')" :active="request()->routeIs('traces.*')">
+                            {{ __('Traces') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:rules.govern')
+                        <x-nav-link :href="route('detection.index')" :active="request()->routeIs('detection.*')">
+                            {{ __('Detection') }}
+                        </x-nav-link>
+                    @endcan
+                    @if (in_array(Auth::user()?->role, ['admin', 'analyst', 'viewer', 'detection_engineer', 'scenario_operator'], true))
+                        <x-nav-link :href="route('endpoint.index')" :active="request()->routeIs('endpoint.*')">
+                            {{ __('Endpoint') }}
+                        </x-nav-link>
+                    @endif
+                    @can('soc:entity.view')
+                        <x-nav-link :href="route('entity.index')" :active="request()->routeIs('entity.*') && !request()->routeIs('entity.risk*')">
+                            {{ __('Entities') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('entity.risk-dashboard')" :active="request()->routeIs('entity.risk*')">
+                            {{ __('Risk') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:investigation.view')
+                        <x-nav-link :href="route('investigation.index')" :active="request()->routeIs('investigation.*')">
+                            {{ __('Investigations') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:response.view')
+                        <x-nav-link :href="route('response.index')" :active="request()->routeIs('response.*')">
+                            {{ __('Response') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:report.view')
+                        <x-nav-link :href="route('export.index')" :active="request()->routeIs('export.*')">
+                            {{ __('Export') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:agents.manage')
+                        <x-nav-link :href="route('endpoint.response.queue')" :active="request()->routeIs('endpoint.response.*')">
+                            {{ __('Response') }}
+                        </x-nav-link>
+                    @endcan
+                    @if (Auth::user()?->role === 'admin')
+                        <x-nav-link :href="route('security.hardening')" :active="request()->routeIs('security.hardening')">
+                            {{ __('Security') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('resilience.index')" :active="request()->routeIs('resilience.*')">
+                            {{ __('Resilience') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -92,6 +148,52 @@
             @if (Auth::user()?->role === 'admin')
                 <x-responsive-nav-link :href="route('soc.rules')" :active="request()->routeIs('soc.rules*')">
                     {{ __('Rules') }}
+                </x-responsive-nav-link>
+            @endif
+            @if (in_array(Auth::user()?->role, ['admin', 'analyst', 'scenario_operator', 'detection_engineer'], true))
+                <x-responsive-nav-link :href="route('scenario.library')" :active="request()->routeIs('scenario.*')">
+                    {{ __('Scenarios') }}
+                </x-responsive-nav-link>
+            @endif
+            @can('soc:trace.view')
+                <x-responsive-nav-link :href="route('traces.index')" :active="request()->routeIs('traces.*')">
+                    {{ __('Traces') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('soc:rules.govern')
+                <x-responsive-nav-link :href="route('detection.index')" :active="request()->routeIs('detection.*')">
+                    {{ __('Detection') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('soc:entity.view')
+                <x-responsive-nav-link :href="route('entity.index')" :active="request()->routeIs('entity.*') && !request()->routeIs('entity.risk*')">
+                    {{ __('Entities') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('entity.risk-dashboard')" :active="request()->routeIs('entity.risk*')">
+                    {{ __('Risk') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('soc:investigation.view')
+                <x-responsive-nav-link :href="route('investigation.index')" :active="request()->routeIs('investigation.*')">
+                    {{ __('Investigations') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('soc:response.view')
+                <x-responsive-nav-link :href="route('response.index')" :active="request()->routeIs('response.*')">
+                    {{ __('Response') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('soc:report.view')
+                <x-responsive-nav-link :href="route('export.index')" :active="request()->routeIs('export.*')">
+                    {{ __('Export') }}
+                </x-responsive-nav-link>
+            @endcan
+            @if (Auth::user()?->role === 'admin')
+                <x-responsive-nav-link :href="route('security.hardening')" :active="request()->routeIs('security.hardening')">
+                    {{ __('Security') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('resilience.index')" :active="request()->routeIs('resilience.*')">
+                    {{ __('Resilience') }}
                 </x-responsive-nav-link>
             @endif
             <div class="border-t border-cyan-100/20 px-3 pt-3">

@@ -59,8 +59,36 @@ class SecurityRequestLogger
 
     private function shouldIgnore(Request $request): bool
     {
+        // Authenticated users navigating the SOC / admin UI are known actors.
+        // Their page visits must not feed the threat detector — doing so produces
+        // false-positive ANOMALY_BEHAVIOR and EXPLOIT_CHAIN_SUSPECTED alerts
+        // every time an analyst opens /security/alerts or /soc.
+        if ($request->user() !== null && $this->isInternalUiPath($request)) {
+            return true;
+        }
+
         foreach ((array) config('security_detector.ignored_paths', []) as $pattern) {
             if (is_string($pattern) && $pattern !== '' && $request->is($pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isInternalUiPath(Request $request): bool
+    {
+        $internalPrefixes = [
+            'soc', 'soc/*',
+            'security/alerts', 'security/alerts*',
+            'scenario', 'scenario/*',
+            'admin', 'admin/*',
+            'profile', 'profile/*',
+            'dashboard',
+        ];
+
+        foreach ($internalPrefixes as $pattern) {
+            if ($request->is($pattern)) {
                 return true;
             }
         }

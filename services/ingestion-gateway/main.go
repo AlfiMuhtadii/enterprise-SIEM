@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -78,6 +79,7 @@ func main() {
 		log.Printf("xdr ingestion gateway shutting down gracefully")
 		_ = server.Close()
 	}()
+	validateStartupSecrets(gw.secret)
 	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s", *addr, gw.topic, gw.redpandaREST)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
@@ -168,9 +170,20 @@ func (g *Gateway) admissionAllowed() (bool, string) {
 	return true, ""
 }
 
+func newTraceID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
 func (g *Gateway) publish(events []map[string]any) error {
 	records := make([]map[string]any, 0, len(events))
 	for _, event := range events {
+		if tid, _ := event["trace_id"].(string); tid == "" {
+			event["trace_id"] = newTraceID()
+		}
 		records = append(records, map[string]any{"value": event})
 	}
 	payload, _ := json.Marshal(map[string]any{"records": records})
@@ -259,4 +272,15 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func validateStartupSecrets(ingestSecret string) {
+	if ingestSecret == "" {
+		log.Printf("[SECURITY-WARN] XDR_INGEST_SECRET is not set — HMAC auth is disabled, all ingest requests accepted")
+	} else if ingestSecret == "dev-secret-change-me" {
+		log.Printf("[SECURITY-WARN] XDR_INGEST_SECRET is using dev default — replace with a strong secret in production")
+	}
+	if env("XDR_INTERNAL_AUTH_SECRET", "") == "" {
+		log.Printf("[SECURITY-WARN] XDR_INTERNAL_AUTH_SECRET is not set — internal service token auth uses fallback")
+	}
 }

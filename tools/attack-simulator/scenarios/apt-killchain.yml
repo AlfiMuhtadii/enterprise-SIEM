@@ -1,0 +1,131 @@
+id: apt-killchain-001
+name: "Full APT Kill Chain Simulation"
+description: "Complete APT simulation from initial access to exfiltration"
+mitre:
+  tactic: Multiple
+  technique: Multi-Stage
+  technique_name: "Advanced Persistent Threat"
+
+actor:
+  profile: apt
+  jitter: 0.3
+  source_ip_pool:
+    - 185.220.101.42
+    - 198.51.100.33
+
+timeline:
+  # Reconnaissance
+  - time: 0s
+    action: generate_events
+    source: network
+    event_type: dns.query
+    count: 20
+    interval: 5s
+    params:
+      domains:
+        - "corp.com"
+        - "mail.corp.com"
+        - "vpn.corp.com"
+
+  # Initial Access: Phishing -> Malware Drop
+  - time: 5m
+    action: generate_events
+    source: endpoint
+    event_type: file.creation
+    count: 1
+    params:
+      file_path: "C:\\Users\\User\\Downloads\\invoice.docm"
+      hostname: LAPTOP-01
+
+  - time: 5m10s
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: winword.exe
+      parent: explorer.exe
+      command_line: "winword.exe invoice.docm"
+      hostname: LAPTOP-01
+
+  # Execution: Macro -> PowerShell
+  - time: 5m30s
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: powershell.exe
+      parent: winword.exe
+      command_line: "powershell -enc UwB0AGEAcgB0AC0AUwBsAGUAZQBwACAALQBzACAAMQAwAA=="
+      hostname: LAPTOP-01
+
+  # Persistence: Registry Run Key
+  - time: 6m
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: reg.exe
+      parent: powershell.exe
+      command_line: 'reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Update /t REG_SZ /d "C:\\Users\\User\\AppData\\Roaming\\update.exe"'
+      hostname: LAPTOP-01
+
+  # Credential Access: LSASS dump
+  - time: 7m
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: procdump.exe
+      parent: cmd.exe
+      command_line: "procdump.exe -ma lsass.exe lsass.dmp"
+      hostname: LAPTOP-01
+
+  # Lateral Movement
+  - time: 10m
+    action: generate_events
+    source: identity
+    event_type: authentication.success
+    count: 1
+    params:
+      protocol: smb
+      target_host: DC01
+      username: corp\\admin
+
+  - time: 10m5s
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: wmic.exe
+      parent: cmd.exe
+      command_line: "wmic /node:DC01 process call create cmd.exe"
+      hostname: DC01
+
+  # Exfiltration
+  - time: 15m
+    action: generate_events
+    source: network
+    event_type: flow
+    count: 100
+    interval: 500ms
+    params:
+      dest_ip: "185.220.101.42"
+      dest_port: 443
+      protocol: https
+      bytes_out: 100000
+
+  - time: 20m
+    action: generate_events
+    source: cloud
+    event_type: iam.policy.change
+    count: 1
+    params:
+      cloud_provider: aws
+      action: PutBucketPolicy
+      resource: arn:aws:s3:::corp-data-breach
+      user: compromised@corp.com

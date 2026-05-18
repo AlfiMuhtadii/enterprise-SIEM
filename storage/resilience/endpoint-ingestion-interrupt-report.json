@@ -1,0 +1,45 @@
+{
+    "run_id": "RES-2026-00011",
+    "scenario_id": "endpoint_ingestion_interrupt",
+    "scenario_name": "Endpoint Ingestion Interruption",
+    "scenario_type": "active",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "active",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "endpoint_alerts_absent": {
+                "status": "pass",
+                "count": 0,
+                "note": "Endpoint alerts MUST remain in xdr.alerts.shadow.endpoint only"
+            },
+            "total_main_alerts": {
+                "count": 0
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "endpoint_alerts_in_main_table",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": 0,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "total_alerts_main_table",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

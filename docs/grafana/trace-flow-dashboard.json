@@ -1,0 +1,188 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_POSTGRES",
+      "label": "PostgreSQL",
+      "description": "PostgreSQL data source (SOC platform DB)",
+      "type": "datasource",
+      "pluginId": "postgres",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "barchart", "name": "Bar chart", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Trace-centric XDR pipeline observability. Tracks trace_id propagation from ingestion through alerts to incidents.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 100 }
+        ] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Active Traces (24h)",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT count(DISTINCT trace_id) AS value FROM security_alerts WHERE trace_id IS NOT NULL AND detected_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null }
+      ] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Traces with Incidents (24h)",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT count(DISTINCT trace_id) AS value FROM security_incidents WHERE trace_id IS NOT NULL AND created_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null }, { "color": "yellow", "value": 5000 }, { "color": "red", "value": 30000 }
+      ] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "orientation": "auto", "textMode": "auto", "colorMode": "value" },
+      "title": "Avg Alert Detection Latency",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT EXTRACT(EPOCH FROM (sa.detected_at - oe.occurred_at)) * 1000 AS value FROM security_alerts sa JOIN xdr_operational_events oe ON oe.trace_id = sa.trace_id WHERE sa.trace_id IS NOT NULL AND oe.event_type LIKE 'alert%' AND sa.detected_at >= NOW() - INTERVAL '24 hours' LIMIT 1000",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [
+        { "color": "green", "value": null }, { "color": "red", "value": 1 }
+      ] } } },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Traces Without Incident (broken chain)",
+      "type": "stat",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT count(DISTINCT sa.trace_id) AS value FROM security_alerts sa LEFT JOIN security_incidents si ON si.trace_id = sa.trace_id WHERE sa.trace_id IS NOT NULL AND si.trace_id IS NULL AND sa.detected_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 }, "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Traces Over Time",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT date_trunc('hour', detected_at) AS time, count(DISTINCT trace_id) AS traces FROM security_alerts WHERE trace_id IS NOT NULL AND $__timeFilter(detected_at) GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 }, "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Alert Generation Rate by Severity",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+          "rawSql": "SELECT date_trunc('hour', detected_at) AS time, count(*) FILTER (WHERE severity = 'critical') AS critical, count(*) FILTER (WHERE severity = 'high') AS high, count(*) FILTER (WHERE severity = 'medium') AS medium, count(*) FILTER (WHERE severity = 'low') AS low FROM security_alerts WHERE $__timeFilter(detected_at) GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "trace_id" }, "properties": [{ "id": "custom.width", "value": 280 }] },
+          { "matcher": { "id": "byName", "options": "alerts" }, "properties": [{ "id": "custom.width", "value": 80 }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "sortBy": [{ "desc": true, "displayName": "last_seen" }] },
+      "title": "Recent Traces — Alert to Incident Chain",
+      "type": "table",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT sa.trace_id, min(sa.detected_at) AS first_seen, max(sa.detected_at) AS last_seen, count(sa.alert_id) AS alerts, max(sa.severity) AS top_severity, count(DISTINCT si.incident_id) AS incidents FROM security_alerts sa LEFT JOIN security_incidents si ON si.trace_id = sa.trace_id WHERE sa.trace_id IS NOT NULL AND $__timeFilter(sa.detected_at) GROUP BY sa.trace_id ORDER BY last_seen DESC LIMIT 100",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "id": 8,
+      "options": { "xField": "service", "orientation": "auto", "groupWidth": 0.7, "barWidth": 0.97 },
+      "title": "Pipeline Events by Service",
+      "type": "barchart",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT source_service AS service, count(*) AS events FROM xdr_operational_events WHERE $__timeFilter(occurred_at) GROUP BY source_service ORDER BY events DESC",
+        "format": "table"
+      }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 5 } } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "id": 9,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "title": "Replay Validation — Scenario Runner Traces",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+        "rawSql": "SELECT date_trunc('hour', started_at) AS time, count(*) FILTER (WHERE validation_result = 'PASS') AS pass, count(*) FILTER (WHERE validation_result = 'PARTIAL') AS partial, count(*) FILTER (WHERE validation_result = 'FAIL') AS fail FROM scenario_runs WHERE started_at IS NOT NULL AND $__timeFilter(started_at) GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["xdr", "trace", "pipeline", "observability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Trace Flow Dashboard",
+  "uid": "xdr-trace-flow-v1",
+  "version": 1
+}

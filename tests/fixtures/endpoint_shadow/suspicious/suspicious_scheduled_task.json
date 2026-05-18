@@ -1,0 +1,37 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-sched-shadow-001",
+    "raw_event_id": "ep-sched-shadow-001",
+    "ts": "2026-05-15T10:00:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "scheduled_task_create",
+    "host": "workstation-ep02.corp.test",
+    "user": "bob",
+    "risk_score": 0.75,
+    "event_source": "endpoint-agent",
+    "trace_id": "shadow-trace-sched-001",
+    "scheduled_task": {
+      "name": "\\MicrosoftEdgeUpdate\\backup",
+      "command": "C:\\Windows\\Temp\\update.exe",
+      "arguments": "-silent",
+      "trigger": "AtStartup",
+      "run_as_user": "SYSTEM",
+      "source_process": "schtasks.exe",
+      "operation": "create"
+    },
+    "process": {
+      "name": "schtasks.exe",
+      "pid": 4422,
+      "ppid": 2200,
+      "command_line": "schtasks.exe /create /tn \\MicrosoftEdgeUpdate\\backup /tr C:\\Windows\\Temp\\update.exe /sc onstart /ru SYSTEM",
+      "path": "C:\\Windows\\System32\\schtasks.exe",
+      "hash": null
+    },
+    "network": { "source_ip": null, "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

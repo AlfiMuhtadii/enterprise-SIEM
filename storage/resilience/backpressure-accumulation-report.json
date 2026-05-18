@@ -1,0 +1,49 @@
+{
+    "run_id": "RES-2026-00008",
+    "scenario_id": "backpressure_accumulation",
+    "scenario_name": "Backpressure Accumulation",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "admission_control": {
+                "status": "pass",
+                "note": "Gateway checks normalizer metrics before accepting events"
+            },
+            "backpressure_signal": {
+                "status": "pass",
+                "backlog": 0
+            },
+            "rate_limiter": {
+                "status": "pass",
+                "note": "token bucket rate limiter in ingestion-gateway"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "backlog_peak",
+            "metric_value": 0,
+            "unit": "events",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "backpressure_circuit_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

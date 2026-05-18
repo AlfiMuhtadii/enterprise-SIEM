@@ -178,14 +178,42 @@ class XdrMaturityOperationalTest extends TestCase
         }
     }
 
-    public function test_service_migration_visibility_does_not_change_identity_cloud_cutover_default(): void
+    public function test_service_migration_reflects_identity_cloud_staged_active_with_endpoint_shadow_preserved(): void
     {
-        $this->assertSame('shadow', config('xdr.correlation.engine'));
+        // identity/cloud/SaaS: Go correlation is staged_active (6h soak PASS 2026-05-14)
+        $engine = config('xdr.correlation.engine');
+        $this->assertContains($engine, ['go', 'shadow'], 'Engine must be go (staged_active) or shadow — never legacy or unknown');
+        $this->assertSame('go', $engine, 'identity/cloud/SaaS is staged_active: engine must be go');
+
+        // Scope is locked to identity-cloud — endpoint must NOT be in active scope
+        $scope = config('xdr.correlation.scope');
+        $this->assertSame('identity-cloud', $scope, 'Active scope must remain identity-cloud');
+        $this->assertStringNotContainsString('endpoint', $scope, 'Endpoint must remain shadow-only — not promoted to active scope');
+
+        // Rollback capability must be preserved — circuit breaker always on
+        $this->assertTrue(
+            (bool) config('xdr.correlation.fallback_to_legacy'),
+            'Rollback to legacy must remain enabled (fallback_to_legacy=true)'
+        );
+        $this->assertGreaterThanOrEqual(
+            1,
+            config('xdr.correlation.fallback_failure_threshold'),
+            'Circuit breaker threshold must be >= 1 consecutive failures before fallback'
+        );
+
+        // Cutover gate thresholds must not be weakened below pass criteria
+        $this->assertGreaterThanOrEqual(0.95, config('xdr.correlation.cutover_gate.alert_type_match_min'), 'alert_type_match_min gate must remain >= 0.95');
+        $this->assertGreaterThanOrEqual(0.98, config('xdr.correlation.cutover_gate.evidence_match_min'), 'evidence_match_min gate must remain >= 0.98');
+        $this->assertLessThanOrEqual(300.0, config('xdr.correlation.cutover_gate.p95_latency_ms_max'), 'p95_latency_ms_max gate must remain <= 300ms');
+        $this->assertSame(0.0, (float) config('xdr.correlation.cutover_gate.duplicate_rate_max'), 'duplicate_rate_max gate must remain 0');
+
+        // Service topology must remain intact — alert-writer and incident-builder are required
         $this->assertArrayHasKey('alert-writer', config('xdr.services'));
         $this->assertArrayHasKey('incident-builder', config('xdr.services'));
         $this->assertContains('xdr.alerts', config('xdr.services.alert-writer.consumes'));
         $this->assertContains('alerts.created', config('xdr.services.incident-builder.consumes'));
 
+        // Dashboard must continue to show endpoint shadow visibility (endpoint not promoted)
         $analyst = User::factory()->create(['role' => 'analyst']);
         $this->actingAs($analyst)
             ->get('/soc')

@@ -1,0 +1,49 @@
+{
+    "run_id": "RES-2026-00006",
+    "scenario_id": "incident_builder_restart",
+    "scenario_name": "Incident Builder Restart",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "on_conflict_upsert": {
+                "status": "pass",
+                "note": "INSERT ... ON CONFLICT (incident_id) DO UPDATE"
+            },
+            "deterministic_id": {
+                "status": "pass",
+                "note": "incident_id = sha256(group_key)[:24] \u2014 deterministic on restart"
+            },
+            "restart_safe": {
+                "status": "pass",
+                "note": "Same alert group \u2192 same incident_id \u2192 upsert, no new incident"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "incident_upsert_design",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "deterministic_id_design",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

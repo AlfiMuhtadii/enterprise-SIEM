@@ -1,0 +1,35 @@
+id: port-scan-001
+name: "Internal Network Port Scan"
+description: "Simulates nmap-style port scanning across subnet"
+mitre:
+  tactic: Discovery
+  technique: T1046
+  technique_name: "Network Service Scanning"
+
+actor:
+  profile: noisy
+  jitter: 0.1
+  source_ip_pool:
+    - 10.0.0.100
+
+timeline:
+  - time: 0s
+    action: generate_events
+    source: network
+    event_type: flow
+    count: 1000
+    interval: 100ms
+    params:
+      protocol: tcp
+      dest_ip: "192.168.1.0/24"
+      dest_port: 0  # will randomize across common ports
+
+  - time: 30s
+    action: generate_events
+    source: network
+    event_type: port_scan.detected
+    count: 1
+    params:
+      scanner_ip: "10.0.0.100"
+      target_subnet: "192.168.1.0/24"
+      ports_scanned: 1000

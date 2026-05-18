@@ -1,0 +1,45 @@
+id: brute-force-rdp-001
+name: "RDP Brute Force Attack"
+description: "Simulates failed RDP login attempts followed by success"
+mitre:
+  tactic: Credential Access
+  technique: T1110.001
+  technique_name: "Brute Force: Password Guessing"
+
+actor:
+  profile: noisy
+  jitter: 0.2
+  source_ip_pool:
+    - 192.168.1.100
+    - 10.0.0.50
+
+timeline:
+  - time: 0s
+    action: generate_events
+    source: identity
+    event_type: authentication.failure
+    count: 50
+    interval: 2s
+    params:
+      protocol: rdp
+      target_host: dc01.corp.local
+      usernames: [admin, administrator, admin123, test]
+
+  - time: 2m
+    action: generate_events
+    source: identity
+    event_type: authentication.success
+    count: 1
+    params:
+      protocol: rdp
+      target_host: dc01.corp.local
+      username: administrator
+
+  - time: 2m5s
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    params:
+      process: cmd.exe
+      parent: svchost.exe
+      command_line: "cmd.exe /c whoami"

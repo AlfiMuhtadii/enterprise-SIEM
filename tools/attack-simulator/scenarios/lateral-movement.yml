@@ -1,0 +1,55 @@
+id: lateral-movement-001
+name: "Lateral Movement via PSExec"
+description: "Simulates lateral movement using SMB and remote process creation"
+mitre:
+  tactic: Lateral Movement
+  technique: T1021.002
+  technique_name: "Remote Services: SMB/Windows Admin Shares"
+
+actor:
+  profile: apt
+  jitter: 0.4
+  source_ip_pool:
+    - 192.168.1.10
+
+timeline:
+  - time: 0s
+    action: generate_events
+    source: identity
+    event_type: authentication.success
+    count: 1
+    params:
+      protocol: smb
+      target_host: FILESERVER-01
+      username: svc_backup
+
+  - time: 2s
+    action: generate_events
+    source: network
+    event_type: flow
+    count: 10
+    interval: 500ms
+    params:
+      protocol: smb
+      dest_ip: "192.168.1.20"
+      dest_port: 445
+
+  - time: 8s
+    action: generate_events
+    source: endpoint
+    event_type: file.creation
+    count: 1
+    params:
+      file_path: "\\\\FILESERVER-01\\ADMIN$\\PSEXESVC.exe"
+      hostname: FILESERVER-01
+
+  - time: 10s
+    action: generate_events
+    source: endpoint
+    event_type: process.creation
+    count: 1
+    params:
+      process: PSEXESVC.exe
+      parent: services.exe
+      command_line: "PSEXESVC.exe"
+      hostname: FILESERVER-01

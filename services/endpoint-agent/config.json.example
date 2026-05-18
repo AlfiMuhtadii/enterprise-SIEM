@@ -1,0 +1,36 @@
+{
+  "_comment": "Copy this file to config.json and edit for your environment. All fields are optional — unset fields use built-in defaults.",
+
+  "ingestion_gateway_url": "http://127.0.0.1:8091",
+  "ingestion_gateway_secret": "dev-secret-change-me",
+
+  "soc_api_url": "http://127.0.0.1:8000",
+  "enrollment_token": "",
+
+  "state_path": "/tmp/xdr-agent/state.json",
+  "buffer_path": "/tmp/xdr-agent/buffer.jsonl",
+
+  "collection_interval_seconds": 30,
+  "heartbeat_interval_seconds": 60,
+  "max_batch_size": 100,
+
+  "telemetry": {
+    "process": true,
+    "network": true,
+    "dns": true,
+    "file": false,
+    "scheduled_tasks": true,
+    "services": true
+  },
+
+  "watch_paths": [
+    "/tmp/xdr-test-watch"
+  ],
+
+  "dns_fixture_path": null,
+
+  "log_paths": [
+    "/var/log/syslog",
+    "/var/log/messages"
+  ]
+}

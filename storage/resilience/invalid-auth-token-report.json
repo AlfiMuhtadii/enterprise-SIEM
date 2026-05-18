@@ -1,0 +1,64 @@
+{
+    "run_id": "RES-2026-00013",
+    "scenario_id": "invalid_auth_token",
+    "scenario_name": "Invalid Internal Auth Token",
+    "scenario_type": "active",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "active",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "token_rejected": {
+                "status": "pass"
+            },
+            "auth_failure_logged": {
+                "status": "pass"
+            },
+            "replay_not_corrupted": {
+                "status": "pass"
+            },
+            "no_orphan_events": {
+                "status": "pass",
+                "note": "Bad auth does not write to operational event store"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "auth_failures_injected",
+            "metric_value": 1,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "auth_failure_logged",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "replay_not_corrupted",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "auth_failure_count",
+            "metric_value": 1,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

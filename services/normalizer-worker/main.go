@@ -58,6 +58,8 @@ func main() {
 	file := flag.String("file", "", "optional JSONL file to normalize once")
 	flag.Parse()
 
+	validateNormalizerSecrets()
+
 	w := &Worker{
 		redpandaREST: env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
 		inputTopic:   env("XDR_RAW_TOPIC", "telemetry.raw"),
@@ -264,6 +266,11 @@ func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if err := verifyInternalToken(r.Header.Get("X-Internal-Service-Token")); err != nil {
+		log.Printf("[SECURITY] normalizer internal auth failure path=%s ip=%s reason=%s", r.URL.Path, r.RemoteAddr, err)
+		writeJSON(rw, http.StatusUnauthorized, map[string]any{"error": "unauthorized", "code": "invalid_internal_token"})
+		return
+	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 8*1024*1024))
 	if err != nil {
 		http.Error(rw, "read_failed", http.StatusBadRequest)
@@ -449,6 +456,7 @@ func normalize(raw map[string]any) (map[string]any, error) {
 		"result":          first(raw, "result", "outcome", "status"),
 		"risk_score":      number(first(raw, "risk_score", "risk", "score")),
 		"event_source":    first(raw, "event_source", "source_adapter", "vendor"),
+		"trace_id":        first(raw, "trace_id"),
 	}, nil
 }
 
@@ -579,5 +587,33 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 	return value == "1" || value == "true" || value == "yes"
+}
+
+func validateNormalizerSecrets() {
+	if env("XDR_INTERNAL_AUTH_SECRET", "") == "" {
+		log.Printf("[SECURITY-WARN] XDR_INTERNAL_AUTH_SECRET is not set — internal service auth uses fallback")
+	}
+	token := env("XDR_NORMALIZER_INTERNAL_TOKEN", "")
+	if token == "" {
+		log.Printf("[SECURITY-INFO] XDR_NORMALIZER_INTERNAL_TOKEN not set — /v1/normalize internal auth is permissive")
+	}
+}
+
+// verifyInternalToken checks the X-Internal-Service-Token header when
+// XDR_NORMALIZER_INTERNAL_TOKEN is configured. If the env var is not set,
+// auth is permissive (backward compatible). Non-empty token must equal the
+// configured value exactly.
+func verifyInternalToken(token string) error {
+	expected := env("XDR_NORMALIZER_INTERNAL_TOKEN", "")
+	if expected == "" {
+		return nil // permissive mode: token not required
+	}
+	if token == "" {
+		return fmt.Errorf("missing_token")
+	}
+	if token != expected {
+		return fmt.Errorf("invalid_token")
+	}
+	return nil
 }
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.scheduled_task.v1",
+  "title": "Endpoint Telemetry: scheduled_task_create v1",
+  "description": "Raw telemetry event emitted when a scheduled task is created or modified on an endpoint. Sent to /v1/ingest with telemetry_type=endpoint.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "scheduled_task_create" },
+    "scheduled_task": {
+      "type": "object",
+      "description": "Scheduled task metadata.",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "maxLength": 512,
+          "description": "Registered task name or path (e.g. '\\Microsoft\\Windows\\UpdateOrchestrator\\USO_UxBroker')."
+        },
+        "command": {
+          "type": ["string", "null"],
+          "maxLength": 4096,
+          "description": "The executable or script invoked by the task."
+        },
+        "arguments": {
+          "type": ["string", "null"],
+          "maxLength": 4096,
+          "description": "Arguments passed to the task command."
+        },
+        "trigger": {
+          "type": ["string", "null"],
+          "maxLength": 256,
+          "description": "Trigger description (e.g. 'AtStartup', 'Daily', 'OnLogon')."
+        },
+        "run_as_user": {
+          "type": ["string", "null"],
+          "maxLength": 260,
+          "description": "User account the task runs under."
+        },
+        "source_process": {
+          "type": ["string", "null"],
+          "maxLength": 260,
+          "description": "Process that created or modified the task (e.g. 'schtasks.exe', 'powershell.exe')."
+        },
+        "operation": {
+          "type": ["string", "null"],
+          "enum": ["create", "modify", "delete", "enable", "disable", null],
+          "description": "Operation performed on the scheduled task."
+        }
+      }
+    }
+  }
+}

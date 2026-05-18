@@ -1,0 +1,57 @@
+{
+    "run_id": "RES-2026-00007",
+    "scenario_id": "delayed_consumer",
+    "scenario_name": "Delayed Downstream Consumer",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "queue_depth_visible": {
+                "status": "pass",
+                "queue_depth": 0,
+                "capacity": 200000
+            },
+            "backpressure_rejection": {
+                "status": "pass",
+                "note": "HTTP 429 when queue full in normalizeHTTP()"
+            },
+            "admission_control": {
+                "status": "pass",
+                "note": "ingestion-gateway checks normalizer queue depth"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "consumer_lag_peak",
+            "metric_value": 0,
+            "unit": "events",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "queue_capacity",
+            "metric_value": 200000,
+            "unit": "events",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "queue_utilization_pct",
+            "metric_value": 0,
+            "unit": "percent",
+            "threshold": 80,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

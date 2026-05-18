@@ -1,0 +1,57 @@
+{
+    "run_id": "RES-2026-00002",
+    "scenario_id": "consumer_reconnect",
+    "scenario_name": "Consumer Disconnect\/Reconnect",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "service_available": true,
+        "checks": {
+            "reconnect_loop_design": {
+                "status": "pass",
+                "note": "consumeLoop() auto-restarts on any poll error"
+            },
+            "reconnect_count": {
+                "status": "pass",
+                "value": 21
+            },
+            "no_data_loss_design": {
+                "status": "pass",
+                "note": "Redpanda retains messages for consumer groups"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "reconnect_count",
+            "metric_value": 21,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "consumer_recreate_count",
+            "metric_value": 22,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "consumer_errors",
+            "metric_value": 21,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

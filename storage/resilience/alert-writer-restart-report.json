@@ -1,0 +1,56 @@
+{
+    "run_id": "RES-2026-00005",
+    "scenario_id": "alert_writer_restart",
+    "scenario_name": "Alert Writer Restart",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "on_conflict_upsert": {
+                "status": "pass",
+                "note": "INSERT ... ON CONFLICT (alert_id) DO UPDATE"
+            },
+            "fingerprint_dedup": {
+                "status": "pass",
+                "note": "SEEN set deduplicated in-process before DB write"
+            },
+            "restart_safe": {
+                "status": "pass",
+                "note": "alert_fingerprint is deterministic \u2014 restart cannot produce new fingerprint for same event"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "idempotent_write_design",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "on_conflict_upsert_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "in_process_dedup_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

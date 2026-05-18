@@ -1,0 +1,45 @@
+{
+    "run_id": "RES-2026-00004",
+    "scenario_id": "clickhouse_unavailable",
+    "scenario_name": "ClickHouse Unavailability",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "clickhouse_not_required": {
+                "status": "pass",
+                "note": "ClickHouse is async sync \u2014 not on alert write path"
+            },
+            "dry_run_mode": {
+                "status": "pass",
+                "note": "Services continue in dry-run when external stores unreachable"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "clickhouse_optional",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "dry_run_mode_capable",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

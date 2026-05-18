@@ -21,6 +21,36 @@ use App\Http\Controllers\SocRuleController;
 use App\Http\Controllers\SocResponseController;
 use App\Http\Controllers\SocThreatIntelController;
 use App\Http\Controllers\SocTuningController;
+use App\Http\Controllers\Scenario\ScenarioLibraryController;
+use App\Http\Controllers\Scenario\ScenarioRunController;
+use App\Http\Controllers\Scenario\ScenarioReplayController;
+use App\Http\Controllers\Scenario\ScenarioReportController;
+use App\Http\Controllers\Scenario\ScenarioEvidenceController;
+use App\Http\Controllers\Trace\TraceInvestigationController;
+use App\Http\Controllers\Api\TraceApiController;
+use App\Http\Controllers\Detection\DetectionRuleController;
+use App\Http\Controllers\Endpoint\EndpointController;
+use App\Http\Controllers\Entity\EntityController;
+use App\Http\Controllers\Entity\EntityRiskController;
+use App\Http\Controllers\Api\EntityApiController;
+use App\Http\Controllers\Api\EntityRiskApiController;
+use App\Http\Controllers\Investigation\InvestigationController;
+use App\Http\Controllers\Api\InvestigationApiController;
+use App\Http\Controllers\Response\ResponsePlanController;
+use App\Http\Controllers\Api\ResponsePlanApiController;
+use App\Http\Controllers\Export\ExportController;
+use App\Http\Controllers\Api\ExportApiController;
+use App\Http\Controllers\Security\SecurityHardeningController;
+use App\Http\Controllers\Security\ThreatHuntController;
+use App\Http\Controllers\Api\ThreatHuntApiController;
+use App\Http\Controllers\Resilience\ResilienceController;
+use App\Http\Controllers\Api\EndpointAgentApiController;
+use App\Http\Controllers\Endpoint\EndpointAgentController;
+use App\Http\Controllers\Endpoint\EndpointAnalyticsController;
+use App\Http\Controllers\Endpoint\EndpointBehavioralController;
+use App\Http\Controllers\Endpoint\EndpointResponseController;
+use App\Http\Controllers\Api\EndpointBehavioralApiController;
+use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -126,6 +156,321 @@ Route::middleware(['auth', 'soc:rules.manage'])->group(function () {
 Route::middleware(['auth', 'soc:exports.run'])->group(function () {
     Route::get('/soc/exports/{format}', [SocExportController::class, 'download'])->middleware('throttle:soc-api')->name('soc.exports.download');
     Route::post('/soc/exports/test/{target}', [SocExportController::class, 'webhookTest'])->middleware('throttle:soc-api')->name('soc.exports.test');
+});
+
+// Scenario Runner — view access
+Route::middleware(['auth', 'soc:scenario.view'])->group(function () {
+    Route::get('/scenario', [ScenarioLibraryController::class, 'index'])->name('scenario.library');
+    Route::get('/scenario/{scenarioId}', [ScenarioLibraryController::class, 'show'])->name('scenario.library.show');
+    Route::get('/scenario/runs/timeline/{runId}', [ScenarioRunController::class, 'timeline'])->name('scenario.runs.timeline');
+    Route::get('/scenario/runs/active', [ScenarioRunController::class, 'index'])->name('scenario.runs.active');
+    Route::get('/scenario/runs/{runId}/evidence', [ScenarioRunController::class, 'runEvidence'])->name('scenario.runs.evidence');
+    Route::get('/scenario/runs/{runId}/report', [ScenarioRunController::class, 'runReport'])->name('scenario.runs.report');
+    Route::get('/scenario/reports', [ScenarioReportController::class, 'index'])->name('scenario.reports');
+    Route::get('/scenario/replay', [ScenarioReplayController::class, 'index'])->name('scenario.replay');
+});
+
+// Scenario Runner — run access
+Route::middleware(['auth', 'soc:scenario.run'])->group(function () {
+    Route::post('/scenario/runs', [ScenarioRunController::class, 'store'])->name('scenario.runs.store');
+    Route::post('/scenario/runs/{runId}/stop', [ScenarioRunController::class, 'stop'])->name('scenario.runs.stop');
+});
+
+// Scenario Runner — replay access
+Route::middleware(['auth', 'soc:scenario.replay'])->group(function () {
+    Route::post('/scenario/replay', [ScenarioReplayController::class, 'store'])->name('scenario.replay.store');
+});
+
+// Scenario Runner — export access
+Route::middleware(['auth', 'soc:scenario.export'])->group(function () {
+    Route::get('/scenario/reports/{runId}/export', [ScenarioReportController::class, 'export'])->name('scenario.reports.export');
+});
+
+// Scenario Runner — evidence view
+Route::middleware(['auth', 'soc:scenario.evidence.view'])->group(function () {
+    Route::get('/scenario/evidence', [ScenarioEvidenceController::class, 'index'])->name('scenario.evidence');
+});
+
+// Endpoint Inventory & Timeline (shadow-only, no active promotion)
+Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
+    Route::get('/endpoint', [EndpointController::class, 'index'])->name('endpoint.index');
+    Route::get('/endpoint/{agentId}', [EndpointController::class, 'show'])->name('endpoint.show');
+    Route::get('/endpoint/{traceId}/trace', [EndpointController::class, 'traceView'])->name('endpoint.trace');
+    Route::get('/api/endpoint/health', [EndpointController::class, 'health'])->name('endpoint.health');
+});
+
+// Endpoint Agent Hardening — enrollment inventory, detail, config policy
+// Literal paths must come before wildcard {agentId} routes
+Route::middleware(['auth', 'soc:agents.manage'])->group(function () {
+    Route::get('/endpoint-agents', [EndpointAgentController::class, 'inventory'])->name('endpoint.agent.inventory');
+    // Response queue & command routes (literal — must precede {agentId} wildcard)
+    Route::get('/endpoint-agents/response-queue', [EndpointResponseController::class, 'queue'])->name('endpoint.response.queue');
+    Route::get('/endpoint-agents/commands/{commandId}', [EndpointResponseController::class, 'show'])->name('endpoint.response.show');
+    Route::post('/endpoint-agents/commands', [EndpointResponseController::class, 'store'])->name('endpoint.response.store');
+    Route::post('/endpoint-agents/commands/{commandId}/submit', [EndpointResponseController::class, 'submit'])->name('endpoint.response.submit');
+    Route::post('/endpoint-agents/commands/{commandId}/approve', [EndpointResponseController::class, 'approve'])->name('endpoint.response.approve');
+    Route::post('/endpoint-agents/commands/{commandId}/reject', [EndpointResponseController::class, 'reject'])->name('endpoint.response.reject');
+    Route::post('/endpoint-agents/commands/{commandId}/cancel', [EndpointResponseController::class, 'cancel'])->name('endpoint.response.cancel');
+    Route::post('/endpoint-agents/commands/{commandId}/dispatch', [EndpointResponseController::class, 'dispatch'])->name('endpoint.response.dispatch');
+    // Wildcard routes after literals
+    Route::get('/endpoint-agents/{agentId}', [EndpointAgentController::class, 'detail'])->name('endpoint.agent.detail');
+    Route::get('/endpoint-agents/{agentId}/config', [EndpointAgentController::class, 'configPolicy'])->name('endpoint.agent.config');
+    Route::post('/endpoint-agents/{agentId}/config', [EndpointAgentController::class, 'updateConfig'])->name('endpoint.agent.config.update');
+});
+
+// Endpoint Agent API — no session/CSRF (agent-facing endpoints)
+Route::prefix('api/agents')->group(function () {
+    Route::post('/enroll', [EndpointAgentApiController::class, 'enroll'])->name('api.agents.enroll');
+    Route::post('/{agentId}/heartbeat', [EndpointAgentApiController::class, 'heartbeat'])->name('api.agents.heartbeat');
+    Route::get('/{agentId}/config', [EndpointAgentApiController::class, 'agentConfig'])->name('api.agents.config');
+    // Command lifecycle API (agent polling + ack + result)
+    Route::get('/{agentId}/commands', [EndpointAgentApiController::class, 'pollCommands'])->name('api.agents.commands.poll');
+    Route::post('/{agentId}/commands/{commandId}/ack', [EndpointAgentApiController::class, 'acknowledgeCommand'])->name('api.agents.commands.ack');
+    Route::post('/{agentId}/commands/{commandId}/result', [EndpointAgentApiController::class, 'commandResult'])->name('api.agents.commands.result');
+    // Behavioral snapshot API (shadow-only visibility)
+    Route::post('/{agentId}/behavioral-snapshot', [EndpointBehavioralApiController::class, 'storeSnapshot'])->name('api.agents.behavioral.snapshot');
+});
+
+// Endpoint Behavioral Analytics — advisory-only, shadow-mode
+Route::middleware(['auth', 'soc:agents.manage'])->group(function () {
+    Route::get('/endpoint-agents/{agentId}/analytics', [EndpointAnalyticsController::class, 'findingsDashboard'])->name('endpoint.analytics.dashboard');
+    Route::get('/endpoint-agents/{agentId}/analytics/chains', [EndpointAnalyticsController::class, 'executionChainTimeline'])->name('endpoint.analytics.chains');
+    Route::get('/endpoint-agents/{agentId}/analytics/beacon', [EndpointAnalyticsController::class, 'beaconPatternView'])->name('endpoint.analytics.beacon');
+    Route::get('/endpoint-agents/{agentId}/analytics/rare-parent-child', [EndpointAnalyticsController::class, 'rareParentChildView'])->name('endpoint.analytics.rare-parent-child');
+    Route::get('/endpoint-agents/{agentId}/analytics/persistence-correlation', [EndpointAnalyticsController::class, 'persistenceCorrelationView'])->name('endpoint.analytics.persistence-correlation');
+});
+
+// Endpoint Behavioral Visibility — shadow-only investigation views
+Route::middleware(['auth', 'soc:agents.manage'])->group(function () {
+    Route::get('/endpoint-agents/{agentId}/activity', [EndpointBehavioralController::class, 'activityTimeline'])->name('endpoint.behavioral.activity');
+    Route::get('/endpoint-agents/{agentId}/process-tree', [EndpointBehavioralController::class, 'processTree'])->name('endpoint.behavioral.process-tree');
+    Route::get('/endpoint-agents/{agentId}/persistence', [EndpointBehavioralController::class, 'persistenceInventory'])->name('endpoint.behavioral.persistence');
+    Route::get('/endpoint-agents/{agentId}/process-network', [EndpointBehavioralController::class, 'processNetwork'])->name('endpoint.behavioral.process-network');
+    Route::get('/endpoint-agents/{agentId}/long-lived', [EndpointBehavioralController::class, 'longLivedProcesses'])->name('endpoint.behavioral.long-lived');
+});
+
+
+// Detection Rule Governance
+Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
+    Route::get('/detection', [DetectionRuleController::class, 'index'])->name('detection.index');
+    Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
+    Route::post('/detection/{ruleId}/promote', [DetectionRuleController::class, 'promote'])->name('detection.promote');
+    Route::post('/detection/{ruleId}/notes', [DetectionRuleController::class, 'storeNote'])->name('detection.notes.store');
+    Route::post('/detection/{ruleId}/checklist', [DetectionRuleController::class, 'updateChecklist'])->name('detection.checklist.update');
+    Route::post('/detection/{ruleId}/suppression', [DetectionRuleController::class, 'updateSuppression'])->name('detection.suppression.update');
+    Route::post('/detection/{ruleId}/replay-validated', [DetectionRuleController::class, 'markReplayValidated'])->name('detection.replay.mark');
+    Route::get('/detection/{ruleId}/gates', [DetectionRuleController::class, 'gatesApi'])->name('detection.gates.api');
+});
+
+// Trace Investigation
+Route::middleware(['auth', 'soc:trace.view'])->group(function () {
+    Route::get('/traces', [TraceInvestigationController::class, 'index'])->name('traces.index');
+    Route::get('/traces/{traceId}', [TraceInvestigationController::class, 'show'])->name('traces.show');
+});
+
+// Trace API (JSON)
+Route::middleware(['auth', 'soc:trace.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/traces', [TraceApiController::class, 'index'])->name('api.traces.index');
+    Route::get('/traces/{traceId}', [TraceApiController::class, 'show'])->name('api.traces.show');
+    Route::get('/traces/{traceId}/timeline', [TraceApiController::class, 'timeline'])->name('api.traces.timeline');
+    Route::get('/traces/{traceId}/evidence', [TraceApiController::class, 'evidence'])->name('api.traces.evidence');
+    Route::get('/traces/{traceId}/alerts', [TraceApiController::class, 'alerts'])->name('api.traces.alerts');
+    Route::get('/traces/{traceId}/incidents', [TraceApiController::class, 'incidents'])->name('api.traces.incidents');
+});
+
+// Entity Graph — Investigation Pivoting
+Route::middleware(['auth', 'soc:entity.view'])->group(function () {
+    Route::get('/entity', [EntityController::class, 'index'])->name('entity.index');
+    Route::get('/entity/{id}', [EntityController::class, 'show'])->name('entity.show');
+    Route::get('/entity/{id}/timeline', [EntityController::class, 'timeline'])->name('entity.timeline');
+    Route::get('/entity/{id}/graph', [EntityController::class, 'graph'])->name('entity.graph');
+});
+
+// Entity Risk — Investigation Prioritization (advisory only)
+Route::middleware(['auth', 'soc:entity.view'])->group(function () {
+    Route::get('/entity-risk', [EntityRiskController::class, 'dashboard'])->name('entity.risk-dashboard');
+    Route::get('/entity-risk/{id}/breakdown', [EntityRiskController::class, 'breakdown'])->name('entity.risk-breakdown');
+});
+
+// Entity Graph API (JSON)
+Route::middleware(['auth', 'soc:entity.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/entities', [EntityApiController::class, 'index'])->name('api.entities.index');
+    Route::get('/entities/{id}', [EntityApiController::class, 'show'])->name('api.entities.show');
+    Route::get('/entities/{id}/timeline', [EntityApiController::class, 'timeline'])->name('api.entities.timeline');
+    Route::get('/entities/{id}/relationships', [EntityApiController::class, 'relationships'])->name('api.entities.relationships');
+    Route::get('/entities/{id}/alerts', [EntityApiController::class, 'alerts'])->name('api.entities.alerts');
+    Route::get('/entities/{id}/incidents', [EntityApiController::class, 'incidents'])->name('api.entities.incidents');
+    Route::get('/entities/{id}/risk', [EntityRiskApiController::class, 'entityRisk'])->name('api.entities.risk');
+    Route::get('/entities/{id}/risk-history', [EntityRiskApiController::class, 'riskHistory'])->name('api.entities.risk-history');
+});
+
+// Entity Risk API
+Route::middleware(['auth', 'soc:entity.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/entity-risk', [EntityRiskApiController::class, 'index'])->name('api.entity-risk.index');
+    Route::get('/entity-risk/top', [EntityRiskApiController::class, 'top'])->name('api.entity-risk.top');
+});
+
+// Investigation Workflow Orchestration
+Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
+    Route::get('/investigations', [InvestigationController::class, 'index'])->name('investigation.index');
+    Route::get('/investigations/queue', [InvestigationController::class, 'queue'])->name('investigation.queue');
+    Route::get('/investigations/escalations', [InvestigationController::class, 'escalations'])->name('investigation.escalations');
+    Route::get('/investigations/{id}', [InvestigationController::class, 'show'])->name('investigation.show');
+});
+
+Route::middleware(['auth', 'soc:investigation.create'])->group(function () {
+    Route::post('/investigations', [InvestigationController::class, 'store'])->name('investigation.store');
+});
+
+Route::middleware(['auth', 'soc:investigation.update'])->group(function () {
+    Route::post('/investigations/{id}/state', [InvestigationController::class, 'transition'])->name('investigation.transition');
+});
+
+Route::middleware(['auth', 'soc:investigation.assign'])->group(function () {
+    Route::post('/investigations/{id}/assign', [InvestigationController::class, 'assign'])->name('investigation.assign');
+});
+
+Route::middleware(['auth', 'soc:investigation.note'])->group(function () {
+    Route::post('/investigations/{id}/notes', [InvestigationController::class, 'storeNote'])->name('investigation.notes.store');
+});
+
+// Investigation API (JSON)
+Route::middleware(['auth', 'soc:investigation.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/investigations', [InvestigationApiController::class, 'index'])->name('api.investigations.index');
+    Route::get('/investigations/{id}', [InvestigationApiController::class, 'show'])->name('api.investigations.show');
+    Route::get('/investigations/{id}/timeline', [InvestigationApiController::class, 'timeline'])->name('api.investigations.timeline');
+    Route::get('/investigations/{id}/notes', [InvestigationApiController::class, 'notes'])->name('api.investigations.notes');
+});
+
+Route::middleware(['auth', 'soc:investigation.note', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/investigations/{id}/notes', [InvestigationApiController::class, 'storeNote'])->name('api.investigations.notes.store');
+});
+
+Route::middleware(['auth', 'soc:investigation.assign', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/investigations/{id}/assign', [InvestigationApiController::class, 'assign'])->name('api.investigations.assign');
+});
+
+Route::middleware(['auth', 'soc:investigation.update', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/investigations/{id}/state', [InvestigationApiController::class, 'transition'])->name('api.investigations.state');
+});
+
+// Response Planning — advisory only, no automated execution
+Route::middleware(['auth', 'soc:response.view'])->group(function () {
+    Route::get('/response-plans', [ResponsePlanController::class, 'index'])->name('response.index');
+    Route::get('/response-plans/recommendations', [ResponsePlanController::class, 'recommendations'])->name('response.recommendations');
+    Route::get('/response-plans/{id}', [ResponsePlanController::class, 'show'])->name('response.show');
+});
+
+Route::middleware(['auth', 'soc:response.create'])->group(function () {
+    Route::post('/response-plans', [ResponsePlanController::class, 'store'])->name('response.store');
+    Route::post('/response-plans/{id}/submit', [ResponsePlanController::class, 'submit'])->name('response.submit');
+    Route::post('/response-plans/{id}/complete', [ResponsePlanController::class, 'complete'])->name('response.complete');
+    Route::post('/response-plans/{id}/cancel', [ResponsePlanController::class, 'cancel'])->name('response.cancel');
+});
+
+Route::middleware(['auth', 'soc:response.approve'])->group(function () {
+    Route::post('/response-plans/{id}/approve', [ResponsePlanController::class, 'approve'])->name('response.approve');
+    Route::post('/response-plans/{id}/reject', [ResponsePlanController::class, 'reject'])->name('response.reject');
+});
+
+Route::middleware(['auth', 'soc:response.note'])->group(function () {
+    Route::post('/response-plans/{id}/notes', [ResponsePlanController::class, 'storeNote'])->name('response.notes.store');
+});
+
+// Response Planning API (JSON)
+Route::middleware(['auth', 'soc:response.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/response-plans', [ResponsePlanApiController::class, 'index'])->name('api.response-plans.index');
+    Route::get('/response-plans/recommendations', [ResponsePlanApiController::class, 'recommendations'])->name('api.response-plans.recommendations');
+    Route::get('/response-plans/{id}', [ResponsePlanApiController::class, 'show'])->name('api.response-plans.show');
+    Route::get('/response-plans/{id}/timeline', [ResponsePlanApiController::class, 'timeline'])->name('api.response-plans.timeline');
+});
+
+Route::middleware(['auth', 'soc:response.approve', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/response-plans/{id}/approve', [ResponsePlanApiController::class, 'approve'])->name('api.response-plans.approve');
+    Route::post('/response-plans/{id}/reject', [ResponsePlanApiController::class, 'reject'])->name('api.response-plans.reject');
+});
+
+Route::middleware(['auth', 'soc:response.note', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/response-plans/{id}/notes', [ResponsePlanApiController::class, 'storeNote'])->name('api.response-plans.notes');
+});
+
+// Export Center — report generation (analyst+) and history (all)
+Route::middleware(['auth', 'soc:report.export'])->group(function () {
+    Route::get('/exports', [ExportController::class, 'index'])->name('export.index');
+    Route::post('/exports/investigation/{id}', [ExportController::class, 'downloadInvestigation'])->name('export.investigation');
+    Route::post('/exports/response-plan/{id}', [ExportController::class, 'downloadResponsePlan'])->name('export.response-plan');
+    Route::post('/exports/entity-risk/{id}', [ExportController::class, 'downloadEntityRisk'])->name('export.entity-risk');
+    Route::post('/exports/trace/{traceId}', [ExportController::class, 'downloadTrace'])->name('export.trace');
+});
+
+Route::middleware(['auth', 'soc:report.view'])->group(function () {
+    Route::get('/exports/history', [ExportController::class, 'history'])->name('export.history');
+});
+
+// Export API
+Route::middleware(['auth', 'soc:report.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/exports', [ExportApiController::class, 'history'])->name('api.exports.history');
+});
+
+Route::middleware(['auth', 'soc:report.export', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/exports/investigation/{id}', [ExportApiController::class, 'exportInvestigation'])->name('api.exports.investigation');
+    Route::post('/exports/response-plan/{id}', [ExportApiController::class, 'exportResponsePlan'])->name('api.exports.response-plan');
+    Route::post('/exports/entity-risk/{id}', [ExportApiController::class, 'exportEntityRisk'])->name('api.exports.entity-risk');
+    Route::post('/exports/trace/{traceId}', [ExportApiController::class, 'exportTrace'])->name('api.exports.trace');
+});
+
+// Threat Hunting & Investigation Query Engine — advisory-only, non-destructive
+Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
+    Route::get('/threat-hunts',                       [ThreatHuntController::class, 'dashboard'])->name('threat-hunt.dashboard');
+    Route::get('/threat-hunts/new',                   [ThreatHuntController::class, 'queryBuilder'])->name('threat-hunt.query-builder');
+    Route::get('/threat-hunts/history',               [ThreatHuntController::class, 'historyReplay'])->name('threat-hunt.history');
+    Route::get('/threat-hunts/pivot',                 [ThreatHuntController::class, 'pivotExplorer'])->name('threat-hunt.pivot-explorer');
+    Route::get('/threat-hunts/beacon',                [ThreatHuntController::class, 'beaconInvestigation'])->name('threat-hunt.beacon-investigation');
+    Route::get('/threat-hunts/persistence',           [ThreatHuntController::class, 'persistenceInvestigation'])->name('threat-hunt.persistence-investigation');
+    Route::get('/threat-hunts/chains',                [ThreatHuntController::class, 'chainExplorer'])->name('threat-hunt.chain-explorer');
+    Route::get('/threat-hunts/{huntId}',              [ThreatHuntController::class, 'show'])->name('threat-hunt.show');
+});
+
+Route::middleware(['auth', 'soc:investigation.create'])->group(function () {
+    Route::post('/threat-hunts',                      [ThreatHuntController::class, 'executeQuery'])->name('threat-hunt.execute');
+    Route::post('/threat-hunts/{huntId}/replay',      [ThreatHuntController::class, 'replay'])->name('threat-hunt.replay');
+});
+
+// Threat Hunt API
+Route::middleware(['auth', 'soc:investigation.view', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::get('/threat-hunts',                              [ThreatHuntApiController::class, 'listHunts'])->name('api.threat-hunts.list');
+    Route::get('/threat-hunts/{huntId}',                     [ThreatHuntApiController::class, 'getHunt'])->name('api.threat-hunts.show');
+    Route::get('/threat-hunts/{huntId}/results',             [ThreatHuntApiController::class, 'getResults'])->name('api.threat-hunts.results');
+    Route::get('/threat-hunts/pivot/{entityType}',           [ThreatHuntApiController::class, 'pivot'])->name('api.threat-hunts.pivot');
+});
+
+Route::middleware(['auth', 'soc:investigation.create', 'throttle:soc-api'])->prefix('api')->group(function () {
+    Route::post('/threat-hunts/query',                       [ThreatHuntApiController::class, 'executeQuery'])->name('api.threat-hunts.query');
+});
+
+// Security Hardening Dashboard (admin only)
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/security/hardening', [SecurityHardeningController::class, 'index'])->name('security.hardening');
+});
+
+// Resilience Validation Dashboard (admin only)
+Route::middleware(['auth', 'admin'])->prefix('resilience')->group(function () {
+    Route::get('/',            [ResilienceController::class, 'index'])->name('resilience.index');
+    Route::get('/history',     [ResilienceController::class, 'history'])->name('resilience.history');
+    Route::get('/{runId}',     [ResilienceController::class, 'show'])->name('resilience.show');
+    Route::post('/run',        [ResilienceController::class, 'run'])->name('resilience.run');
+});
+
+// Internal Service Auth API — protected by X-Internal-Service-Token header
+// Used for service-to-service authenticated calls and middleware testing.
+Route::middleware([InternalServiceAuthMiddleware::class])->prefix('api/internal')->group(function () {
+    Route::get('/status', function () {
+        return response()->json([
+            'ok'      => true,
+            'service' => 'laravel-soc',
+            'ts'      => now()->toIso8601String(),
+        ]);
+    })->name('api.internal.status');
 });
 
 require __DIR__.'/auth.php';

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.service_install.v1",
+  "title": "Endpoint Telemetry: service_install v1",
+  "description": "Raw telemetry event emitted when a system service is installed, modified, or its startup type is changed. Sent to /v1/ingest with telemetry_type=endpoint.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "service_install" },
+    "service": {
+      "type": "object",
+      "description": "Service metadata.",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "maxLength": 256,
+          "description": "Service name (short name used in sc.exe / systemctl)."
+        },
+        "display_name": {
+          "type": ["string", "null"],
+          "maxLength": 512,
+          "description": "Human-readable service display name."
+        },
+        "binary_path": {
+          "type": ["string", "null"],
+          "maxLength": 4096,
+          "description": "Full path to the service binary or unit file."
+        },
+        "startup_type": {
+          "type": ["string", "null"],
+          "enum": ["automatic", "manual", "disabled", "enabled", null],
+          "description": "Service startup configuration."
+        },
+        "run_as_user": {
+          "type": ["string", "null"],
+          "maxLength": 260,
+          "description": "Account the service runs under (e.g. 'LocalSystem', 'NT AUTHORITY\\NetworkService')."
+        },
+        "operation": {
+          "type": ["string", "null"],
+          "enum": ["install", "modify", "delete", "start", "stop", null],
+          "description": "Operation performed on the service."
+        },
+        "source_process": {
+          "type": ["string", "null"],
+          "maxLength": 260,
+          "description": "Process that performed the service operation (e.g. 'sc.exe', 'powershell.exe')."
+        }
+      }
+    }
+  }
+}

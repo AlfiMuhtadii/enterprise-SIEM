@@ -1,0 +1,37 @@
+[
+  {
+    "schema_version": 1,
+    "normalization_version": "endpoint-v1",
+    "normalized_event_id": "ep-svc-shadow-001",
+    "raw_event_id": "ep-svc-shadow-001",
+    "ts": "2026-05-15T10:05:00Z",
+    "telemetry_type": "endpoint",
+    "event_type": "service_install",
+    "host": "server-ep03.corp.test",
+    "user": "Administrator",
+    "risk_score": 0.80,
+    "event_source": "endpoint-agent",
+    "trace_id": "shadow-trace-svc-001",
+    "service": {
+      "name": "WindowsUpdateHelper",
+      "display_name": "Windows Update Helper Service",
+      "binary_path": "C:\\Windows\\Temp\\svchost_backup.exe",
+      "startup_type": "automatic",
+      "run_as_user": "LocalSystem",
+      "operation": "install",
+      "source_process": "sc.exe"
+    },
+    "process": {
+      "name": "sc.exe",
+      "pid": 5530,
+      "ppid": 3300,
+      "command_line": "sc.exe create WindowsUpdateHelper binPath= C:\\Windows\\Temp\\svchost_backup.exe start= auto",
+      "path": "C:\\Windows\\System32\\sc.exe",
+      "hash": null
+    },
+    "network": { "source_ip": null, "destination_ip": null, "destination_port": null, "protocol": null },
+    "dns": { "domain": null, "resolved_ips": null },
+    "file": { "path": null, "hash": null, "operation": null },
+    "auth": { "action": null, "result": null }
+  }
+]

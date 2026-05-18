@@ -6,7 +6,22 @@
       "Bash(Out-Null)",
       "Bash(New-Item -ItemType Directory -Force \"D:\\\\project\\\\Detector\\\\docs\\\\operations\")",
       "Bash(Write-Host \"dirs created\")",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(cd /d D:\\\\project\\\\Detector)",
+      "Bash(php artisan *)",
+      "Bash(grep -v \"^//\\\\|//.*trace\")",
+      "Bash(xargs grep -l \"security_detector\\\\|ignored_paths\")",
+      "Bash(python *)",
+      "Bash(grep -A 30 \"FAILED  Tests\\\\\\\\\\\\\\\\Feature\\\\\\\\\\\\\\\\EntityGraphTest > project\")",
+      "Bash(New-Item -ItemType Directory -Force \"D:\\\\project\\\\Detector\\\\docs\\\\thesis\")",
+      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $kernel = $app->make\\('\\\\''Illuminate\\\\Contracts\\\\Http\\\\Kernel'\\\\''\\); $request = Illuminate\\\\Http\\\\Request::create\\('\\\\''/endpoint-agents/test-agent/analytics'\\\\'', '\\\\''GET'\\\\''\\); try { $response = $kernel->handle\\($request\\); echo $response->getStatusCode\\(\\) . PHP_EOL; echo $response->getContent\\(\\) . PHP_EOL; } catch \\(\\\\Throwable $e\\) { echo $e->getMessage\\(\\) . PHP_EOL; echo $e->getFile\\(\\) . '\\\\'':'\\\\'' . $e->getLine\\(\\) . PHP_EOL; }')",
+      "Bash(php -r ' *)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(psql -h 127.0.0.1 -U postgres -d detector -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public;\")",
+      "Bash(psql *)",
+      "Bash(Get-ChildItem -Path \"tests/Feature\" -Name \"*.php\")",
+      "Bash(Measure-Object)",
+      "Bash(Select-Object -ExpandProperty Count)"
     ]
   }
 }

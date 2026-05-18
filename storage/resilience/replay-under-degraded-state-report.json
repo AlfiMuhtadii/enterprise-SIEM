@@ -1,0 +1,67 @@
+{
+    "run_id": "RES-2026-00014",
+    "scenario_id": "replay_under_degraded_state",
+    "scenario_name": "Replay Under Degraded State",
+    "scenario_type": "active",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "active",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "event_store_idempotent": {
+                "status": "pass",
+                "note": "ON CONFLICT DO NOTHING via insertOrIgnore"
+            },
+            "alert_dedup_design": {
+                "status": "pass",
+                "note": "SEEN set + ON CONFLICT (alert_id) prevents duplicates"
+            },
+            "incident_dedup_design": {
+                "status": "pass",
+                "note": "Deterministic incident_id prevents duplicates"
+            },
+            "deterministic_replay": {
+                "status": "pass",
+                "note": "Same event_id replayed \u2192 same outcome, single record"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "replay_idempotent",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "replay_recovery_count",
+            "metric_value": 1,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "alert_dedup_design",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "incident_dedup_design",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

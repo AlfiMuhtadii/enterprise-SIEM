@@ -1,0 +1,73 @@
+{
+    "run_id": "RES-2026-00012",
+    "scenario_id": "signature_verification_failure",
+    "scenario_name": "Signature Verification Failure",
+    "scenario_type": "active",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "active",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "non_destructive": {
+                "status": "pass",
+                "threw": false
+            },
+            "failure_logged": {
+                "status": "pass"
+            },
+            "trace_preserved": {
+                "status": "pass",
+                "trace_id": "resilience-trace-sig-6a0aa3287fa02"
+            },
+            "pipeline_intact": {
+                "status": "pass",
+                "note": "No DB mutation from invalid signature"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "signature_failures_injected",
+            "metric_value": 1,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "failure_logged",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "non_destructive",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "trace_preserved_in_log",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "failed_signature_count",
+            "metric_value": 1,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

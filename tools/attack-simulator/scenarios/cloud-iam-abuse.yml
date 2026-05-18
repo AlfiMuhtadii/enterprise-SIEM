@@ -1,0 +1,47 @@
+id: cloud-iam-abuse-001
+name: "Cloud IAM Privilege Escalation"
+description: "Simulates suspicious IAM policy changes and anomalous login"
+mitre:
+  tactic: Persistence
+  technique: T1098
+  technique_name: "Account Manipulation"
+
+actor:
+  profile: apt
+  jitter: 0.2
+  source_ip_pool:
+    - 203.0.113.50
+
+timeline:
+  - time: 0s
+    action: generate_events
+    source: cloud
+    event_type: login.anomaly
+    count: 1
+    params:
+      cloud_provider: aws
+      user: attacker@external.com
+      country: RU
+
+  - time: 30s
+    action: generate_events
+    source: cloud
+    event_type: iam.policy.change
+    count: 3
+    interval: 10s
+    params:
+      cloud_provider: aws
+      action: AttachUserPolicy
+      resource: arn:aws:iam::123456789012:user/admin
+      user: attacker@external.com
+
+  - time: 2m
+    action: generate_events
+    source: cloud
+    event_type: iam.policy.change
+    count: 1
+    params:
+      cloud_provider: aws
+      action: PutBucketPolicy
+      resource: arn:aws:s3:::corp-backups
+      user: attacker@external.com

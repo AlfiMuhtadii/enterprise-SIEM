@@ -36,6 +36,7 @@ class AlertPayload(BaseModel):
     ip: Optional[str] = None
     score: Optional[float] = None
     evidence: Dict[str, Any] = Field(default_factory=dict)
+    trace_id: Optional[str] = None
 
 
 class BuildRequest(BaseModel):
@@ -119,6 +120,7 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
     confidence = max((float(a.score or 0) for a in group), default=0.5)
     entities = sorted(set(item for alert in group for item in alert_entities(alert)))
     mitre = sorted(set(item for alert in group for item in (alert.evidence.get("mitre_attack") or [])))
+    trace_id = next((a.trace_id for a in group if a.trace_id), None)
     timeline = []
     for alert in ordered:
         chain = alert.evidence.get("evidence_chain") or []
@@ -145,6 +147,7 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
         "metadata": {"source": "incident-builder-service", "group_key": key, "alert_count": len(group)},
         "xdr_domains": domains,
         "alert_ids": [a.alert_id for a in group],
+        "trace_id": trace_id,
     }
 
 
@@ -159,8 +162,8 @@ def write_incidents(incidents: List[Dict[str, Any]]) -> int:
                     """
                     INSERT INTO security_incidents (
                         incident_id,title,status,severity,confidence,first_seen_at,last_seen_at,
-                        affected_entities,timeline,mitre_mapping,metadata,xdr_domains,created_at,updated_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,now(),now())
+                        affected_entities,timeline,mitre_mapping,metadata,xdr_domains,trace_id,created_at,updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s,now(),now())
                     ON CONFLICT (incident_id) DO UPDATE SET
                         last_seen_at=excluded.last_seen_at,
                         severity=excluded.severity,
@@ -170,13 +173,14 @@ def write_incidents(incidents: List[Dict[str, Any]]) -> int:
                         mitre_mapping=excluded.mitre_mapping,
                         metadata=excluded.metadata,
                         xdr_domains=excluded.xdr_domains,
+                        trace_id=COALESCE(excluded.trace_id, security_incidents.trace_id),
                         updated_at=now()
                     """,
                     (
                         inc["incident_id"], inc["title"], inc["status"], inc["severity"], inc["confidence"],
                         inc["first_seen_at"], inc["last_seen_at"], json.dumps(inc["affected_entities"]),
                         json.dumps(inc["timeline"]), json.dumps(inc["mitre_mapping"]), json.dumps(inc["metadata"]),
-                        json.dumps(inc["xdr_domains"]),
+                        json.dumps(inc["xdr_domains"]), inc.get("trace_id"),
                     ),
                 )
                 for alert_id in inc["alert_ids"]:
@@ -308,6 +312,8 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
         if isinstance(row, dict):
             if not row.get("alert_id") and isinstance(value, dict):
                 row["alert_id"] = value.get("alert_id")
+            if not row.get("trace_id") and isinstance(value, dict):
+                row["trace_id"] = value.get("trace_id")
             alerts.append(AlertPayload(**row))
     return alerts
 
@@ -317,8 +323,9 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
     topic = os.getenv("XDR_INCIDENTS_TOPIC", "incidents.updated")
     events = []
     for incident in result.get("incidents", []):
+        inc_trace_id = incident.get("trace_id") or trace_id
         payload = {
-            "trace_id": trace_id,
+            "trace_id": inc_trace_id,
             "incident": incident,
             "incident_id": incident.get("incident_id"),
             "updated_at": now_iso(),
@@ -328,7 +335,7 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
             topic=topic,
             payload=payload,
             source_service="incident-builder-service",
-            trace_id=trace_id,
+            trace_id=inc_trace_id,
             aggregate_type="incident",
             aggregate_id=payload["incident_id"],
             metadata={"source_topic": source_topic},
@@ -366,7 +373,8 @@ def event_loop() -> None:
             METRICS["consumer_polls"] += 1
             alerts = normalize_records(records)
             if alerts:
-                process_alerts(alerts, trace_id=f"stream-{int(time.time())}", source_topic=topic)
+                batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
+                process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
         except Exception as exc:
             METRICS["consumer_errors"] += 1
             DLQ.append({"ts": now_iso(), "target": topic, "error": str(exc)})
@@ -435,8 +443,27 @@ def process(request: BuildRequest) -> Dict[str, Any]:
     return process_alerts(request.alerts, request.trace_id, request.source_topic)
 
 
+def validate_startup_secrets() -> None:
+    issues = []
+    if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
+        issues.append("XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
+    if not os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN"):
+        issues.append("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN not set — /v1/build internal auth is permissive")
+    for issue in issues:
+        print(f"[SECURITY-WARN] incident-builder-service: {issue}", flush=True)
+
+
+def verify_internal_token(token: str) -> bool:
+    """Verify X-Internal-Service-Token header. Permissive when env var is not set."""
+    expected = os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", "")
+    if not expected:
+        return True  # permissive: not configured
+    return token == expected
+
+
 @app.on_event("startup")
 def startup() -> None:
+    validate_startup_secrets()
     if os.getenv("XDR_EVENT_LOOP_ENABLED", "false").lower() in {"1", "true", "yes"}:
         threading.Thread(target=event_loop, daemon=True).start()
 

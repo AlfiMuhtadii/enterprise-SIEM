@@ -1,0 +1,64 @@
+{
+    "run_id": "RES-2026-00009",
+    "scenario_id": "dlq_replay_recovery",
+    "scenario_name": "DLQ Replay Recovery",
+    "scenario_type": "active",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "active",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "dlq_structure_valid": {
+                "status": "pass",
+                "hardening_events": 0
+            },
+            "replay_idempotency": {
+                "status": "pass"
+            },
+            "signature_failures": {
+                "count": 0
+            },
+            "auth_failures": {
+                "count": 0
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "dlq_hardening_events",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "signature_failure_count",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "auth_failure_count",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "replay_idempotent",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

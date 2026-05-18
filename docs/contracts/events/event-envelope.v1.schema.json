@@ -20,6 +20,11 @@
     "trace_id": { "type": ["string", "null"], "maxLength": 120 },
     "source_service": { "type": "string", "maxLength": 120 },
     "payload": { "type": "object" },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "event_signature": {
+      "type": ["string", "null"],
+      "description": "Optional HMAC-SHA256 integrity signature. Format: sha256=<hex>. Verification failures are logged but never destructive.",
+      "pattern": "^sha256=[0-9a-f]{64}$"
+    }
   }
 }

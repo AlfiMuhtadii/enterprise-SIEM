@@ -35,7 +35,8 @@
         "evidence": { "type": "object" },
         "raw_event": { "type": "object" },
         "detector_name": { "type": "string" },
-        "detector_version": { "type": "string" }
+        "detector_version": { "type": "string" },
+        "trace_id": { "type": ["string", "null"], "maxLength": 120 }
       }
     }
   }

@@ -1,0 +1,101 @@
+{
+  "__inputs": [{ "name": "DS_POSTGRES", "label": "PostgreSQL", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres",   "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "table",      "name": "Table",      "version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "barchart",   "name": "Bar chart",  "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Operational resilience observability — consumer lag, replay recovery, service restart frequency, DLQ volume, signature/auth failures, recovery duration.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "cyan", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }, "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Resilience Runs",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM resilience_runs", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }, "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Passed Runs",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM resilience_runs WHERE status = 'passed'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }, "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Failed Runs (7d)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM resilience_runs WHERE status = 'failed' AND started_at >= NOW() - INTERVAL '7 days'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }, "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Auth Failures (24h)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM security_hardening_events WHERE event_type = 'auth_failure' AND occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }, "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Resilience Run History Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('day', started_at) AS time, status, count(*) AS runs FROM resilience_runs WHERE $__timeFilter(started_at) GROUP BY date_trunc('day', started_at), status ORDER BY time", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }, "id": 6,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "started_at" }] },
+      "title": "Recent Resilience Runs",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT run_id, scenario_name, scenario_type, status, replay_safe, endpoint_shadow_isolated, no_duplicates, ROUND(EXTRACT(EPOCH FROM (completed_at - started_at))::numeric, 2) AS duration_s, started_at FROM resilience_runs ORDER BY started_at DESC LIMIT 20", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }, "id": 7,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "avg_value" }] },
+      "title": "Recovery Metrics by Scenario",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT r.scenario_name, m.metric_name, ROUND(AVG(m.metric_value)::numeric, 3) AS avg_value, m.unit, MAX(m.threshold) AS threshold, bool_and(m.within_threshold) AS always_within FROM resilience_metrics m JOIN resilience_runs r ON r.id = m.run_id GROUP BY r.scenario_name, m.metric_name, m.unit ORDER BY r.scenario_name, m.metric_name", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }, "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Signature & Auth Failures Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('hour', occurred_at) AS time, event_type, count(*) AS events FROM security_hardening_events WHERE event_type IN ('auth_failure','signature_failure') AND $__timeFilter(occurred_at) GROUP BY date_trunc('hour', occurred_at), event_type ORDER BY time", "format": "table", "refId": "A" }]
+    }
+  ],
+  "refresh": "2m",
+  "schemaVersion": 38,
+  "tags": ["xdr", "resilience", "recovery", "dlq", "replay"],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Resilience & Recovery Dashboard",
+  "uid": "xdr-resilience-v1",
+  "version": 1
+}

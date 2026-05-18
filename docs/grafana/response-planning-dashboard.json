@@ -1,0 +1,122 @@
+{
+  "__inputs": [
+    { "name": "DS_POSTGRES", "label": "PostgreSQL", "description": "SOC platform DB", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }
+  ],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres",   "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "table",      "name": "Table",      "version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "barchart",   "name": "Bar chart",  "version": "" },
+    { "type": "panel",      "id": "piechart",   "name": "Pie chart",  "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Response Planning — plan states, approval latency, recommendation types, advisory-only ratio, rejection rate, linked critical investigations. Advisory only — no automated execution.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }, "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Pending Approval",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM response_plans WHERE state = 'pending_approval'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }, "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Approved Plans",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM response_plans WHERE state = 'approved'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }, "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Rejected Plans",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM response_plans WHERE state = 'rejected'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "cyan", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }, "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Completed (Documented)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM response_plans WHERE state = 'completed_documented'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 }, "id": 5,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Advisory-Only Actions",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM response_plan_actions WHERE advisory_only = true", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }, "id": 6,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "title": "Most Common Recommendation Types",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT action_type, count(*) AS count, ROUND(100.0 * SUM(CASE WHEN advisory_only THEN 1 ELSE 0 END) / count(*), 1) AS advisory_pct FROM response_plan_actions GROUP BY action_type ORDER BY count DESC", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }, "id": 7,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "approval_hours" }] },
+      "title": "Approval Latency (draft → approved, hours)",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT plan_id, title, risk_level, ROUND(EXTRACT(EPOCH FROM (approved_at - created_at)) / 3600, 1) AS approval_hours FROM response_plans WHERE approved_at IS NOT NULL AND $__timeFilter(created_at) ORDER BY approval_hours DESC LIMIT 20", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }, "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Response Plans Created Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('day', created_at) AS time, state, count(*) AS count FROM response_plans WHERE $__timeFilter(created_at) GROUP BY date_trunc('day', created_at), state ORDER BY time", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }, "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Rejection Rate Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('day', decision_at) AS time, count(*) AS rejections FROM response_plan_approvals WHERE decision = 'rejected' AND $__timeFilter(decision_at) GROUP BY date_trunc('day', decision_at) ORDER BY time", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 }, "id": 10,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "created_at" }] },
+      "title": "Plans Linked to Critical Investigations",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT rp.plan_id, rp.title, rp.state, rp.risk_level, i.investigation_id, i.state AS inv_state, i.severity AS inv_severity FROM response_plans rp JOIN investigations i ON i.id = rp.investigation_id WHERE i.severity = 'critical' AND rp.state NOT IN ('cancelled') ORDER BY rp.created_at DESC LIMIT 20", "format": "table", "refId": "A" }]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["xdr", "response-planning", "advisory", "soc"],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Response Planning Dashboard",
+  "uid": "xdr-response-planning-v1",
+  "version": 1
+}

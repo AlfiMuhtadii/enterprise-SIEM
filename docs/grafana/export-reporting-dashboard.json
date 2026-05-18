@@ -1,0 +1,102 @@
+{
+  "__inputs": [{ "name": "DS_POSTGRES", "label": "PostgreSQL", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres",   "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "table",      "name": "Table",      "version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "barchart",   "name": "Bar chart",  "version": "" },
+    { "type": "panel",      "id": "piechart",   "name": "Pie chart",  "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Export Center observability — export volume, type distribution, analyst activity, most exported investigations, export latency.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "cyan", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }, "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Exports",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM export_audit_logs", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }, "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Exports This Week",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM export_audit_logs WHERE exported_at >= NOW() - INTERVAL '7 days'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }, "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Unique Analysts Exporting",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(DISTINCT exported_by) AS value FROM export_audit_logs WHERE exported_at >= NOW() - INTERVAL '30 days'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }, "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Avg Export Size (KB)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT ROUND(AVG(export_size_bytes) / 1024.0, 1) AS value FROM export_audit_logs WHERE export_size_bytes IS NOT NULL", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }, "id": 5,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "title": "Export Type Distribution",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT export_type, export_format, count(*) AS count, ROUND(AVG(export_size_bytes) / 1024.0, 1) AS avg_kb FROM export_audit_logs GROUP BY export_type, export_format ORDER BY count DESC", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }, "id": 6,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "export_count" }] },
+      "title": "Analyst Export Activity (30 days)",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT u.name AS analyst, count(*) AS export_count, array_agg(DISTINCT e.export_type) AS types FROM export_audit_logs e JOIN users u ON u.id = e.exported_by WHERE e.exported_at >= NOW() - INTERVAL '30 days' GROUP BY u.name ORDER BY export_count DESC", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }, "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Export Volume Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('day', exported_at) AS time, export_type, count(*) AS exports FROM export_audit_logs WHERE $__timeFilter(exported_at) GROUP BY date_trunc('day', exported_at), export_type ORDER BY time", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }, "id": 8,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "export_count" }] },
+      "title": "Most Exported Investigations",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT e.source_id AS investigation_id, count(*) AS export_count, MAX(e.exported_at) AS last_exported, STRING_AGG(DISTINCT e.export_format, ', ') AS formats FROM export_audit_logs e WHERE e.export_type = 'investigation' GROUP BY e.source_id ORDER BY export_count DESC LIMIT 15", "format": "table", "refId": "A" }]
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 38,
+  "tags": ["xdr", "export", "reporting", "audit"],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Export & Reporting Dashboard",
+  "uid": "xdr-export-reporting-v1",
+  "version": 1
+}

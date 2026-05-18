@@ -1,0 +1,60 @@
+{
+    "run_id": "RES-2026-00001",
+    "scenario_id": "broker_restart",
+    "scenario_name": "Redpanda Broker Restart",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:05+00:00",
+    "completed_at": "2026-05-18T05:27:05+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "consumer_reconnect_loop": {
+                "status": "pass",
+                "note": "normalizer-worker consumeLoop() with reconnect on error"
+            },
+            "correlation_reconnect": {
+                "status": "pass",
+                "note": "correlation-worker consumeLoop() with reconnect on error"
+            },
+            "operational_event_store": {
+                "status": "pass",
+                "count": 0
+            },
+            "replay_safe_design": {
+                "status": "pass",
+                "note": "ON CONFLICT DO NOTHING in xdr_operational_events"
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "operational_event_store_size",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "consumer_reconnect_loop_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "replay_safe_event_store_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:05+00:00"
+}

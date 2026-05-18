@@ -40,6 +40,7 @@ class AlertPayload(BaseModel):
     raw_event: Dict[str, Any] = Field(default_factory=dict)
     detector_name: str = "xdr-correlation"
     detector_version: str = "go-shadow"
+    trace_id: Optional[str] = None
 
 
 class WriteRequest(BaseModel):
@@ -121,7 +122,7 @@ def postgres_configured() -> bool:
     )
 
 
-def write_postgres(alerts: List[AlertPayload]) -> int:
+def write_postgres(alerts: List[AlertPayload], trace_id: Optional[str] = None) -> int:
     conn = connect_pg()
     if conn is None:
         return 0
@@ -141,6 +142,7 @@ def write_postgres(alerts: List[AlertPayload]) -> int:
             fp,
             json.dumps(alert.evidence),
             json.dumps(alert.raw_event),
+            alert.trace_id or trace_id,
         ))
     with conn:
         with conn.cursor() as cur:
@@ -150,10 +152,12 @@ def write_postgres(alerts: List[AlertPayload]) -> int:
                     INSERT INTO security_alerts (
                         alert_id, detected_at, alert_type, detector_name, detector_version,
                         severity, ip, actor_key, score, alert_fingerprint, evidence, raw_event,
-                        created_at, updated_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,now(),now())
+                        trace_id, created_at, updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,now(),now())
                     ON CONFLICT (alert_id) DO UPDATE SET
-                        updated_at=now(), evidence=excluded.evidence, raw_event=excluded.raw_event
+                        updated_at=now(), evidence=excluded.evidence,
+                        raw_event=excluded.raw_event,
+                        trace_id=COALESCE(excluded.trace_id, security_alerts.trace_id)
                     """,
                     row,
                 )
@@ -300,11 +304,14 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
             DLQ.append({"ts": now_iso(), "target": "xdr.alerts", "error": "contract_validation_failed", "event": value})
             METRICS["dlq_count"] = len(DLQ)
             continue
+        batch_trace_id = value.get("trace_id") if isinstance(value, dict) else None
         rows = value.get("alerts") if isinstance(value, dict) else None
         if rows is None:
             rows = [value.get("alert")] if isinstance(value, dict) and "alert" in value else [value]
         for row in rows:
             if isinstance(row, dict):
+                if not row.get("trace_id") and batch_trace_id:
+                    row["trace_id"] = batch_trace_id
                 alerts.append(AlertPayload(**row))
     return alerts
 
@@ -315,8 +322,9 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
     created_events = []
     for alert in alerts:
         fp = fingerprint(alert)
+        alert_trace_id = alert.trace_id or trace_id
         payload = {
-            "trace_id": trace_id,
+            "trace_id": alert_trace_id,
             "alert": alert.model_dump(),
             "alert_id": alert_id(alert, fp),
             "alert_fingerprint": fp,
@@ -327,7 +335,7 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
             topic=created_topic,
             payload=payload,
             source_service="alert-writer-service",
-            trace_id=trace_id,
+            trace_id=alert_trace_id,
             aggregate_type="alert",
             aggregate_id=payload["alert_id"],
             metadata={"source_topic": source_topic},
@@ -365,7 +373,8 @@ def event_loop() -> None:
             METRICS["consumer_polls"] += 1
             alerts = normalize_records(records)
             if alerts:
-                process_alerts(alerts, trace_id=f"stream-{int(time.time())}", source_topic=topic)
+                batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
+                process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
         except Exception as exc:
             METRICS["consumer_errors"] += 1
             DLQ.append({"ts": now_iso(), "target": topic, "error": str(exc)})
@@ -414,7 +423,7 @@ def write(request: WriteRequest) -> Dict[str, Any]:
     written_pg = 0
     written_os = 0
     try:
-        written_pg = write_postgres(unique)
+        written_pg = write_postgres(unique, trace_id=request.trace_id)
     except Exception as exc:
         METRICS["postgres_failures"] += len(unique)
         METRICS["retry_count"] += 1
@@ -452,8 +461,30 @@ def process(request: WriteRequest) -> Dict[str, Any]:
     return process_alerts(request.alerts, request.trace_id, request.source_topic)
 
 
+def validate_startup_secrets() -> None:
+    issues = []
+    if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
+        issues.append("XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
+    if not os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN"):
+        issues.append("XDR_ALERT_WRITER_INTERNAL_TOKEN not set — /v1/write internal auth is permissive")
+    ingest_secret = os.getenv("XDR_INGEST_SECRET", "")
+    if ingest_secret == "dev-secret-change-me":
+        issues.append("XDR_INGEST_SECRET is using dev default — replace in production")
+    for issue in issues:
+        print(f"[SECURITY-WARN] alert-writer-service: {issue}", flush=True)
+
+
+def verify_internal_token(token: str) -> bool:
+    """Verify X-Internal-Service-Token header. Permissive when env var is not set."""
+    expected = os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN", "")
+    if not expected:
+        return True  # permissive: not configured
+    return token == expected
+
+
 @app.on_event("startup")
 def startup() -> None:
+    validate_startup_secrets()
     if os.getenv("XDR_EVENT_LOOP_ENABLED", "false").lower() in {"1", "true", "yes"}:
         threading.Thread(target=event_loop, daemon=True).start()
 

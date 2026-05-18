@@ -28,6 +28,30 @@ class XdrEventContractEventSourcingTest extends TestCase
         }
     }
 
+    public function test_trace_id_columns_exist_on_pipeline_tables(): void
+    {
+        $this->assertTrue(
+            \Illuminate\Support\Facades\Schema::hasColumn('security_alerts', 'trace_id'),
+            'security_alerts must have trace_id column (added by pipeline integration migration)'
+        );
+        $this->assertTrue(
+            \Illuminate\Support\Facades\Schema::hasColumn('security_incidents', 'trace_id'),
+            'security_incidents must have trace_id column (added for end-to-end trace propagation)'
+        );
+        $this->assertTrue(
+            \Illuminate\Support\Facades\Schema::hasColumn('xdr_operational_events', 'trace_id'),
+            'xdr_operational_events must have trace_id column'
+        );
+    }
+
+    public function test_xdr_alerts_contract_declares_trace_id_on_alert(): void
+    {
+        $path = base_path('docs/contracts/events/xdr.alerts.v1.schema.json');
+        $schema = json_decode(file_get_contents($path), true);
+        $alertProps = $schema['$defs']['alert']['properties'] ?? [];
+        $this->assertArrayHasKey('trace_id', $alertProps, 'xdr.alerts alert object must declare trace_id field');
+    }
+
     public function test_operational_event_store_is_replayable_and_idempotent(): void
     {
         $payload = [

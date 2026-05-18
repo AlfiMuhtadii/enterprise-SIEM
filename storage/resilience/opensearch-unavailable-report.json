@@ -1,0 +1,56 @@
+{
+    "run_id": "RES-2026-00003",
+    "scenario_id": "opensearch_unavailable",
+    "scenario_name": "OpenSearch Unavailability",
+    "scenario_type": "simulation",
+    "status": "passed",
+    "started_at": "2026-05-18T05:27:04+00:00",
+    "completed_at": "2026-05-18T05:27:04+00:00",
+    "duration_seconds": 0,
+    "findings": {
+        "mode": "simulation",
+        "recovery_validated": true,
+        "replay_safe": true,
+        "trace_preserved": true,
+        "endpoint_shadow_isolated": true,
+        "no_duplicates": true,
+        "checks": {
+            "postgres_primary_write": {
+                "status": "pass",
+                "note": "write_postgres() executes independently of write_opensearch()"
+            },
+            "dlq_on_os_failure": {
+                "status": "pass",
+                "note": "opensearch failures append to DLQ, not dropped"
+            },
+            "trace_id_in_postgres": {
+                "status": "pass",
+                "alert_count": 0
+            }
+        }
+    },
+    "metrics": [
+        {
+            "metric_name": "postgres_alert_count",
+            "metric_value": 0,
+            "unit": "count",
+            "threshold": null,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "opensearch_fallback_present",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        },
+        {
+            "metric_name": "dlq_integrity_maintained",
+            "metric_value": 1,
+            "unit": "boolean",
+            "threshold": 1,
+            "within_threshold": true
+        }
+    ],
+    "generated_at": "2026-05-18T05:27:04+00:00"
+}

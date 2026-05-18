@@ -1,0 +1,101 @@
+{
+  "__inputs": [{ "name": "DS_POSTGRES", "label": "PostgreSQL", "type": "datasource", "pluginId": "postgres", "pluginName": "PostgreSQL" }],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "postgres",   "name": "PostgreSQL", "version": "1.0.0" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "table",      "name": "Table",      "version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "barchart",   "name": "Bar chart",  "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Internal security hardening observability — auth failures, signature failures, secret warnings, audit integrity, internal service trust status.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 }, "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Auth Failures (24h)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM security_hardening_events WHERE event_type = 'auth_failure' AND occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 }, "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Signature Failures (24h)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM security_hardening_events WHERE event_type = 'signature_failure' AND occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 }, "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Secret Warnings (7d)",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM security_hardening_events WHERE event_type = 'secret_warning' AND occurred_at >= NOW() - INTERVAL '7 days'", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "cyan", "mode": "fixed" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 }, "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Hardening Events",
+      "type": "stat",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT count(*) AS value FROM security_hardening_events", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 10, "lineWidth": 2 } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 }, "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "title": "Security Events Over Time",
+      "type": "timeseries",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT date_trunc('hour', occurred_at) AS time, event_type, count(*) AS events FROM security_hardening_events WHERE $__timeFilter(occurred_at) GROUP BY date_trunc('hour', occurred_at), event_type ORDER BY time", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 }, "id": 6,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "title": "Auth Failures by Service and Actor",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT service_name, actor, count(*) AS count, MAX(occurred_at) AS last_seen FROM security_hardening_events WHERE event_type = 'auth_failure' AND occurred_at >= NOW() - INTERVAL '7 days' GROUP BY service_name, actor ORDER BY count DESC LIMIT 20", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 }, "id": 7,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "occurred_at" }] },
+      "title": "Recent Signature Failures",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT occurred_at, service_name, actor, trace_id, details FROM security_hardening_events WHERE event_type = 'signature_failure' ORDER BY occurred_at DESC LIMIT 25", "format": "table", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "displayMode": "auto" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 }, "id": 8,
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "count" }] },
+      "title": "Audit Append-Only Table Counts",
+      "type": "table",
+      "targets": [{ "datasource": { "type": "postgres", "uid": "${DS_POSTGRES}" }, "rawSql": "SELECT 'export_audit_logs' AS tbl, count(*) AS count FROM export_audit_logs UNION ALL SELECT 'investigation_events', count(*) FROM investigation_events UNION ALL SELECT 'response_plan_approvals', count(*) FROM response_plan_approvals UNION ALL SELECT 'security_hardening_events', count(*) FROM security_hardening_events ORDER BY count DESC", "format": "table", "refId": "A" }]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["xdr", "security", "hardening", "audit", "internal-auth"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Security Hardening Dashboard",
+  "uid": "xdr-security-hardening-v1",
+  "version": 1
+}
