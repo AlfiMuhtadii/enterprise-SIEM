@@ -52,6 +52,8 @@ use App\Http\Controllers\Endpoint\EndpointResponseController;
 use App\Http\Controllers\Api\EndpointBehavioralApiController;
 use App\Http\Controllers\Investigation\CrossDomainController;
 use App\Http\Controllers\Api\CrossDomainApiController;
+use App\Http\Controllers\Response\ActiveResponseController;
+use App\Http\Controllers\Api\ActiveResponseApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -483,6 +485,42 @@ Route::middleware(['auth', 'soc:investigation.view'])->prefix('api')->group(func
     Route::get('/cross-domain/pivot/multi-host',         [CrossDomainApiController::class, 'pivotMultiHost'])->name('api.cross-domain.pivot.multi-host');
     Route::get('/cross-domain/pivot/attack-stage',       [CrossDomainApiController::class, 'pivotAttackStage'])->name('api.cross-domain.pivot.stage');
     Route::get('/cross-domain/pivot/trace',              [CrossDomainApiController::class, 'pivotTrace'])->name('api.cross-domain.pivot.trace');
+});
+
+// Active Response Execution — Phase 2: controlled, approval-gated, manually-driven
+Route::middleware(['auth', 'soc:response.view'])->group(function () {
+    Route::get('/active-response',                           [ActiveResponseController::class, 'dashboard'])->name('active-response.dashboard');
+    Route::get('/active-response/approval-queue',            [ActiveResponseController::class, 'approvalQueue'])->name('active-response.approval-queue');
+    Route::get('/active-response/rollback-center',           [ActiveResponseController::class, 'rollbackCenter'])->name('active-response.rollback-center');
+    Route::get('/active-response/audit',                     [ActiveResponseController::class, 'auditExplorer'])->name('active-response.audit-explorer');
+    Route::get('/active-response/{id}',                      [ActiveResponseController::class, 'show'])->name('active-response.show');
+    Route::get('/active-response/{id}/simulation',           [ActiveResponseController::class, 'simulationPreview'])->name('active-response.simulation-preview');
+    Route::get('/active-response/{id}/blast-radius',         [ActiveResponseController::class, 'blastRadiusView'])->name('active-response.blast-radius');
+    Route::get('/active-response/{id}/timeline',             [ActiveResponseController::class, 'executionTimeline'])->name('active-response.execution-timeline');
+});
+
+Route::middleware(['auth', 'soc:response.create'])->group(function () {
+    Route::post('/active-response',                          [ActiveResponseController::class, 'store'])->name('active-response.store');
+    Route::post('/active-response/{id}/submit',              [ActiveResponseController::class, 'submit'])->name('active-response.submit');
+    Route::post('/active-response/{id}/simulate',            [ActiveResponseController::class, 'simulate'])->name('active-response.simulate');
+    Route::post('/active-response/{id}/request-execution',   [ActiveResponseController::class, 'requestExecution'])->name('active-response.request-execution');
+    Route::post('/active-response/{id}/execute',             [ActiveResponseController::class, 'execute'])->name('active-response.execute');
+    Route::post('/active-response/{id}/initiate-rollback',   [ActiveResponseController::class, 'initiateRollback'])->name('active-response.initiate-rollback');
+    Route::post('/active-response/{id}/complete-rollback',   [ActiveResponseController::class, 'completeRollback'])->name('active-response.complete-rollback');
+    Route::post('/active-response/{id}/cancel',              [ActiveResponseController::class, 'cancel'])->name('active-response.cancel');
+});
+
+Route::middleware(['auth', 'soc:response.approve'])->group(function () {
+    Route::post('/active-response/{id}/approve',             [ActiveResponseController::class, 'approve'])->name('active-response.approve');
+    Route::post('/active-response/{id}/reject',              [ActiveResponseController::class, 'reject'])->name('active-response.reject');
+});
+
+Route::middleware(['auth', 'soc:response.view'])->prefix('api')->group(function () {
+    Route::get('/active-response/executions',            [ActiveResponseApiController::class, 'listExecutions'])->name('api.active-response.list');
+    Route::get('/active-response/executions/{id}',       [ActiveResponseApiController::class, 'getExecution'])->name('api.active-response.show');
+    Route::get('/active-response/pending-approvals',     [ActiveResponseApiController::class, 'getPendingApprovals'])->name('api.active-response.pending');
+    Route::get('/active-response/executions/{id}/simulation', [ActiveResponseApiController::class, 'getSimulation'])->name('api.active-response.simulation');
+    Route::get('/active-response/allowed-actions',       [ActiveResponseApiController::class, 'getAllowedActions'])->name('api.active-response.actions');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

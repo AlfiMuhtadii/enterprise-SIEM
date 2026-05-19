@@ -35,6 +35,10 @@ class EntityRiskScoringService
         'multi_stage_escalation'     => 2.5,
         'repeated_destination_reuse' => 1.5,
         'identity_endpoint_combined' => 3.0,
+        // Active response scoring — Phase 2
+        'response_blast_radius'      => 1.5,  // amplification: entity is a target with high blast radius
+        'response_rollback_impact'   => 1.0,  // rollback was needed — indicates significant threat
+        'response_execution_mitigation' => -2.0, // mitigation applied — lowers risk (negative contribution)
     ];
 
     // Score thresholds for level assignment
@@ -70,7 +74,8 @@ class EntityRiskScoringService
         $this->collectIncidentFactors($entity, $factors, $incidentIds, $traceIds);
         $this->collectTraceFrequency($entity, $factors, $traceIds);
         $this->collectRelationshipFactor($entity, $factors);
-        $this->collectCrossDomainFactors($entity, $factors); // advisory-only amplification
+        $this->collectCrossDomainFactors($entity, $factors);    // advisory-only amplification
+        $this->collectActiveResponseFactors($entity, $factors); // Phase 2 response scoring
 
         // Type-specific factors
         switch ($entity->entity_type) {
@@ -492,6 +497,39 @@ class EntityRiskScoringService
                     'identity_endpoint_combined', min($identityEndpointCount, 2), [], [], [], true
                 );
             }
+        }
+    }
+
+    /**
+     * Active response scoring factors — Phase 2.
+     * Checks response_executions for target entity involvement.
+     */
+    private function collectActiveResponseFactors(object $entity, array &$factors): void
+    {
+        $executions = DB::table('response_executions')
+            ->where('target_entity_key', $entity->entity_key)
+            ->get(['status', 'blast_radius_score', 'rollback_supported']);
+
+        if ($executions->isEmpty()) {
+            return;
+        }
+
+        // Amplification: entity targeted with high blast radius execution
+        $highBlast = $executions->where('blast_radius_score', '>=', 0.6)->count();
+        if ($highBlast > 0) {
+            $factors[] = $this->makeFactor('response_blast_radius', min($highBlast, 3), [], [], [], true);
+        }
+
+        // Rollback needed — indicates serious threat
+        $rollbacks = $executions->whereIn('status', ['rollback_ready', 'rolled_back'])->count();
+        if ($rollbacks > 0) {
+            $factors[] = $this->makeFactor('response_rollback_impact', min($rollbacks, 2), [], [], [], true);
+        }
+
+        // Mitigation applied — reduces risk (negative contribution via negative weight)
+        $mitigated = $executions->whereIn('status', ['executed', 'rolled_back'])->count();
+        if ($mitigated > 0) {
+            $factors[] = $this->makeFactor('response_execution_mitigation', min($mitigated, 2), [], [], [], true);
         }
     }
 

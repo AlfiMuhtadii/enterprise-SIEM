@@ -1,7 +1,7 @@
 # Validation Baselines
 
 Current pass criteria and expected outputs for all validation suites.
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 This is the authoritative source for test counts and threshold values.
 Update this file whenever a validation count changes (new tests, new rules).
@@ -14,7 +14,7 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan test
 ```
 
-**Expected:** `764 passed` — zero failures, zero skipped.
+**Expected:** `885 passed` — zero failures, zero skipped.
 If any test fails: **STOP**. Do not commit, demo, or proceed.
 
 Do NOT run parallel `php artisan test` processes against the same PostgreSQL test database.
@@ -27,9 +27,9 @@ Do NOT run parallel `php artisan test` processes against the same PostgreSQL tes
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 ```
 
-**Expected:** `95 tests, 0 failures`
+**Expected:** `104 tests, 0 failures`
 
-Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/net/tcp), buffer retry/recovery, signed heartbeat, health state thresholds, quality metrics, behavioral snapshot, command execution (safe types only), threat hunting integration.
+Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/net/tcp), buffer retry/recovery, signed heartbeat, health state thresholds, quality metrics, behavioral snapshot, command execution (safe types only), threat hunting integration, host isolation simulation (config-gated, disabled by default).
 
 ---
 
@@ -39,11 +39,11 @@ Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/ne
 python scripts/xdr_rule_registry_validate.py
 ```
 
-**Expected:** `status=PASS  rules=37  checks=21/21  failures=0`
+**Expected:** `status=PASS  rules=42  checks=21/21  failures=0`
 
 Current registry breakdown:
 - 12 `staged_active` — identity (6), cloud (5), SaaS (1)
-- 22 `shadow` — endpoint behavioral
+- 27 `shadow` — endpoint behavioral (22 base + 5 cross-domain)
 - 3 `shadow` — threat-intel/IOC
 
 Hard gate: endpoint + threat-intel rules are permanently blocked from `staged_active`. `ACTIVE_ALLOWLIST` is intentionally empty.

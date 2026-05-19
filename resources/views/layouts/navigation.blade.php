@@ -70,6 +70,11 @@
                             {{ __('Response') }}
                         </x-nav-link>
                     @endcan
+                    @can('soc:response.view')
+                        <x-nav-link :href="route('active-response.dashboard')" :active="request()->routeIs('active-response.*')">
+                            {{ __('Active Response') }}
+                        </x-nav-link>
+                    @endcan
                     @can('soc:report.view')
                         <x-nav-link :href="route('export.index')" :active="request()->routeIs('export.*')">
                             {{ __('Export') }}

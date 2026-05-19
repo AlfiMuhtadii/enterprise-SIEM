@@ -1411,5 +1411,73 @@ class TestThreatHuntingAgentSide(unittest.TestCase):
         self.assertEqual(names1, names2, "Process inventory must be deterministic")
 
 
+class TestHostIsolationSimulation(unittest.TestCase):
+    """Phase 2: Host isolation simulation — config-gated, disabled by default."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.cfg_disabled: dict = {"allow_host_isolation_simulation": False}
+        self.cfg_enabled: dict = {"allow_host_isolation_simulation": True}
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_disabled_by_default(self) -> None:
+        """Simulation returns disabled when config flag is absent."""
+        result = ag.simulate_host_isolation({}, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "disabled")
+
+    def test_disabled_when_config_false(self) -> None:
+        """Simulation returns disabled when flag explicitly false."""
+        result = ag.simulate_host_isolation(self.cfg_disabled, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "disabled")
+
+    def test_writes_marker_when_enabled(self) -> None:
+        """Simulation writes marker file and returns simulated status."""
+        result = ag.simulate_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "simulated")
+        marker = Path(self.tmp) / ag.HOST_ISOLATION_SIMULATION_MARKER
+        self.assertTrue(marker.exists(), "Marker file must be written on simulation")
+
+    def test_marker_contains_simulation_true(self) -> None:
+        """Marker file content must carry simulation=true and reversible=true."""
+        ag.simulate_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        marker = Path(self.tmp) / ag.HOST_ISOLATION_SIMULATION_MARKER
+        data = json.loads(marker.read_text())
+        self.assertTrue(data["simulation"])
+        self.assertTrue(data["reversible"])
+
+    def test_no_network_changes_in_simulation(self) -> None:
+        """Result must never claim network rules were applied."""
+        result = ag.simulate_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        note = result.get("note", "").lower()
+        self.assertNotIn("network rules", note)
+        self.assertNotIn("firewall", note)
+        self.assertIn("no network changes", note)
+
+    def test_rollback_removes_marker(self) -> None:
+        """Rollback removes marker file and returns rolled_back status."""
+        ag.simulate_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        result = ag.rollback_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "rolled_back")
+        marker = Path(self.tmp) / ag.HOST_ISOLATION_SIMULATION_MARKER
+        self.assertFalse(marker.exists(), "Marker must be removed after rollback")
+
+    def test_rollback_handles_missing_marker(self) -> None:
+        """Rollback when no marker present returns not_found, not an error."""
+        result = ag.rollback_host_isolation(self.cfg_enabled, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "not_found")
+
+    def test_rollback_disabled_by_config(self) -> None:
+        """Rollback is also gated by the same config flag."""
+        result = ag.rollback_host_isolation(self.cfg_disabled, marker_dir=self.tmp)
+        self.assertEqual(result["status"], "disabled")
+
+    def test_marker_name_constant(self) -> None:
+        """HOST_ISOLATION_SIMULATION_MARKER constant must be the expected file name."""
+        self.assertEqual(ag.HOST_ISOLATION_SIMULATION_MARKER, ".xdr_isolation_simulation")
+
+
 if __name__ == "__main__":
     unittest.main()

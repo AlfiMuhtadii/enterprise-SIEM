@@ -703,6 +703,71 @@ ALLOWED_COMMAND_TYPES: frozenset[str] = frozenset([
     "upload_health_snapshot",
 ])
 
+# ---------------------------------------------------------------------------
+# Phase 2: Host isolation simulation — config-gated, disabled by default.
+# Writes a local marker file ONLY. No actual network changes. No kernel hooks.
+# No persistence modifications. No stealth behavior.
+# Must be explicitly enabled via config: allow_host_isolation_simulation = true
+# ---------------------------------------------------------------------------
+
+HOST_ISOLATION_SIMULATION_MARKER: str = ".xdr_isolation_simulation"
+
+
+def simulate_host_isolation(
+    cfg: dict[str, Any],
+    marker_dir: str = ".",
+) -> dict[str, Any]:
+    """
+    Simulation-only host isolation — writes a local marker file.
+    Does NOT change network rules, firewall, or kernel state.
+    Requires allow_host_isolation_simulation=true in config (default: false).
+    Lab-scope only. Reversible via rollback_host_isolation().
+    """
+    if not cfg.get("allow_host_isolation_simulation", False):
+        return {"status": "disabled", "message": "Host isolation simulation is disabled by config (allow_host_isolation_simulation=false)"}
+
+    marker_path = Path(marker_dir) / HOST_ISOLATION_SIMULATION_MARKER
+    try:
+        marker_path.write_text(
+            json.dumps({
+                "simulation": True,
+                "isolated_at": time.time(),
+                "note": "Simulation marker only — no actual network isolation applied.",
+                "reversible": True,
+            }),
+            encoding="utf-8",
+        )
+        return {
+            "status": "simulated",
+            "marker_path": str(marker_path),
+            "simulation": True,
+            "reversible": True,
+            "note": "Simulation marker written. No network changes made.",
+        }
+    except OSError as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+def rollback_host_isolation(
+    cfg: dict[str, Any],
+    marker_dir: str = ".",
+) -> dict[str, Any]:
+    """
+    Remove the simulation isolation marker. No other side effects.
+    Requires allow_host_isolation_simulation=true in config.
+    """
+    if not cfg.get("allow_host_isolation_simulation", False):
+        return {"status": "disabled", "message": "Host isolation simulation is disabled by config"}
+
+    marker_path = Path(marker_dir) / HOST_ISOLATION_SIMULATION_MARKER
+    if not marker_path.exists():
+        return {"status": "not_found", "message": "No isolation marker found — already rolled back or never simulated"}
+    try:
+        marker_path.unlink()
+        return {"status": "rolled_back", "simulation": True, "note": "Simulation marker removed."}
+    except OSError as exc:
+        return {"status": "error", "message": str(exc)}
+
 # Explicitly listed so tests can assert these are never executed.
 FORBIDDEN_COMMAND_TYPES: frozenset[str] = frozenset([
     "isolate_host",
