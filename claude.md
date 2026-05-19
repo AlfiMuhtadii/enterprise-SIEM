@@ -112,7 +112,11 @@ Academic scope is stable and defensible as of 2026-05-18. The platform continues
 identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
 Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
 Threat-intel/IOC correlation, DNS, proxy, firewall: shadow-only, cutover not approved.
-Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations.
+Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 18 supported domains.
+
+SOC Collaboration & Analyst Workflow: escalation routing, SLA tracking, watchlists, shift handoffs, analyst queue, investigation sharing — all analyst-driven, no autonomous SOC operations.
+
+Enterprise Integrations: inbound IdP events (Okta, Azure AD), SaaS audit logs (Office 365, GSuite), ticketing case links (Jira, ServiceNow), notification dispatch (Slack, PagerDuty) — advisory-only, no account suspension, no autonomous ticket closure, simulated delivery by default.
 
 Academic positioning: `docs/thesis/THESIS_POSITIONING.md`
 Defense preparation: `docs/thesis/DEFENSE_PREPARATION.md`
@@ -179,15 +183,16 @@ For module routes, RBAC details, and subsystem docs: `docs/architecture/FEATURE_
 
 # Detection Rule Registry
 
-Registry: `docs/detection/rules/registry.v1.json` — **42 rules total** (current).
+Registry: `docs/detection/rules/registry.v1.json` — **56 rules total** (current).
 
 | Category | Count |
 |---|---|
 | staged_active (identity/cloud/SaaS) | 12 |
-| shadow (endpoint behavioral) | 27 |
+| shadow (endpoint behavioral + streaming) | 32 |
+| shadow (network: DNS/proxy/firewall) | 9 |
 | shadow (threat-intel/IOC) | 3 |
 
-Hard gate: endpoint and threat-intel rules can **NEVER** be promoted to `staged_active` without a domain-specific 6h soak PASS. `ACTIVE_ALLOWLIST` is intentionally empty.
+Hard gate: endpoint, network, and threat-intel rules can **NEVER** be promoted to `staged_active` without a domain-specific 6h soak PASS. `ACTIVE_ALLOWLIST` is intentionally empty.
 
 Validator: `python scripts/xdr_rule_registry_validate.py` (21 checks, exit 0=PASS, 1=FAIL, 2=ERROR)
 
@@ -252,7 +257,7 @@ Current active alert domains: identity, cloud, SaaS
 Current shadow/advisory domains:
 - **Endpoint behavioral analytics, orchestration, and retrospective threat hunting** — advisory-only, non-destructive, no active containment, no autonomous response
 - **Threat-intel/IOC** — shadow-only
-- **DNS, proxy, firewall** — shadow-only (no analytics layer implemented)
+- **DNS, proxy, firewall** — shadow-only analytics (15 detectors implemented, advisory-only, no blocking)
 
 **Do NOT expand active cutover beyond identity/cloud/SaaS.**
 
@@ -286,7 +291,7 @@ Current: **126 tests**, all green.
 python scripts/xdr_rule_registry_validate.py
 ```
 
-Current: **42 rules**, 21/21 checks PASS.
+Current: **56 rules**, 21/21 checks PASS.
 
 ## Contract Validation
 
@@ -417,7 +422,7 @@ Do NOT:
 * remove `proc_root` / `proc_net_tcp` test-override kwargs from endpoint agent collectors
 * add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
 * mark response plan as `completed_documented` without analyst explicit action
-* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`, `integration_sync_events`, `external_case_links`, `notification_events`, `notification_deliveries`, `saas_audit_events`, `identity_provider_events`
+* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`, `integration_sync_events`, `external_case_links`, `notification_events`, `notification_deliveries`, `saas_audit_events`, `identity_provider_events`, `baseline_observations`, `baseline_anomaly_scores`
 * push firewall rules, block IPs/domains, or perform DPI inspection — DNS/proxy/firewall are shadow-only advisory analytics
 * promote `network` domain rules to `staged_active` without a domain-specific 6h soak PASS
 * bypass `InternalServiceAuthMiddleware` on `/api/internal/*` routes

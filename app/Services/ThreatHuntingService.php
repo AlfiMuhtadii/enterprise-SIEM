@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\BaselineAnomalyScore;
+use App\Models\BaselineObservation;
 use App\Models\EndpointAgent;
 use App\Models\EndpointBeaconPattern;
 use App\Models\EndpointBehavioralFinding;
@@ -10,7 +12,9 @@ use App\Models\EndpointNetworkCorrelation;
 use App\Models\EndpointPersistenceItem;
 use App\Models\EndpointProcessEntry;
 use App\Models\Entity;
+use App\Models\EntityBehaviorBaseline;
 use App\Models\EntityRelationship;
+use App\Models\PeerGroupProfile;
 use App\Models\SecurityAlert;
 use App\Models\ThreatHunt;
 use App\Models\ThreatHuntQuery;
@@ -56,6 +60,10 @@ class ThreatHuntingService
         'saas_audit_events',
         'notification_events',
         'external_case_links',
+        // UEBA Phase 1 — behavioral baseline analytics domains
+        'entity_behavior_baselines',
+        'baseline_anomaly_scores',
+        'peer_group_profiles',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -221,6 +229,37 @@ class ThreatHuntingService
             'auto_closed'        => ['='],
             'trace_id'           => ['='],
         ],
+        // UEBA Phase 1 domains
+        'entity_behavior_baselines' => [
+            'entity_key'      => ['=', 'contains'],
+            'entity_type'     => ['='],
+            'dimension'       => ['='],
+            'baseline_mean'   => ['>=', '<='],
+            'baseline_stddev' => ['>='],
+            'sample_count'    => ['>=', '<='],
+            'peer_group_key'  => ['='],
+            'advisory_only'   => ['='],
+        ],
+        'baseline_anomaly_scores' => [
+            'entity_key'         => ['=', 'contains'],
+            'entity_type'        => ['='],
+            'anomaly_type'       => ['='],
+            'dimension'          => ['='],
+            'z_score'            => ['>=', '<='],
+            'percentile_rank'    => ['>=', '<='],
+            'confidence'         => ['>='],
+            'scoring_method'     => ['='],
+            'peer_group_key'     => ['='],
+            'is_advisory'        => ['='],
+            'trace_ids'          => ['contains'],
+        ],
+        'peer_group_profiles' => [
+            'peer_group_key' => ['=', 'contains'],
+            'group_type'     => ['='],
+            'group_label'    => ['=', 'contains'],
+            'entity_count'   => ['>=', '<='],
+            'advisory_only'  => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -242,6 +281,10 @@ class ThreatHuntingService
         'saas_audit_events'           => \App\Models\SaasAuditEvent::class,
         'notification_events'         => \App\Models\NotificationEvent::class,
         'external_case_links'         => \App\Models\ExternalCaseLink::class,
+        // UEBA Phase 1
+        'entity_behavior_baselines'   => EntityBehaviorBaseline::class,
+        'baseline_anomaly_scores'     => BaselineAnomalyScore::class,
+        'peer_group_profiles'         => PeerGroupProfile::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -263,6 +306,10 @@ class ThreatHuntingService
         'saas_audit_events'           => 'occurred_at',
         'notification_events'         => 'created_at',
         'external_case_links'         => 'created_at',
+        // UEBA Phase 1
+        'entity_behavior_baselines'   => 'computed_at',
+        'baseline_anomaly_scores'     => 'scored_at',
+        'peer_group_profiles'         => 'computed_at',
     ];
 
     // -----------------------------------------------------------------------

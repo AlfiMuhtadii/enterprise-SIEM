@@ -1,0 +1,300 @@
+{
+  "title": "UEBA — Behavioral Baseline Analytics",
+  "uid": "ueba-baseline-v1",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "5m",
+  "tags": ["ueba", "behavioral-analytics", "advisory-only"],
+  "description": "UEBA Phase 1: Behavioral baseline analytics. All panels are advisory-only. No automated enforcement actions.",
+  "annotations": {
+    "list": [
+      {
+        "name": "Advisory Only",
+        "datasource": "Prometheus",
+        "enable": true,
+        "iconColor": "blue",
+        "showIn": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Advisory Disclaimer",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Advisory Notice:** Behavioral analytics are advisory-only and explainable. No automatic enforcement is executed. All anomaly scores are investigation aids only."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Behavioral Baselines",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 10 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT count(*) AS value FROM entity_behavior_baselines",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Anomalies (Last 7d)",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT count(*) AS value FROM baseline_anomaly_scores WHERE scored_at >= NOW() - INTERVAL '7 days'",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "High Confidence Anomalies (≥75%)",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT count(*) AS value FROM baseline_anomaly_scores WHERE scored_at >= NOW() - INTERVAL '7 days' AND confidence >= 0.75",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Peer Groups",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT count(*) AS value FROM peer_group_profiles",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Entities with Baselines",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT count(DISTINCT entity_key) AS value FROM entity_behavior_baselines",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Anomaly Volume Over Time",
+      "description": "Count of advisory-only anomaly scores per hour. No enforcement action is triggered.",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT date_trunc('hour', scored_at) AS time, count(*) AS value FROM baseline_anomaly_scores WHERE scored_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Anomalies by Type (Last 7d)",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT anomaly_type AS metric, count(*) AS value FROM baseline_anomaly_scores WHERE scored_at >= NOW() - INTERVAL '7 days' GROUP BY anomaly_type ORDER BY value DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Top Anomalous Users (Advisory)",
+      "description": "Users with most anomaly scores in last 7 days. Advisory-only — no automated action.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT entity_key, count(*) AS anomaly_count, round(max(confidence)::numeric, 2) AS max_confidence, max(scored_at) AS last_anomaly FROM baseline_anomaly_scores WHERE entity_type = 'user' AND scored_at >= NOW() - INTERVAL '7 days' GROUP BY entity_key ORDER BY anomaly_count DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Top Anomalous Hosts (Advisory)",
+      "description": "Hosts with most anomaly scores in last 7 days. Advisory-only — no automated action.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } }
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT entity_key, count(*) AS anomaly_count, round(max(confidence)::numeric, 2) AS max_confidence, max(scored_at) AS last_anomaly FROM baseline_anomaly_scores WHERE entity_type = 'host' AND scored_at >= NOW() - INTERVAL '7 days' GROUP BY entity_key ORDER BY anomaly_count DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Abnormal Data Volume (bytes_out anomalies)",
+      "description": "Outbound data volume anomalies over time. Advisory-only — no blocking or enforcement.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT date_trunc('hour', scored_at) AS time, count(*) AS value FROM baseline_anomaly_scores WHERE anomaly_type = 'abnormal_bytes_out' AND scored_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Peer Group Deviation Trend",
+      "description": "Entities deviating from their peer group over time. Advisory-only — no automated enforcement.",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT date_trunc('hour', scored_at) AS time, count(*) AS value FROM baseline_anomaly_scores WHERE anomaly_type = 'peer_group_behavior_deviation' AND scored_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Baseline Drift — High Variance Dimensions",
+      "description": "Baseline dimensions with highest standard deviation — investigation candidates.",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 29 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT entity_key, entity_type, dimension, round(baseline_mean::numeric, 3) AS mean, round(baseline_stddev::numeric, 3) AS stddev, sample_count, peer_group_key FROM entity_behavior_baselines WHERE baseline_stddev > 0 ORDER BY baseline_stddev DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "piechart",
+      "title": "UEBA Risk Contribution by Factor",
+      "description": "Distribution of UEBA risk factor contributions. Advisory amplification only — no autonomous enforcement.",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 36 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT CASE anomaly_type WHEN 'abnormal_bytes_out' THEN 'abnormal_data_volume_factor' WHEN 'unusual_login_time' THEN 'unusual_activity_time_factor' WHEN 'peer_group_behavior_deviation' THEN 'peer_deviation_factor' ELSE 'baseline_anomaly_factor' END AS factor, count(*) AS value FROM baseline_anomaly_scores WHERE confidence >= 0.75 AND scored_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 2 DESC",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Peer Groups with Outlier Members",
+      "gridPos": { "h": 7, "w": 16, "x": 8, "y": 36 },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT p.peer_group_key, p.group_label, p.group_type, p.entity_count, count(s.id) AS recent_deviations FROM peer_group_profiles p LEFT JOIN baseline_anomaly_scores s ON s.peer_group_key = p.peer_group_key AND s.scored_at >= NOW() - INTERVAL '7 days' GROUP BY p.id ORDER BY recent_deviations DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    }
+  ],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "links": [
+    {
+      "title": "UEBA Dashboard (SOC)",
+      "url": "/ueba",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": true
+    }
+  ]
+}

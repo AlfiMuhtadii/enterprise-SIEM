@@ -1,8 +1,8 @@
 {
   "tool": "xdr_resilience_validate",
   "version": "1.0.0",
-  "started_at": "2026-05-19T08:39:10.361471+00:00",
-  "completed_at": "2026-05-19T08:39:10.405475+00:00",
+  "started_at": "2026-05-19T16:54:45.757750+00:00",
+  "completed_at": "2026-05-19T16:54:45.804887+00:00",
   "scenarios_run": 8,
   "passed": 8,
   "failed": 0,
@@ -34,7 +34,7 @@
       "dry_run_capable": true,
       "passed": true,
       "duration_seconds": 0.023,
-      "validated_at": "2026-05-19T08:39:10.384874+00:00"
+      "validated_at": "2026-05-19T16:54:45.781170+00:00"
     },
     {
       "scenario": "consumer_reconnect",
@@ -45,8 +45,8 @@
       "reconnect_loop_design": "consumeLoop() auto-restarts on any poll error",
       "no_data_loss_design": "Redpanda retains messages for consumer groups",
       "passed": true,
-      "duration_seconds": 0.012,
-      "validated_at": "2026-05-19T08:39:10.397053+00:00"
+      "duration_seconds": 0.002,
+      "validated_at": "2026-05-19T16:54:45.783120+00:00"
     },
     {
       "scenario": "backpressure_accumulation",
@@ -57,7 +57,7 @@
       "rate_limiter": "Token-bucket rate limiter in ingestion-gateway",
       "passed": true,
       "duration_seconds": 0.001,
-      "validated_at": "2026-05-19T08:39:10.398416+00:00"
+      "validated_at": "2026-05-19T16:54:45.784480+00:00"
     },
     {
       "scenario": "dlq_replay_recovery",
@@ -66,8 +66,8 @@
       "dlq_structure_valid": true,
       "replay_safe_design": "ON CONFLICT DO NOTHING in xdr_operational_events",
       "passed": true,
-      "duration_seconds": 0.004,
-      "validated_at": "2026-05-19T08:39:10.401974+00:00"
+      "duration_seconds": 0.016,
+      "validated_at": "2026-05-19T16:54:45.800935+00:00"
     },
     {
       "scenario": "signature_verification_failure",
@@ -75,7 +75,7 @@
       "note": "Pass --run-active to execute fault injection",
       "passed": true,
       "duration_seconds": 0.0,
-      "validated_at": "2026-05-19T08:39:10.402000+00:00"
+      "validated_at": "2026-05-19T16:54:45.800970+00:00"
     },
     {
       "scenario": "invalid_auth_token",
@@ -83,7 +83,7 @@
       "note": "Pass --run-active to execute fault injection",
       "passed": true,
       "duration_seconds": 0.0,
-      "validated_at": "2026-05-19T08:39:10.402010+00:00"
+      "validated_at": "2026-05-19T16:54:45.800979+00:00"
     },
     {
       "scenario": "endpoint_ingestion_interrupt",
@@ -98,7 +98,7 @@
       ],
       "passed": true,
       "duration_seconds": 0.002,
-      "validated_at": "2026-05-19T08:39:10.403833+00:00"
+      "validated_at": "2026-05-19T16:54:45.802922+00:00"
     },
     {
       "scenario": "replay_under_degraded_state",
@@ -108,7 +108,7 @@
       "deterministic": "Same event_id \u2192 same outcome regardless of restart count",
       "passed": true,
       "duration_seconds": 0.002,
-      "validated_at": "2026-05-19T08:39:10.405457+00:00"
+      "validated_at": "2026-05-19T16:54:45.804862+00:00"
     }
   ]
 }

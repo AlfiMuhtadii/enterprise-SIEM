@@ -64,6 +64,8 @@ use App\Http\Controllers\Soc\SocWorkflowController;
 use App\Http\Controllers\Api\SocWorkflowApiController;
 use App\Http\Controllers\Integration\EnterpriseIntegrationController;
 use App\Http\Controllers\Api\EnterpriseIntegrationApiController;
+use App\Http\Controllers\UEBA\UEBAController;
+use App\Http\Controllers\Api\UEBAApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -670,6 +672,29 @@ Route::middleware(['auth', 'soc:investigation.view'])->prefix('api/integrations'
 
     Route::post('/{integration}/ingest-idp',           [EnterpriseIntegrationApiController::class, 'ingestIdpEvents'])->name('api.integrations.ingest-idp');
     Route::post('/{integration}/ingest-saas',          [EnterpriseIntegrationApiController::class, 'ingestSaasEvents'])->name('api.integrations.ingest-saas');
+});
+
+// UEBA Phase 1 — Behavioral Baseline Analytics
+// Advisory-only. No automated enforcement, no account suspension, no host isolation.
+Route::middleware(['auth', 'soc:entity.view'])->prefix('ueba')->group(function () {
+    Route::get('/',              [UEBAController::class, 'dashboard'])->name('ueba.dashboard');
+    Route::get('/baseline',      [UEBAController::class, 'baselineProfile'])->name('ueba.baseline-profile');
+    Route::get('/anomalies',     [UEBAController::class, 'anomalyExplorer'])->name('ueba.anomaly-explorer');
+    Route::get('/peer-groups',   [UEBAController::class, 'peerGroupComparison'])->name('ueba.peer-groups');
+    Route::get('/history',       [UEBAController::class, 'entityBaselineHistory'])->name('ueba.entity-history');
+    Route::get('/drift',         [UEBAController::class, 'baselineDriftMonitor'])->name('ueba.drift-monitor');
+    Route::get('/risk',          [UEBAController::class, 'riskContribution'])->name('ueba.risk-contribution');
+});
+
+Route::middleware(['auth', 'soc:entity.view', 'throttle:soc-api'])->prefix('api/ueba')->group(function () {
+    Route::get('/profile',              [UEBAApiController::class, 'baselineProfile'])->name('api.ueba.profile');
+    Route::get('/anomaly-scores',       [UEBAApiController::class, 'anomalyScores'])->name('api.ueba.scores');
+    Route::get('/peer-group/{key}',     [UEBAApiController::class, 'peerGroupProfile'])->name('api.ueba.peer-group');
+    Route::get('/top-anomalous',        [UEBAApiController::class, 'topAnomalous'])->name('api.ueba.top');
+    Route::get('/drift',                [UEBAApiController::class, 'driftSummary'])->name('api.ueba.drift');
+    Route::get('/volume-trend',         [UEBAApiController::class, 'anomalyVolumeTrend'])->name('api.ueba.trend');
+    Route::post('/detect',              [UEBAApiController::class, 'detectAnomalies'])->name('api.ueba.detect');
+    Route::post('/compute-baseline',    [UEBAApiController::class, 'computeBaseline'])->name('api.ueba.compute');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

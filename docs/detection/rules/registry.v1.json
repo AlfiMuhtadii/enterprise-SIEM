@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "registry_version": "v1",
-  "generated_at": "2026-05-19T00:00:00Z",
+  "generated_at": "2026-05-19T12:00:00Z",
   "rules": [
     {
       "rule_id": "IDENTITY_MFA_FAILURE_BURST",
@@ -1499,9 +1499,19 @@
       "description": "Detects three or more shell execution events from the same host within a single streaming batch. Indicates potential interactive attacker activity or automated shell chaining. Advisory-only streaming shadow rule.",
       "severity": "high",
       "confidence": 0.78,
-      "mitre_attack": ["T1059", "T1059.004"],
-      "event_types": ["process_started", "shell_execution_detected"],
-      "required_fields": ["event_type", "host_id", "process_name"],
+      "mitre_attack": [
+        "T1059",
+        "T1059.004"
+      ],
+      "event_types": [
+        "process_started",
+        "shell_execution_detected"
+      ],
+      "required_fields": [
+        "event_type",
+        "host_id",
+        "process_name"
+      ],
       "output_topic": "xdr.alerts.shadow.endpoint",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1522,10 +1532,20 @@
       "title": "Rapid Persistence Creation Detected in Streaming Telemetry",
       "description": "Detects three or more persistence item creation or modification events from the same host within a single streaming batch. Indicates potential persistence installation activity. Advisory-only streaming shadow rule.",
       "severity": "high",
-      "confidence": 0.80,
-      "mitre_attack": ["T1547", "T1053", "T1543"],
-      "event_types": ["persistence_item_created", "persistence_item_modified"],
-      "required_fields": ["event_type", "host_id"],
+      "confidence": 0.8,
+      "mitre_attack": [
+        "T1547",
+        "T1053",
+        "T1543"
+      ],
+      "event_types": [
+        "persistence_item_created",
+        "persistence_item_modified"
+      ],
+      "required_fields": [
+        "event_type",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.endpoint",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1546,10 +1566,20 @@
       "title": "Burst Outbound Connection Activity Detected in Streaming Telemetry",
       "description": "Detects ten or more outbound connection events from the same host within a single streaming batch. Indicates potential data exfiltration, C2 beaconing, or scanning activity. Advisory-only streaming shadow rule.",
       "severity": "medium",
-      "confidence": 0.70,
-      "mitre_attack": ["T1041", "T1071", "T1046"],
-      "event_types": ["outbound_connection_opened"],
-      "required_fields": ["event_type", "host_id", "connection_dest"],
+      "confidence": 0.7,
+      "mitre_attack": [
+        "T1041",
+        "T1071",
+        "T1046"
+      ],
+      "event_types": [
+        "outbound_connection_opened"
+      ],
+      "required_fields": [
+        "event_type",
+        "host_id",
+        "connection_dest"
+      ],
       "output_topic": "xdr.alerts.shadow.endpoint",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1571,9 +1601,21 @@
       "description": "Detects a suspicious process that starts and terminates within the same streaming batch window. Indicates potential command-and-control callback or recon tool use. Advisory-only streaming shadow rule.",
       "severity": "medium",
       "confidence": 0.72,
-      "mitre_attack": ["T1059", "T1021", "T1105"],
-      "event_types": ["process_started", "process_terminated"],
-      "required_fields": ["event_type", "host_id", "process_name", "process_pid"],
+      "mitre_attack": [
+        "T1059",
+        "T1021",
+        "T1105"
+      ],
+      "event_types": [
+        "process_started",
+        "process_terminated"
+      ],
+      "required_fields": [
+        "event_type",
+        "host_id",
+        "process_name",
+        "process_pid"
+      ],
       "output_topic": "xdr.alerts.shadow.endpoint",
       "shadow_only": true,
       "suppression_key": "rule_id|host|process_name",
@@ -1595,9 +1637,19 @@
       "description": "Detects four or more process_started events for the same process name from the same host within a single streaming batch. Consistent execution count suggests automated beaconing behaviour. Advisory-only streaming shadow rule.",
       "severity": "medium",
       "confidence": 0.68,
-      "mitre_attack": ["T1071", "T1059", "T1053"],
-      "event_types": ["process_started"],
-      "required_fields": ["event_type", "host_id", "process_name"],
+      "mitre_attack": [
+        "T1071",
+        "T1059",
+        "T1053"
+      ],
+      "event_types": [
+        "process_started"
+      ],
+      "required_fields": [
+        "event_type",
+        "host_id",
+        "process_name"
+      ],
       "output_topic": "xdr.alerts.shadow.endpoint",
       "shadow_only": true,
       "suppression_key": "rule_id|host|process_name",
@@ -1619,9 +1671,18 @@
       "description": "Detects DNS queries to known suspicious or high-risk top-level domains. Advisory-only network shadow rule. No active blocking.",
       "severity": "medium",
       "confidence": 0.72,
-      "mitre_attack": ["T1071.004", "T1568"],
-      "event_types": ["dns_query"],
-      "required_fields": ["telemetry_type", "queried_domain", "host_id"],
+      "mitre_attack": [
+        "T1071.004",
+        "T1568"
+      ],
+      "event_types": [
+        "dns_query"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "queried_domain",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host|tld",
@@ -1643,9 +1704,18 @@
       "description": "Detects multiple DNS TXT record queries from the same host in a correlation window. TXT queries are commonly abused for DNS tunneling C2 communication. Advisory-only.",
       "severity": "medium",
       "confidence": 0.68,
-      "mitre_attack": ["T1071.004", "T1048.001"],
-      "event_types": ["dns_query"],
-      "required_fields": ["telemetry_type", "query_type", "host_id"],
+      "mitre_attack": [
+        "T1071.004",
+        "T1048.001"
+      ],
+      "event_types": [
+        "dns_query"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "query_type",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1667,9 +1737,18 @@
       "description": "Detects five or more NXDOMAIN responses to a single host in a correlation window. May indicate DGA domain generation activity or DNS-based command-and-control. Advisory-only.",
       "severity": "medium",
       "confidence": 0.74,
-      "mitre_attack": ["T1568.002", "T1071.004"],
-      "event_types": ["dns_query"],
-      "required_fields": ["telemetry_type", "response_code", "host_id"],
+      "mitre_attack": [
+        "T1568.002",
+        "T1071.004"
+      ],
+      "event_types": [
+        "dns_query"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "response_code",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1690,10 +1769,19 @@
       "title": "Suspicious Proxy User-Agent Detected",
       "description": "Detects known tool or scanner user-agent strings in proxy telemetry. May indicate automated tooling, scanning, or malware. Advisory-only.",
       "severity": "high",
-      "confidence": 0.80,
-      "mitre_attack": ["T1071.001", "T1046"],
-      "event_types": ["proxy_request"],
-      "required_fields": ["telemetry_type", "user_agent", "host_id"],
+      "confidence": 0.8,
+      "mitre_attack": [
+        "T1071.001",
+        "T1046"
+      ],
+      "event_types": [
+        "proxy_request"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "user_agent",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host|ua_pattern",
@@ -1715,9 +1803,18 @@
       "description": "Detects hosts transferring more than 50 MiB outbound via proxy in a correlation window. May indicate data exfiltration. Advisory-only.",
       "severity": "high",
       "confidence": 0.76,
-      "mitre_attack": ["T1041", "T1030"],
-      "event_types": ["proxy_request"],
-      "required_fields": ["telemetry_type", "bytes_out", "host_id"],
+      "mitre_attack": [
+        "T1041",
+        "T1030"
+      ],
+      "event_types": [
+        "proxy_request"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "bytes_out",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1738,10 +1835,19 @@
       "title": "Repeated Denied Outbound Firewall Flows",
       "description": "Detects five or more denied outbound firewall flows from the same host in a correlation window. May indicate malware attempting blocked connections. Advisory-only.",
       "severity": "high",
-      "confidence": 0.80,
-      "mitre_attack": ["T1071", "T1043"],
-      "event_types": ["firewall_flow"],
-      "required_fields": ["telemetry_type", "action", "host_id"],
+      "confidence": 0.8,
+      "mitre_attack": [
+        "T1071",
+        "T1043"
+      ],
+      "event_types": [
+        "firewall_flow"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "action",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host",
@@ -1763,9 +1869,19 @@
       "description": "Detects outbound connections to known attack framework or backdoor ports (4444, 1337, 31337, etc.). Advisory-only.",
       "severity": "high",
       "confidence": 0.82,
-      "mitre_attack": ["T1071", "T1043", "T1095"],
-      "event_types": ["firewall_flow"],
-      "required_fields": ["telemetry_type", "destination_port", "host_id"],
+      "mitre_attack": [
+        "T1071",
+        "T1043",
+        "T1095"
+      ],
+      "event_types": [
+        "firewall_flow"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "destination_port",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host|port",
@@ -1787,9 +1903,18 @@
       "description": "Detects outbound connections to external IP addresses that are rare or first-seen in the environment. Advisory-only.",
       "severity": "medium",
       "confidence": 0.65,
-      "mitre_attack": ["T1071", "T1041"],
-      "event_types": ["firewall_flow"],
-      "required_fields": ["telemetry_type", "destination_ip", "host_id"],
+      "mitre_attack": [
+        "T1071",
+        "T1041"
+      ],
+      "event_types": [
+        "firewall_flow"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "destination_ip",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host|destination",
@@ -1811,9 +1936,19 @@
       "description": "Detects a destination IP that was first denied then allowed in the same correlation window. May indicate firewall policy bypass or allow-rule manipulation. Advisory-only.",
       "severity": "high",
       "confidence": 0.85,
-      "mitre_attack": ["T1562.004", "T1071"],
-      "event_types": ["firewall_flow"],
-      "required_fields": ["telemetry_type", "action", "destination_ip", "host_id"],
+      "mitre_attack": [
+        "T1562.004",
+        "T1071"
+      ],
+      "event_types": [
+        "firewall_flow"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "action",
+        "destination_ip",
+        "host_id"
+      ],
       "output_topic": "xdr.alerts.shadow.network",
       "shadow_only": true,
       "suppression_key": "rule_id|host|destination",
@@ -1821,6 +1956,320 @@
       "expected_alert_count": null,
       "false_positive_notes": "Dynamic firewall rule updates during normal operations; application retry logic.",
       "suppression_guidance": "Suppress for destinations with documented dynamic allow-list management.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_UNUSUAL_LOGIN_TIME",
+      "domain": "identity",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Unusual Login Time (UEBA Baseline)",
+      "description": "Detects login activity outside the entity baseline active-hours window. Uses rolling 30-day behavioral baseline and robust z-score scoring. Advisory-only \u2014 no automated account action.",
+      "severity": "medium",
+      "confidence": 0.7,
+      "mitre_attack": [
+        "T1078",
+        "T1078.004"
+      ],
+      "event_types": [
+        "login_success",
+        "login_failed"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "user",
+        "occurred_at"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key|dimension",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Shift workers, employees traveling across time zones, legitimate after-hours access.",
+      "suppression_guidance": "Suppress for entities with documented irregular schedules or global team membership.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_UNUSUAL_SOURCE_IP_DIVERSITY",
+      "domain": "identity",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Unusual Source IP Diversity (UEBA Baseline)",
+      "description": "Detects an entity authenticating from significantly more distinct source IPs than their 30-day behavioral baseline. Indicates potential credential sharing or compromised account usage across multiple locations. Advisory-only.",
+      "severity": "medium",
+      "confidence": 0.68,
+      "mitre_attack": [
+        "T1078",
+        "T1110"
+      ],
+      "event_types": [
+        "login_success"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "user",
+        "source_ip"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "VPN users, mobile workforce, users traveling between offices, DHCP rotation on large networks.",
+      "suppression_guidance": "Suppress for entities known to operate across many locations or use rotating VPN exit nodes.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_ABNORMAL_FAILED_LOGIN_RATIO",
+      "domain": "identity",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Abnormal Failed Login Ratio (UEBA Baseline)",
+      "description": "Detects an entity whose failed-login ratio in the current window significantly exceeds their 30-day behavioral baseline. Scored using robust z-score. Advisory-only \u2014 no automated lockout.",
+      "severity": "high",
+      "confidence": 0.75,
+      "mitre_attack": [
+        "T1110",
+        "T1110.001"
+      ],
+      "event_types": [
+        "login_failed",
+        "mfa_failed"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "user",
+        "result"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Password rotation events, new employee onboarding, SSO migration periods.",
+      "suppression_guidance": "Suppress during documented password reset campaigns or SSO cutover windows.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_UNUSUAL_SAAS_ACTION_FREQUENCY",
+      "domain": "saas",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Unusual SaaS Action Frequency (UEBA Baseline)",
+      "description": "Detects an entity performing SaaS API or admin actions at a rate significantly above their 30-day behavioral baseline. May indicate automated abuse, compromised token usage, or bulk data operations. Advisory-only.",
+      "severity": "medium",
+      "confidence": 0.67,
+      "mitre_attack": [
+        "T1530",
+        "T1078.004"
+      ],
+      "event_types": [
+        "api_request"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "action",
+        "actor_email",
+        "provider"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key|provider",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Scripted migrations, bulk export jobs, admin automation, new SaaS feature adoption.",
+      "suppression_guidance": "Suppress for service accounts with documented automation workloads or during bulk migration windows.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_UNUSUAL_PROCESS_EXECUTION_FREQUENCY",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Unusual Process Execution Frequency (UEBA Baseline)",
+      "description": "Detects a host executing processes at a rate significantly above or below its 30-day behavioral baseline. High frequency may indicate scripted activity or malware; low frequency may indicate a dormant host suddenly activated. Advisory-only.",
+      "severity": "medium",
+      "confidence": 0.65,
+      "mitre_attack": [
+        "T1059",
+        "T1204"
+      ],
+      "event_types": [
+        "process_start"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "host_id",
+        "process_name"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Patch management, scheduled software updates, large build pipelines, CI/CD runners.",
+      "suppression_guidance": "Suppress for known build/CI hosts or during documented patch windows.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_ABNORMAL_NETWORK_DESTINATION_FREQUENCY",
+      "domain": "network",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Abnormal Network Destination Frequency (UEBA Baseline)",
+      "description": "Detects a host contacting significantly more distinct network destinations than its 30-day behavioral baseline. High destination diversity may indicate C2 scanning, beaconing, or lateral movement preparation. Advisory-only.",
+      "severity": "high",
+      "confidence": 0.72,
+      "mitre_attack": [
+        "T1071",
+        "T1046",
+        "T1018"
+      ],
+      "event_types": [
+        "network_connection",
+        "firewall_flow"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "host_id",
+        "destination_ip"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Scheduled network scanners, monitoring agents, CDN-backed applications with many destinations, update services.",
+      "suppression_guidance": "Suppress for known monitoring infrastructure or documented wide-reach application servers.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_ABNORMAL_BYTES_OUT",
+      "domain": "network",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Abnormal Outbound Data Volume (UEBA Baseline)",
+      "description": "Detects a host transmitting outbound data significantly above its 30-day bytes-out behavioral baseline. May indicate data exfiltration, bulk upload, or compromised host. Scored using robust z-score. Advisory-only.",
+      "severity": "high",
+      "confidence": 0.73,
+      "mitre_attack": [
+        "T1048",
+        "T1041",
+        "T1567"
+      ],
+      "event_types": [
+        "network_connection",
+        "proxy_request"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "host_id",
+        "bytes_out"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Backup jobs, bulk cloud uploads, video conferencing, OS/application update downloads.",
+      "suppression_guidance": "Suppress for hosts running documented backup or bulk upload workloads during known maintenance windows.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_UNUSUAL_HOST_USAGE",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Unusual Host Usage Pattern (UEBA Baseline)",
+      "description": "Detects a host showing behavioral finding frequency significantly above its 30-day endpoint activity baseline. May indicate malware execution, persistence staging, or misuse. Advisory-only.",
+      "severity": "medium",
+      "confidence": 0.67,
+      "mitre_attack": [
+        "T1055",
+        "T1543",
+        "T1078"
+      ],
+      "event_types": [
+        "process_start",
+        "login_event"
+      ],
+      "required_fields": [
+        "telemetry_type",
+        "event_type",
+        "host_id"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Developer workstations during active projects, shared hosts serving multiple users, fresh deployments.",
+      "suppression_guidance": "Suppress for known high-activity developer machines or shared terminal servers.",
+      "owner": "detection-engineering",
+      "validation_evidence": null,
+      "created_at": "2026-05-19T00:00:00Z",
+      "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "UEBA_PEER_GROUP_BEHAVIOR_DEVIATION",
+      "domain": "xdr",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Peer Group Behavior Deviation (UEBA Baseline)",
+      "description": "Detects an entity whose behavioral baseline metrics deviate significantly from its deterministic peer group (users with same role, hosts with same function). Peer group deviation is scored using group mean and standard deviation. Advisory-only \u2014 no automated enforcement.",
+      "severity": "medium",
+      "confidence": 0.7,
+      "mitre_attack": [
+        "T1078",
+        "T1059",
+        "T1048"
+      ],
+      "event_types": [
+        "any"
+      ],
+      "required_fields": [
+        "entity_key",
+        "entity_type",
+        "peer_group_key",
+        "dimension"
+      ],
+      "output_topic": "xdr.alerts.shadow.ueba",
+      "shadow_only": true,
+      "suppression_key": "rule_id|entity_key|peer_group_key",
+      "replay_fixture": null,
+      "expected_alert_count": null,
+      "false_positive_notes": "Recently onboarded users whose baseline has not yet stabilized, role transitions, entities with unique legitimate workloads.",
+      "suppression_guidance": "Suppress for entities in onboarding period (first 14 days) or with documented atypical workflows.",
       "owner": "detection-engineering",
       "validation_evidence": null,
       "created_at": "2026-05-19T00:00:00Z",

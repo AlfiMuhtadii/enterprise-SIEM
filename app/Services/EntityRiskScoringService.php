@@ -39,6 +39,11 @@ class EntityRiskScoringService
         'response_blast_radius'      => 1.5,  // amplification: entity is a target with high blast radius
         'response_rollback_impact'   => 1.0,  // rollback was needed — indicates significant threat
         'response_execution_mitigation' => -2.0, // mitigation applied — lowers risk (negative contribution)
+        // UEBA behavioral baseline factors — Phase 1 (advisory_only = true)
+        'baseline_anomaly_factor'       => 2.0,  // entity has recent high-confidence baseline anomalies
+        'peer_deviation_factor'         => 1.5,  // entity deviates significantly from peer group
+        'abnormal_data_volume_factor'   => 2.0,  // abnormal bytes out / data exfil signal
+        'unusual_activity_time_factor'  => 1.5,  // unusual active hours pattern
     ];
 
     // Score thresholds for level assignment
@@ -93,6 +98,8 @@ class EntityRiskScoringService
                 $this->collectProcessFactors($entity, $factors);
                 break;
         }
+
+        $this->collectUEBAFactors($entity, $factors);       // UEBA baseline amplification — advisory_only
 
         $score = $this->aggregateScore($factors);
         $level = static::scoreToLevel($score);
@@ -572,6 +579,54 @@ class EntityRiskScoringService
     // -------------------------------------------------------------------------
     // Factor builder
     // -------------------------------------------------------------------------
+
+    /**
+     * UEBA behavioral baseline factors — Phase 1.
+     * Queries baseline_anomaly_scores for recent high-confidence anomalies.
+     * All contributions are advisory_only = true.
+     * Capped to prevent UEBA alone from dominating the score.
+     */
+    private function collectUEBAFactors(object $entity, array &$factors): void
+    {
+        $since = now()->subDays(7);
+
+        $highConfidenceAnomalies = DB::table('baseline_anomaly_scores')
+            ->where('entity_key', $entity->entity_key)
+            ->where('entity_type', $entity->entity_type)
+            ->where('is_advisory', true)
+            ->where('confidence', '>=', 0.75)
+            ->where('scored_at', '>=', $since)
+            ->get(['anomaly_type', 'confidence', 'score_id']);
+
+        if ($highConfidenceAnomalies->isEmpty()) {
+            return;
+        }
+
+        // baseline_anomaly_factor: capped contribution from anomaly count
+        $anomalyCount = $highConfidenceAnomalies->count();
+        $factors[] = $this->makeFactor('baseline_anomaly_factor', min($anomalyCount, 3), [], [], [], true);
+
+        // peer_deviation_factor: peer group deviations
+        $peerDeviations = $highConfidenceAnomalies
+            ->where('anomaly_type', 'peer_group_behavior_deviation');
+        if ($peerDeviations->count() > 0) {
+            $factors[] = $this->makeFactor('peer_deviation_factor', min($peerDeviations->count(), 2), [], [], [], true);
+        }
+
+        // abnormal_data_volume_factor: bytes_out anomalies
+        $bytesAnomalies = $highConfidenceAnomalies
+            ->where('anomaly_type', 'abnormal_bytes_out');
+        if ($bytesAnomalies->count() > 0) {
+            $factors[] = $this->makeFactor('abnormal_data_volume_factor', 1, [], [], [], true);
+        }
+
+        // unusual_activity_time_factor: unusual login time anomalies
+        $timeAnomalies = $highConfidenceAnomalies
+            ->where('anomaly_type', 'unusual_login_time');
+        if ($timeAnomalies->count() > 0) {
+            $factors[] = $this->makeFactor('unusual_activity_time_factor', 1, [], [], [], true);
+        }
+    }
 
     private function makeFactor(
         string $name,

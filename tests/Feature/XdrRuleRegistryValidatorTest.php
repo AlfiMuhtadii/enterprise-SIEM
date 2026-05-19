@@ -88,9 +88,9 @@ class XdrRuleRegistryValidatorTest extends TestCase
         $this->assertNotEmpty($registry['rules']);
     }
 
-    public function test_registry_has_56_rules(): void
+    public function test_registry_has_65_rules(): void
     {
-        $this->assertCount(56, $this->rules());
+        $this->assertCount(65, $this->rules()); // 56 original + 9 UEBA Phase 1 shadow rules
     }
 
     // -----------------------------------------------------------------------
@@ -541,7 +541,8 @@ class XdrRuleRegistryValidatorTest extends TestCase
     public function test_registry_has_44_shadow_rules(): void
     {
         $count = count(array_filter($this->rules(), fn ($r) => ($r['status'] ?? '') === 'shadow'));
-        $this->assertSame(44, $count, "Expected 44 shadow rules (32 endpoint + 3 threat-intel + 9 network), got $count");
+        // 44 original + 9 UEBA Phase 1 = 53
+        $this->assertSame(53, $count, "Expected 53 shadow rules (44 original + 9 UEBA Phase 1), got $count");
     }
 
     public function test_registry_has_no_deprecated_rules(): void

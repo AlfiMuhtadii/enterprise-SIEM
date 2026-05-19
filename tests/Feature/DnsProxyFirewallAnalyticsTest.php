@@ -429,10 +429,20 @@ class DnsProxyFirewallAnalyticsTest extends TestCase
         $registry = json_decode(file_get_contents(base_path('docs/detection/rules/registry.v1.json')), true);
         $networkRules = array_filter($registry['rules'], fn ($r) => ($r['domain'] ?? '') === 'network');
 
-        $this->assertCount(9, $networkRules, 'Expected exactly 9 network domain rules');
+        // 9 core network analytics + 2 UEBA network-domain rules (UEBA_ABNORMAL_NETWORK_DESTINATION_FREQUENCY, UEBA_ABNORMAL_BYTES_OUT)
+        $this->assertCount(11, $networkRules, 'Expected 11 network domain rules (9 core + 2 UEBA Phase 1)');
         foreach ($networkRules as $rule) {
             $this->assertSame('shadow', $rule['status'], "{$rule['rule_id']} must be shadow");
-            $this->assertTrue($rule['shadow_only'],          "{$rule['rule_id']} must have shadow_only=true");
+            $this->assertTrue($rule['shadow_only'], "{$rule['rule_id']} must have shadow_only=true");
+            // Core network rules use xdr.alerts.shadow.network; UEBA network rules use xdr.alerts.shadow.ueba
+            $this->assertStringStartsWith('xdr.alerts.shadow', $rule['output_topic'],
+                "{$rule['rule_id']} must use a shadow output topic");
+        }
+
+        // Core network analytics rules (non-UEBA) still use xdr.alerts.shadow.network
+        $coreNetworkRules = array_filter($networkRules, fn ($r) => !str_starts_with($r['rule_id'] ?? '', 'UEBA_'));
+        $this->assertCount(9, $coreNetworkRules, 'Expected exactly 9 core network analytics rules');
+        foreach ($coreNetworkRules as $rule) {
             $this->assertSame('xdr.alerts.shadow.network', $rule['output_topic'],
                 "{$rule['rule_id']} must use xdr.alerts.shadow.network");
         }

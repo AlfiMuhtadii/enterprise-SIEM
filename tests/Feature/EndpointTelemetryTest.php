@@ -43,9 +43,9 @@ class EndpointTelemetryTest extends TestCase
     // Registry — new rules present and correctly configured
     // -----------------------------------------------------------------------
 
-    public function test_registry_now_has_56_rules(): void
+    public function test_registry_now_has_65_rules(): void
     {
-        $this->assertCount(56, $this->registry());
+        $this->assertCount(65, $this->registry()); // 56 original + 9 UEBA Phase 1 shadow rules
     }
 
     public function test_scheduled_task_persistence_rule_exists(): void
@@ -154,10 +154,11 @@ class EndpointTelemetryTest extends TestCase
         $this->assertEmpty($violations, 'All endpoint rules must have shadow_only=true: ' . implode(', ', $violations));
     }
 
-    public function test_registry_has_32_endpoint_rules(): void
+    public function test_registry_has_34_endpoint_rules(): void
     {
         $count = count(array_filter($this->registry(), fn ($r) => ($r['domain'] ?? '') === 'endpoint'));
-        $this->assertSame(32, $count, "Expected 32 endpoint rules (22 behavioral + 5 cross-domain + 5 streaming)");
+        // 32 original + 2 UEBA Phase 1 endpoint shadow rules
+        $this->assertSame(34, $count, "Expected 34 endpoint rules (32 original + 2 UEBA Phase 1)");
     }
 
     // -----------------------------------------------------------------------
@@ -508,8 +509,10 @@ class EndpointTelemetryTest extends TestCase
         $ioc      = count(array_filter($rules, fn ($r) => ($r['domain'] ?? '') === 'threat-intel'));
 
         $this->assertSame(12, $active,   "12 staged_active rules expected");
-        $this->assertSame(44, $shadow,   "44 shadow rules expected (32 endpoint + 3 IOC + 9 network)");
-        $this->assertSame(32, $endpoint, "32 endpoint rules expected (22 behavioral + 5 cross-domain + 5 streaming)");
+        // 44 original + 9 UEBA Phase 1 shadow rules = 53
+        $this->assertSame(53, $shadow,   "53 shadow rules expected (44 original + 9 UEBA Phase 1)");
+        // 32 original + 2 UEBA endpoint = 34
+        $this->assertSame(34, $endpoint, "34 endpoint rules expected (32 original + 2 UEBA Phase 1)");
         $this->assertSame(3,  $ioc,      "3 threat-intel rules expected");
     }
 

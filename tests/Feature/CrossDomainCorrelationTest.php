@@ -746,7 +746,7 @@ class CrossDomainCorrelationTest extends TestCase
             file_get_contents(base_path('docs/detection/rules/registry.v1.json')),
             true
         );
-        $this->assertCount(56, $registry['rules']);
+        $this->assertCount(65, $registry['rules']); // 56 original + 9 UEBA Phase 1 shadow rules
     }
 
     public function test_registry_staged_active_count_unchanged_at_12(): void
