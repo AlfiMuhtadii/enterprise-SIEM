@@ -21,7 +21,13 @@
       "Bash(psql *)",
       "Bash(Get-ChildItem -Path \"tests/Feature\" -Name \"*.php\")",
       "Bash(Measure-Object)",
-      "Bash(Select-Object -ExpandProperty Count)"
+      "Bash(Select-Object -ExpandProperty Count)",
+      "Bash(grep \"ThreatHuntingService\\\\|__construct\\\\|Illuminate\\\\|App\\\\\\\\\")",
+      "Bash(APP_ENV=testing php artisan route:cache)",
+      "Bash(php -r 'require '\\\\''vendor/autoload.php'\\\\''; $app = require '\\\\''bootstrap/app.php'\\\\''; $kernel = $app->make\\(Illuminate\\\\Contracts\\\\Http\\\\Kernel::class\\); echo '\\\\''App loaded'\\\\'';')",
+      "Bash(php *)",
+      "Bash(grep -v \"^\\\\s*$\\\\|at vendor\\\\|826▕\\\\|827▕\\\\|828▕\\\\|829▕\\\\|830▕\\\\|831▕\\\\|832▕\\\\|833▕\\\\|┐\\\\|┘\\\\|─\\\\|│\")",
+      "Bash(APP_DEBUG=true php artisan test tests/Feature/ThreatHuntingQueryEngineTest.php --filter \"query_builder\")"
     ]
   }
 }

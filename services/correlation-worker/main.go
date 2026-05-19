@@ -954,6 +954,7 @@ func correlateEndpointShadowIOC(events []map[string]any, iocURL string) []Endpoi
 func correlateEndpointShadowAll(events []map[string]any, iocURL string) []EndpointAlert {
 	alerts := correlateEndpointShadow(events)
 	alerts = append(alerts, correlateEndpointShadowIOC(events, iocURL)...)
+	alerts = append(alerts, correlateEndpointShadowCrossDomain(events)...)
 	return dedupeEndpointAlerts(alerts)
 }
 
@@ -1872,6 +1873,250 @@ func correlateEndpointShadow(events []map[string]any) []EndpointAlert {
 	alerts = append(alerts, ruleRepeatedLolbinSequence(endpointEvents)...)
 	alerts = append(alerts, rulePersistenceReactivation(endpointEvents)...)
 	return dedupeEndpointAlerts(alerts)
+}
+
+// ---------------------------------------------------------------------------
+// Cross-domain shadow correlation — Phase 1 (2026-05-18)
+// Correlates endpoint events with identity/cloud/SaaS events in the same batch.
+// All output → xdr.alerts.shadow.endpoint only. Advisory-only. No containment.
+// ---------------------------------------------------------------------------
+
+func correlateEndpointShadowCrossDomain(events []map[string]any) []EndpointAlert {
+	if len(events) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, ruleCrossDomainIdentityEndpoint(events)...)
+	alerts = append(alerts, ruleCrossDomainIdentityPersistence(events)...)
+	alerts = append(alerts, ruleCrossDomainSaaSBeacon(events)...)
+	alerts = append(alerts, ruleCrossHostSharedDestinationLolbin(events)...)
+	alerts = append(alerts, ruleCrossDomainAttackProgression(events)...)
+	return alerts
+}
+
+func ruleCrossDomainIdentityEndpoint(events []map[string]any) []EndpointAlert {
+	// Detect identity auth failure followed by endpoint shell execution for the same user.
+	// Advisory-only: emits to shadow topic only.
+	identityFailureUsers := map[string]map[string]any{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "identity" {
+			continue
+		}
+		evType := epStr(ev, "event_type")
+		if evType != "login_failed" && evType != "mfa_failed" {
+			continue
+		}
+		user := epStr(ev, "user")
+		if user != "" {
+			identityFailureUsers[user] = ev
+		}
+	}
+	if len(identityFailureUsers) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" || epStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		user    := epStr(ev, "user")
+		process := strings.ToLower(epStr(ev, "process_name"))
+		if user == "" || (!linuxShellNames[process] && !downloaderNames[process]) {
+			continue
+		}
+		if identityEv, ok := identityFailureUsers[user]; ok {
+			a := makeEndpointAlert("identity_endpoint_execution_chain", "v1",
+				"Identity Failure Followed by Endpoint Shell Execution", "critical", 0.85, ev)
+			a.Evidence["actor"]            = user
+			a.Evidence["identity_event"]   = epStr(identityEv, "event_type")
+			a.Evidence["endpoint_process"] = process
+			a.Evidence["advisory"]         = "cross_domain_shadow_only"
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleCrossDomainIdentityPersistence(events []map[string]any) []EndpointAlert {
+	// Detect identity privilege escalation followed by endpoint persistence entry.
+	privEscUsers := map[string]map[string]any{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "identity" {
+			continue
+		}
+		action := epStr(ev, "action")
+		evType := epStr(ev, "event_type")
+		if action != "privilege_escalation" && evType != "privilege_escalation" {
+			continue
+		}
+		user := epStr(ev, "user")
+		if user != "" {
+			privEscUsers[user] = ev
+		}
+	}
+	if len(privEscUsers) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		evType := epStr(ev, "event_type")
+		if evType != "service_install" && evType != "scheduled_task_create" {
+			continue
+		}
+		user := epStr(ev, "user")
+		if user == "" {
+			continue
+		}
+		if identityEv, ok := privEscUsers[user]; ok {
+			a := makeEndpointAlert("identity_persistence_correlation", "v1",
+				"Identity Privilege Escalation Correlated with Endpoint Persistence", "high", 0.80, ev)
+			a.Evidence["actor"]             = user
+			a.Evidence["identity_action"]   = epStr(identityEv, "action")
+			a.Evidence["persistence_event"] = evType
+			a.Evidence["advisory"]          = "cross_domain_shadow_only"
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleCrossDomainSaaSBeacon(events []map[string]any) []EndpointAlert {
+	// Detect SaaS anomaly activity correlated with endpoint outbound beacon from the same source IP.
+	saasSourceIPs := map[string]map[string]any{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "saas" {
+			continue
+		}
+		ip := epStr(ev, "source_ip")
+		if ip != "" {
+			saasSourceIPs[ip] = ev
+		}
+	}
+	if len(saasSourceIPs) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" || epStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		srcIP := epStr(ev, "source_ip")
+		if srcIP == "" {
+			srcIP = epStr(ev, "host")
+		}
+		if saasEv, ok := saasSourceIPs[srcIP]; ok {
+			a := makeEndpointAlert("saas_endpoint_beacon_chain", "v1",
+				"SaaS Activity Correlated with Endpoint Beacon Pattern", "high", 0.77, ev)
+			a.Evidence["source_ip"]         = srcIP
+			a.Evidence["saas_event_type"]   = epStr(saasEv, "event_type")
+			a.Evidence["endpoint_remote_ip"]= epStr(ev, "remote_ip")
+			a.Evidence["advisory"]          = "cross_domain_shadow_only"
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleCrossHostSharedDestinationLolbin(events []map[string]any) []EndpointAlert {
+	// Detect multiple hosts using LOLBin processes to connect to the same destination.
+	hostLolbins := map[string]bool{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" || epStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(epStr(ev, "process_name"))
+		host := epStr(ev, "host")
+		if lolbinNames[name] && host != "" {
+			hostLolbins[host] = true
+		}
+	}
+	if len(hostLolbins) == 0 {
+		return nil
+	}
+	type destKey struct {
+		ip   string
+		port int64
+	}
+	destHosts := map[destKey]map[string]bool{}
+	destEvs   := map[destKey]map[string]any{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "endpoint" || epStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		host := epStr(ev, "host")
+		if !hostLolbins[host] {
+			continue
+		}
+		ip   := epStr(ev, "remote_ip")
+		port := epInt64(ev, "remote_port")
+		if ip == "" {
+			continue
+		}
+		k := destKey{ip, port}
+		if destHosts[k] == nil {
+			destHosts[k] = map[string]bool{}
+		}
+		destHosts[k][host] = true
+		if _, exists := destEvs[k]; !exists {
+			destEvs[k] = ev
+		}
+	}
+	var alerts []EndpointAlert
+	for k, hosts := range destHosts {
+		if len(hosts) < 2 {
+			continue
+		}
+		a := makeEndpointAlert("multi_host_shared_destination", "v1",
+			"Multiple Hosts LOLBin Activity to Shared Destination", "critical", 0.88, destEvs[k])
+		a.Evidence["destination"] = fmt.Sprintf("%s:%d", k.ip, k.port)
+		a.Evidence["host_count"]  = len(hosts)
+		a.Evidence["advisory"]    = "cross_domain_shadow_only"
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleCrossDomainAttackProgression(events []map[string]any) []EndpointAlert {
+	// Detect same actor touching multiple telemetry domains including endpoint.
+	// Requires endpoint involvement + at least one other domain.
+	actorDomains := map[string]map[string]bool{}
+	actorEvs     := map[string]map[string]any{}
+	for _, ev := range events {
+		user    := epStr(ev, "user")
+		telType := epStr(ev, "telemetry_type")
+		if user == "" || telType == "" {
+			continue
+		}
+		if actorDomains[user] == nil {
+			actorDomains[user] = map[string]bool{}
+		}
+		actorDomains[user][telType] = true
+		if _, exists := actorEvs[user]; !exists {
+			actorEvs[user] = ev
+		}
+	}
+	var alerts []EndpointAlert
+	for actor, domains := range actorDomains {
+		if len(domains) < 2 || !domains["endpoint"] {
+			continue
+		}
+		domainList := make([]string, 0, len(domains))
+		for d := range domains {
+			domainList = append(domainList, d)
+		}
+		sort.Strings(domainList)
+		a := makeEndpointAlert("cross_domain_attack_progression", "v1",
+			"Cross-Domain Attack Progression Detected", "critical", 0.82, actorEvs[actor])
+		a.Evidence["actor"]        = actor
+		a.Evidence["domains"]      = strings.Join(domainList, ",")
+		a.Evidence["domain_count"] = len(domains)
+		a.Evidence["advisory"]     = "cross_domain_shadow_only"
+		alerts = append(alerts, a)
+	}
+	return alerts
 }
 
 func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Request) {

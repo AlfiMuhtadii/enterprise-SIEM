@@ -19,7 +19,7 @@ class SocHuntController extends Controller
 
         if ($request->has('run')) {
             $runId = 'hunt-run-'.Str::uuid();
-            DB::table('threat_hunt_runs')->insert([
+            DB::table('soc_hunt_run_sessions')->insert([
                 'run_id' => $runId,
                 'executed_by' => $request->user()->email,
                 'started_at' => now(),
@@ -36,8 +36,8 @@ class SocHuntController extends Controller
         return view('soc.hunts.index', [
             'filters' => $filters,
             'results' => $results,
-            'savedHunts' => DB::table('threat_hunts')->orderByDesc('updated_at')->limit(50)->get(),
-            'huntRuns' => DB::table('threat_hunt_runs')->orderByDesc('started_at')->limit(50)->get(),
+            'savedHunts' => DB::table('soc_hunt_sessions')->orderByDesc('updated_at')->limit(50)->get(),
+            'huntRuns' => DB::table('soc_hunt_run_sessions')->orderByDesc('started_at')->limit(50)->get(),
             'templates' => $this->templates(),
         ]);
     }
@@ -50,7 +50,7 @@ class SocHuntController extends Controller
         ]);
         $filters = $this->filters($request);
         $huntId = 'hunt-'.Str::uuid();
-        DB::table('threat_hunts')->insert([
+        DB::table('soc_hunt_sessions')->insert([
             'hunt_id' => $huntId,
             'name' => $data['name'],
             'template_key' => $data['template_key'] ?? null,

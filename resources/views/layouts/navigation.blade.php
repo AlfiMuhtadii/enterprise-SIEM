@@ -60,6 +60,11 @@
                             {{ __('Investigations') }}
                         </x-nav-link>
                     @endcan
+                    @can('soc:investigation.view')
+                        <x-nav-link :href="route('cross-domain.dashboard')" :active="request()->routeIs('cross-domain.*')">
+                            {{ __('Cross-Domain') }}
+                        </x-nav-link>
+                    @endcan
                     @can('soc:response.view')
                         <x-nav-link :href="route('response.index')" :active="request()->routeIs('response.*')">
                             {{ __('Response') }}

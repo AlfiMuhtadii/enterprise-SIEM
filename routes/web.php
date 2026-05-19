@@ -50,6 +50,8 @@ use App\Http\Controllers\Endpoint\EndpointAnalyticsController;
 use App\Http\Controllers\Endpoint\EndpointBehavioralController;
 use App\Http\Controllers\Endpoint\EndpointResponseController;
 use App\Http\Controllers\Api\EndpointBehavioralApiController;
+use App\Http\Controllers\Investigation\CrossDomainController;
+use App\Http\Controllers\Api\CrossDomainApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -459,6 +461,28 @@ Route::middleware(['auth', 'admin'])->prefix('resilience')->group(function () {
     Route::get('/history',     [ResilienceController::class, 'history'])->name('resilience.history');
     Route::get('/{runId}',     [ResilienceController::class, 'show'])->name('resilience.show');
     Route::post('/run',        [ResilienceController::class, 'run'])->name('resilience.run');
+});
+
+// Cross-Domain Correlation — advisory-only, shadow/retrospective investigation
+Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
+    Route::get('/cross-domain',                    [CrossDomainController::class, 'dashboard'])->name('cross-domain.dashboard');
+    Route::get('/cross-domain/attack-timeline',    [CrossDomainController::class, 'attackTimeline'])->name('cross-domain.attack-timeline');
+    Route::get('/cross-domain/identity-endpoint',  [CrossDomainController::class, 'identityEndpointPivot'])->name('cross-domain.identity-endpoint');
+    Route::get('/cross-domain/investigation-graph',[CrossDomainController::class, 'investigationGraph'])->name('cross-domain.investigation-graph');
+    Route::get('/cross-domain/shared-destination', [CrossDomainController::class, 'sharedDestination'])->name('cross-domain.shared-destination');
+    Route::get('/cross-domain/trace-explorer',     [CrossDomainController::class, 'traceExplorer'])->name('cross-domain.trace-explorer');
+    Route::get('/cross-domain/{correlationId}',    [CrossDomainController::class, 'show'])->name('cross-domain.show');
+    Route::post('/cross-domain/run',               [CrossDomainController::class, 'runCorrelation'])->name('cross-domain.run')->middleware('soc:investigation.create');
+});
+
+Route::middleware(['auth', 'soc:investigation.view'])->prefix('api')->group(function () {
+    Route::get('/cross-domain/correlations',             [CrossDomainApiController::class, 'listCorrelations'])->name('api.cross-domain.list');
+    Route::get('/cross-domain/correlations/{id}',        [CrossDomainApiController::class, 'getCorrelation'])->name('api.cross-domain.show');
+    Route::get('/cross-domain/attack-stages',            [CrossDomainApiController::class, 'getAttackStages'])->name('api.cross-domain.stages');
+    Route::get('/cross-domain/pivot/identity-host',      [CrossDomainApiController::class, 'pivotIdentityHost'])->name('api.cross-domain.pivot.identity-host');
+    Route::get('/cross-domain/pivot/multi-host',         [CrossDomainApiController::class, 'pivotMultiHost'])->name('api.cross-domain.pivot.multi-host');
+    Route::get('/cross-domain/pivot/attack-stage',       [CrossDomainApiController::class, 'pivotAttackStage'])->name('api.cross-domain.pivot.stage');
+    Route::get('/cross-domain/pivot/trace',              [CrossDomainApiController::class, 'pivotTrace'])->name('api.cross-domain.pivot.trace');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

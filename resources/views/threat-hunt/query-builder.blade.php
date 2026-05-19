@@ -89,12 +89,10 @@
             <div class="glass-card p-4 border border-amber-400/20">
                 <p class="text-xs text-amber-300/80">
                     Threat hunting is advisory-only and non-destructive. All queries use allowlisted fields only.
-                    Maximum query window: {{ ThreatHuntingService::MAX_QUERY_WINDOW_DAYS }} days.
-                    Maximum results: {{ ThreatHuntingService::MAX_RESULTS }}.
+                    Maximum query window: {{ \App\Services\ThreatHuntingService::MAX_QUERY_WINDOW_DAYS }} days.
+                    Maximum results: {{ \App\Services\ThreatHuntingService::MAX_RESULTS }}.
                 </p>
             </div>
         </div>
     </div>
 </x-app-layout>
-
-@php use App\Services\ThreatHuntingService; @endphp

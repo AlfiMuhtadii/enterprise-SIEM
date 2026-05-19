@@ -55,7 +55,7 @@ class SocInvestigationHuntingTest extends TestCase
             ->assertSee('powershell.exe')
             ->assertSee('SUSPICIOUS_PROCESS');
 
-        $this->assertDatabaseHas('threat_hunt_runs', [
+        $this->assertDatabaseHas('soc_hunt_run_sessions', [
             'executed_by' => $analyst->email,
             'result_count' => 1,
         ]);
@@ -68,7 +68,7 @@ class SocInvestigationHuntingTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('threat_hunts', [
+        $this->assertDatabaseHas('soc_hunt_sessions', [
             'name' => 'PowerShell Hunt',
             'created_by' => $analyst->email,
             'saved' => true,

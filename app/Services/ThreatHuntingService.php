@@ -46,6 +46,7 @@ class ThreatHuntingService
         'processes', 'persistence_items', 'execution_chains',
         'beacon_patterns', 'behavioral_findings', 'hosts',
         'network_correlations', 'alerts',
+        'cross_domain_correlations',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -107,6 +108,14 @@ class ThreatHuntingService
             'source_ip'   => ['='],
             'severity'    => ['='],
         ],
+        'cross_domain_correlations' => [
+            'correlation_type'     => ['='],
+            'actor_key'            => ['='],
+            'primary_entity_key'   => ['=', 'contains'],
+            'primary_entity_type'  => ['='],
+            'confidence_score'     => ['>='],
+            'trace_id'             => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -117,7 +126,8 @@ class ThreatHuntingService
         'behavioral_findings' => EndpointBehavioralFinding::class,
         'hosts'               => EndpointAgent::class,
         'network_correlations'=> EndpointNetworkCorrelation::class,
-        'alerts'              => null, // handled separately via security_alerts
+        'alerts'                   => null, // handled separately via security_alerts
+        'cross_domain_correlations'=> \App\Models\CrossDomainCorrelation::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -128,7 +138,8 @@ class ThreatHuntingService
         'behavioral_findings' => 'detected_at',
         'hosts'               => 'updated_at',
         'network_correlations'=> 'created_at',
-        'alerts'              => 'detected_at',
+        'alerts'                    => 'detected_at',
+        'cross_domain_correlations' => 'created_at',
     ];
 
     // -----------------------------------------------------------------------
@@ -578,7 +589,8 @@ class ThreatHuntingService
             'beacon_patterns'     => ThreatHuntResult::TYPE_BEACON_PATTERN,
             'network_correlations'=> ThreatHuntResult::TYPE_NETWORK_CORRELATION,
             'hosts'               => ThreatHuntResult::TYPE_HOST,
-            default               => 'generic',
+            'cross_domain_correlations' => 'cross_domain_correlation',
+            default                     => 'generic',
         };
     }
 
@@ -613,5 +625,89 @@ class ThreatHuntingService
         if ($timeEnd)   $query->where('detected_at', '<=', $timeEnd);
 
         return collect($query->orderByDesc('detected_at')->limit($limit)->get());
+    }
+
+    // -----------------------------------------------------------------------
+    // Cross-domain pivot methods — Phase 1 (2026-05-18)
+    // All read-only. Advisory-only. No mutations.
+    // -----------------------------------------------------------------------
+
+    public function pivotIdentityToHost(string $actorKey): array
+    {
+        $sanitized = substr(preg_replace('/[^a-zA-Z0-9@.\-_]/', '', $actorKey), 0, 255);
+        if (!$sanitized) {
+            return ['error' => 'invalid_actor_key'];
+        }
+
+        $correlations = \App\Models\CrossDomainCorrelation::where('actor_key', $sanitized)
+            ->orderByDesc('created_at')->limit(20)
+            ->get(['correlation_id', 'correlation_type', 'confidence_score',
+                   'attack_stages', 'involved_hosts', 'time_window_start', 'created_at']);
+
+        $alerts = DB::table('security_alerts')
+            ->where('actor_key', $sanitized)
+            ->orderByDesc('detected_at')->limit(10)
+            ->get(['alert_id', 'alert_type', 'severity', 'detected_at'])->all();
+
+        return [
+            'actor_key'       => $sanitized,
+            'correlations'    => $correlations->all(),
+            'identity_alerts' => $alerts,
+            'advisory_note'   => 'Advisory-only. Cross-domain pivot is retrospective and non-destructive.',
+        ];
+    }
+
+    public function pivotMultiHostDestination(string $ip): array
+    {
+        $sanitized = substr(preg_replace('/[^a-zA-Z0-9:.\-]/', '', $ip), 0, 45);
+        if (!$sanitized) {
+            return ['error' => 'invalid_ip'];
+        }
+
+        $beacons = EndpointBeaconPattern::where('remote_ip', $sanitized)
+            ->orderByDesc('detected_at')->limit(20)
+            ->get(['pattern_id', 'agent_id', 'process_name', 'connection_count', 'detected_at'])->all();
+
+        $correlations = \App\Models\CrossDomainCorrelation::where('primary_entity_key', $sanitized)
+            ->where('correlation_type', \App\Models\CrossDomainCorrelation::TYPE_MULTI_HOST)
+            ->orderByDesc('created_at')->limit(10)
+            ->get(['correlation_id', 'confidence_score', 'involved_hosts', 'created_at'])->all();
+
+        return [
+            'ip'           => $sanitized,
+            'beacons'      => $beacons,
+            'correlations' => $correlations,
+            'advisory_note'=> 'Advisory-only. Multi-host destination pivot is retrospective and non-destructive.',
+        ];
+    }
+
+    public function pivotAttackStage(string $stage): array
+    {
+        if (!in_array($stage, \App\Models\AttackStageTimeline::STAGES, true)) {
+            return ['error' => 'invalid_stage'];
+        }
+
+        $timelines = DB::table('attack_stage_timelines')
+            ->where('stage', $stage)
+            ->orderByDesc('created_at')->limit(30)
+            ->get(['timeline_id', 'correlation_id', 'stage_confidence', 'first_seen_at', 'last_seen_at'])->all();
+
+        $corrIds = array_unique(array_column($timelines, 'correlation_id'));
+        $correlations = $corrIds
+            ? \App\Models\CrossDomainCorrelation::whereIn('id', $corrIds)
+                ->get(['correlation_id', 'correlation_type', 'actor_key', 'confidence_score', 'created_at'])->all()
+            : [];
+
+        return [
+            'stage'        => $stage,
+            'timelines'    => $timelines,
+            'correlations' => $correlations,
+            'advisory_note'=> 'Advisory-only. Attack stage pivot is retrospective and non-destructive.',
+        ];
+    }
+
+    public function pivotCrossDomainTrace(string $traceId): array
+    {
+        return app(\App\Services\CrossDomainCorrelationService::class)->stitchCrossDomainTrace($traceId);
     }
 }

@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Guard: clean up any prior state (e.g. partial test DB from a failed migration run).
+        Schema::dropIfExists('threat_hunt_results');
+        Schema::dropIfExists('threat_hunt_queries');
+        Schema::dropIfExists('threat_hunts');
+
         // Hunt session record — one row per executed hunt, append-only
         Schema::create('threat_hunts', function (Blueprint $table) {
             $table->id();

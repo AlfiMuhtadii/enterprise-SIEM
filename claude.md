@@ -54,9 +54,9 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 764 passed, zero failures
+php artisan test         → 821 passed, zero failures
 python endpoint agent    → 95 tests, 0 failures
-rule registry validator  → status=PASS  rules=37  checks=21/21
+rule registry validator  → status=PASS  rules=42  checks=21/21
 contract validate        → all contracts valid
 soak validation          → see docs/validation/VALIDATION_BASELINES.md
 ```
@@ -131,7 +131,7 @@ Implementation history: `docs/architecture/ARCHITECTURE_CHANGELOG.md`
 | Laravel SOC | PHP/Blade | Control plane: RBAC, dashboard, incidents, investigations, response, export, entity graph, risk, hardening, resilience, scenario runner, trace, detection governance, behavioral analytics, threat hunting |
 | ingestion-gateway | Go | Signed telemetry ingestion (`POST /v1/ingest`, HMAC-SHA256), rate limiting, backpressure |
 | normalizer-worker | Go | `telemetry.raw` → `telemetry.normalized`, endpoint-v1 normalization |
-| correlation-worker | Go | identity/cloud/SaaS correlation (active) + endpoint behavioral shadow analytics — execution chains, beacon patterns, LOLBin, persistence correlation; advisory-only |
+| correlation-worker | Go | identity/cloud/SaaS correlation (active) + endpoint behavioral shadow analytics + cross-domain shadow correlation; advisory-only |
 | alert-writer-service | Python/FastAPI | `xdr.alerts` → PostgreSQL `security_alerts` + OpenSearch + `alerts.created` |
 | incident-builder-service | Python/FastAPI | `alerts.created` → `security_incidents` + `incidents.updated` |
 | ai-rag-service | Python/FastAPI | Analyst assist, Qdrant vector store, heuristic fallback |
@@ -179,12 +179,12 @@ For module routes, RBAC details, and subsystem docs: `docs/architecture/FEATURE_
 
 # Detection Rule Registry
 
-Registry: `docs/detection/rules/registry.v1.json` — **37 rules total** (current).
+Registry: `docs/detection/rules/registry.v1.json` — **42 rules total** (current).
 
 | Category | Count |
 |---|---|
 | staged_active (identity/cloud/SaaS) | 12 |
-| shadow (endpoint behavioral) | 22 |
+| shadow (endpoint behavioral) | 27 |
 | shadow (threat-intel/IOC) | 3 |
 
 Hard gate: endpoint and threat-intel rules can **NEVER** be promoted to `staged_active` without a domain-specific 6h soak PASS. `ACTIVE_ALLOWLIST` is intentionally empty.
@@ -268,7 +268,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan test
 ```
 
-Current: **764 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **821 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
 
 ## Endpoint Agent Python Tests
 
@@ -284,7 +284,7 @@ Current: **95 tests**, all green.
 python scripts/xdr_rule_registry_validate.py
 ```
 
-Current: **37 rules**, 21/21 checks PASS.
+Current: **42 rules**, 21/21 checks PASS.
 
 ## Contract Validation
 
@@ -415,7 +415,7 @@ Do NOT:
 * remove `proc_root` / `proc_net_tcp` test-override kwargs from endpoint agent collectors
 * add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
 * mark response plan as `completed_documented` without analyst explicit action
-* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`
+* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`
 * bypass `InternalServiceAuthMiddleware` on `/api/internal/*` routes
 * add execution-type commands to `ALLOWED_TYPES` in endpoint response framework (Phase 1 allows only: `noop`, `collect_diagnostics`, `refresh_config`, `upload_health_snapshot`)
 

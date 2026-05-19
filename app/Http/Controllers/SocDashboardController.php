@@ -155,8 +155,8 @@ class SocDashboardController extends Controller
             ->count();
 
         $investigationSummary = [
-            'active_hunts_24h' => DB::table('threat_hunt_runs')->where('started_at', '>=', now()->subDay())->count(),
-            'hunt_matches_24h' => (int) DB::table('threat_hunt_runs')->where('started_at', '>=', now()->subDay())->sum('result_count'),
+            'active_hunts_24h' => DB::table('soc_hunt_run_sessions')->where('started_at', '>=', now()->subDay())->count(),
+            'hunt_matches_24h' => (int) DB::table('soc_hunt_run_sessions')->where('started_at', '>=', now()->subDay())->sum('result_count'),
             'endpoint_sessions_24h' => DB::table('endpoint_investigation_sessions')->where('started_at', '>=', now()->subDay())->count(),
             'forensic_pending' => DB::table('forensic_collection_jobs')->where('status', 'pending_approval')->count(),
             'forensic_completed_24h' => DB::table('forensic_collection_jobs')->where('completed_at', '>=', now()->subDay())->count(),

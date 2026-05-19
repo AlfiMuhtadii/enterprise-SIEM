@@ -20,16 +20,21 @@ class EntityRiskScoringService
 {
     // Factor weights — static, deterministic, documented.
     public const WEIGHTS = [
-        'critical_alerts'       => 3.0,
-        'high_alerts'           => 2.0,
-        'medium_alerts'         => 0.8,
-        'mfa_failure_burst'     => 2.5,
-        'incident_involvement'  => 3.0,
-        'trace_frequency'       => 0.4,
-        'relationship_count'    => 0.3,
-        'persistence_indicator' => 2.5,
-        'c2_indicator'          => 3.5,
-        'shadow_alert_advisory' => 0.5,
+        'critical_alerts'            => 3.0,
+        'high_alerts'                => 2.0,
+        'medium_alerts'              => 0.8,
+        'mfa_failure_burst'          => 2.5,
+        'incident_involvement'       => 3.0,
+        'trace_frequency'            => 0.4,
+        'relationship_count'         => 0.3,
+        'persistence_indicator'      => 2.5,
+        'c2_indicator'               => 3.5,
+        'shadow_alert_advisory'      => 0.5,
+        // Cross-domain amplification factors — advisory_only = true
+        'cross_domain_correlation'   => 2.0,
+        'multi_stage_escalation'     => 2.5,
+        'repeated_destination_reuse' => 1.5,
+        'identity_endpoint_combined' => 3.0,
     ];
 
     // Score thresholds for level assignment
@@ -65,6 +70,7 @@ class EntityRiskScoringService
         $this->collectIncidentFactors($entity, $factors, $incidentIds, $traceIds);
         $this->collectTraceFrequency($entity, $factors, $traceIds);
         $this->collectRelationshipFactor($entity, $factors);
+        $this->collectCrossDomainFactors($entity, $factors); // advisory-only amplification
 
         // Type-specific factors
         switch ($entity->entity_type) {
@@ -413,6 +419,79 @@ class EntityRiskScoringService
             $factors[] = $this->makeFactor(
                 'shadow_alert_advisory', min($shadowCount, 5), [], [], [], true
             );
+        }
+    }
+
+    /**
+     * Cross-domain amplification factors — advisory_only = true.
+     * Checks cross_domain_correlations for entity involvement.
+     * Does NOT trigger any enforcement actions.
+     */
+    private function collectCrossDomainFactors(object $entity, array &$factors): void
+    {
+        // Any cross-domain correlation involving this actor/entity
+        $corrCount = DB::table('cross_domain_correlations')
+            ->where(function ($q) use ($entity) {
+                if ($entity->entity_type === 'user') {
+                    $q->where('actor_key', $entity->entity_key);
+                } elseif ($entity->entity_type === 'host') {
+                    $q->whereJsonContains('involved_hosts', $entity->entity_key);
+                } elseif ($entity->entity_type === 'ip') {
+                    $q->whereJsonContains('involved_ips', $entity->entity_key)
+                      ->orWhere('primary_entity_key', $entity->entity_key);
+                }
+            })->count();
+
+        if ($corrCount > 0) {
+            $factors[] = $this->makeFactor(
+                'cross_domain_correlation', min($corrCount, 3), [], [], [], true
+            );
+        }
+
+        // Multi-stage escalation: correlations with 3+ attack stages
+        $multiStageCount = DB::table('cross_domain_correlations')
+            ->where(function ($q) use ($entity) {
+                if ($entity->entity_type === 'user') {
+                    $q->where('actor_key', $entity->entity_key);
+                } else {
+                    $q->where('primary_entity_key', $entity->entity_key);
+                }
+            })
+            ->whereRaw("jsonb_array_length(attack_stages) >= 3")
+            ->count();
+
+        if ($multiStageCount > 0) {
+            $factors[] = $this->makeFactor(
+                'multi_stage_escalation', min($multiStageCount, 2), [], [], [], true
+            );
+        }
+
+        // Multi-host destination reuse (only relevant for ip/domain entities)
+        if ($entity->entity_type === 'ip' || $entity->entity_type === 'domain') {
+            $multiHostCount = DB::table('cross_domain_correlations')
+                ->where('correlation_type', \App\Models\CrossDomainCorrelation::TYPE_MULTI_HOST)
+                ->where('primary_entity_key', $entity->entity_key)
+                ->count();
+
+            if ($multiHostCount > 0) {
+                $factors[] = $this->makeFactor(
+                    'repeated_destination_reuse', min($multiHostCount, 3), [], [], [], true
+                );
+            }
+        }
+
+        // Identity+endpoint combined (only relevant for user entities)
+        if ($entity->entity_type === 'user') {
+            $identityEndpointCount = DB::table('cross_domain_correlations')
+                ->where('correlation_type', \App\Models\CrossDomainCorrelation::TYPE_IDENTITY_ENDPOINT)
+                ->where('actor_key', $entity->entity_key)
+                ->count();
+
+            if ($identityEndpointCount > 0) {
+                $factors[] = $this->makeFactor(
+                    'identity_endpoint_combined', min($identityEndpointCount, 2), [], [], [], true
+                );
+            }
         }
     }
 
