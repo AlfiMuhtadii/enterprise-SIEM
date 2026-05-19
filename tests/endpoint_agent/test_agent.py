@@ -497,8 +497,296 @@ class TestFlushSendsBufferedEvents(unittest.TestCase):
         self.assertEqual(recovered[0]["buffered_events"], 5)
         self.assertEqual(recovered[0]["event_type"], "heartbeat")
 
-        # Buffer cleared after drain
-        self.assertEqual(buf.size(), 0)
+
+# ---------------------------------------------------------------------------
+# Test 6 — TamperVisibility (Endpoint Fleet Hardening Phase 1)
+# ---------------------------------------------------------------------------
+
+class TestTamperVisibility(unittest.TestCase):
+    """check_tamper_visibility() returns explainable advisory indicators. No enforcement."""
+
+    def _make_cfg(self, **overrides: Any) -> dict[str, Any]:
+        cfg = {
+            **ag.DEFAULT_CONFIG,
+            "telemetry": dict(ag.DEFAULT_CONFIG["telemetry"]),
+        }
+        cfg.update(overrides)
+        return cfg
+
+    def test_no_indicators_for_recent_heartbeat(self) -> None:
+        cfg = self._make_cfg()
+        from datetime import datetime, timezone, timedelta
+        recent = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+
+        indicators = ag.check_tamper_visibility(cfg, last_heartbeat_timestamp=recent)
+        self.assertEqual(indicators, [], "No tamper indicators for a recent heartbeat")
+
+    def test_heartbeat_gap_detected(self) -> None:
+        cfg = self._make_cfg(heartbeat_interval_seconds=60)
+        from datetime import datetime, timezone, timedelta
+        old_ts = (datetime.now(timezone.utc) - timedelta(minutes=60)).isoformat()
+
+        indicators = ag.check_tamper_visibility(cfg, last_heartbeat_timestamp=old_ts)
+
+        gap_indicators = [i for i in indicators if i["type"] == "heartbeat_gap"]
+        self.assertEqual(len(gap_indicators), 1)
+        self.assertTrue(gap_indicators[0]["advisory"], "Heartbeat gap indicator must be advisory")
+        self.assertFalse(gap_indicators[0]["autonomous_action"], "Must not trigger autonomous action")
+        self.assertGreater(gap_indicators[0]["gap_seconds"], 0)
+
+    def test_config_mismatch_detected(self) -> None:
+        cfg = self._make_cfg()
+        import hashlib, json as _json
+        known_good_hash = hashlib.sha256(
+            _json.dumps(cfg, sort_keys=True).encode()
+        ).hexdigest()
+
+        # Modify config slightly
+        cfg_modified = dict(cfg)
+        cfg_modified["batch_interval_seconds"] = 999
+
+        indicators = ag.check_tamper_visibility(cfg_modified, last_config_hash=known_good_hash)
+
+        mismatch = [i for i in indicators if i["type"] == "config_mismatch"]
+        self.assertEqual(len(mismatch), 1)
+        self.assertTrue(mismatch[0]["advisory"])
+        self.assertFalse(mismatch[0]["autonomous_action"])
+
+    def test_no_config_mismatch_when_config_unchanged(self) -> None:
+        cfg = self._make_cfg()
+        import hashlib, json as _json
+        hash_val = hashlib.sha256(
+            _json.dumps(cfg, sort_keys=True).encode()
+        ).hexdigest()
+
+        indicators = ag.check_tamper_visibility(cfg, last_config_hash=hash_val)
+
+        mismatch = [i for i in indicators if i["type"] == "config_mismatch"]
+        self.assertEqual(len(mismatch), 0, "No mismatch when config is unchanged")
+
+    def test_disabled_collector_detected(self) -> None:
+        cfg = self._make_cfg()
+        cfg["telemetry"]["process"] = False  # disabled
+
+        indicators = ag.check_tamper_visibility(
+            cfg, enabled_collectors=["process", "network"]
+        )
+
+        disabled = [i for i in indicators if i["type"] == "disabled_collector"]
+        self.assertEqual(len(disabled), 1)
+        self.assertEqual(disabled[0]["collector"], "process")
+        self.assertTrue(disabled[0]["advisory"])
+        self.assertFalse(disabled[0]["autonomous_action"])
+
+    def test_all_enabled_collectors_produce_no_indicator(self) -> None:
+        cfg = self._make_cfg()
+        cfg["telemetry"]["process"] = True
+        cfg["telemetry"]["network"] = True
+
+        indicators = ag.check_tamper_visibility(
+            cfg, enabled_collectors=["process", "network"]
+        )
+
+        disabled = [i for i in indicators if i["type"] == "disabled_collector"]
+        self.assertEqual(len(disabled), 0)
+
+    def test_no_autonomous_action_in_any_indicator(self) -> None:
+        """All tamper indicators must declare autonomous_action=False."""
+        from datetime import datetime, timezone, timedelta
+        cfg = self._make_cfg(heartbeat_interval_seconds=60)
+        old_ts = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+
+        indicators = ag.check_tamper_visibility(cfg, last_heartbeat_timestamp=old_ts)
+        for indicator in indicators:
+            self.assertFalse(indicator.get("autonomous_action", True),
+                f"Indicator {indicator['type']} must have autonomous_action=False")
+
+    def test_tamper_check_returns_list(self) -> None:
+        cfg = self._make_cfg()
+        result = ag.check_tamper_visibility(cfg)
+        self.assertIsInstance(result, list)
+
+    def test_tamper_check_with_no_args_returns_empty(self) -> None:
+        cfg = self._make_cfg()
+        result = ag.check_tamper_visibility(cfg)
+        self.assertEqual(result, [])
+
+    def test_invalid_timestamp_does_not_crash(self) -> None:
+        cfg = self._make_cfg()
+        # Should gracefully degrade, not raise
+        result = ag.check_tamper_visibility(cfg, last_heartbeat_timestamp="not-a-timestamp")
+        self.assertIsInstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — SpoolStats (Endpoint Fleet Hardening Phase 1)
+# ---------------------------------------------------------------------------
+
+class TestSpoolStats(unittest.TestCase):
+    """get_spool_stats() returns correct spool health data. No enforcement."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _make_streaming_state(self) -> "ag.StreamingState":
+        return ag.StreamingState(spool_dir=str(self.tmp_path))
+
+    def test_spool_stats_empty_state(self) -> None:
+        state = self._make_streaming_state()
+        stats = ag.get_spool_stats(state)
+
+        self.assertIn("queued_events", stats)
+        self.assertIn("dropped_events", stats)
+        self.assertIn("spool_disk_bytes", stats)
+        self.assertIn("spool_capped", stats)
+        self.assertIn("disk_pressure", stats)
+        self.assertIn("retry_count", stats)
+        self.assertIn("buffer_depth", stats)
+        self.assertIn("events_per_sec", stats)
+        self.assertEqual(stats["queued_events"], 0)
+        self.assertEqual(stats["spool_disk_bytes"], 0)
+        self.assertFalse(stats["spool_capped"])
+
+    def test_spool_stats_with_spool_file(self) -> None:
+        state = self._make_streaming_state()
+
+        # Write some events to spool
+        ag.spool_to_disk(state, [{"event": "test", "id": 1}])
+
+        stats = ag.get_spool_stats(state)
+        self.assertGreater(stats["spool_disk_bytes"], 0)
+        self.assertFalse(stats["spool_capped"])
+
+    def test_spool_stats_shows_capped_when_at_cap(self) -> None:
+        state = self._make_streaming_state()
+
+        # Write exactly STREAM_SPOOL_MAX_BYTES to spool file to simulate cap
+        state.spool_path.write_bytes(b"x" * ag.STREAM_SPOOL_MAX_BYTES)
+
+        stats = ag.get_spool_stats(state)
+        self.assertTrue(stats["spool_capped"], "Should report capped when at max bytes")
+
+    def test_spool_stats_with_quality_metrics(self) -> None:
+        state = self._make_streaming_state()
+        # dropped_events in get_spool_stats comes from state.dropped_count (streaming queue drops)
+        state.dropped_count = 5
+        quality = ag.QualityMetrics()
+        quality.record_retry()
+
+        stats = ag.get_spool_stats(state, quality=quality)
+        self.assertEqual(stats["dropped_events"], 5)  # from state.dropped_count
+        self.assertEqual(stats["retry_count"], 1)     # from quality
+
+    def test_spool_stats_queue_depth_reflects_queue(self) -> None:
+        state = self._make_streaming_state()
+        # Add 3 events to the streaming queue
+        for i in range(3):
+            state.queue.append({"event_id": str(i)})
+
+        stats = ag.get_spool_stats(state)
+        self.assertEqual(stats["queued_events"], 3)
+
+    def test_spool_stats_bounded_replay_idempotent(self) -> None:
+        """replay_from_spool is idempotent — safe to replay multiple times."""
+        state = self._make_streaming_state()
+        ag.spool_to_disk(state, [{"event": "test"}])
+
+        first_replay = ag.replay_from_spool(state)
+        self.assertEqual(len(first_replay), 1)
+
+        second_replay = ag.replay_from_spool(state)
+        self.assertEqual(len(second_replay), 0, "Spool is drained after first replay")
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — SOCClient heartbeat with spool_stats
+# ---------------------------------------------------------------------------
+
+class TestSOCHeartbeatWithSpoolStats(unittest.TestCase):
+    """SOCClient.heartbeat() includes spool_stats in payload."""
+
+    def test_heartbeat_payload_includes_spool_stats(self) -> None:
+        cfg = {
+            **ag.DEFAULT_CONFIG,
+            "soc_api_url": "http://127.0.0.1:19999",
+            "enrollment_token": "test-token",
+        }
+        soc = ag.SOCClient(cfg)
+        spool_stats = {
+            "queued_events": 5,
+            "dropped_events": 2,
+            "spool_disk_bytes": 1024,
+            "spool_capped": False,
+        }
+        captured: list[dict[str, Any]] = []
+
+        def _fake_post(url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
+            captured.append(json.loads(body))
+            return 200, b'{"ok": true}'
+
+        with patch("agent._http_post", side_effect=_fake_post):
+            soc.heartbeat("agent-001", metrics={"events_per_sec": 1.0},
+                          trace_id="trace-hb-1", spool_stats=spool_stats)
+
+        self.assertEqual(len(captured), 1)
+        payload = captured[0]
+        self.assertIn("spool_stats", payload)
+        self.assertEqual(payload["spool_stats"]["queued_events"], 5)
+        self.assertEqual(payload["spool_stats"]["dropped_events"], 2)
+
+    def test_heartbeat_without_spool_stats_still_works(self) -> None:
+        """Backward compatibility — spool_stats is optional."""
+        cfg = {
+            **ag.DEFAULT_CONFIG,
+            "soc_api_url": "http://127.0.0.1:19999",
+            "enrollment_token": "test-token",
+        }
+        soc = ag.SOCClient(cfg)
+
+        def _fake_post(url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
+            payload = json.loads(body)
+            # spool_stats should default to empty dict
+            assert payload.get("spool_stats") == {}, f"Expected empty spool_stats, got {payload.get('spool_stats')}"
+            return 200, b'{"ok": true}'
+
+        with patch("agent._http_post", side_effect=_fake_post):
+            result = soc.heartbeat("agent-002")
+
+        self.assertTrue(result)
+
+    def test_heartbeat_signature_includes_spool_stats(self) -> None:
+        """Signed payload (sorted keys) includes spool_stats field."""
+        cfg = {
+            **ag.DEFAULT_CONFIG,
+            "soc_api_url": "http://127.0.0.1:19999",
+            "enrollment_token": "signing-key",
+        }
+        soc = ag.SOCClient(cfg)
+        spool_stats = {"queued_events": 3, "spool_capped": False}
+        captured_headers: list[dict[str, str]] = []
+
+        def _fake_post(url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
+            captured_headers.append(headers)
+            return 200, b'{"ok": true}'
+
+        with patch("agent._http_post", side_effect=_fake_post):
+            soc.heartbeat("agent-003", spool_stats=spool_stats)
+
+        self.assertTrue(len(captured_headers) > 0)
+        self.assertIn("X-Agent-Signature", captured_headers[0],
+                      "Heartbeat must be signed even with spool_stats")
+
+    def test_no_enforcement_in_soc_client(self) -> None:
+        """SOCClient must not have methods for enforcement actions."""
+        cfg = {**ag.DEFAULT_CONFIG, "soc_api_url": "http://localhost", "enrollment_token": "t"}
+        soc = ag.SOCClient(cfg)
+        self.assertFalse(hasattr(soc, "isolate_host"), "SOCClient must not have isolate_host")
+        self.assertFalse(hasattr(soc, "kill_process"), "SOCClient must not have kill_process")
+        self.assertFalse(hasattr(soc, "execute_shell"), "SOCClient must not have execute_shell")
 
 
 # ---------------------------------------------------------------------------

@@ -66,6 +66,8 @@ use App\Http\Controllers\Integration\EnterpriseIntegrationController;
 use App\Http\Controllers\Api\EnterpriseIntegrationApiController;
 use App\Http\Controllers\UEBA\UEBAController;
 use App\Http\Controllers\Api\UEBAApiController;
+use App\Http\Controllers\Endpoint\EndpointFleetController;
+use App\Http\Controllers\Api\EndpointFleetApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -672,6 +674,29 @@ Route::middleware(['auth', 'soc:investigation.view'])->prefix('api/integrations'
 
     Route::post('/{integration}/ingest-idp',           [EnterpriseIntegrationApiController::class, 'ingestIdpEvents'])->name('api.integrations.ingest-idp');
     Route::post('/{integration}/ingest-saas',          [EnterpriseIntegrationApiController::class, 'ingestSaasEvents'])->name('api.integrations.ingest-saas');
+});
+
+// Endpoint Fleet Hardening Phase 1 — Production fleet management
+// Advisory-only. No autonomous containment, no isolation, no shell execution.
+Route::middleware(['auth', 'soc:agents.manage'])->prefix('endpoint-fleet')->group(function () {
+    Route::get('/',             [EndpointFleetController::class, 'dashboard'])->name('endpoint-fleet.dashboard');
+    Route::get('/health',       [EndpointFleetController::class, 'agentHealth'])->name('endpoint-fleet.health');
+    Route::get('/policies',     [EndpointFleetController::class, 'policyAssignment'])->name('endpoint-fleet.policies');
+    Route::get('/enrollment',   [EndpointFleetController::class, 'enrollmentAudit'])->name('endpoint-fleet.enrollment');
+    Route::get('/lag',          [EndpointFleetController::class, 'telemetryLag'])->name('endpoint-fleet.lag');
+    Route::get('/tamper',       [EndpointFleetController::class, 'tamperVisibility'])->name('endpoint-fleet.tamper');
+    Route::get('/spool',        [EndpointFleetController::class, 'spoolHealth'])->name('endpoint-fleet.spool');
+    Route::get('/drift',        [EndpointFleetController::class, 'policyDrift'])->name('endpoint-fleet.drift');
+});
+
+Route::middleware(['auth', 'soc:agents.manage', 'throttle:soc-api'])->prefix('api/endpoint-fleet')->group(function () {
+    Route::get('/stats',        [EndpointFleetApiController::class, 'getDashboardStats'])->name('api.endpoint-fleet.stats');
+    Route::get('/stale',        [EndpointFleetApiController::class, 'getStaleAgents'])->name('api.endpoint-fleet.stale');
+    Route::get('/lag',          [EndpointFleetApiController::class, 'getTelemetryLag'])->name('api.endpoint-fleet.lag');
+    Route::get('/tamper',       [EndpointFleetApiController::class, 'getTamperSummary'])->name('api.endpoint-fleet.tamper');
+    Route::post('/tamper/detect', [EndpointFleetApiController::class, 'detectTamper'])->name('api.endpoint-fleet.tamper.detect');
+    Route::get('/spool',        [EndpointFleetApiController::class, 'getSpoolHealth'])->name('api.endpoint-fleet.spool');
+    Route::get('/drift',        [EndpointFleetApiController::class, 'getPolicyDrift'])->name('api.endpoint-fleet.drift');
 });
 
 // UEBA Phase 1 — Behavioral Baseline Analytics

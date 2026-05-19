@@ -1,0 +1,171 @@
+{
+  "title": "Endpoint Fleet Hardening — Production Observability",
+  "uid": "endpoint-fleet-v1",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "2m",
+  "tags": ["endpoint", "fleet", "advisory-only", "hardening"],
+  "description": "Endpoint Fleet Hardening Phase 1: production fleet observability. All panels are advisory-only. No automated enforcement actions.",
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Advisory Disclaimer",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Advisory Notice:** Endpoint fleet data is operational visibility only. No automated isolation, process termination, or containment is executed. All findings require analyst review."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Online Agents",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]}
+        }
+      },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT count(*) AS value FROM endpoint_agents WHERE health_state = 'online'", "format": "table" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Offline / Stale Agents",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }
+          ]}
+        }
+      },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT count(*) AS value FROM endpoint_agents WHERE health_state IN ('stale', 'offline')", "format": "table" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Tamper Events (7d)",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 }
+          ]}
+        }
+      },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT count(*) AS value FROM endpoint_tamper_events WHERE detected_at >= NOW() - INTERVAL '7 days'", "format": "table" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Dropped Events (24h)",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 100 }
+          ]}
+        }
+      },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT COALESCE(SUM(dropped_events), 0) AS value FROM endpoint_spool_snapshots WHERE recorded_at >= NOW() - INTERVAL '24 hours'", "format": "table" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Policy Drifts (Active)",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 2 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }, { "color": "orange", "value": 1 }
+          ]}
+        }
+      },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT count(DISTINCT a.id) AS value FROM endpoint_agents a JOIN endpoint_agent_policy_assignments p ON a.id = p.agent_id WHERE p.applied_to_agent = false AND p.assigned_at < NOW() - INTERVAL '5 minutes'", "format": "table" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Online vs Offline Agent Trend",
+      "description": "Fleet health distribution over time. Advisory visibility only.",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "targets": [
+        { "datasource": "PostgreSQL", "rawSql": "SELECT date_trunc('hour', heartbeat_at) AS time, count(*) FILTER (WHERE health_state = 'online') AS online, count(*) FILTER (WHERE health_state IN ('stale', 'offline')) AS stale_offline FROM endpoint_agent_heartbeats WHERE heartbeat_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1", "format": "time_series" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "piechart",
+      "title": "Endpoint Health Distribution",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT health_state AS metric, count(*) AS value FROM endpoint_agents GROUP BY health_state ORDER BY value DESC", "format": "table" }]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Telemetry Dropped Events Trend",
+      "description": "Events dropped due to spool overflow or disk pressure. Advisory — no automated action.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 14 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT date_trunc('hour', recorded_at) AS time, SUM(dropped_events) AS value FROM endpoint_spool_snapshots WHERE recorded_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1", "format": "time_series" }]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Spool Utilization (bytes)",
+      "description": "Average spool disk usage per agent. Capped at 10 MiB (10,485,760 bytes).",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 14 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT date_trunc('hour', recorded_at) AS time, AVG(spool_disk_bytes) AS avg_bytes, MAX(spool_disk_bytes) AS max_bytes FROM endpoint_spool_snapshots WHERE recorded_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1", "format": "time_series" }]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Tamper Events by Type",
+      "description": "Advisory tamper visibility events. No automated enforcement.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 21 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT date_trunc('hour', detected_at) AS time, tamper_type, count(*) AS value FROM endpoint_tamper_events WHERE detected_at >= NOW() - INTERVAL '7 days' GROUP BY 1, tamper_type ORDER BY 1", "format": "time_series" }]
+    },
+    {
+      "id": 12,
+      "type": "barchart",
+      "title": "Endpoint Agent Version Distribution",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 21 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT agent_version AS metric, count(*) AS value FROM endpoint_agents GROUP BY agent_version ORDER BY value DESC", "format": "table" }]
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Stale Agent Timeline",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 28 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT agent_id, hostname, health_state, agent_version, ip_address, last_seen_at, EXTRACT(EPOCH FROM (NOW() - last_seen_at))::integer AS lag_seconds FROM endpoint_agents WHERE health_state IN ('stale', 'offline') OR last_seen_at < NOW() - INTERVAL '10 minutes' ORDER BY lag_seconds DESC LIMIT 25", "format": "table" }]
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Recent Enrollment Events",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 35 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT e.event_type, a.hostname, a.agent_id, e.agent_version, e.platform, e.ip_address, e.successful, e.occurred_at FROM endpoint_agent_enrollment_events e JOIN endpoint_agents a ON e.agent_id = a.id ORDER BY e.occurred_at DESC LIMIT 20", "format": "table" }]
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Unhealthy Fleet Segments (Policy + Spool)",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 42 },
+      "targets": [{ "datasource": "PostgreSQL", "rawSql": "SELECT a.hostname, a.health_state, s.dropped_events, s.spool_capped, s.disk_pressure, s.recorded_at FROM endpoint_spool_snapshots s JOIN endpoint_agents a ON s.agent_id = a.id WHERE s.id IN (SELECT MAX(id) FROM endpoint_spool_snapshots GROUP BY agent_id) AND (s.dropped_events > 0 OR s.spool_capped = true OR s.disk_pressure = true) ORDER BY s.dropped_events DESC LIMIT 20", "format": "table" }]
+    }
+  ],
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "links": [
+    { "title": "Fleet Dashboard (SOC)", "url": "/endpoint-fleet", "type": "link", "icon": "external link", "targetBlank": true }
+  ]
+}

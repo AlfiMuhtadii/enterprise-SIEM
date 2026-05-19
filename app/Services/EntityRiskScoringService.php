@@ -44,6 +44,11 @@ class EntityRiskScoringService
         'peer_deviation_factor'         => 1.5,  // entity deviates significantly from peer group
         'abnormal_data_volume_factor'   => 2.0,  // abnormal bytes out / data exfil signal
         'unusual_activity_time_factor'  => 1.5,  // unusual active hours pattern
+        // Endpoint operational hardening factors — Phase 1 (advisory_only = true)
+        'telemetry_gap_factor'          => 2.0,  // host telemetry has a significant gap (potential blind spot)
+        'tamper_visibility_factor'      => 2.5,  // tamper indicator detected on endpoint
+        'stale_agent_factor'            => 1.5,  // agent is stale or offline
+        'policy_drift_factor'           => 1.0,  // agent config does not match assigned fleet policy
     ];
 
     // Score thresholds for level assignment
@@ -99,7 +104,8 @@ class EntityRiskScoringService
                 break;
         }
 
-        $this->collectUEBAFactors($entity, $factors);       // UEBA baseline amplification — advisory_only
+        $this->collectUEBAFactors($entity, $factors);               // UEBA baseline amplification — advisory_only
+        $this->collectEndpointOperationalFactors($entity, $factors); // Endpoint fleet hardening — advisory_only
 
         $score = $this->aggregateScore($factors);
         $level = static::scoreToLevel($score);
@@ -579,6 +585,71 @@ class EntityRiskScoringService
     // -------------------------------------------------------------------------
     // Factor builder
     // -------------------------------------------------------------------------
+
+    /**
+     * Endpoint operational hardening factors — Phase 1.
+     * Queries endpoint fleet tables for tamper events, spool health, and stale indicators.
+     * All contributions are advisory_only = true. Capped to prevent over-amplification.
+     */
+    private function collectEndpointOperationalFactors(object $entity, array &$factors): void
+    {
+        // Only applies to host entities
+        if ($entity->entity_type !== 'host') {
+            return;
+        }
+
+        $agent = DB::table('endpoint_agents')
+            ->where('hostname', $entity->entity_key)
+            ->orWhere('host_id', $entity->entity_key)
+            ->first();
+
+        if (!$agent) {
+            return;
+        }
+
+        // stale_agent_factor — agent is stale or offline
+        if (in_array($agent->health_state, ['stale', 'offline'], true)) {
+            $factors[] = $this->makeFactor('stale_agent_factor', 1, [], [], [], true);
+        }
+
+        $since7d = now()->subDays(7);
+
+        // tamper_visibility_factor — high-confidence tamper events in last 7 days
+        $tamperCount = DB::table('endpoint_tamper_events')
+            ->where('agent_id', $agent->id)
+            ->where('is_advisory', true)
+            ->where('confidence', '>=', 0.75)
+            ->where('detected_at', '>=', $since7d)
+            ->count();
+
+        if ($tamperCount > 0) {
+            $factors[] = $this->makeFactor('tamper_visibility_factor', min($tamperCount, 2), [], [], [], true);
+        }
+
+        // telemetry_gap_factor — large heartbeat gap in last 24h
+        $latestHeartbeat = DB::table('endpoint_agent_heartbeats')
+            ->where('agent_id', $agent->id)
+            ->orderByDesc('heartbeat_at')
+            ->value('heartbeat_at');
+
+        if ($latestHeartbeat) {
+            $gapSeconds = now()->diffInSeconds(\Carbon\Carbon::parse($latestHeartbeat), true);
+            if ($gapSeconds > 600) { // 10+ minute gap
+                $factors[] = $this->makeFactor('telemetry_gap_factor', 1, [], [], [], true);
+            }
+        }
+
+        // policy_drift_factor — latest spool snapshot shows dropped events
+        $latestSpool = DB::table('endpoint_spool_snapshots')
+            ->where('agent_id', $agent->id)
+            ->where('recorded_at', '>=', $since7d)
+            ->where('dropped_events', '>=', 10)
+            ->count();
+
+        if ($latestSpool > 0) {
+            $factors[] = $this->makeFactor('policy_drift_factor', 1, [], [], [], true);
+        }
+    }
 
     /**
      * UEBA behavioral baseline factors — Phase 1.

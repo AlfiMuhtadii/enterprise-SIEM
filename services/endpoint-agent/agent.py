@@ -556,18 +556,22 @@ class SOCClient:
         agent_id: str,
         metrics: dict[str, Any] | None = None,
         trace_id: str | None = None,
+        spool_stats: dict[str, Any] | None = None,
     ) -> bool:
         """
         POST /api/agents/{agentId}/heartbeat — signed with X-Agent-Signature.
         Returns True on success.
+        spool_stats: optional local telemetry durability snapshot (queued_events,
+                     dropped_events, spool_disk_bytes, spool_capped, disk_pressure, etc.)
         """
         heartbeat_data = {
-            "agent_id":  agent_id,
-            "host_id":   HOST_ID,
-            "hostname":  HOSTNAME,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "metrics":   metrics or {},
-            "trace_id":  trace_id,
+            "agent_id":   agent_id,
+            "host_id":    HOST_ID,
+            "hostname":   HOSTNAME,
+            "timestamp":  datetime.now(timezone.utc).isoformat(),
+            "metrics":    metrics or {},
+            "spool_stats": spool_stats or {},  # local telemetry durability snapshot
+            "trace_id":   trace_id,
         }
         payload = json.dumps(heartbeat_data, sort_keys=True).encode()
         signature = self._sign_payload(payload)
@@ -932,6 +936,115 @@ def replay_from_spool(state: StreamingState) -> list[dict[str, Any]]:
     except OSError as exc:
         log.error("Spool read failed: %s", exc)
         return []
+
+
+def get_spool_stats(state: StreamingState, quality: "QualityMetrics | None" = None) -> dict[str, Any]:
+    """
+    Return a serializable spool health snapshot for heartbeat reporting.
+    Deterministic — based on current filesystem state and in-memory counters.
+    """
+    spool_bytes = 0
+    spool_capped = False
+    oldest_age_seconds = None
+
+    try:
+        if state.spool_path.exists():
+            stat = state.spool_path.stat()
+            spool_bytes = stat.st_size
+            spool_capped = spool_bytes >= STREAM_SPOOL_MAX_BYTES
+            oldest_age_seconds = int(time.time() - stat.st_mtime)
+    except OSError:
+        pass
+
+    disk_pressure = False
+    try:
+        import shutil
+        free_mb = shutil.disk_usage("/").free / (1024 * 1024)
+        disk_pressure = free_mb < 100.0
+    except Exception:
+        pass
+
+    return {
+        "queued_events":            len(state.queue),
+        "dropped_events":           state.dropped_count,
+        "spool_disk_bytes":         spool_bytes,
+        "spool_capped":             spool_capped,
+        "oldest_spool_age_seconds": oldest_age_seconds,
+        "disk_pressure":            disk_pressure,
+        "retry_count":              quality.retry_count if quality else 0,
+        "buffer_depth":             0,
+        "events_per_sec":           quality.events_per_sec() if quality else 0.0,
+    }
+
+
+def check_tamper_visibility(
+    cfg: dict[str, Any],
+    last_heartbeat_timestamp: "str | None" = None,
+    last_config_hash: "str | None" = None,
+    enabled_collectors: "list[str] | None" = None,
+) -> list[dict[str, Any]]:
+    """
+    Advisory-only tamper visibility check.
+
+    Detects behavioral indicators that suggest potential tampering:
+    - heartbeat_gap: no heartbeat sent in expected window
+    - config_mismatch: current config hash differs from expected
+    - disabled_collector: a required collector is not enabled in config
+
+    Returns a list of advisory tamper indicators.
+    NO enforcement action is performed. NO process kill. NO isolation.
+    All findings are explainable, evidence-linked, and operator-visible.
+    """
+    indicators: list[dict[str, Any]] = []
+    now_ts = datetime.now(timezone.utc)
+
+    # 1. Heartbeat gap check
+    if last_heartbeat_timestamp:
+        try:
+            last_hb = datetime.fromisoformat(last_heartbeat_timestamp.replace("Z", "+00:00"))
+            gap_seconds = (now_ts - last_hb).total_seconds()
+            expected_interval = cfg.get("heartbeat_interval_seconds", 60)
+            stale_threshold = expected_interval * 10  # 10x interval = stale
+            if gap_seconds > stale_threshold:
+                indicators.append({
+                    "type":               "heartbeat_gap",
+                    "gap_seconds":        int(gap_seconds),
+                    "expected_interval":  expected_interval,
+                    "stale_threshold":    stale_threshold,
+                    "last_heartbeat_at":  last_heartbeat_timestamp,
+                    "advisory":           True,
+                    "autonomous_action":  False,
+                })
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Config hash mismatch (compare current config to last known-good hash)
+    if last_config_hash and cfg:
+        current_hash = hashlib.sha256(
+            json.dumps(cfg, sort_keys=True).encode()
+        ).hexdigest()
+        if current_hash != last_config_hash:
+            indicators.append({
+                "type":           "config_mismatch",
+                "current_hash":   current_hash,
+                "expected_hash":  last_config_hash,
+                "advisory":       True,
+                "autonomous_action": False,
+            })
+
+    # 3. Disabled collector check
+    if enabled_collectors:
+        telemetry_cfg = cfg.get("telemetry", {})
+        for collector in enabled_collectors:
+            if not telemetry_cfg.get(collector, True):
+                indicators.append({
+                    "type":           "disabled_collector",
+                    "collector":      collector,
+                    "advisory":       True,
+                    "autonomous_action": False,
+                })
+
+    return indicators
 
 
 def detect_rapid_stream_shell_chain(
@@ -2417,9 +2530,19 @@ def main() -> None:
                 try:
                     trace_id = str(uuid.uuid4())
                     metrics  = quality.snapshot(buffer_depth=hardened_buffer.depth())
+                    # Build spool stats snapshot for fleet hardening observability
+                    spool_stats = {
+                        "dropped_events":   quality.events_dropped,
+                        "retry_count":      quality.retry_count,
+                        "buffer_depth":     hardened_buffer.depth(),
+                        "events_per_sec":   quality.events_per_sec(),
+                        "spool_disk_bytes": buffer.size(),
+                        "spool_capped":     False,
+                        "disk_pressure":    hardened_buffer._disk_pressure(),
+                    }
                     hb_event = collect_heartbeat_event(agent_id, trace_id, buffer.size())
                     gateway.ship([hb_event])
-                    soc.heartbeat(agent_id, metrics, trace_id=trace_id)
+                    soc.heartbeat(agent_id, metrics, trace_id=trace_id, spool_stats=spool_stats)
                     log.debug("Heartbeat sent (signed) — agent_id=%s", agent_id)
                 except Exception as exc:
                     log.error("Heartbeat error: %s", exc)

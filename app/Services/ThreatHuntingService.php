@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\BaselineAnomalyScore;
 use App\Models\BaselineObservation;
 use App\Models\EndpointAgent;
+use App\Models\EndpointAgentEnrollmentEvent;
+use App\Models\EndpointAgentHeartbeat;
+use App\Models\EndpointAgentPolicyAssignment;
 use App\Models\EndpointBeaconPattern;
 use App\Models\EndpointBehavioralFinding;
 use App\Models\EndpointExecutionChain;
@@ -64,6 +67,11 @@ class ThreatHuntingService
         'entity_behavior_baselines',
         'baseline_anomaly_scores',
         'peer_group_profiles',
+        // Endpoint Fleet Hardening Phase 1 — operational management domains
+        'endpoint_agents',
+        'endpoint_agent_heartbeats',
+        'endpoint_agent_policy_assignments',
+        'endpoint_agent_enrollment_events',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -229,6 +237,41 @@ class ThreatHuntingService
             'auto_closed'        => ['='],
             'trace_id'           => ['='],
         ],
+        // Endpoint Fleet Hardening Phase 1 domains
+        'endpoint_agents' => [
+            'agent_id'      => ['='],
+            'hostname'      => ['=', 'contains'],
+            'host_id'       => ['='],
+            'platform'      => ['='],
+            'os_family'     => ['='],
+            'agent_version' => ['=', 'contains'],
+            'health_state'  => ['='],
+            'status'        => ['='],
+            'ip_address'    => ['='],
+        ],
+        'endpoint_agent_heartbeats' => [
+            'agent_id'        => ['='],
+            'health_state'    => ['='],
+            'signature_valid' => ['='],
+            'ip_address'      => ['='],
+        ],
+        'endpoint_agent_policy_assignments' => [
+            'agent_id'          => ['='],
+            'policy_id'         => ['='],
+            'policy_version'    => ['=', 'contains'],
+            'config_hash'       => ['='],
+            'assignment_reason' => ['='],
+            'applied_to_agent'  => ['='],
+            'trace_id'          => ['='],
+        ],
+        'endpoint_agent_enrollment_events' => [
+            'agent_id'      => ['='],
+            'event_type'    => ['='],
+            'agent_version' => ['=', 'contains'],
+            'platform'      => ['='],
+            'successful'    => ['='],
+            'trace_id'      => ['='],
+        ],
         // UEBA Phase 1 domains
         'entity_behavior_baselines' => [
             'entity_key'      => ['=', 'contains'],
@@ -285,6 +328,11 @@ class ThreatHuntingService
         'entity_behavior_baselines'   => EntityBehaviorBaseline::class,
         'baseline_anomaly_scores'     => BaselineAnomalyScore::class,
         'peer_group_profiles'         => PeerGroupProfile::class,
+        // Endpoint Fleet Hardening Phase 1
+        'endpoint_agents'                   => EndpointAgent::class,
+        'endpoint_agent_heartbeats'         => EndpointAgentHeartbeat::class,
+        'endpoint_agent_policy_assignments' => EndpointAgentPolicyAssignment::class,
+        'endpoint_agent_enrollment_events'  => EndpointAgentEnrollmentEvent::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -310,6 +358,11 @@ class ThreatHuntingService
         'entity_behavior_baselines'   => 'computed_at',
         'baseline_anomaly_scores'     => 'scored_at',
         'peer_group_profiles'         => 'computed_at',
+        // Endpoint Fleet Hardening Phase 1
+        'endpoint_agents'                   => 'last_seen_at',
+        'endpoint_agent_heartbeats'         => 'heartbeat_at',
+        'endpoint_agent_policy_assignments' => 'assigned_at',
+        'endpoint_agent_enrollment_events'  => 'occurred_at',
     ];
 
     // -----------------------------------------------------------------------

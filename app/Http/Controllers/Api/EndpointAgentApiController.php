@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EndpointAgent;
 use App\Models\EndpointResponseCommand;
 use App\Services\EndpointAgentService;
+use App\Services\EndpointFleetService;
 use App\Services\EndpointResponseCommandService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class EndpointAgentApiController extends Controller
     public function __construct(
         private EndpointAgentService $agentService,
         private EndpointResponseCommandService $commandService,
+        private EndpointFleetService $fleetService,
     ) {}
 
     // -----------------------------------------------------------------------
@@ -72,6 +74,15 @@ class EndpointAgentApiController extends Controller
         $payload    = json_decode($rawPayload, true) ?? [];
 
         $result = $this->agentService->processHeartbeat($agent, $signature, $rawPayload, $payload);
+
+        // Record spool snapshot if agent reported spool_stats (Fleet Hardening Phase 1)
+        if ($result['valid'] && !empty($payload['spool_stats'])) {
+            $this->fleetService->recordSpoolSnapshot(
+                $agent,
+                $payload['spool_stats'],
+                $payload['trace_id'] ?? null
+            );
+        }
 
         $status = $result['valid'] ? 200 : 422;
         return response()->json([
