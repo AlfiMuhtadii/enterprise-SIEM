@@ -14,7 +14,7 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan test
 ```
 
-**Expected:** `997 passed` — zero failures, zero skipped.
+**Expected:** `1049 passed` — zero failures, zero skipped.
 If any test fails: **STOP**. Do not commit, demo, or proceed.
 
 Do NOT run parallel `php artisan test` processes against the same PostgreSQL test database.
@@ -39,11 +39,12 @@ Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/ne
 python scripts/xdr_rule_registry_validate.py
 ```
 
-**Expected:** `status=PASS  rules=47  checks=21/21  failures=0`
+**Expected:** `status=PASS  rules=56  checks=21/21  failures=0`
 
 Current registry breakdown:
 - 12 `staged_active` — identity (6), cloud (5), SaaS (1)
 - 32 `shadow` — endpoint behavioral (22 base + 5 cross-domain + 5 streaming)
+- 9 `shadow` — network (DNS/proxy/firewall)
 - 3 `shadow` — threat-intel/IOC
 
 Hard gate: endpoint + threat-intel rules are permanently blocked from `staged_active`. `ACTIVE_ALLOWLIST` is intentionally empty.

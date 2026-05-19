@@ -437,6 +437,15 @@ func normalize(raw map[string]any) (map[string]any, error) {
 	if telemetryType == "endpoint" {
 		return normalizeEndpoint(raw)
 	}
+	if telemetryType == "dns" {
+		return normalizeDns(raw)
+	}
+	if telemetryType == "proxy" {
+		return normalizeProxy(raw)
+	}
+	if telemetryType == "firewall" {
+		return normalizeFirewall(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -603,6 +612,91 @@ func validateNormalizerSecrets() {
 // XDR_NORMALIZER_INTERNAL_TOKEN is configured. If the env var is not set,
 // auth is permissive (backward compatible). Non-empty token must equal the
 // configured value exactly.
+// ---------------------------------------------------------------------------
+// Network telemetry normalizers — dns-v1, proxy-v1, firewall-v1
+// Preserves trace_id, event_id, occurred_at, source_service, host_id, user, source_ip.
+// Advisory-only. No active network blocking.
+// ---------------------------------------------------------------------------
+
+func normalizeDns(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "dns-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "dns",
+		"event_type":            "dns_query",
+		"host_id":               first(raw, "host_id", "host", "device_name"),
+		"agent_id":              first(raw, "agent_id"),
+		"source_ip":             first(raw, "source_ip", "src_ip", "client_ip"),
+		"user":                  first(raw, "user"),
+		"queried_domain":        first(raw, "queried_domain", "domain", "query"),
+		"query_type":            strings.ToUpper(first(raw, "query_type", "qtype")),
+		"response_code":         strings.ToUpper(first(raw, "response_code", "rcode")),
+		"resolved_ips":          raw["resolved_ips"],
+		"source_service":        first(raw, "source_service", "event_source", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+	}, nil
+}
+
+func normalizeProxy(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	statusCode := 0
+	if sc, ok := raw["status_code"].(float64); ok {
+		statusCode = int(sc)
+	}
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "proxy-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "proxy",
+		"event_type":            "proxy_request",
+		"host_id":               first(raw, "host_id", "host", "device_name"),
+		"agent_id":              first(raw, "agent_id"),
+		"source_ip":             first(raw, "source_ip", "src_ip", "client_ip"),
+		"user":                  first(raw, "user"),
+		"url":                   first(raw, "url"),
+		"domain":                first(raw, "domain", "url_domain"),
+		"http_method":           strings.ToUpper(first(raw, "http_method", "method")),
+		"status_code":           statusCode,
+		"user_agent":            first(raw, "user_agent", "ua"),
+		"bytes_out":             raw["bytes_out"],
+		"bytes_in":              raw["bytes_in"],
+		"source_service":        first(raw, "source_service", "event_source", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+	}, nil
+}
+
+func normalizeFirewall(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "firewall-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "firewall",
+		"event_type":            "firewall_flow",
+		"host_id":               first(raw, "host_id", "host", "device_name"),
+		"agent_id":              first(raw, "agent_id"),
+		"source_ip":             first(raw, "source_ip", "src_ip"),
+		"destination_ip":        first(raw, "destination_ip", "dst_ip"),
+		"destination_port":      raw["destination_port"],
+		"protocol":              strings.ToLower(first(raw, "protocol", "proto")),
+		"action":                strings.ToLower(first(raw, "action", "verdict")),
+		"bytes_out":             raw["bytes_out"],
+		"bytes_in":              raw["bytes_in"],
+		"rule_name":             first(raw, "rule_name", "policy_name"),
+		"user":                  first(raw, "user"),
+		"source_service":        first(raw, "source_service", "event_source", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+	}, nil
+}
+
 func verifyInternalToken(token string) error {
 	expected := env("XDR_NORMALIZER_INTERNAL_TOKEN", "")
 	if expected == "" {

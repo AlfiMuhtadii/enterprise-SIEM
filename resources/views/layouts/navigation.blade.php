@@ -37,6 +37,11 @@
                             {{ __('Traces') }}
                         </x-nav-link>
                     @endcan
+                    @can('soc:trace.view')
+                        <x-nav-link :href="route('network.dashboard')" :active="request()->routeIs('network.*')">
+                            {{ __('Network') }}
+                        </x-nav-link>
+                    @endcan
                     @can('soc:rules.govern')
                         <x-nav-link :href="route('detection.index')" :active="request()->routeIs('detection.*')">
                             {{ __('Detection') }}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dns-events.v1",
+  "title": "DNS Telemetry Event v1",
+  "description": "Schema for normalized DNS query telemetry. Shadow-only advisory analytics. No blocking or containment.",
+  "type": "object",
+  "required": ["event_id", "telemetry_type", "occurred_at", "trace_id"],
+  "properties": {
+    "event_id":       { "type": "string", "pattern": "^dns-" },
+    "telemetry_type": { "const": "dns" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "trace_id":       { "type": ["string", "null"], "maxLength": 48 },
+    "agent_id":       { "type": ["string", "null"] },
+    "host_id":        { "type": ["string", "null"] },
+    "source_ip":      { "type": ["string", "null"] },
+    "user":           { "type": ["string", "null"] },
+    "queried_domain": { "type": ["string", "null"] },
+    "query_type":     { "type": ["string", "null"], "examples": ["A", "AAAA", "MX", "TXT", "CNAME"] },
+    "response_code":  { "type": ["string", "null"], "examples": ["NOERROR", "NXDOMAIN", "SERVFAIL"] },
+    "resolved_ips":   { "type": ["array", "null"], "items": { "type": "string" } },
+    "tld":            { "type": ["string", "null"] },
+    "domain_entropy": { "type": ["number", "null"], "minimum": 0.0, "maximum": 8.0 }
+  },
+  "$comment": "Advisory telemetry only. DNS analytics are shadow-only. No DNS blocking is implemented or intended."
+}

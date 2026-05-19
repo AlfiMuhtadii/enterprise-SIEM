@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "proxy-events.v1",
+  "title": "Proxy Telemetry Event v1",
+  "description": "Schema for normalized proxy request telemetry. Shadow-only advisory analytics. No blocking or containment.",
+  "type": "object",
+  "required": ["event_id", "telemetry_type", "occurred_at", "trace_id"],
+  "properties": {
+    "event_id":       { "type": "string", "pattern": "^prx-" },
+    "telemetry_type": { "const": "proxy" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "trace_id":       { "type": ["string", "null"], "maxLength": 48 },
+    "agent_id":       { "type": ["string", "null"] },
+    "host_id":        { "type": ["string", "null"] },
+    "source_ip":      { "type": ["string", "null"] },
+    "user":           { "type": ["string", "null"] },
+    "url":            { "type": ["string", "null"] },
+    "domain":         { "type": ["string", "null"] },
+    "http_method":    { "type": ["string", "null"], "examples": ["GET", "POST", "CONNECT"] },
+    "status_code":    { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+    "user_agent":     { "type": ["string", "null"] },
+    "bytes_out":      { "type": ["integer", "null"], "minimum": 0 },
+    "bytes_in":       { "type": ["integer", "null"], "minimum": 0 },
+    "is_denied":      { "type": ["boolean", "null"] }
+  },
+  "$comment": "Advisory telemetry only. Proxy analytics are shadow-only. No proxy blocking is implemented or intended."
+}

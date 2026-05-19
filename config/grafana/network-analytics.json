@@ -1,0 +1,60 @@
+{
+  "description": "XDR Network Analytics — DNS/Proxy/Firewall. Shadow-only advisory analytics. No blocking or containment.",
+  "title": "XDR Network Analytics",
+  "uid": "xdr-network-analytics-v1",
+  "tags": ["xdr", "network", "dns", "proxy", "firewall", "advisory", "shadow"],
+  "refresh": "1m",
+  "schemaVersion": 36,
+  "style": "dark",
+  "panels": [
+    {
+      "id": 1, "title": "DNS Event Volume",
+      "type": "timeseries", "gridPos": {"x":0,"y":0,"w":8,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, COUNT(*) AS value FROM dns_events WHERE $__timeFilter(created_at) GROUP BY date_trunc('minute', created_at) ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 2, "title": "Proxy Request Volume",
+      "type": "timeseries", "gridPos": {"x":8,"y":0,"w":8,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, COUNT(*) AS value FROM proxy_events WHERE $__timeFilter(created_at) GROUP BY date_trunc('minute', created_at) ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 3, "title": "Firewall Deny/Allow Trends",
+      "type": "timeseries", "gridPos": {"x":16,"y":0,"w":8,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, action AS metric, COUNT(*) AS value FROM firewall_events WHERE $__timeFilter(created_at) GROUP BY date_trunc('minute', created_at), action ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 4, "title": "Top Queried Domains",
+      "type": "table", "gridPos": {"x":0,"y":6,"w":12,"h":8},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT queried_domain, COUNT(*) AS count, SUM(CASE WHEN is_nxdomain THEN 1 ELSE 0 END) AS nxdomain_count FROM dns_events WHERE created_at > NOW() - INTERVAL '1 hour' GROUP BY queried_domain ORDER BY count DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 5, "title": "Top Destination IPs",
+      "type": "table", "gridPos": {"x":12,"y":6,"w":12,"h":8},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT destination_ip, COUNT(*) AS flow_count, SUM(bytes_out) AS total_bytes_out FROM firewall_events WHERE created_at > NOW() - INTERVAL '1 hour' AND destination_ip IS NOT NULL GROUP BY destination_ip ORDER BY flow_count DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 6, "title": "High Egress Trends (Proxy)",
+      "type": "timeseries", "gridPos": {"x":0,"y":14,"w":12,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, host_id AS metric, SUM(bytes_out) AS value FROM proxy_events WHERE $__timeFilter(created_at) AND bytes_out > 1048576 GROUP BY date_trunc('minute', created_at), host_id ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 7, "title": "Network Behavioral Findings",
+      "type": "table", "gridPos": {"x":12,"y":14,"w":12,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT finding_type, source_domain, host_id, severity, created_at FROM network_behavioral_findings WHERE $__timeFilter(created_at) ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 8, "title": "Rare Destination Trends",
+      "type": "timeseries", "gridPos": {"x":0,"y":20,"w":24,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT last_seen_at AS time, destination_key AS metric, contact_count AS value FROM network_destination_profiles WHERE is_rare = true AND $__timeFilter(last_seen_at) ORDER BY time", "format": "time_series"}]
+    }
+  ],
+  "version": 1
+}

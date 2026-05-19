@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T08:00:09.077039+00:00",
+  "generated_at": "2026-05-19T08:22:46.535182+00:00",
   "registry_path": "docs/detection/rules/registry.v1.json",
   "checks": {
     "registry_valid_json": true,
@@ -27,21 +27,22 @@
   "failures": [],
   "rule_failures": {},
   "summary": {
-    "total_rules": 47,
+    "total_rules": 56,
     "by_status": {
       "staged_active": 12,
-      "shadow": 35
+      "shadow": 44
     },
     "by_domain": {
       "identity": 6,
       "cloud": 5,
       "saas": 1,
       "endpoint": 32,
-      "threat-intel": 3
+      "threat-intel": 3,
+      "network": 9
     },
     "by_severity": {
-      "high": 32,
-      "medium": 10,
+      "high": 37,
+      "medium": 14,
       "critical": 5
     }
   },

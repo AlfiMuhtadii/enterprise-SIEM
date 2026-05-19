@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "firewall-events.v1",
+  "title": "Firewall Flow Telemetry Event v1",
+  "description": "Schema for normalized firewall flow telemetry. Shadow-only advisory analytics. No blocking or containment.",
+  "type": "object",
+  "required": ["event_id", "telemetry_type", "occurred_at", "trace_id"],
+  "properties": {
+    "event_id":          { "type": "string", "pattern": "^fw-" },
+    "telemetry_type":    { "const": "firewall" },
+    "occurred_at":       { "type": "string", "format": "date-time" },
+    "trace_id":          { "type": ["string", "null"], "maxLength": 48 },
+    "agent_id":          { "type": ["string", "null"] },
+    "host_id":           { "type": ["string", "null"] },
+    "source_ip":         { "type": ["string", "null"] },
+    "destination_ip":    { "type": ["string", "null"] },
+    "destination_port":  { "type": ["integer", "null"], "minimum": 0, "maximum": 65535 },
+    "protocol":          { "type": ["string", "null"], "examples": ["tcp", "udp", "icmp"] },
+    "action":            { "type": ["string", "null"], "enum": ["allow", "deny", "drop", "reject", null] },
+    "bytes_out":         { "type": ["integer", "null"], "minimum": 0 },
+    "bytes_in":          { "type": ["integer", "null"], "minimum": 0 },
+    "rule_name":         { "type": ["string", "null"] },
+    "user":              { "type": ["string", "null"] },
+    "is_deny":           { "type": ["boolean", "null"] }
+  },
+  "$comment": "Advisory telemetry only. Firewall analytics are shadow-only. No firewall rule push is implemented or intended."
+}

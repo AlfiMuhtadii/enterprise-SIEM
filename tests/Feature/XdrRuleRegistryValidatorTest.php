@@ -19,7 +19,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
 
     private const VALID_STATUSES  = ['draft', 'shadow', 'staged_active', 'deprecated'];
     private const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
-    private const VALID_DOMAINS   = ['identity', 'cloud', 'saas', 'endpoint', 'threat-intel', 'xdr'];
+    private const VALID_DOMAINS   = ['identity', 'cloud', 'saas', 'endpoint', 'threat-intel', 'xdr', 'network'];
 
     /** Domains that are permanently shadow-only until an explicit gate review. */
     private const PROTECTED_DOMAINS = ['endpoint', 'threat-intel'];
@@ -88,9 +88,9 @@ class XdrRuleRegistryValidatorTest extends TestCase
         $this->assertNotEmpty($registry['rules']);
     }
 
-    public function test_registry_has_47_rules(): void
+    public function test_registry_has_56_rules(): void
     {
-        $this->assertCount(47, $this->rules());
+        $this->assertCount(56, $this->rules());
     }
 
     // -----------------------------------------------------------------------
@@ -538,10 +538,10 @@ class XdrRuleRegistryValidatorTest extends TestCase
         $this->assertSame(12, $count, "Expected 12 staged_active rules, got $count");
     }
 
-    public function test_registry_has_35_shadow_rules(): void
+    public function test_registry_has_44_shadow_rules(): void
     {
         $count = count(array_filter($this->rules(), fn ($r) => ($r['status'] ?? '') === 'shadow'));
-        $this->assertSame(35, $count, "Expected 35 shadow rules (32 endpoint + 3 threat-intel), got $count");
+        $this->assertSame(44, $count, "Expected 44 shadow rules (32 endpoint + 3 threat-intel + 9 network), got $count");
     }
 
     public function test_registry_has_no_deprecated_rules(): void

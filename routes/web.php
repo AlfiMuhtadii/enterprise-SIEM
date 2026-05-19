@@ -58,6 +58,8 @@ use App\Http\Controllers\Endpoint\EndpointStreamController;
 use App\Http\Controllers\Api\EndpointStreamApiController;
 use App\Http\Controllers\Resilience\OperationsController;
 use App\Http\Controllers\Api\OperationsApiController;
+use App\Http\Controllers\Network\NetworkAnalyticsController;
+use App\Http\Controllers\Api\NetworkAnalyticsApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -579,6 +581,31 @@ Route::middleware(['auth', 'admin'])->prefix('api/operations')->group(function (
     Route::get('/dlq/jobs',     [OperationsApiController::class, 'getDlqJobs'])->name('api.operations.dlq-jobs');
     Route::get('/dlq/jobs/{jobId}/preview', [OperationsApiController::class, 'getDlqPreview'])->name('api.operations.dlq-preview');
     Route::get('/retention/{policyId}/preview', [OperationsApiController::class, 'previewRetention'])->name('api.operations.retention-preview');
+});
+
+// DNS / Proxy / Firewall Network Analytics — Phase 1
+// Network analytics are shadow-only and advisory. No blocking or containment is executed.
+Route::middleware(['auth', 'soc:trace.view'])->prefix('network')->group(function () {
+    Route::get('/',             [NetworkAnalyticsController::class, 'dashboard'])->name('network.dashboard');
+    Route::get('/dns',          [NetworkAnalyticsController::class, 'dnsInvestigation'])->name('network.dns');
+    Route::get('/proxy',        [NetworkAnalyticsController::class, 'proxyInvestigation'])->name('network.proxy');
+    Route::get('/firewall',     [NetworkAnalyticsController::class, 'firewallInvestigation'])->name('network.firewall');
+    Route::get('/destination',  [NetworkAnalyticsController::class, 'destinationProfile'])->name('network.destination');
+    Route::get('/findings',     [NetworkAnalyticsController::class, 'behavioralFindings'])->name('network.findings');
+    Route::get('/hunt',         [NetworkAnalyticsController::class, 'threatHuntingPivots'])->name('network.hunt');
+});
+
+Route::middleware(['auth', 'soc:trace.view'])->prefix('api/network')->group(function () {
+    Route::get('/dashboard',    [NetworkAnalyticsApiController::class, 'getDashboard'])->name('api.network.dashboard');
+    Route::get('/dns',          [NetworkAnalyticsApiController::class, 'getDnsEvents'])->name('api.network.dns');
+    Route::get('/proxy',        [NetworkAnalyticsApiController::class, 'getProxyEvents'])->name('api.network.proxy');
+    Route::get('/firewall',     [NetworkAnalyticsApiController::class, 'getFirewallEvents'])->name('api.network.firewall');
+    Route::get('/findings',     [NetworkAnalyticsApiController::class, 'getFindings'])->name('api.network.findings');
+    Route::get('/pivot',        [NetworkAnalyticsApiController::class, 'pivot'])->name('api.network.pivot');
+
+    Route::post('/dns/ingest',       [NetworkAnalyticsApiController::class, 'ingestDns'])->name('api.network.dns.ingest');
+    Route::post('/proxy/ingest',     [NetworkAnalyticsApiController::class, 'ingestProxy'])->name('api.network.proxy.ingest');
+    Route::post('/firewall/ingest',  [NetworkAnalyticsApiController::class, 'ingestFirewall'])->name('api.network.firewall.ingest');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

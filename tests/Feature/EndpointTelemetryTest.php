@@ -43,9 +43,9 @@ class EndpointTelemetryTest extends TestCase
     // Registry — new rules present and correctly configured
     // -----------------------------------------------------------------------
 
-    public function test_registry_now_has_47_rules(): void
+    public function test_registry_now_has_56_rules(): void
     {
-        $this->assertCount(47, $this->registry());
+        $this->assertCount(56, $this->registry());
     }
 
     public function test_scheduled_task_persistence_rule_exists(): void
@@ -508,7 +508,7 @@ class EndpointTelemetryTest extends TestCase
         $ioc      = count(array_filter($rules, fn ($r) => ($r['domain'] ?? '') === 'threat-intel'));
 
         $this->assertSame(12, $active,   "12 staged_active rules expected");
-        $this->assertSame(35, $shadow,   "35 shadow rules expected (32 endpoint + 3 IOC)");
+        $this->assertSame(44, $shadow,   "44 shadow rules expected (32 endpoint + 3 IOC + 9 network)");
         $this->assertSame(32, $endpoint, "32 endpoint rules expected (22 behavioral + 5 cross-domain + 5 streaming)");
         $this->assertSame(3,  $ioc,      "3 threat-intel rules expected");
     }

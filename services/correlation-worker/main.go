@@ -73,8 +73,9 @@ type Worker struct {
 	inputTopic        string
 	outputTopic       string
 	dlqTopic          string
-	shadowAlertsTopic string
-	iocLookupURL      string
+	shadowAlertsTopic        string
+	networkShadowAlertsTopic string
+	iocLookupURL             string
 	group             string
 	scope             string
 	processed atomic.Int64
@@ -100,7 +101,8 @@ func main() {
 		inputTopic:        env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
 		outputTopic:       env("XDR_ALERTS_TOPIC", "xdr.alerts"),
 		dlqTopic:          env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
-		shadowAlertsTopic: env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
+		shadowAlertsTopic:        env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
+		networkShadowAlertsTopic: env("XDR_NETWORK_SHADOW_TOPIC",   "xdr.alerts.shadow.network"),
 		iocLookupURL:      env("XDR_IOC_LOOKUP_URL", ""),
 		group:             env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
 		scope:             env("XDR_CORRELATION_SCOPE", "identity-cloud"),
@@ -248,6 +250,19 @@ func (w *Worker) consumeOnce() {
 			if err := w.publish(w.shadowAlertsTopic, []map[string]any{shadowPayload}); err != nil {
 				w.publishErrors.Add(1)
 				log.Printf("endpoint shadow publish failed: %v", err)
+			}
+		}
+		if networkAlerts := correlateNetworkShadowAll(rawMaps); len(networkAlerts) > 0 {
+			networkPayload := map[string]any{
+				"trace_id":    shadowTraceID,
+				"source":      "correlation-worker",
+				"scope":       "network-shadow",
+				"alerts":      networkAlerts,
+				"shadow_mode": true,
+			}
+			if err := w.publish(w.networkShadowAlertsTopic, []map[string]any{networkPayload}); err != nil {
+				w.publishErrors.Add(1)
+				log.Printf("network shadow publish failed: %v", err)
 			}
 		}
 		if len(alerts) == 0 {
@@ -2369,6 +2384,326 @@ func ruleStreamRapidExecutionBeaconPattern(events []map[string]any) []EndpointAl
 		a.Evidence["execution_count"]= count
 		a.Evidence["advisory"]       = "streaming_shadow_only"
 		a.Evidence["no_autonomous"]  = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+// ---------------------------------------------------------------------------
+// Network shadow rules — DNS/proxy/firewall Phase 1
+// Advisory-only. Publishes to xdr.alerts.shadow.network only.
+// No active blocking. No firewall rule push. No IP/domain blocking.
+// No packet sniffing. No DPI inspection. No autonomous response.
+// ---------------------------------------------------------------------------
+
+func correlateNetworkShadowAll(events []map[string]any) []EndpointAlert {
+	if len(events) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, ruleNetworkSuspiciousDnsTld(events)...)
+	alerts = append(alerts, ruleNetworkDnsTxtQueryPattern(events)...)
+	alerts = append(alerts, ruleNetworkRepeatedNxdomain(events)...)
+	alerts = append(alerts, ruleNetworkSuspiciousUserAgent(events)...)
+	alerts = append(alerts, ruleNetworkHighVolumeProxyEgress(events)...)
+	alerts = append(alerts, ruleNetworkRepeatedDeniedOutbound(events)...)
+	alerts = append(alerts, ruleNetworkUnusualDestinationPort(events)...)
+	alerts = append(alerts, ruleNetworkRareExternalDestination(events)...)
+	alerts = append(alerts, ruleNetworkSuspiciousAllowAfterDeny(events)...)
+	return alerts
+}
+
+func ruleNetworkSuspiciousDnsTld(events []map[string]any) []EndpointAlert {
+	// Detect DNS queries to suspicious TLDs. Advisory-only, no blocking.
+	suspiciousTlds := map[string]bool{
+		".ru": true, ".cn": true, ".tk": true, ".ml": true, ".ga": true,
+		".cf": true, ".gq": true, ".pw": true, ".xyz": true, ".top": true,
+	}
+	seen := map[string]bool{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "dns" {
+			continue
+		}
+		domain := strings.ToLower(epStr(ev, "queried_domain"))
+		if domain == "" {
+			continue
+		}
+		parts := strings.Split(domain, ".")
+		if len(parts) < 2 {
+			continue
+		}
+		tld := "." + parts[len(parts)-1]
+		if !suspiciousTlds[tld] {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		key  := host + "|" + tld
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		a := makeEndpointAlert("suspicious_dns_tld", "v1", "Suspicious DNS TLD Query Detected", "medium", 0.72, ev)
+		a.Evidence["host"]         = host
+		a.Evidence["tld"]          = tld
+		a.Evidence["domain"]       = domain
+		a.Evidence["advisory"]     = "network_shadow_only"
+		a.Evidence["no_blocking"]  = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkDnsTxtQueryPattern(events []map[string]any) []EndpointAlert {
+	// Detect ≥2 TXT DNS queries from same host in batch. Advisory-only.
+	hostTxtCount := map[string]int{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "dns" || strings.ToUpper(epStr(ev, "query_type")) != "TXT" {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		if host != "" {
+			hostTxtCount[host]++
+		}
+	}
+	var alerts []EndpointAlert
+	for host, count := range hostTxtCount {
+		if count < 2 {
+			continue
+		}
+		a := makeEndpointAlert("dns_txt_query_pattern", "v1", "Repeated DNS TXT Queries Detected", "medium", 0.68, map[string]any{})
+		a.Evidence["host"]        = host
+		a.Evidence["txt_count"]   = count
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkRepeatedNxdomain(events []map[string]any) []EndpointAlert {
+	// Detect ≥5 NXDOMAIN responses for same host in batch. Advisory-only.
+	hostNxCount := map[string]int{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "dns" {
+			continue
+		}
+		if strings.ToUpper(epStr(ev, "response_code")) != "NXDOMAIN" {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		if host != "" {
+			hostNxCount[host]++
+		}
+	}
+	var alerts []EndpointAlert
+	for host, count := range hostNxCount {
+		if count < 5 {
+			continue
+		}
+		a := makeEndpointAlert("repeated_nxdomain", "v1", "Repeated NXDOMAIN Responses Detected", "medium", 0.74, map[string]any{})
+		a.Evidence["host"]         = host
+		a.Evidence["nxdomain_count"] = count
+		a.Evidence["advisory"]     = "network_shadow_only"
+		a.Evidence["no_blocking"]  = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkSuspiciousUserAgent(events []map[string]any) []EndpointAlert {
+	// Detect suspicious user-agent strings in proxy events. Advisory-only.
+	suspiciousUA := []string{"curl/", "python-requests/", "go-http-client/", "wget/", "sqlmap", "nikto", "masscan", "zgrab"}
+	seen := map[string]bool{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "proxy" {
+			continue
+		}
+		ua   := strings.ToLower(epStr(ev, "user_agent"))
+		host := epStr(ev, "host_id")
+		for _, pat := range suspiciousUA {
+			if strings.Contains(ua, pat) && !seen[host+"|"+pat] {
+				seen[host+"|"+pat] = true
+				a := makeEndpointAlert("suspicious_user_agent", "v1", "Suspicious Proxy User-Agent Detected", "high", 0.80, ev)
+				a.Evidence["host"]        = host
+				a.Evidence["ua_pattern"]  = pat
+				a.Evidence["advisory"]    = "network_shadow_only"
+				a.Evidence["no_blocking"] = true
+				alerts = append(alerts, a)
+				break
+			}
+		}
+	}
+	return alerts
+}
+
+func ruleNetworkHighVolumeProxyEgress(events []map[string]any) []EndpointAlert {
+	// Detect high total bytes_out via proxy per host in batch. Advisory-only.
+	hostBytes := map[string]int64{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "proxy" {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		if host == "" {
+			continue
+		}
+		if b, ok := ev["bytes_out"].(float64); ok {
+			hostBytes[host] += int64(b)
+		}
+	}
+	const threshold int64 = 50 * 1024 * 1024
+	var alerts []EndpointAlert
+	for host, total := range hostBytes {
+		if total < threshold {
+			continue
+		}
+		a := makeEndpointAlert("high_volume_proxy_egress", "v1", "High Volume Proxy Egress Detected", "high", 0.76, map[string]any{})
+		a.Evidence["host"]        = host
+		a.Evidence["bytes_out"]   = total
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkRepeatedDeniedOutbound(events []map[string]any) []EndpointAlert {
+	// Detect ≥5 denied firewall flows per host. Advisory-only.
+	hostDenyCount := map[string]int{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "firewall" {
+			continue
+		}
+		action := strings.ToLower(epStr(ev, "action"))
+		if action != "deny" && action != "drop" {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		if host != "" {
+			hostDenyCount[host]++
+		}
+	}
+	var alerts []EndpointAlert
+	for host, count := range hostDenyCount {
+		if count < 5 {
+			continue
+		}
+		a := makeEndpointAlert("repeated_denied_outbound", "v1", "Repeated Denied Outbound Firewall Flows Detected", "high", 0.80, map[string]any{})
+		a.Evidence["host"]        = host
+		a.Evidence["deny_count"]  = count
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkUnusualDestinationPort(events []map[string]any) []EndpointAlert {
+	// Detect connections to unusual/suspicious ports. Advisory-only.
+	unusualPorts := map[int]bool{4444: true, 1337: true, 31337: true, 6666: true, 9999: true, 8888: true, 4321: true}
+	seen := map[string]bool{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "firewall" {
+			continue
+		}
+		port := 0
+		if p, ok := ev["destination_port"].(float64); ok {
+			port = int(p)
+		}
+		if !unusualPorts[port] {
+			continue
+		}
+		host := epStr(ev, "host_id")
+		key  := fmt.Sprintf("%s|%d", host, port)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		a := makeEndpointAlert("unusual_destination_port", "v1", "Unusual Firewall Destination Port Detected", "high", 0.82, ev)
+		a.Evidence["host"]        = host
+		a.Evidence["port"]        = port
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkRareExternalDestination(events []map[string]any) []EndpointAlert {
+	// Detect first-seen external destinations per host in batch.
+	// Advisory-only — does NOT block the destination.
+	type hostDest struct{ host, dest string }
+	seen := map[hostDest]bool{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "firewall" {
+			continue
+		}
+		dest := epStr(ev, "destination_ip")
+		host := epStr(ev, "host_id")
+		if dest == "" || host == "" {
+			continue
+		}
+		// Only flag RFC-1918 external destinations (simplified: non-private)
+		if strings.HasPrefix(dest, "10.") || strings.HasPrefix(dest, "192.168.") ||
+			strings.HasPrefix(dest, "172.16.") || strings.HasPrefix(dest, "127.") {
+			continue
+		}
+		key := hostDest{host, dest}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		a := makeEndpointAlert("rare_external_destination", "v1", "Rare External Firewall Destination Detected", "medium", 0.62, ev)
+		a.Evidence["host"]        = host
+		a.Evidence["destination"] = dest
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleNetworkSuspiciousAllowAfterDeny(events []map[string]any) []EndpointAlert {
+	// Detect destination that was denied then allowed in the same batch. Advisory-only.
+	deniedDests := map[string]bool{}
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "firewall" {
+			continue
+		}
+		action := strings.ToLower(epStr(ev, "action"))
+		if action == "deny" || action == "drop" {
+			if d := epStr(ev, "destination_ip"); d != "" {
+				deniedDests[d] = true
+			}
+		}
+	}
+	if len(deniedDests) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if epStr(ev, "telemetry_type") != "firewall" {
+			continue
+		}
+		if strings.ToLower(epStr(ev, "action")) != "allow" {
+			continue
+		}
+		dest := epStr(ev, "destination_ip")
+		host := epStr(ev, "host_id")
+		if !deniedDests[dest] || seen[host+"|"+dest] {
+			continue
+		}
+		seen[host+"|"+dest] = true
+		a := makeEndpointAlert("suspicious_allow_after_deny", "v1", "Suspicious Allow After Prior Deny Detected", "high", 0.85, ev)
+		a.Evidence["host"]        = host
+		a.Evidence["destination"] = dest
+		a.Evidence["advisory"]    = "network_shadow_only"
+		a.Evidence["no_blocking"] = true
 		alerts = append(alerts, a)
 	}
 	return alerts

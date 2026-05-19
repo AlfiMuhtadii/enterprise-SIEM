@@ -48,6 +48,10 @@ class ThreatHuntingService
         'network_correlations', 'alerts',
         'cross_domain_correlations',
         'endpoint_stream_events',
+        'dns_events',
+        'proxy_events',
+        'firewall_events',
+        'network_behavioral_findings',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -130,6 +134,49 @@ class ThreatHuntingService
             'sequence_id'    => ['>=', '<='],
             'trace_id'       => ['='],
         ],
+        'dns_events' => [
+            'host_id'        => ['=', 'contains'],
+            'queried_domain' => ['=', 'contains'],
+            'query_type'     => ['='],
+            'response_code'  => ['='],
+            'tld'            => ['='],
+            'source_ip'      => ['='],
+            'user'           => ['='],
+            'is_nxdomain'    => ['='],
+            'trace_id'       => ['='],
+        ],
+        'proxy_events' => [
+            'host_id'        => ['=', 'contains'],
+            'domain'         => ['=', 'contains'],
+            'http_method'    => ['='],
+            'status_code'    => ['=', '>=', '<='],
+            'source_ip'      => ['='],
+            'user'           => ['='],
+            'is_denied'      => ['='],
+            'trace_id'       => ['='],
+        ],
+        'firewall_events' => [
+            'host_id'          => ['=', 'contains'],
+            'source_ip'        => ['='],
+            'destination_ip'   => ['='],
+            'destination_port' => ['='],
+            'action'           => ['='],
+            'protocol'         => ['='],
+            'is_deny'          => ['='],
+            'user'             => ['='],
+            'rule_name'        => ['=', 'contains'],
+            'trace_id'         => ['='],
+        ],
+        'network_behavioral_findings' => [
+            'finding_type'   => ['='],
+            'source_domain'  => ['='],
+            'host_id'        => ['=', 'contains'],
+            'target_domain'  => ['=', 'contains'],
+            'target_ip'      => ['='],
+            'severity'       => ['='],
+            'user'           => ['='],
+            'trace_id'       => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -142,7 +189,11 @@ class ThreatHuntingService
         'network_correlations'=> EndpointNetworkCorrelation::class,
         'alerts'                   => null, // handled separately via security_alerts
         'cross_domain_correlations'=> \App\Models\CrossDomainCorrelation::class,
-        'endpoint_stream_events'   => \App\Models\EndpointStreamEvent::class,
+        'endpoint_stream_events'      => \App\Models\EndpointStreamEvent::class,
+        'dns_events'                  => \App\Models\DnsEvent::class,
+        'proxy_events'                => \App\Models\ProxyEvent::class,
+        'firewall_events'             => \App\Models\FirewallEvent::class,
+        'network_behavioral_findings' => \App\Models\NetworkBehavioralFinding::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -155,7 +206,11 @@ class ThreatHuntingService
         'network_correlations'=> 'created_at',
         'alerts'                    => 'detected_at',
         'cross_domain_correlations' => 'created_at',
-        'endpoint_stream_events'    => 'occurred_at',
+        'endpoint_stream_events'      => 'occurred_at',
+        'dns_events'                  => 'occurred_at',
+        'proxy_events'                => 'occurred_at',
+        'firewall_events'             => 'occurred_at',
+        'network_behavioral_findings' => 'created_at',
     ];
 
     // -----------------------------------------------------------------------

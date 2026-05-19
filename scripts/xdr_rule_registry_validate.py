@@ -44,14 +44,15 @@ from typing import Any
 
 VALID_STATUSES = frozenset({"draft", "shadow", "staged_active", "deprecated"})
 VALID_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
-VALID_DOMAINS = frozenset({"identity", "cloud", "saas", "endpoint", "threat-intel", "xdr"})
+VALID_DOMAINS = frozenset({"identity", "cloud", "saas", "endpoint", "threat-intel", "xdr", "network"})
 
 ACTIVE_ALERT_TOPIC = "xdr.alerts"
 SHADOW_TOPIC_PREFIX = "xdr.alerts.shadow"
 
 # Domains that must remain shadow-only until an explicit domain soak gate passes.
 # Promotion of these domains to staged_active is forbidden in CI.
-PROTECTED_DOMAINS = frozenset({"endpoint", "threat-intel"})
+# network domain: DNS/proxy/firewall analytics — shadow-only until domain-specific 6h soak PASS
+PROTECTED_DOMAINS = frozenset({"endpoint", "threat-intel", "network"})
 
 # Intentionally empty: no rule in a PROTECTED_DOMAIN may be staged_active.
 # To allowlist a rule, a separate governance gate review and pull request is required.
@@ -74,6 +75,11 @@ VALID_EVENT_TYPES = frozenset({
     "security_setting_modified", "policy_change", "PutBucketPolicy",
     "admin_action", "admin_login", "privilege_escalated", "role_assigned",
     "login_success", "login_failed", "mfa_failed",
+    "dns_query", "proxy_request", "firewall_flow",
+    "process_started", "process_terminated", "outbound_connection_opened",
+    "persistence_item_created", "persistence_item_modified",
+    "shell_execution_detected", "response_execution_ack", "response_execution_rollback",
+    "any",
 })
 
 # ---------------------------------------------------------------------------

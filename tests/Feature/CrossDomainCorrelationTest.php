@@ -740,13 +740,13 @@ class CrossDomainCorrelationTest extends TestCase
         }
     }
 
-    public function test_registry_total_rule_count_is_47(): void
+    public function test_registry_total_rule_count_is_56(): void
     {
         $registry = json_decode(
             file_get_contents(base_path('docs/detection/rules/registry.v1.json')),
             true
         );
-        $this->assertCount(47, $registry['rules']);
+        $this->assertCount(56, $registry['rules']);
     }
 
     public function test_registry_staged_active_count_unchanged_at_12(): void
