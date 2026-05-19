@@ -1,0 +1,67 @@
+{
+  "description": "SOC Collaboration & Analyst Workflow — workload, SLA breaches, escalations, handoffs, watchlists. No autonomous SOC operations.",
+  "title": "XDR SOC Collaboration",
+  "uid": "xdr-soc-collab-v1",
+  "tags": ["xdr", "soc", "collaboration", "analyst", "sla", "escalation"],
+  "refresh": "2m",
+  "schemaVersion": 36,
+  "style": "dark",
+  "panels": [
+    {
+      "id": 1, "title": "Analyst Workload",
+      "type": "table", "gridPos": {"x":0,"y":0,"w":8,"h":8},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT assigned_to, COUNT(*) AS open_count, MIN(created_at) AS oldest FROM investigations WHERE state NOT IN ('resolved','closed','false_positive') AND assigned_to IS NOT NULL GROUP BY assigned_to ORDER BY open_count DESC", "format": "table"}]
+    },
+    {
+      "id": 2, "title": "SLA Breach Trends",
+      "type": "timeseries", "gridPos": {"x":8,"y":0,"w":8,"h":8},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, breach_type AS metric, COUNT(*) AS value FROM sla_breaches WHERE $__timeFilter(created_at) GROUP BY date_trunc('hour', created_at), breach_type ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 3, "title": "Escalation Timelines",
+      "type": "timeseries", "gridPos": {"x":16,"y":0,"w":8,"h":8},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, event_type AS metric, COUNT(*) AS value FROM escalation_events WHERE $__timeFilter(created_at) GROUP BY date_trunc('hour', created_at), event_type ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 4, "title": "Investigation Aging",
+      "type": "table", "gridPos": {"x":0,"y":8,"w":12,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT investigation_id, title, state, severity, created_at, EXTRACT(EPOCH FROM (NOW() - created_at)) / 3600 AS age_hours FROM investigations WHERE state NOT IN ('resolved','closed') ORDER BY age_hours DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 5, "title": "Queue Pressure (Unresolved)",
+      "type": "stat", "gridPos": {"x":12,"y":8,"w":4,"h":3},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) AS value FROM investigations WHERE state NOT IN ('resolved','closed','false_positive')", "format": "table"}]
+    },
+    {
+      "id": 6, "title": "Open Escalations",
+      "type": "stat", "gridPos": {"x":16,"y":8,"w":4,"h":3},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(DISTINCT escalation_id) AS value FROM escalation_events WHERE event_type = 'created' AND escalation_id NOT IN (SELECT escalation_id FROM escalation_events WHERE event_type = 'resolved')", "format": "table"}]
+    },
+    {
+      "id": 7, "title": "Unacked SLA Breaches",
+      "type": "stat", "gridPos": {"x":20,"y":8,"w":4,"h":3},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) AS value FROM sla_breaches WHERE acknowledged = false", "format": "table"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}]}}}
+    },
+    {
+      "id": 8, "title": "Handoff Activity",
+      "type": "timeseries", "gridPos": {"x":12,"y":11,"w":12,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, unresolved_count AS value FROM analyst_handoffs WHERE $__timeFilter(created_at) ORDER BY time", "format": "time_series"}]
+    },
+    {
+      "id": 9, "title": "Watchlist Growth",
+      "type": "timeseries", "gridPos": {"x":0,"y":17,"w":12,"h":6},
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT created_at AS time, watch_type AS metric, COUNT(*) AS value FROM watchlists WHERE $__timeFilter(created_at) GROUP BY date_trunc('day', created_at), watch_type ORDER BY time", "format": "time_series"}]
+    }
+  ],
+  "version": 1
+}

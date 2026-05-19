@@ -54,7 +54,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 1049 passed, zero failures
+php artisan test         → 1111 passed, zero failures
 python endpoint agent    → 126 tests, 0 failures
 rule registry validator  → status=PASS  rules=56  checks=21/21
 contract validate        → all contracts valid
@@ -268,7 +268,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan test
 ```
 
-Current: **1049 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **1111 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
 
 Rule registry: **56 rules** (12 staged_active, 44 shadow). Run `python scripts/xdr_rule_registry_validate.py`.
 
@@ -417,7 +417,7 @@ Do NOT:
 * remove `proc_root` / `proc_net_tcp` test-override kwargs from endpoint agent collectors
 * add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
 * mark response plan as `completed_documented` without analyst explicit action
-* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`
+* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`
 * push firewall rules, block IPs/domains, or perform DPI inspection — DNS/proxy/firewall are shadow-only advisory analytics
 * promote `network` domain rules to `staged_active` without a domain-specific 6h soak PASS
 * bypass `InternalServiceAuthMiddleware` on `/api/internal/*` routes

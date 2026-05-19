@@ -60,6 +60,8 @@ use App\Http\Controllers\Resilience\OperationsController;
 use App\Http\Controllers\Api\OperationsApiController;
 use App\Http\Controllers\Network\NetworkAnalyticsController;
 use App\Http\Controllers\Api\NetworkAnalyticsApiController;
+use App\Http\Controllers\Soc\SocWorkflowController;
+use App\Http\Controllers\Api\SocWorkflowApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -606,6 +608,35 @@ Route::middleware(['auth', 'soc:trace.view'])->prefix('api/network')->group(func
     Route::post('/dns/ingest',       [NetworkAnalyticsApiController::class, 'ingestDns'])->name('api.network.dns.ingest');
     Route::post('/proxy/ingest',     [NetworkAnalyticsApiController::class, 'ingestProxy'])->name('api.network.proxy.ingest');
     Route::post('/firewall/ingest',  [NetworkAnalyticsApiController::class, 'ingestFirewall'])->name('api.network.firewall.ingest');
+});
+
+// SOC Collaboration & Analyst Workflow Layer — Phase 1
+// Analyst-driven collaborative workflows only. No autonomous SOC operations.
+Route::middleware(['auth', 'soc:investigation.view'])->prefix('soc/workflow')->group(function () {
+    Route::get('/',              [SocWorkflowController::class, 'operationsDashboard'])->name('soc.workflow.dashboard');
+    Route::get('/queue',         [SocWorkflowController::class, 'analystQueue'])->name('soc.workflow.queue');
+    Route::get('/escalation',    [SocWorkflowController::class, 'escalationCenter'])->name('soc.workflow.escalation');
+    Route::get('/watchlist',     [SocWorkflowController::class, 'watchlistCenter'])->name('soc.workflow.watchlist');
+    Route::get('/sla',           [SocWorkflowController::class, 'slaMonitoring'])->name('soc.workflow.sla');
+    Route::get('/handoff',       [SocWorkflowController::class, 'shiftHandoff'])->name('soc.workflow.handoff');
+    Route::get('/timeline',      [SocWorkflowController::class, 'collaborationTimeline'])->name('soc.workflow.timeline');
+    Route::get('/workload',      [SocWorkflowController::class, 'analystWorkload'])->name('soc.workflow.workload');
+    Route::get('/shared',        [SocWorkflowController::class, 'sharedInvestigations'])->name('soc.workflow.shared');
+
+    Route::post('/handoff',                    [SocWorkflowController::class, 'createHandoff'])->name('soc.workflow.handoff.create');
+    Route::post('/watchlist',                  [SocWorkflowController::class, 'createWatchlist'])->name('soc.workflow.watchlist.create');
+    Route::post('/escalation',                 [SocWorkflowController::class, 'createEscalation'])->name('soc.workflow.escalation.create');
+});
+
+Route::middleware(['auth', 'soc:investigation.view'])->prefix('api/soc/workflow')->group(function () {
+    Route::get('/summary',       [SocWorkflowApiController::class, 'getOperationsSummary'])->name('api.soc.workflow.summary');
+    Route::get('/escalations',   [SocWorkflowApiController::class, 'getEscalationQueue'])->name('api.soc.workflow.escalations');
+    Route::get('/sla-breaches',  [SocWorkflowApiController::class, 'getSlaBreaches'])->name('api.soc.workflow.breaches');
+    Route::get('/workload',      [SocWorkflowApiController::class, 'getAnalystWorkload'])->name('api.soc.workflow.workload');
+    Route::get('/watchlists',    [SocWorkflowApiController::class, 'getWatchlists'])->name('api.soc.workflow.watchlists');
+    Route::get('/timeline',      [SocWorkflowApiController::class, 'getCollaborationTimeline'])->name('api.soc.workflow.timeline');
+    Route::post('/collaborator', [SocWorkflowApiController::class, 'addCollaborator'])->name('api.soc.workflow.collaborator');
+    Route::post('/escalations/{escalationId}/acknowledge', [SocWorkflowApiController::class, 'acknowledgeEscalation'])->name('api.soc.workflow.escalation.ack');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

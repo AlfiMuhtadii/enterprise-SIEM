@@ -66,6 +66,11 @@
                         </x-nav-link>
                     @endcan
                     @can('soc:investigation.view')
+                        <x-nav-link :href="route('soc.workflow.dashboard')" :active="request()->routeIs('soc.workflow.*')">
+                            {{ __('SOC Ops') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('soc:investigation.view')
                         <x-nav-link :href="route('cross-domain.dashboard')" :active="request()->routeIs('cross-domain.*')">
                             {{ __('Cross-Domain') }}
                         </x-nav-link>

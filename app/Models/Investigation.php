@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Investigation extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'investigation_id', 'title', 'description', 'state', 'severity', 'priority',
         'created_by', 'assigned_to', 'escalated_to', 'trace_id',
