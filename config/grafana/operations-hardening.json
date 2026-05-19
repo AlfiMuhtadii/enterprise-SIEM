@@ -1,0 +1,124 @@
+{
+  "__inputs": [],
+  "__requires": [{ "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" }],
+  "annotations": { "list": [] },
+  "description": "XDR Platform Operations Hardening — stream lag, queue backlog, replay pressure, retention, backup, degraded services. Advisory metrics only. No autonomous remediation.",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Stream Lag by Consumer Group",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, consumer_group || '/' || topic AS metric, lag_count AS value FROM queue_lag_metrics WHERE $__timeFilter(created_at) ORDER BY time ASC",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "thresholds": { "steps": [{"color": "green","value": null},{"color": "yellow","value": 1000},{"color": "red","value": 10000}] } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Queue Backlog Trend",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, consumer_group AS metric, lag_count AS value FROM queue_lag_metrics WHERE trend = 'increasing' AND $__timeFilter(created_at) ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+    {
+      "id": 3,
+      "title": "Stream Pressure States",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT state, COUNT(*) AS count FROM stream_pressure_metrics WHERE created_at > NOW() - INTERVAL '1 hour' GROUP BY state",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Replay Pressure",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, service_name AS metric, value FROM stream_pressure_metrics WHERE metric_type = 'replay_pressure' AND $__timeFilter(created_at) ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+    {
+      "id": 5,
+      "title": "Ingestion Saturation",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT AVG(value) AS value FROM stream_pressure_metrics WHERE metric_type = 'saturation' AND created_at > NOW() - INTERVAL '5 minutes'",
+        "format": "table"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100,
+        "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":70},{"color":"red","value":90}] }
+      }}
+    },
+    {
+      "id": 6,
+      "title": "Retention Execution History",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT re.created_at, rp.domain, re.dry_run, re.rows_eligible, re.rows_deleted, re.status FROM retention_executions re JOIN retention_policies rp ON rp.id = re.policy_id WHERE $__timeFilter(re.created_at) ORDER BY re.created_at DESC LIMIT 50",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 7,
+      "title": "Backup Validation History",
+      "type": "table",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT rv.created_at, rv.backup_id, rv.validation_type, rv.result FROM recovery_validations rv WHERE $__timeFilter(rv.created_at) ORDER BY rv.created_at DESC LIMIT 50",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 8,
+      "title": "Degraded Service States",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT s1.service_name, s1.health_state, s1.error_message, s1.created_at FROM service_health_snapshots s1 WHERE NOT EXISTS (SELECT 1 FROM service_health_snapshots s2 WHERE s2.service_name = s1.service_name AND s2.id > s1.id) AND s1.health_state != 'healthy' ORDER BY s1.service_name",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 9,
+      "title": "DLQ Replay Recovery Duration",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, job_id AS metric, EXTRACT(EPOCH FROM (updated_at - created_at)) AS duration_seconds FROM dlq_replay_jobs WHERE status = 'completed' AND $__timeFilter(created_at) ORDER BY time",
+        "format": "time_series"
+      }]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["xdr", "operations", "hardening", "advisory"],
+  "title": "XDR Operations Hardening",
+  "uid": "xdr-ops-hardening-v1",
+  "version": 1
+}

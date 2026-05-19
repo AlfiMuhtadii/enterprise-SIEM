@@ -56,6 +56,8 @@ use App\Http\Controllers\Response\ActiveResponseController;
 use App\Http\Controllers\Api\ActiveResponseApiController;
 use App\Http\Controllers\Endpoint\EndpointStreamController;
 use App\Http\Controllers\Api\EndpointStreamApiController;
+use App\Http\Controllers\Resilience\OperationsController;
+use App\Http\Controllers\Api\OperationsApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -547,6 +549,36 @@ Route::middleware(['auth', 'soc:trace.view'])->prefix('api')->group(function () 
 // Agent stream ingestion — authenticated by enrollment token header
 Route::prefix('api/agents')->group(function () {
     Route::post('/{agentId}/stream-batch', [EndpointStreamApiController::class, 'ingestBatch'])->name('api.agents.stream.batch');
+});
+
+// Production Operations Hardening — Phase 1
+// Operational hardening and recovery tooling only. No autonomous infrastructure mutation.
+Route::middleware(['auth', 'admin'])->prefix('operations')->group(function () {
+    Route::get('/',              [OperationsController::class, 'healthDashboard'])->name('operations.health');
+    Route::get('/queue-health',  [OperationsController::class, 'queueHealth'])->name('operations.queue');
+    Route::get('/retention',     [OperationsController::class, 'retentionCenter'])->name('operations.retention');
+    Route::get('/backup',        [OperationsController::class, 'backupRecovery'])->name('operations.backup');
+    Route::get('/dlq',           [OperationsController::class, 'dlqReplayCenter'])->name('operations.dlq');
+    Route::get('/graph',         [OperationsController::class, 'deploymentGraph'])->name('operations.graph');
+    Route::get('/warnings',      [OperationsController::class, 'warningsTimeline'])->name('operations.warnings');
+
+    Route::post('/retention/{policyId}/preview',  [OperationsController::class, 'previewRetention'])->name('operations.retention.preview');
+    Route::post('/retention/{policyId}/dry-run',  [OperationsController::class, 'runDryRun'])->name('operations.retention.dry-run');
+
+    Route::post('/dlq/jobs',                      [OperationsController::class, 'createDlqJob'])->name('operations.dlq.create');
+    Route::post('/dlq/jobs/{jobId}/simulate',     [OperationsController::class, 'simulateDlqJob'])->name('operations.dlq.simulate');
+    Route::post('/dlq/jobs/{jobId}/cancel',       [OperationsController::class, 'cancelDlqJob'])->name('operations.dlq.cancel');
+});
+
+Route::middleware(['auth', 'admin'])->prefix('api/operations')->group(function () {
+    Route::get('/health',       [OperationsApiController::class, 'getHealthSummary'])->name('api.operations.health');
+    Route::get('/queue-lag',    [OperationsApiController::class, 'getQueueLag'])->name('api.operations.queue-lag');
+    Route::get('/graph',        [OperationsApiController::class, 'getDependencyGraph'])->name('api.operations.graph');
+    Route::get('/warnings',     [OperationsApiController::class, 'getWarnings'])->name('api.operations.warnings');
+    Route::get('/backup',       [OperationsApiController::class, 'getBackupSummary'])->name('api.operations.backup');
+    Route::get('/dlq/jobs',     [OperationsApiController::class, 'getDlqJobs'])->name('api.operations.dlq-jobs');
+    Route::get('/dlq/jobs/{jobId}/preview', [OperationsApiController::class, 'getDlqPreview'])->name('api.operations.dlq-preview');
+    Route::get('/retention/{policyId}/preview', [OperationsApiController::class, 'previewRetention'])->name('api.operations.retention-preview');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

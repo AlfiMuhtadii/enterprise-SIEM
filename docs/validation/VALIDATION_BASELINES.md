@@ -14,7 +14,7 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan test
 ```
 
-**Expected:** `934 passed` — zero failures, zero skipped.
+**Expected:** `997 passed` — zero failures, zero skipped.
 If any test fails: **STOP**. Do not commit, demo, or proceed.
 
 Do NOT run parallel `php artisan test` processes against the same PostgreSQL test database.

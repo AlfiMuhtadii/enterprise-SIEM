@@ -92,6 +92,9 @@
                         <x-nav-link :href="route('resilience.index')" :active="request()->routeIs('resilience.*')">
                             {{ __('Resilience') }}
                         </x-nav-link>
+                        <x-nav-link :href="route('operations.health')" :active="request()->routeIs('operations.*')">
+                            {{ __('Operations') }}
+                        </x-nav-link>
                     @endif
                 </div>
             </div>
@@ -204,6 +207,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('resilience.index')" :active="request()->routeIs('resilience.*')">
                     {{ __('Resilience') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('operations.health')" :active="request()->routeIs('operations.*')">
+                    {{ __('Operations') }}
                 </x-responsive-nav-link>
             @endif
             <div class="border-t border-cyan-100/20 px-3 pt-3">
