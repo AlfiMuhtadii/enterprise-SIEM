@@ -440,4 +440,108 @@ class EntityGraphService
             $this->traverse($peerId, $depth - 1, $visited, $nodes, $edges);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Streaming relationship projection — Phase 1
+    // Advisory-only. All projections are read-only entity graph updates.
+    // No autonomous containment. Append-safe.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Project streaming execution sequence as a process→process relationship.
+     * process_started_before_process: parent → child via streaming event.
+     */
+    public function projectStreamProcessChain(
+        string $parentName,
+        string $childName,
+        string $hostId,
+        string $traceId,
+        string $seenAt
+    ): void {
+        $parentId = $this->upsertEntity('process', $parentName . '@' . $hostId, $parentName, $seenAt);
+        $childId  = $this->upsertEntity('process', $childName  . '@' . $hostId, $childName,  $seenAt);
+        $this->upsertRelationship(
+            $parentId, $childId,
+            'process_started_before_process',
+            $seenAt, 'endpoint_stream', 'endpoint_stream_events', null, $traceId, 0.85
+        );
+    }
+
+    /**
+     * Project process→connection relationship from streaming outbound event.
+     * process_opened_connection: process → network destination.
+     */
+    public function projectStreamConnection(
+        string $processName,
+        string $destination,
+        string $hostId,
+        string $traceId,
+        string $seenAt
+    ): void {
+        $procId = $this->upsertEntity('process', $processName . '@' . $hostId, $processName, $seenAt);
+        $destId = $this->upsertEntity('network_dest', $destination, $destination, $seenAt);
+        $this->upsertRelationship(
+            $procId, $destId,
+            'process_opened_connection',
+            $seenAt, 'endpoint_stream', 'endpoint_stream_events', null, $traceId, 0.90
+        );
+    }
+
+    /**
+     * Project process→persistence relationship from streaming persistence event.
+     * persistence_created_by_process: process → persistence item.
+     */
+    public function projectStreamPersistence(
+        string $processName,
+        string $persistenceKey,
+        string $persistenceType,
+        string $hostId,
+        string $traceId,
+        string $seenAt
+    ): void {
+        $procId = $this->upsertEntity('process', $processName . '@' . $hostId, $processName, $seenAt);
+        $persId = $this->upsertEntity('persistence_item', $persistenceKey, $persistenceType . ':' . $persistenceKey, $seenAt);
+        $this->upsertRelationship(
+            $procId, $persId,
+            'persistence_created_by_process',
+            $seenAt, 'endpoint_stream', 'endpoint_stream_events', null, $traceId, 0.80
+        );
+    }
+
+    /**
+     * Project stream event→trace relationship.
+     * stream_event_linked_to_trace: stream batch → trace.
+     */
+    public function projectStreamEventToTrace(
+        string $batchId,
+        string $traceId,
+        string $seenAt
+    ): void {
+        $batchEntityId = $this->upsertEntity('stream_batch', $batchId, 'Stream Batch ' . $batchId, $seenAt);
+        $traceEntityId = $this->upsertEntity('trace', $traceId, 'Trace ' . $traceId, $seenAt);
+        $this->upsertRelationship(
+            $batchEntityId, $traceEntityId,
+            'stream_event_linked_to_trace',
+            $seenAt, 'endpoint_stream', 'endpoint_stream_events', null, $traceId, 0.95
+        );
+    }
+
+    /**
+     * Project host→response acknowledgement relationship.
+     * response_acknowledged_by_host: response execution → host.
+     */
+    public function projectResponseAcknowledgement(
+        string $responseExecId,
+        string $hostId,
+        string $traceId,
+        string $seenAt
+    ): void {
+        $execEntityId = $this->upsertEntity('response_execution', $responseExecId, 'Response ' . $responseExecId, $seenAt);
+        $hostEntityId = $this->upsertEntity('host', $hostId, $hostId, $seenAt);
+        $this->upsertRelationship(
+            $hostEntityId, $execEntityId,
+            'response_acknowledged_by_host',
+            $seenAt, 'endpoint_stream', 'endpoint_stream_events', null, $traceId, 0.88
+        );
+    }
 }

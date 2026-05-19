@@ -47,6 +47,7 @@ class ThreatHuntingService
         'beacon_patterns', 'behavioral_findings', 'hosts',
         'network_correlations', 'alerts',
         'cross_domain_correlations',
+        'endpoint_stream_events',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -116,6 +117,19 @@ class ThreatHuntingService
             'confidence_score'     => ['>='],
             'trace_id'             => ['='],
         ],
+        'endpoint_stream_events' => [
+            'event_type'     => ['='],
+            'agent_id'       => ['='],
+            'host_id'        => ['=', 'contains'],
+            'process_name'   => ['=', 'contains'],
+            'parent_name'    => ['=', 'contains'],
+            'connection_dest'=> ['=', 'contains'],
+            'connection_port'=> ['='],
+            'persistence_key'=> ['=', 'contains'],
+            'persistence_type'=> ['='],
+            'sequence_id'    => ['>=', '<='],
+            'trace_id'       => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -128,6 +142,7 @@ class ThreatHuntingService
         'network_correlations'=> EndpointNetworkCorrelation::class,
         'alerts'                   => null, // handled separately via security_alerts
         'cross_domain_correlations'=> \App\Models\CrossDomainCorrelation::class,
+        'endpoint_stream_events'   => \App\Models\EndpointStreamEvent::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -140,6 +155,7 @@ class ThreatHuntingService
         'network_correlations'=> 'created_at',
         'alerts'                    => 'detected_at',
         'cross_domain_correlations' => 'created_at',
+        'endpoint_stream_events'    => 'occurred_at',
     ];
 
     // -----------------------------------------------------------------------
@@ -709,5 +725,122 @@ class ThreatHuntingService
     public function pivotCrossDomainTrace(string $traceId): array
     {
         return app(\App\Services\CrossDomainCorrelationService::class)->stitchCrossDomainTrace($traceId);
+    }
+
+    // -----------------------------------------------------------------------
+    // Streaming pivot methods — live hunt pivots, advisory-only
+    // No autonomous hunt-triggered response. No auto-containment.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Pivot stream events by process name — short-window correlation.
+     */
+    public function pivotStreamByProcess(string $processName, int $windowMinutes = 60): array
+    {
+        $since  = now()->subMinutes($windowMinutes);
+        $events = \App\Models\EndpointStreamEvent::where('process_name', $processName)
+            ->where('occurred_at', '>=', $since)
+            ->orderByDesc('sequence_id')
+            ->limit(200)
+            ->get();
+
+        $agents = $events->pluck('agent_id')->unique()->values()->toArray();
+        $types  = $events->groupBy('event_type')->map->count();
+
+        return [
+            'process_name'   => $processName,
+            'window_minutes' => $windowMinutes,
+            'event_count'    => $events->count(),
+            'agents_affected'=> $agents,
+            'event_type_breakdown' => $types,
+            'advisory_only'  => true,
+            'no_autonomous_response' => true,
+        ];
+    }
+
+    /**
+     * Pivot stream events by trace ID — real-time trace stitching.
+     */
+    public function pivotStreamTrace(string $traceId): array
+    {
+        $events = \App\Models\EndpointStreamEvent::where('trace_id', $traceId)
+            ->orderBy('sequence_id')
+            ->limit(500)
+            ->get();
+
+        $sequenceRange = $events->isEmpty()
+            ? null
+            : ['min' => $events->first()->sequence_id, 'max' => $events->last()->sequence_id];
+
+        return [
+            'trace_id'       => $traceId,
+            'event_count'    => $events->count(),
+            'sequence_range' => $sequenceRange,
+            'event_types'    => $events->pluck('event_type')->unique()->values()->toArray(),
+            'agents'         => $events->pluck('agent_id')->unique()->values()->toArray(),
+            'events'         => $events->take(50)->toArray(),
+            'advisory_only'  => true,
+            'no_autonomous_response' => true,
+        ];
+    }
+
+    /**
+     * Rapid beacon investigation — identify repeated execution patterns in streaming events.
+     */
+    public function pivotStreamBeaconInvestigation(string $agentId, int $windowMinutes = 30): array
+    {
+        $streamSvc = app(\App\Services\EndpointStreamingService::class);
+        $findings  = $streamSvc->detectStreamBeaconPattern($agentId, $windowMinutes * 60);
+        $gaps      = $streamSvc->detectSequenceGaps($agentId);
+
+        return [
+            'agent_id'       => $agentId,
+            'window_minutes' => $windowMinutes,
+            'beacon_findings'=> $findings,
+            'sequence_gaps'  => $gaps,
+            'advisory_only'  => true,
+            'no_autonomous_response' => true,
+        ];
+    }
+
+    /**
+     * Stream execution chain inspection — short-window execution chain via streaming events.
+     */
+    public function pivotStreamExecutionChain(string $agentId, int $windowSeconds = 300): array
+    {
+        $since  = now()->subSeconds($windowSeconds);
+        $events = \App\Models\EndpointStreamEvent::where('agent_id', $agentId)
+            ->whereIn('event_type', [
+                \App\Models\EndpointStreamEvent::TYPE_PROCESS_STARTED,
+                \App\Models\EndpointStreamEvent::TYPE_SHELL_EXECUTION_DETECTED,
+            ])
+            ->where('occurred_at', '>=', $since)
+            ->orderBy('sequence_id')
+            ->get();
+
+        // Build parent→child chain map
+        $chainMap = [];
+        foreach ($events as $ev) {
+            $ppid = $ev->parent_pid;
+            $pid  = $ev->process_pid;
+            if ($ppid && $pid) {
+                $chainMap[$ppid][] = [
+                    'pid'       => $pid,
+                    'name'      => $ev->process_name,
+                    'type'      => $ev->event_type,
+                    'occurred'  => $ev->occurred_at?->toIso8601String(),
+                    'sequence'  => $ev->sequence_id,
+                ];
+            }
+        }
+
+        return [
+            'agent_id'          => $agentId,
+            'window_seconds'    => $windowSeconds,
+            'total_events'      => $events->count(),
+            'execution_chain'   => $chainMap,
+            'advisory_only'     => true,
+            'no_autonomous_response' => true,
+        ];
     }
 }

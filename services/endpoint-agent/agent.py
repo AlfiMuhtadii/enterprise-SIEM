@@ -14,6 +14,7 @@ Requirements: Python 3.9+, stdlib only (no pip dependencies).
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import hmac
 import ipaddress
@@ -767,6 +768,218 @@ def rollback_host_isolation(
         return {"status": "rolled_back", "simulation": True, "note": "Simulation marker removed."}
     except OSError as exc:
         return {"status": "error", "message": str(exc)}
+
+# ---------------------------------------------------------------------------
+# Streaming Telemetry Engine — Phase 1
+# Near-real-time advisory telemetry streaming.
+# No kernel EDR. No eBPF. No syscall hooking. No packet sniffing.
+# No autonomous containment. Collection sources: /proc, safe filesystem,
+# safe process inspection, safe persistence inventory.
+# ---------------------------------------------------------------------------
+
+STREAM_QUEUE_MAX: int = 500        # bounded queue — prevents unbounded memory growth
+STREAM_BATCH_SIZE: int = 50        # events per flush
+STREAM_FLUSH_INTERVAL: float = 5.0 # seconds between periodic flushes
+STREAM_SPOOL_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MiB local spool cap
+
+
+class StreamingState:
+    """Per-agent streaming state: sequence counter, bounded queue, spool."""
+
+    def __init__(self, spool_dir: str = ".") -> None:
+        self.sequence_id: int = 0
+        self.queue: collections.deque[dict[str, Any]] = collections.deque(maxlen=STREAM_QUEUE_MAX)
+        self.spool_path: Path = Path(spool_dir) / ".xdr_stream_spool.jsonl"
+        self.last_flush_at: float = 0.0
+        self.dropped_count: int = 0
+        self.batch_count: int = 0
+
+    def next_sequence(self) -> int:
+        self.sequence_id += 1
+        return self.sequence_id
+
+
+def emit_stream_event(
+    state: StreamingState,
+    event_type: str,
+    agent_id: str,
+    host_id: str,
+    trace_id: str,
+    **fields: Any,
+) -> dict[str, Any]:
+    """
+    Build a streaming event and enqueue it. Returns the event dict.
+    If queue is full (maxlen reached), the oldest entry is auto-dropped and
+    dropped_count is incremented to track backpressure.
+    No kernel telemetry. No credential capture.
+    """
+    seq = state.next_sequence()
+    event: dict[str, Any] = {
+        "event_id":   f"sev-{uuid.uuid4()}",
+        "event_type": event_type,
+        "sequence_id": seq,
+        "agent_id":   agent_id,
+        "host_id":    host_id,
+        "occurred_at": datetime.now(timezone.utc).isoformat(),
+        "trace_id":   trace_id,
+    }
+    event.update(fields)
+
+    was_full = len(state.queue) == state.queue.maxlen
+    state.queue.append(event)
+    if was_full:
+        state.dropped_count += 1
+
+    return event
+
+
+def flush_stream_batch(
+    state: StreamingState,
+    cfg: dict[str, Any],
+    agent_id: str,
+    gateway_url: str = "",
+    *,
+    http_timeout: int = 10,
+) -> dict[str, Any]:
+    """
+    Flush up to STREAM_BATCH_SIZE events from the queue to the server.
+    Attempts replay from spool first (reconnect-safe delivery).
+    Returns flush result metadata.
+    No autonomous containment. Single bounded batch.
+    """
+    # Replay spool first if it exists
+    spooled = replay_from_spool(state)
+
+    batch = list(state.queue)[:STREAM_BATCH_SIZE]
+    for ev in batch:
+        state.queue.remove(ev) if ev in state.queue else None
+
+    all_events = spooled + batch
+    if not all_events:
+        return {"status": "empty", "sent": 0, "batch_id": None}
+
+    batch_id = f"batch-{uuid.uuid4()}"
+    payload = {
+        "batch_id": batch_id,
+        "agent_id": agent_id,
+        "events":   all_events,
+    }
+
+    target_url = cfg.get("stream_endpoint", gateway_url)
+    if not target_url:
+        # No endpoint configured — spool locally
+        spool_to_disk(state, all_events)
+        return {"status": "spooled", "sent": 0, "spooled": len(all_events), "batch_id": batch_id}
+
+    try:
+        body = json.dumps(payload).encode("utf-8")
+        req  = urllib_request.Request(
+            target_url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib_request.urlopen(req, timeout=http_timeout) as resp:
+            state.batch_count += 1
+            state.last_flush_at = time.monotonic()
+            return {"status": "ok", "sent": len(all_events), "batch_id": batch_id, "http_status": resp.status}
+    except (URLError, OSError) as exc:
+        log.warning("Stream flush failed: %s — spooling %d events", exc, len(all_events))
+        spool_to_disk(state, all_events)
+        return {"status": "spooled", "sent": 0, "spooled": len(all_events), "batch_id": batch_id, "error": str(exc)}
+
+
+def spool_to_disk(state: StreamingState, events: list[dict[str, Any]]) -> bool:
+    """
+    Write events to local spool file. Bounded by STREAM_SPOOL_MAX_BYTES.
+    Returns True on success. No sensitive data capture.
+    """
+    try:
+        if state.spool_path.exists() and state.spool_path.stat().st_size >= STREAM_SPOOL_MAX_BYTES:
+            log.warning("Spool cap reached (%d bytes) — oldest events discarded", STREAM_SPOOL_MAX_BYTES)
+            state.dropped_count += len(events)
+            return False
+        with state.spool_path.open("a", encoding="utf-8") as fh:
+            for ev in events:
+                fh.write(json.dumps(ev) + "\n")
+        return True
+    except OSError as exc:
+        log.error("Spool write failed: %s", exc)
+        return False
+
+
+def replay_from_spool(state: StreamingState) -> list[dict[str, Any]]:
+    """
+    Read and drain the local spool file for reconnect replay.
+    Returns list of events (may be empty). Removes spool after reading.
+    Bounded replay: never reads beyond STREAM_SPOOL_MAX_BYTES.
+    """
+    if not state.spool_path.exists():
+        return []
+    try:
+        lines = state.spool_path.read_text(encoding="utf-8").splitlines()
+        events = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        state.spool_path.unlink(missing_ok=True)
+        return events
+    except OSError as exc:
+        log.error("Spool read failed: %s", exc)
+        return []
+
+
+def detect_rapid_stream_shell_chain(
+    events: list[dict[str, Any]],
+    threshold: int = 3,
+) -> list[dict[str, Any]]:
+    """
+    Advisory analytics: detect rapid shell execution chain from streaming events.
+    Returns list of findings. No autonomous response. No containment.
+    """
+    SHELL_NAMES = frozenset(["bash", "sh", "zsh", "cmd", "powershell", "python", "python3"])
+    shell_events = [
+        ev for ev in events
+        if ev.get("event_type") in ("shell_execution_detected", "process_started")
+        and str(ev.get("process_name", "")).lower() in SHELL_NAMES
+    ]
+    if len(shell_events) < threshold:
+        return []
+    return [{
+        "finding_type":  "rapid_shell_chain",
+        "event_count":   len(shell_events),
+        "advisory_only": True,
+        "no_autonomous": True,
+        "detected_at":   datetime.now(timezone.utc).isoformat(),
+    }]
+
+
+def detect_stream_burst_outbound(
+    events: list[dict[str, Any]],
+    threshold: int = 10,
+) -> list[dict[str, Any]]:
+    """
+    Advisory analytics: detect burst outbound connection activity from streaming events.
+    Returns list of findings. No autonomous response. No containment.
+    """
+    conn_events = [ev for ev in events if ev.get("event_type") == "outbound_connection_opened"]
+    if len(conn_events) < threshold:
+        return []
+    dests = {ev.get("connection_dest") for ev in conn_events if ev.get("connection_dest")}
+    return [{
+        "finding_type":       "burst_outbound_activity",
+        "connection_count":   len(conn_events),
+        "unique_destinations": len(dests),
+        "advisory_only":      True,
+        "no_autonomous":      True,
+        "detected_at":        datetime.now(timezone.utc).isoformat(),
+    }]
+
 
 # Explicitly listed so tests can assert these are never executed.
 FORBIDDEN_COMMAND_TYPES: frozenset[str] = frozenset([

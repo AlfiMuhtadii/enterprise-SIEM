@@ -54,6 +54,8 @@ use App\Http\Controllers\Investigation\CrossDomainController;
 use App\Http\Controllers\Api\CrossDomainApiController;
 use App\Http\Controllers\Response\ActiveResponseController;
 use App\Http\Controllers\Api\ActiveResponseApiController;
+use App\Http\Controllers\Endpoint\EndpointStreamController;
+use App\Http\Controllers\Api\EndpointStreamApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -521,6 +523,30 @@ Route::middleware(['auth', 'soc:response.view'])->prefix('api')->group(function 
     Route::get('/active-response/pending-approvals',     [ActiveResponseApiController::class, 'getPendingApprovals'])->name('api.active-response.pending');
     Route::get('/active-response/executions/{id}/simulation', [ActiveResponseApiController::class, 'getSimulation'])->name('api.active-response.simulation');
     Route::get('/active-response/allowed-actions',       [ActiveResponseApiController::class, 'getAllowedActions'])->name('api.active-response.actions');
+});
+
+// Endpoint Streaming Telemetry — Phase 1
+// Near-real-time advisory telemetry. Not kernel-level EDR.
+Route::middleware(['auth', 'soc:trace.view'])->group(function () {
+    Route::get('/endpoint/stream/feed',            [EndpointStreamController::class, 'activityFeed'])->name('endpoint.stream.feed');
+    Route::get('/endpoint/stream/monitor',         [EndpointStreamController::class, 'monitor'])->name('endpoint.stream.monitor');
+    Route::get('/endpoint/stream/health',          [EndpointStreamController::class, 'health'])->name('endpoint.stream.health');
+    Route::get('/endpoint/stream/burst',           [EndpointStreamController::class, 'burstActivity'])->name('endpoint.stream.burst');
+    Route::get('/endpoint/stream/replay',          [EndpointStreamController::class, 'replayInspector'])->name('endpoint.stream.replay');
+    Route::get('/endpoint/stream/{agentId}/timeline', [EndpointStreamController::class, 'eventTimeline'])->name('endpoint.stream.timeline');
+});
+
+Route::middleware(['auth', 'soc:trace.view'])->prefix('api')->group(function () {
+    Route::get('/endpoint/stream/events',          [EndpointStreamApiController::class, 'getStreamEvents'])->name('api.endpoint.stream.events');
+    Route::get('/endpoint/stream/health',          [EndpointStreamApiController::class, 'getStreamHealth'])->name('api.endpoint.stream.health');
+    Route::get('/endpoint/stream/checkpoints',     [EndpointStreamApiController::class, 'getStreamCheckpoints'])->name('api.endpoint.stream.checkpoints');
+    Route::get('/endpoint/stream/{agentId}/replay', [EndpointStreamApiController::class, 'getReplayWindow'])->name('api.endpoint.stream.replay');
+    Route::get('/endpoint/stream/{agentId}/analytics', [EndpointStreamApiController::class, 'getRapidAnalytics'])->name('api.endpoint.stream.analytics');
+});
+
+// Agent stream ingestion — authenticated by enrollment token header
+Route::prefix('api/agents')->group(function () {
+    Route::post('/{agentId}/stream-batch', [EndpointStreamApiController::class, 'ingestBatch'])->name('api.agents.stream.batch');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header

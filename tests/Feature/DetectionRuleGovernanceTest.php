@@ -36,10 +36,10 @@ class DetectionRuleGovernanceTest extends TestCase
     // Registry service
     // -----------------------------------------------------------------------
 
-    public function test_registry_loads_all_42_rules(): void
+    public function test_registry_loads_all_47_rules(): void
     {
         $rules = $this->registry()->allRules();
-        $this->assertCount(42, $rules);
+        $this->assertCount(47, $rules);
     }
 
     public function test_registry_merges_db_state_on_first_load(): void
@@ -50,7 +50,7 @@ class DetectionRuleGovernanceTest extends TestCase
             $this->assertNotEmpty($rule['db_state']->stage);
         }
         // DB rows created on first load
-        $this->assertSame(42, DetectionRule::count());
+        $this->assertSame(47, DetectionRule::count());
     }
 
     public function test_registry_initialises_staged_active_rules_correctly(): void
@@ -222,13 +222,13 @@ class DetectionRuleGovernanceTest extends TestCase
     // Index view
     // -----------------------------------------------------------------------
 
-    public function test_index_shows_all_42_rules(): void
+    public function test_index_shows_all_47_rules(): void
     {
         $response = $this->actingAs($this->admin())
             ->get(route('detection.index'))
             ->assertOk();
 
-        $response->assertSee('42');
+        $response->assertSee('47');
         $response->assertSee('IDENTITY_MFA_FAILURE_BURST');
         $response->assertSee('suspicious_parent_child_process');
         $response->assertSee('ioc_ip_match');

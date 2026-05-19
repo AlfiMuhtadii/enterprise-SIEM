@@ -43,9 +43,9 @@ class EndpointTelemetryTest extends TestCase
     // Registry — new rules present and correctly configured
     // -----------------------------------------------------------------------
 
-    public function test_registry_now_has_42_rules(): void
+    public function test_registry_now_has_47_rules(): void
     {
-        $this->assertCount(42, $this->registry());
+        $this->assertCount(47, $this->registry());
     }
 
     public function test_scheduled_task_persistence_rule_exists(): void
@@ -154,10 +154,10 @@ class EndpointTelemetryTest extends TestCase
         $this->assertEmpty($violations, 'All endpoint rules must have shadow_only=true: ' . implode(', ', $violations));
     }
 
-    public function test_registry_has_27_endpoint_rules(): void
+    public function test_registry_has_32_endpoint_rules(): void
     {
         $count = count(array_filter($this->registry(), fn ($r) => ($r['domain'] ?? '') === 'endpoint'));
-        $this->assertSame(27, $count, "Expected 27 endpoint rules (22 behavioral + 5 cross-domain)");
+        $this->assertSame(32, $count, "Expected 32 endpoint rules (22 behavioral + 5 cross-domain + 5 streaming)");
     }
 
     // -----------------------------------------------------------------------
@@ -508,8 +508,8 @@ class EndpointTelemetryTest extends TestCase
         $ioc      = count(array_filter($rules, fn ($r) => ($r['domain'] ?? '') === 'threat-intel'));
 
         $this->assertSame(12, $active,   "12 staged_active rules expected");
-        $this->assertSame(30, $shadow,   "30 shadow rules expected (27 endpoint + 3 IOC)");
-        $this->assertSame(27, $endpoint, "27 endpoint rules expected (22 behavioral + 5 cross-domain)");
+        $this->assertSame(35, $shadow,   "35 shadow rules expected (32 endpoint + 3 IOC)");
+        $this->assertSame(32, $endpoint, "32 endpoint rules expected (22 behavioral + 5 cross-domain + 5 streaming)");
         $this->assertSame(3,  $ioc,      "3 threat-intel rules expected");
     }
 

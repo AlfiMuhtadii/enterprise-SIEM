@@ -1479,5 +1479,194 @@ class TestHostIsolationSimulation(unittest.TestCase):
         self.assertEqual(ag.HOST_ISOLATION_SIMULATION_MARKER, ".xdr_isolation_simulation")
 
 
+class TestStreamingEngine(unittest.TestCase):
+    """Phase 1: Bounded near-real-time streaming telemetry engine."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.StreamingState(spool_dir=self.tmp)
+        self.cfg: dict = {}
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    # -- Sequence tracking ---------------------------------------------------
+
+    def test_sequence_ids_are_monotonically_increasing(self) -> None:
+        """Sequence IDs must increment with each emitted event."""
+        ev1 = ag.emit_stream_event(self.state, "process_started", "agent-1", "host-1", "trace-1")
+        ev2 = ag.emit_stream_event(self.state, "process_started", "agent-1", "host-1", "trace-1")
+        self.assertGreater(ev2["sequence_id"], ev1["sequence_id"])
+
+    def test_sequence_never_resets_within_state(self) -> None:
+        """sequence_id must never decrease."""
+        ids = []
+        for i in range(5):
+            ev = ag.emit_stream_event(self.state, "process_started", "a", "h", "t")
+            ids.append(ev["sequence_id"])
+        for i in range(1, len(ids)):
+            self.assertGreater(ids[i], ids[i - 1], "sequence_id must always increase")
+
+    # -- Bounded queue -------------------------------------------------------
+
+    def test_queue_is_bounded_at_max_size(self) -> None:
+        """Queue must not exceed STREAM_QUEUE_MAX events."""
+        for i in range(ag.STREAM_QUEUE_MAX + 20):
+            ag.emit_stream_event(self.state, "process_started", "a", "h", "t")
+        self.assertLessEqual(len(self.state.queue), ag.STREAM_QUEUE_MAX)
+
+    def test_dropped_count_increments_on_queue_overflow(self) -> None:
+        """dropped_count must increment when queue is full and oldest event is evicted."""
+        for i in range(ag.STREAM_QUEUE_MAX):
+            ag.emit_stream_event(self.state, "process_started", "a", "h", "t")
+        # One more push must overflow
+        ag.emit_stream_event(self.state, "process_started", "a", "h", "t")
+        self.assertGreater(self.state.dropped_count, 0)
+
+    def test_emit_adds_to_queue(self) -> None:
+        """emit_stream_event must add an event to the queue."""
+        initial = len(self.state.queue)
+        ag.emit_stream_event(self.state, "outbound_connection_opened", "a", "h", "t", connection_dest="1.2.3.4")
+        self.assertEqual(len(self.state.queue), initial + 1)
+
+    # -- Event structure -----------------------------------------------------
+
+    def test_emitted_event_has_required_fields(self) -> None:
+        """Each event must carry event_id, sequence_id, occurred_at, trace_id, host_id."""
+        ev = ag.emit_stream_event(self.state, "process_started", "agent-x", "host-y", "trace-z",
+                                   process_name="bash", process_pid=1234)
+        for field in ("event_id", "sequence_id", "occurred_at", "trace_id", "host_id", "agent_id"):
+            self.assertIn(field, ev, f"Missing required field: {field}")
+        self.assertEqual(ev["host_id"], "host-y")
+        self.assertEqual(ev["process_name"], "bash")
+
+    def test_event_id_is_unique_per_event(self) -> None:
+        """Each event must get a distinct event_id for deduplication."""
+        ids = {ag.emit_stream_event(self.state, "process_started", "a", "h", "t")["event_id"]
+               for _ in range(10)}
+        self.assertEqual(len(ids), 10, "event_id must be unique per event")
+
+    # -- Local spool (durability) --------------------------------------------
+
+    def test_spool_to_disk_writes_file(self) -> None:
+        """spool_to_disk must create the spool file."""
+        events = [{"event_id": "e1", "sequence_id": 1}]
+        result = ag.spool_to_disk(self.state, events)
+        self.assertTrue(result)
+        self.assertTrue(self.state.spool_path.exists())
+
+    def test_replay_from_spool_reads_and_drains(self) -> None:
+        """replay_from_spool must return spooled events and remove the spool file."""
+        events = [{"event_id": f"e{i}", "sequence_id": i} for i in range(3)]
+        ag.spool_to_disk(self.state, events)
+        replayed = ag.replay_from_spool(self.state)
+        self.assertEqual(len(replayed), 3)
+        self.assertFalse(self.state.spool_path.exists(), "Spool file must be removed after replay")
+
+    def test_replay_from_spool_returns_empty_when_no_spool(self) -> None:
+        """replay_from_spool returns empty list when no spool file exists."""
+        result = ag.replay_from_spool(self.state)
+        self.assertEqual(result, [])
+
+    def test_spool_bounded_by_cap(self) -> None:
+        """spool_to_disk must refuse to write when spool already at cap."""
+        # Fill the spool file to cap
+        self.state.spool_path.write_bytes(b"x" * ag.STREAM_SPOOL_MAX_BYTES)
+        initial_dropped = self.state.dropped_count
+        ag.spool_to_disk(self.state, [{"event_id": "overflow"}])
+        self.assertGreater(self.state.dropped_count, initial_dropped, "dropped_count must increment on spool cap")
+
+    # -- Flush ---------------------------------------------------------------
+
+    def test_flush_without_endpoint_spools_locally(self) -> None:
+        """flush_stream_batch without stream_endpoint config must spool events locally."""
+        ag.emit_stream_event(self.state, "process_started", "a", "h", "t")
+        result = ag.flush_stream_batch(self.state, cfg={}, agent_id="a")
+        self.assertEqual(result["status"], "spooled")
+
+    def test_flush_empty_queue_returns_empty(self) -> None:
+        """Flush with empty queue must return empty status."""
+        result = ag.flush_stream_batch(self.state, cfg={}, agent_id="a")
+        self.assertEqual(result["status"], "empty")
+
+    # -- Rapid analytics (advisory-only) ------------------------------------
+
+    def test_rapid_shell_chain_detected_at_threshold(self) -> None:
+        """detect_rapid_stream_shell_chain must fire when shell event count >= threshold."""
+        events = [{"event_type": "shell_execution_detected", "process_name": "bash"} for _ in range(3)]
+        findings = ag.detect_rapid_stream_shell_chain(events, threshold=3)
+        self.assertGreater(len(findings), 0)
+        self.assertTrue(findings[0]["advisory_only"])
+        self.assertTrue(findings[0]["no_autonomous"])
+
+    def test_rapid_shell_chain_not_detected_below_threshold(self) -> None:
+        """detect_rapid_stream_shell_chain must not fire below threshold."""
+        events = [{"event_type": "shell_execution_detected", "process_name": "bash"} for _ in range(2)]
+        self.assertEqual(ag.detect_rapid_stream_shell_chain(events, threshold=3), [])
+
+    def test_burst_outbound_detected_at_threshold(self) -> None:
+        """detect_stream_burst_outbound must fire when connection count >= threshold."""
+        events = [{"event_type": "outbound_connection_opened", "connection_dest": f"1.2.3.{i}"} for i in range(10)]
+        findings = ag.detect_stream_burst_outbound(events, threshold=10)
+        self.assertGreater(len(findings), 0)
+        self.assertTrue(findings[0]["advisory_only"])
+        self.assertTrue(findings[0]["no_autonomous"])
+
+    def test_burst_outbound_not_detected_below_threshold(self) -> None:
+        """detect_stream_burst_outbound must not fire below threshold."""
+        events = [{"event_type": "outbound_connection_opened", "connection_dest": f"1.2.3.{i}"} for i in range(5)]
+        self.assertEqual(ag.detect_stream_burst_outbound(events, threshold=10), [])
+
+    # -- Safety boundary assertions -----------------------------------------
+
+    def test_no_ebpf_in_agent_source(self) -> None:
+        """Agent source must not call eBPF APIs (bpf_prog, BPF syscall)."""
+        src = Path(__file__).parent.parent.parent / "services" / "endpoint-agent" / "agent.py"
+        content = src.read_text(encoding="utf-8")
+        # Check for actual eBPF usage, not comments
+        self.assertNotIn("bpf_prog_load", content)
+        self.assertNotIn("bpf_map_create", content)
+        self.assertNotIn("socket.BPF", content)
+        # No import of external BPF library
+        self.assertNotIn("from bcc", content)
+        self.assertNotIn("import bcc", content)
+
+    def test_no_kernel_module_in_agent_source(self) -> None:
+        """Agent source must not contain kernel module loading calls."""
+        src = Path(__file__).parent.parent.parent / "services" / "endpoint-agent" / "agent.py"
+        content = src.read_text(encoding="utf-8")
+        # Must not call insmod/modprobe as subprocess
+        self.assertNotIn('"insmod"', content)
+        self.assertNotIn('"modprobe"', content)
+        self.assertNotIn("'insmod'", content)
+        self.assertNotIn("'modprobe'", content)
+
+    def test_no_syscall_hooking_in_agent_source(self) -> None:
+        """Agent source must not hook syscalls or use ptrace."""
+        src = Path(__file__).parent.parent.parent / "services" / "endpoint-agent" / "agent.py"
+        content = src.read_text(encoding="utf-8")
+        self.assertNotIn("sys_call_table", content)
+        # Must not use ptrace as subprocess command
+        self.assertNotIn('"ptrace"', content)
+        self.assertNotIn("'ptrace'", content)
+
+    def test_no_packet_sniffing_in_agent_source(self) -> None:
+        """Agent source must not use raw sockets or packet capture."""
+        src = Path(__file__).parent.parent.parent / "services" / "endpoint-agent" / "agent.py"
+        content = src.read_text(encoding="utf-8")
+        self.assertNotIn("SOCK_RAW", content)
+        self.assertNotIn("socket.AF_PACKET", content)
+        self.assertNotIn("import pcap", content)
+        self.assertNotIn("from pcap", content)
+
+    def test_streaming_constants_are_bounded(self) -> None:
+        """STREAM_QUEUE_MAX and STREAM_SPOOL_MAX_BYTES must be finite positive integers."""
+        self.assertGreater(ag.STREAM_QUEUE_MAX, 0)
+        self.assertGreater(ag.STREAM_SPOOL_MAX_BYTES, 0)
+        self.assertLess(ag.STREAM_QUEUE_MAX, 100_000)         # sanity bound
+        self.assertLess(ag.STREAM_SPOOL_MAX_BYTES, 100_000_000)  # < 100 MiB
+
+
 if __name__ == "__main__":
     unittest.main()
