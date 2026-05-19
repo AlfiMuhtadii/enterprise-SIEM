@@ -1,0 +1,178 @@
+{
+  "title": "Endpoint Low-Level Telemetry — Phase 1",
+  "uid": "endpoint-lltet-v1",
+  "tags": ["endpoint", "telemetry", "advisory", "lltet"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Process Executions (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_process_entries WHERE created_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Script Executions (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_script_executions WHERE occurred_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Encoded Scripts (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_script_executions WHERE is_encoded = true AND occurred_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Privilege Escalations (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_privilege_escalations WHERE occurred_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Container Activities (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_container_activities WHERE occurred_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "gridPos": {"h": 4, "w": 3, "x": 12, "y": 0}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Container Breakout Indicators (24h)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) as value FROM endpoint_container_activities WHERE activity_type = 'breakout_indicator' AND occurred_at >= NOW() - INTERVAL '24 hours'",
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 15, "y": 0}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Process Execution Volume Over Time",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as processes FROM endpoint_process_entries WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Suspicious Shell Activity Over Time",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as shells FROM endpoint_process_entries WHERE is_shell = true AND created_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "PowerShell / Script Activity Over Time",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT date_trunc('hour', occurred_at) as time, COUNT(*) as scripts, SUM(CASE WHEN is_encoded THEN 1 ELSE 0 END) as encoded FROM endpoint_script_executions WHERE occurred_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Privilege Escalation Trends",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT date_trunc('hour', occurred_at) as time, COUNT(*) as escalations FROM endpoint_privilege_escalations WHERE occurred_at >= NOW() - INTERVAL '7 days' GROUP BY 1 ORDER BY 1",
+        "format": "time_series"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "Top Script Interpreters (7d)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT process_name, COUNT(*) as executions FROM endpoint_script_executions WHERE occurred_at >= NOW() - INTERVAL '7 days' GROUP BY process_name ORDER BY executions DESC LIMIT 10",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 20}
+    },
+    {
+      "id": 12,
+      "type": "barchart",
+      "title": "Escalation Type Breakdown (7d)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT escalation_type, COUNT(*) as count FROM endpoint_privilege_escalations WHERE occurred_at >= NOW() - INTERVAL '7 days' GROUP BY escalation_type ORDER BY count DESC",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 20}
+    },
+    {
+      "id": 13,
+      "type": "barchart",
+      "title": "Container Namespace Types (7d)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT namespace_type, COUNT(*) as count FROM endpoint_container_activities WHERE occurred_at >= NOW() - INTERVAL '7 days' GROUP BY namespace_type ORDER BY count DESC",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 20}
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Recent Privilege Escalations (High Confidence)",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT epe.process_name, epe.escalation_type, epe.original_user, epe.escalated_user, round(epe.confidence::numeric, 2) as confidence, epe.occurred_at FROM endpoint_privilege_escalations epe WHERE epe.confidence >= 0.8 ORDER BY epe.occurred_at DESC LIMIT 20",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28}
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Recent Encoded Script Executions",
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT process_name, telemetry_source, script_source, LEFT(decoded_preview, 80) as preview, occurred_at FROM endpoint_script_executions WHERE is_encoded = true ORDER BY occurred_at DESC LIMIT 20",
+        "format": "table"
+      }],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28}
+    }
+  ]
+}

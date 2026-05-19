@@ -2274,6 +2274,277 @@
       "validation_evidence": null,
       "created_at": "2026-05-19T00:00:00Z",
       "updated_at": "2026-05-19T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_SUSPICIOUS_INTERPRETER_CHAIN",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Suspicious Interpreter Chain",
+      "description": "Detects interpreter-to-interpreter chains (Python->bash, bash->curl). Indicates script-driven lateral movement or C2 staging.",
+      "severity": "high",
+      "confidence": 0.78,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1059",
+        "T1059.006",
+        "T1105"
+      ],
+      "event_types": [
+        "script_execution",
+        "process_start"
+      ],
+      "required_fields": [
+        "process_name",
+        "parent_process_name",
+        "telemetry_type"
+      ],
+      "suppression_key": "LLTET_SUSPICIOUS_INTERPRETER_CHAIN:{host}:{process_name}:{parent_process_name}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "CI/CD pipelines and dev environments legitimately chain interpreters. Baseline host first.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_PRIVILEGE_ESCALATION_INDICATOR",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Privilege Escalation Indicator",
+      "description": "Detects uid transitions to root, sudo invocations from non-standard processes, and Windows high-integrity process creation.",
+      "severity": "high",
+      "confidence": 0.82,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1548",
+        "T1548.001",
+        "T1548.002"
+      ],
+      "event_types": [
+        "privilege_escalation_attempt"
+      ],
+      "required_fields": [
+        "process_name",
+        "escalation_type",
+        "is_advisory"
+      ],
+      "suppression_key": "LLTET_PRIVILEGE_ESCALATION_INDICATOR:{host}:{escalation_type}:{process_name}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "sudo/su usage is common in admin workflows. Correlate with auth events.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_SUSPICIOUS_PERSISTENCE_INDICATOR",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Suspicious Persistence Indicator",
+      "description": "Detects new persistence entries via registry Run keys, cron, or service install. Indicates potential malware or attacker persistence.",
+      "severity": "high",
+      "confidence": 0.75,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1547",
+        "T1547.001",
+        "T1053.005"
+      ],
+      "event_types": [
+        "registry_persistence",
+        "persistence_indicator"
+      ],
+      "required_fields": [
+        "process_name",
+        "telemetry_source"
+      ],
+      "suppression_key": "LLTET_SUSPICIOUS_PERSISTENCE_INDICATOR:{host}:{persistence_type}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "Installers and updates legitimately modify Run keys and services. Verify signing status.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_ABNORMAL_NETWORK_CONNECTION",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Abnormal Network Connection",
+      "description": "Detects outbound connections to rare destinations not seen in the baseline window. May indicate C2 or data exfil staging.",
+      "severity": "medium",
+      "confidence": 0.7,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1071",
+        "T1041",
+        "T1048"
+      ],
+      "event_types": [
+        "network_connection"
+      ],
+      "required_fields": [
+        "destination_ip",
+        "destination_port",
+        "process_name"
+      ],
+      "suppression_key": "LLTET_ABNORMAL_NETWORK_CONNECTION:{host}:{destination_ip}:{process_name}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "Cloud CDNs appear rare without domain whitelisting. Correlate with threat intel.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_SUSPICIOUS_SHELL_SPAWN",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Suspicious Shell Spawn from Web/Service Process",
+      "description": "Detects shell spawned by web server, app server, or database process. Indicates web shell, command injection, or RCE.",
+      "severity": "critical",
+      "confidence": 0.87,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1059.004",
+        "T1190",
+        "T1203"
+      ],
+      "event_types": [
+        "process_start",
+        "script_execution"
+      ],
+      "required_fields": [
+        "process_name",
+        "parent_process_name",
+        "is_shell"
+      ],
+      "suppression_key": "LLTET_SUSPICIOUS_SHELL_SPAWN:{host}:{parent_process_name}:{process_name}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "Maintenance scripts and deployment automation may spawn shells from service accounts.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_RARE_PROCESS_EXECUTION",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Rare Process Execution",
+      "description": "Detects processes with low frequency vs behavioral baseline. May indicate malware, LOLBin abuse, or first-time-seen tools.",
+      "severity": "medium",
+      "confidence": 0.72,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1204",
+        "T1027",
+        "T1218"
+      ],
+      "event_types": [
+        "process_start"
+      ],
+      "required_fields": [
+        "process_name",
+        "host_id"
+      ],
+      "suppression_key": "LLTET_RARE_PROCESS_EXECUTION:{host}:{process_name}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "SW updates, package installs, admin tools trigger this. Correlate with change management.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_CONTAINER_ESCAPE_INDICATOR",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Container Escape Indicator",
+      "description": "Detects patterns associated with container escape: process outside expected namespace, breakout_indicator activity type.",
+      "severity": "critical",
+      "confidence": 0.8,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1611"
+      ],
+      "event_types": [
+        "container_activity"
+      ],
+      "required_fields": [
+        "container_id",
+        "activity_type",
+        "namespace_type"
+      ],
+      "suppression_key": "LLTET_CONTAINER_ESCAPE_INDICATOR:{host}:{container_id}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "Privileged containers and debug tools trigger this. Verify container security policy.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
+    },
+    {
+      "rule_id": "LLTET_SUSPICIOUS_SCRIPT_BLOCK",
+      "domain": "endpoint",
+      "status": "shadow",
+      "version": "v1",
+      "title": "Suspicious Script Block Execution",
+      "description": "Detects PowerShell or interpreter script blocks with encoded or obfuscated content. Indicates malware staging, credential dumping prep, or lateral movement.",
+      "severity": "high",
+      "confidence": 0.83,
+      "shadow_only": true,
+      "output_topic": "xdr.alerts.shadow.endpoint",
+      "mitre_attack": [
+        "T1059.001",
+        "T1027.010",
+        "T1140"
+      ],
+      "event_types": [
+        "script_execution"
+      ],
+      "required_fields": [
+        "process_name",
+        "is_encoded",
+        "telemetry_source"
+      ],
+      "suppression_key": "LLTET_SUSPICIOUS_SCRIPT_BLOCK:{host}:{script_hash}",
+      "owner": "endpoint-detection",
+      "validation_evidence": "lltet-test-2026-05-20",
+      "false_positive_notes": "Legitimate automation, Chocolatey, and installers use encoded PS. Verify hash against known-good baseline.",
+      "replay_fixture": "tests/fixtures/endpoint/lltet-replay.jsonl",
+      "expected_alert_count": 1,
+      "suppression_guidance": "Suppress for 24h after first occurrence on the same host for known-good processes.",
+      "created_at": "2026-05-20T00:00:00Z",
+      "updated_at": "2026-05-20T00:00:00Z"
     }
   ]
 }

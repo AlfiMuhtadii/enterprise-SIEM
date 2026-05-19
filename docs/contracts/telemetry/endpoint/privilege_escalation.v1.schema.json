@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.privilege_escalation.v1",
+  "title": "Endpoint Telemetry: privilege_escalation_attempt v1",
+  "description": "Advisory telemetry event emitted when a privilege escalation indicator is observed. Covers uid transitions, sudo/su invocations, setuid execution, and Windows integrity level changes. All fields are observational only — no enforcement.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "privilege_escalation_attempt" },
+    "process_name": {
+      "type": "string",
+      "maxLength": 260,
+      "description": "Name of the process that performed or triggered the escalation."
+    },
+    "pid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "OS process identifier."
+    },
+    "original_uid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Real UID before escalation (Linux). Null on Windows."
+    },
+    "escalated_uid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Effective UID after escalation (Linux). Null on Windows."
+    },
+    "original_user": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Username before escalation."
+    },
+    "escalated_user": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Username after escalation (typically 'root' or 'SYSTEM')."
+    },
+    "escalation_type": {
+      "type": "string",
+      "enum": [
+        "uid_transition",
+        "setuid_exec",
+        "sudo_invocation",
+        "su_invocation",
+        "integrity_level_high",
+        "token_impersonation"
+      ],
+      "description": "Mechanism by which escalation was observed."
+    },
+    "command_line": {
+      "type": ["string", "null"],
+      "maxLength": 32768
+    },
+    "telemetry_source": {
+      "type": "string",
+      "enum": ["agent_proc", "sysmon", "security_event", "etw"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Indicator confidence score — 0.0 (low) to 1.0 (high)."
+    },
+    "is_advisory": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always true — no autonomous response is triggered."
+    },
+    "autonomous_action": {
+      "type": "boolean",
+      "const": false
+    }
+  },
+  "required": ["process_name", "escalation_type", "is_advisory", "autonomous_action"]
+}

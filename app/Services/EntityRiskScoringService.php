@@ -49,6 +49,12 @@ class EntityRiskScoringService
         'tamper_visibility_factor'      => 2.5,  // tamper indicator detected on endpoint
         'stale_agent_factor'            => 1.5,  // agent is stale or offline
         'policy_drift_factor'           => 1.0,  // agent config does not match assigned fleet policy
+        // Low-level endpoint telemetry factors — Phase 1 (advisory_only = true)
+        'rare_process_factor'           => 2.0,  // rare/unusual process execution on endpoint
+        'suspicious_script_factor'      => 2.5,  // encoded or suspicious script execution detected
+        'persistence_indicator_factor'  => 2.5,  // low-level persistence indicator (registry, cron, service)
+        'abnormal_connection_factor'    => 2.0,  // outbound connection to rare/unusual destination
+        'privilege_escalation_factor'   => 3.0,  // privilege escalation indicator detected on endpoint
     ];
 
     // Score thresholds for level assignment
@@ -106,6 +112,7 @@ class EntityRiskScoringService
 
         $this->collectUEBAFactors($entity, $factors);               // UEBA baseline amplification — advisory_only
         $this->collectEndpointOperationalFactors($entity, $factors); // Endpoint fleet hardening — advisory_only
+        $this->collectLowLevelTelemetryFactors($entity, $factors);   // Low-level telemetry — advisory_only
 
         $score = $this->aggregateScore($factors);
         $level = static::scoreToLevel($score);
@@ -648,6 +655,87 @@ class EntityRiskScoringService
 
         if ($latestSpool > 0) {
             $factors[] = $this->makeFactor('policy_drift_factor', 1, [], [], [], true);
+        }
+    }
+
+    /**
+     * Low-level endpoint telemetry risk factors — Phase 1.
+     * Queries script executions, privilege escalations, and container activities.
+     * All contributions are advisory_only = true. Capped per factor type.
+     * No autonomous action — purely advisory amplification.
+     */
+    private function collectLowLevelTelemetryFactors(object $entity, array &$factors): void
+    {
+        if ($entity->entity_type !== 'host') {
+            return;
+        }
+
+        $agent = DB::table('endpoint_agents')
+            ->where('hostname', $entity->entity_key)
+            ->orWhere('host_id', $entity->entity_key)
+            ->first();
+
+        if (!$agent) {
+            return;
+        }
+
+        $since7d = now()->subDays(7);
+
+        // privilege_escalation_factor — privilege escalation indicators in last 7 days
+        $escCount = DB::table('endpoint_privilege_escalations')
+            ->where('agent_id', $agent->id)
+            ->where('occurred_at', '>=', $since7d)
+            ->where('is_advisory', true)
+            ->count();
+
+        if ($escCount > 0) {
+            $factors[] = $this->makeFactor('privilege_escalation_factor', min($escCount, 2), [], [], [], true);
+        }
+
+        // suspicious_script_factor — encoded/suspicious script executions in last 7 days
+        $encodedScripts = DB::table('endpoint_script_executions')
+            ->where('agent_id', $agent->id)
+            ->where('occurred_at', '>=', $since7d)
+            ->where('is_encoded', true)
+            ->count();
+
+        if ($encodedScripts > 0) {
+            $factors[] = $this->makeFactor('suspicious_script_factor', min($encodedScripts, 2), [], [], [], true);
+        }
+
+        // persistence_indicator_factor — persistence entries recorded in last 7 days
+        $persistenceCount = DB::table('endpoint_persistence_items')
+            ->where('agent_id', $agent->id)
+            ->where('created_at', '>=', $since7d)
+            ->where('is_new', true)
+            ->count();
+
+        if ($persistenceCount > 0) {
+            $factors[] = $this->makeFactor('persistence_indicator_factor', min($persistenceCount, 2), [], [], [], true);
+        }
+
+        // rare_process_factor — relies on UEBA rare process execution anomaly scores
+        $rareProcess = DB::table('baseline_anomaly_scores')
+            ->where('entity_key', $entity->entity_key)
+            ->where('anomaly_type', 'process_execution_frequency')
+            ->where('scored_at', '>=', $since7d)
+            ->where('confidence', '>=', 0.75)
+            ->count();
+
+        if ($rareProcess > 0) {
+            $factors[] = $this->makeFactor('rare_process_factor', min($rareProcess, 2), [], [], [], true);
+        }
+
+        // abnormal_connection_factor — relies on UEBA network destination anomaly scores
+        $abnormalConn = DB::table('baseline_anomaly_scores')
+            ->where('entity_key', $entity->entity_key)
+            ->where('anomaly_type', 'network_destination_frequency')
+            ->where('scored_at', '>=', $since7d)
+            ->where('confidence', '>=', 0.75)
+            ->count();
+
+        if ($abnormalConn > 0) {
+            $factors[] = $this->makeFactor('abnormal_connection_factor', min($abnormalConn, 2), [], [], [], true);
         }
     }
 

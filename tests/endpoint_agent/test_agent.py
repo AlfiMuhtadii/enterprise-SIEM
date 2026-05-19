@@ -1956,5 +1956,491 @@ class TestStreamingEngine(unittest.TestCase):
         self.assertLess(ag.STREAM_SPOOL_MAX_BYTES, 100_000_000)  # < 100 MiB
 
 
+# ---------------------------------------------------------------------------
+# Low-level telemetry collectors — Phase 1
+# ---------------------------------------------------------------------------
+
+class TestScriptExecution(unittest.TestCase):
+    """collect_script_executions() detects interpreter processes and encoded payloads."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-script-test-001"
+        self.trace_id = "trace-script-001"
+
+    def _make_proc_root(self, processes: list[dict]) -> Path:
+        return _make_fake_proc_root(Path(self.tmp), processes)
+
+    def test_script_execution_detects_powershell(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 100, "ppid": 1, "name": "powershell", "uid": 1000, "cmdline": "powershell -NonInteractive -Command Get-Process"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        self.assertEqual(events[0]["event_type"], "script_execution")
+        self.assertEqual(events[0]["is_advisory"], True)
+        self.assertEqual(events[0]["autonomous_action"], False)
+
+    def test_script_execution_detects_python(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 200, "ppid": 1, "name": "python3", "uid": 1000, "cmdline": "python3 /tmp/exploit.py"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        self.assertEqual(events[0]["process_name"], "python3")
+
+    def test_script_execution_skips_non_interpreter(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 300, "ppid": 1, "name": "nginx", "uid": 0, "cmdline": "nginx -g daemon off"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertEqual(len(events), 0)
+
+    def test_encoded_payload_detection_powershell(self) -> None:
+        import base64
+        payload = base64.b64encode("Get-Process".encode("utf-16-le")).decode()
+        proc_root = self._make_proc_root([
+            {"pid": 400, "ppid": 1, "name": "powershell", "uid": 1000, "cmdline": f"powershell -EncodedCommand {payload}"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        self.assertTrue(events[0]["is_encoded"])
+        self.assertEqual(events[0]["script_source"], "encoded")
+
+    def test_non_encoded_payload_not_flagged(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 500, "ppid": 1, "name": "python3", "uid": 1000, "cmdline": "python3 -c print('hello')"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(all(not ev["is_encoded"] for ev in events))
+
+    def test_advisory_and_no_autonomous_action(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 600, "ppid": 1, "name": "bash", "uid": 1000, "cmdline": "bash -i"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        for ev in events:
+            self.assertTrue(ev["is_advisory"])
+            self.assertFalse(ev["autonomous_action"])
+
+    def test_telemetry_source_is_agent_proc(self) -> None:
+        proc_root = self._make_proc_root([
+            {"pid": 700, "ppid": 1, "name": "python3", "uid": 1000, "cmdline": "python3"},
+        ])
+        events = ag.collect_script_executions(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        for ev in events:
+            self.assertEqual(ev["telemetry_source"], "agent_proc")
+
+
+class TestPrivilegeEscalation(unittest.TestCase):
+    """collect_privilege_escalation_indicators() detects sudo/su/uid transitions."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-priv-test-001"
+        self.trace_id = "trace-priv-001"
+
+    def _make_proc_root(self, processes: list[dict]) -> Path:
+        return _make_fake_proc_root(Path(self.tmp), processes)
+
+    def _write_status_with_uid(self, proc_root: Path, pid: int, name: str, ruid: int, euid: int) -> None:
+        pid_dir = proc_root / str(pid)
+        pid_dir.mkdir(parents=True, exist_ok=True)
+        status = f"Name:\t{name}\nPid:\t{pid}\nPPid:\t1\nUid:\t{ruid} {euid} {euid} {euid}\n"
+        (pid_dir / "status").write_text(status)
+        (pid_dir / "cmdline").write_bytes(name.encode() + b"\x00")
+
+    def test_detects_sudo_invocation(self) -> None:
+        proc_root = Path(self.tmp) / "proc_sudo"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 100, "sudo", 1000, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        types = {e["escalation_type"] for e in events}
+        self.assertIn("sudo_invocation", types)
+
+    def test_detects_su_invocation(self) -> None:
+        proc_root = Path(self.tmp) / "proc_su"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 200, "su", 1000, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        types = {e["escalation_type"] for e in events}
+        self.assertIn("su_invocation", types)
+
+    def test_detects_uid_transition(self) -> None:
+        proc_root = Path(self.tmp) / "proc_uid"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 300, "setuid_prog", 1000, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        types = {e["escalation_type"] for e in events}
+        self.assertIn("uid_transition", types)
+
+    def test_skips_root_processes_that_start_as_root(self) -> None:
+        proc_root = Path(self.tmp) / "proc_root"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 400, "nginx", 0, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        # nginx starting as root with euid=root shouldn't be a uid_transition
+        uid_trans = [e for e in events if e["escalation_type"] == "uid_transition"]
+        self.assertEqual(len(uid_trans), 0)
+
+    def test_all_escalation_events_are_advisory(self) -> None:
+        proc_root = Path(self.tmp) / "proc_adv"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 500, "sudo", 1000, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        for ev in events:
+            self.assertTrue(ev["is_advisory"])
+            self.assertFalse(ev["autonomous_action"])
+
+    def test_confidence_is_in_range(self) -> None:
+        proc_root = Path(self.tmp) / "proc_conf"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        self._write_status_with_uid(proc_root, 600, "sudo", 1000, 0)
+        events = ag.collect_privilege_escalation_indicators(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        for ev in events:
+            self.assertGreaterEqual(ev["confidence"], 0.0)
+            self.assertLessEqual(ev["confidence"], 1.0)
+
+
+class TestContainerActivity(unittest.TestCase):
+    """collect_container_activity() detects container namespaces from /proc/[pid]/cgroup."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-container-test-001"
+        self.trace_id = "trace-container-001"
+
+    def _make_proc_with_cgroup(self, pid: int, name: str, cgroup_content: str) -> Path:
+        proc_root = Path(self.tmp) / f"proc_cg_{pid}"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        pid_dir = proc_root / str(pid)
+        pid_dir.mkdir(parents=True, exist_ok=True)
+        (pid_dir / "status").write_text(f"Name:\t{name}\nPid:\t{pid}\nPPid:\t1\nUid:\t1000 1000 1000 1000\n")
+        (pid_dir / "cmdline").write_bytes(name.encode() + b"\x00")
+        (pid_dir / "cgroup").write_text(cgroup_content)
+        return proc_root
+
+    def test_detects_docker_container(self) -> None:
+        cgroup = "12:cpu:/docker/abc123def456789012345678901234567890abc1\n"
+        proc_root = self._make_proc_with_cgroup(100, "nginx", cgroup)
+        events = ag.collect_container_activity(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        self.assertEqual(events[0]["namespace_type"], "docker")
+        self.assertEqual(events[0]["activity_type"], "namespace_detected")
+
+    def test_detects_kubernetes_container(self) -> None:
+        cgroup = "12:cpu:/kubepods/besteffort/podabc123def456/abcdef0123456789abcdef0123456789abcdef01\n"
+        proc_root = self._make_proc_with_cgroup(200, "pause", cgroup)
+        events = ag.collect_container_activity(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertTrue(len(events) >= 1)
+        self.assertEqual(events[0]["namespace_type"], "kubernetes")
+
+    def test_no_container_for_host_process(self) -> None:
+        cgroup = "12:cpu:/user.slice/user-1000.slice\n"
+        proc_root = self._make_proc_with_cgroup(300, "bash", cgroup)
+        events = ag.collect_container_activity(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        self.assertEqual(len(events), 0)
+
+    def test_container_events_are_advisory(self) -> None:
+        cgroup = "12:cpu:/docker/deadbeef1234567890abcdef1234567890123456\n"
+        proc_root = self._make_proc_with_cgroup(400, "python3", cgroup)
+        events = ag.collect_container_activity(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        for ev in events:
+            self.assertTrue(ev["is_advisory"])
+            self.assertFalse(ev["autonomous_action"])
+
+    def test_duplicate_containers_not_reported_twice(self) -> None:
+        cgroup = "12:cpu:/docker/aabbccdd112233445566778899aabbcc11223344\n"
+        proc_root = Path(self.tmp) / "proc_dup"
+        proc_root.mkdir(parents=True, exist_ok=True)
+        for pid in [100, 101, 102]:
+            pid_dir = proc_root / str(pid)
+            pid_dir.mkdir(parents=True, exist_ok=True)
+            (pid_dir / "status").write_text(f"Name:\tnginx\nPid:\t{pid}\nPPid:\t1\nUid:\t0 0 0 0\n")
+            (pid_dir / "cmdline").write_bytes(b"nginx\x00")
+            (pid_dir / "cgroup").write_text(cgroup)
+        events = ag.collect_container_activity(self.state, self.agent_id, self.trace_id, proc_root=proc_root)
+        container_ids = {e["container_id"] for e in events}
+        self.assertEqual(len(container_ids), 1, "Same container ID should only appear once")
+
+
+class TestWindowsSysmon(unittest.TestCase):
+    """collect_windows_sysmon() parses JSONL fixture files correctly."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-sysmon-test-001"
+        self.trace_id = "trace-sysmon-001"
+
+    def _write_fixture(self, events: list[dict]) -> str:
+        import json as _json
+        path = os.path.join(self.tmp, "sysmon.jsonl")
+        with open(path, "w") as f:
+            for ev in events:
+                f.write(_json.dumps(ev) + "\n")
+        return path
+
+    def test_sysmon_process_create_event_id_1(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 1, "process_name": "cmd.exe", "command_line": "cmd /c whoami", "user": "DESKTOP\\user1"},
+        ])
+        events = ag.collect_windows_sysmon(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["sysmon_event_id"], 1)
+        self.assertTrue(events[0]["is_advisory"])
+        self.assertFalse(events[0]["autonomous_action"])
+
+    def test_sysmon_network_connect_event_id_3(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 3, "process_name": "powershell.exe", "destination_ip": "1.2.3.4", "destination_port": 443},
+        ])
+        events = ag.collect_windows_sysmon(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "network_connection")
+        self.assertEqual(events[0]["destination_ip"], "1.2.3.4")
+
+    def test_sysmon_registry_event_id_13(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 13, "process_name": "reg.exe", "registry_key": r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run", "registry_value": "malware.exe"},
+        ])
+        events = ag.collect_windows_sysmon(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertIn("registry_key", events[0])
+
+    def test_sysmon_returns_empty_on_nonexistent_fixture(self) -> None:
+        events = ag.collect_windows_sysmon(self.state, self.agent_id, self.trace_id, fixture_path="/nonexistent/file.jsonl")
+        self.assertEqual(events, [])
+
+    def test_sysmon_returns_empty_without_fixture_on_linux(self) -> None:
+        if ag.IS_WINDOWS:
+            self.skipTest("Not applicable on Windows")
+        events = ag.collect_windows_sysmon(self.state, self.agent_id, self.trace_id)
+        self.assertEqual(events, [])
+
+
+class TestWindowsPowerShell(unittest.TestCase):
+    """collect_windows_powershell_events() parses JSONL fixture files."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-ps-test-001"
+        self.trace_id = "trace-ps-001"
+
+    def _write_fixture(self, events: list[dict]) -> str:
+        import json as _json
+        path = os.path.join(self.tmp, "ps_events.jsonl")
+        with open(path, "w") as f:
+            for ev in events:
+                f.write(_json.dumps(ev) + "\n")
+        return path
+
+    def test_powershell_script_block_event_4104(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 4104, "script_block": "Invoke-Mimikatz", "user": "NT AUTHORITY\\SYSTEM"},
+        ])
+        events = ag.collect_windows_powershell_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "script_execution")
+        self.assertEqual(events[0]["telemetry_source"], "powershell_operational")
+        self.assertTrue(events[0]["is_advisory"])
+
+    def test_powershell_encoded_detected(self) -> None:
+        import base64
+        payload = base64.b64encode("Invoke-Expression".encode("utf-16-le")).decode()
+        fixture = self._write_fixture([
+            {"event_id": 4104, "command_line": f"powershell -enc {payload}"},
+        ])
+        events = ag.collect_windows_powershell_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertTrue(events[0]["is_encoded"])
+
+    def test_powershell_returns_empty_without_fixture_on_linux(self) -> None:
+        if ag.IS_WINDOWS:
+            self.skipTest("Not applicable on Windows")
+        events = ag.collect_windows_powershell_events(self.state, self.agent_id, self.trace_id)
+        self.assertEqual(events, [])
+
+
+class TestWindowsSecurityEvents(unittest.TestCase):
+    """collect_windows_security_events() parses JSONL fixture files."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-sec-test-001"
+        self.trace_id = "trace-sec-001"
+
+    def _write_fixture(self, events: list[dict]) -> str:
+        import json as _json
+        path = os.path.join(self.tmp, "sec_events.jsonl")
+        with open(path, "w") as f:
+            for ev in events:
+                f.write(_json.dumps(ev) + "\n")
+        return path
+
+    def test_security_event_4688_process_create(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 4688, "process_name": "cmd.exe", "command_line": "cmd /c net user", "user": "DOMAIN\\admin"},
+        ])
+        events = ag.collect_windows_security_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "process_start")
+        self.assertEqual(events[0]["security_event_id"], 4688)
+        self.assertTrue(events[0]["is_advisory"])
+
+    def test_security_event_4672_special_privileges(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 4672, "user": "DOMAIN\\admin"},
+        ])
+        events = ag.collect_windows_security_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "privilege_escalation_attempt")
+
+    def test_security_event_4697_service_install(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 4697, "process_name": "malware_svc.exe"},
+        ])
+        events = ag.collect_windows_security_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "persistence_indicator")
+
+    def test_security_events_all_advisory(self) -> None:
+        fixture = self._write_fixture([
+            {"event_id": 4688, "process_name": "notepad.exe"},
+            {"event_id": 4672, "user": "Administrator"},
+        ])
+        events = ag.collect_windows_security_events(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        for ev in events:
+            self.assertTrue(ev["is_advisory"])
+            self.assertFalse(ev["autonomous_action"])
+
+    def test_security_events_returns_empty_without_fixture_on_linux(self) -> None:
+        if ag.IS_WINDOWS:
+            self.skipTest("Not applicable on Windows")
+        events = ag.collect_windows_security_events(self.state, self.agent_id, self.trace_id)
+        self.assertEqual(events, [])
+
+
+class TestWindowsRegistryPersistence(unittest.TestCase):
+    """collect_windows_registry_persistence() parses JSONL fixture files."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        self.state = ag.CollectorState()
+        self.agent_id = "agent-reg-test-001"
+        self.trace_id = "trace-reg-001"
+
+    def _write_fixture(self, entries: list[dict]) -> str:
+        import json as _json
+        path = os.path.join(self.tmp, "reg_entries.jsonl")
+        with open(path, "w") as f:
+            for entry in entries:
+                f.write(_json.dumps(entry) + "\n")
+        return path
+
+    def test_registry_run_key_entry(self) -> None:
+        fixture = self._write_fixture([
+            {"key": r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "name": "Updater", "value": "C:\\malware.exe"},
+        ])
+        events = ag.collect_windows_registry_persistence(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "registry_persistence")
+        self.assertEqual(events[0]["registry_key"], r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run")
+        self.assertTrue(events[0]["is_advisory"])
+        self.assertFalse(events[0]["autonomous_action"])
+
+    def test_registry_persistence_type_is_run_key(self) -> None:
+        fixture = self._write_fixture([
+            {"key": r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run", "name": "Persistence", "value": "persist.exe"},
+        ])
+        events = ag.collect_windows_registry_persistence(self.state, self.agent_id, self.trace_id, fixture_path=fixture)
+        self.assertEqual(events[0]["persistence_type"], "registry_run_key")
+
+    def test_registry_returns_empty_without_fixture_on_linux(self) -> None:
+        if ag.IS_WINDOWS:
+            self.skipTest("Not applicable on Windows")
+        events = ag.collect_windows_registry_persistence(self.state, self.agent_id, self.trace_id)
+        self.assertEqual(events, [])
+
+    def test_registry_returns_empty_for_nonexistent_fixture(self) -> None:
+        events = ag.collect_windows_registry_persistence(self.state, self.agent_id, self.trace_id, fixture_path="/nonexistent.jsonl")
+        self.assertEqual(events, [])
+
+
+class TestLowLevelSafetyInvariants(unittest.TestCase):
+    """Safety invariants: no offensive or enforcement APIs in agent.py."""
+
+    FORBIDDEN_APIS = [
+        "isolateHost", "quarantineHost", "executeShell", "killProcess",
+        "autoRemediate", "blockNetwork", "enforcePolicy",
+        "injectProcess", "kernelEnforce", "memoryDump",
+    ]
+
+    def test_no_forbidden_apis_in_agent_module(self) -> None:
+        for api in self.FORBIDDEN_APIS:
+            self.assertFalse(
+                hasattr(ag, api),
+                f"agent module must NOT expose {api}()",
+            )
+
+    def test_no_forbidden_function_definitions_in_source(self) -> None:
+        source = Path(ag.__file__).read_text(encoding="utf-8")
+        for api in self.FORBIDDEN_APIS:
+            self.assertNotIn(
+                f"def {api}",
+                source,
+                f"agent.py must NOT define {api}()",
+            )
+
+    def test_script_execution_events_have_advisory_true(self) -> None:
+        """Advisory flag must always be True — even for dangerous-looking scripts."""
+        state = ag.CollectorState()
+        agent_id = "safety-test-agent"
+        trace_id = "safety-trace"
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = _make_fake_proc_root(Path(tmp), [
+                {"pid": 99, "ppid": 1, "name": "bash", "uid": 0, "cmdline": "bash -c rm -rf /"},
+            ])
+            events = ag.collect_script_executions(state, agent_id, trace_id, proc_root=proc_root)
+            for ev in events:
+                self.assertTrue(ev["is_advisory"])
+                self.assertFalse(ev["autonomous_action"])
+
+    def test_privilege_escalation_events_have_advisory_true(self) -> None:
+        state = ag.CollectorState()
+        agent_id = "safety-test-agent"
+        trace_id = "safety-trace"
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = Path(tmp) / "proc"
+            proc_root.mkdir()
+            pid_dir = proc_root / "999"
+            pid_dir.mkdir()
+            (pid_dir / "status").write_text("Name:\tsudo\nPid:\t999\nPPid:\t1\nUid:\t1000 0 0 0\n")
+            (pid_dir / "cmdline").write_bytes(b"sudo\x00rm\x00-rf\x00/\x00")
+            events = ag.collect_privilege_escalation_indicators(state, agent_id, trace_id, proc_root=proc_root)
+            for ev in events:
+                self.assertTrue(ev["is_advisory"])
+                self.assertFalse(ev["autonomous_action"])
+
+    def test_new_collectors_are_in_agent_module(self) -> None:
+        expected = [
+            "collect_script_executions",
+            "collect_privilege_escalation_indicators",
+            "collect_container_activity",
+            "collect_windows_sysmon",
+            "collect_windows_powershell_events",
+            "collect_windows_security_events",
+            "collect_windows_registry_persistence",
+        ]
+        for fn in expected:
+            self.assertTrue(hasattr(ag, fn), f"agent module should expose {fn}()")
+
+
 if __name__ == "__main__":
     unittest.main()

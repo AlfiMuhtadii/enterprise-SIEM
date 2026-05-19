@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.container_activity.v1",
+  "title": "Endpoint Telemetry: container_activity v1",
+  "description": "Advisory telemetry event emitted when container namespace activity is observed. Covers Docker, containerd, LXC, and Kubernetes containers. No container enforcement — purely observational.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "container_activity" },
+    "container_id": {
+      "type": ["string", "null"],
+      "maxLength": 120,
+      "description": "Container runtime ID (truncated to 64 hex chars)."
+    },
+    "container_name": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Human-readable container name if available."
+    },
+    "image_name": {
+      "type": ["string", "null"],
+      "maxLength": 512,
+      "description": "Container image name and tag."
+    },
+    "activity_type": {
+      "type": "string",
+      "enum": [
+        "container_start",
+        "container_stop",
+        "namespace_detected",
+        "breakout_indicator"
+      ],
+      "description": "Type of container activity observed."
+    },
+    "pid": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "PID of the process observed inside or associated with the container."
+    },
+    "process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260
+    },
+    "namespace_type": {
+      "type": ["string", "null"],
+      "enum": ["docker", "containerd", "lxc", "kubernetes", "unknown", null],
+      "description": "Container runtime inferred from cgroup hierarchy."
+    },
+    "telemetry_source": {
+      "type": "string",
+      "enum": ["agent_proc", "docker_socket", "containerd_api"],
+      "default": "agent_proc"
+    },
+    "is_advisory": {
+      "type": "boolean",
+      "const": true
+    },
+    "autonomous_action": {
+      "type": "boolean",
+      "const": false
+    }
+  },
+  "required": ["activity_type", "is_advisory", "autonomous_action"]
+}

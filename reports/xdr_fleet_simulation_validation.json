@@ -1,0 +1,138 @@
+{
+  "tool": "xdr_fleet_simulation_validate",
+  "version": "1.0.0",
+  "started_at": "2026-05-19T23:23:22.969932+00:00",
+  "completed_at": "2026-05-19T23:23:22.978450+00:00",
+  "scenarios_run": 8,
+  "passed": 8,
+  "failed": 0,
+  "status": "PASS",
+  "results": [
+    {
+      "scenario": "healthy_fleet_baseline",
+      "stats": {
+        "queued_events": 5,
+        "dropped_events": 0,
+        "spool_disk_bytes": 0,
+        "spool_capped": false,
+        "oldest_spool_age_seconds": null,
+        "disk_pressure": false,
+        "retry_count": 0,
+        "buffer_depth": 0,
+        "events_per_sec": 0.0
+      },
+      "indicators": [],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "stale_agent_detection",
+      "indicators": [
+        {
+          "type": "heartbeat_gap",
+          "gap_seconds": 7200,
+          "expected_interval": 60,
+          "stale_threshold": 600,
+          "last_heartbeat_at": "2026-05-19T21:23:22.971392+00:00",
+          "advisory": true,
+          "autonomous_action": false
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "policy_drift_visibility",
+      "indicators": [
+        {
+          "type": "config_mismatch",
+          "current_hash": "0ba7ba8672a485111cf7777ae0ff5ee15c4772b5fb474d4267a64c22f12c68af",
+          "expected_hash": "c184e57d96fd4b7c9543fb2256498359f55617a5a85a40f7079d21608c8ae277",
+          "advisory": true,
+          "autonomous_action": false
+        }
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "spool_capped_agent",
+      "spool_cap": 10485760,
+      "stats_at_cap": {
+        "queued_events": 0,
+        "dropped_events": 0,
+        "spool_disk_bytes": 10485760,
+        "spool_capped": true,
+        "oldest_spool_age_seconds": 30,
+        "disk_pressure": false,
+        "retry_count": 0,
+        "buffer_depth": 0,
+        "events_per_sec": 0.0
+      },
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "telemetry_lag_agent",
+      "stats": {
+        "queued_events": 1500,
+        "dropped_events": 42,
+        "spool_disk_bytes": 0,
+        "spool_capped": false,
+        "oldest_spool_age_seconds": null,
+        "disk_pressure": false,
+        "retry_count": 3,
+        "buffer_depth": 0,
+        "events_per_sec": 0.0
+      },
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "tamper_advisory_only",
+      "indicator_count": 3,
+      "indicator_types": [
+        "config_mismatch",
+        "heartbeat_gap",
+        "disabled_collector"
+      ],
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "mixed_degraded_fleet",
+      "healthy_indicators": 0,
+      "stale_indicators": 1,
+      "drifted_indicators": 1,
+      "cap_stats": {
+        "queued_events": 0,
+        "dropped_events": 15,
+        "spool_disk_bytes": 10485760,
+        "spool_capped": true,
+        "oldest_spool_age_seconds": 30,
+        "disk_pressure": false,
+        "retry_count": 0,
+        "buffer_depth": 0,
+        "events_per_sec": 0.0
+      },
+      "errors": [],
+      "passed": true
+    },
+    {
+      "scenario": "safety_invariants",
+      "checked_apis": [
+        "isolateHost",
+        "quarantineHost",
+        "executeShell",
+        "killProcess",
+        "autoRemediate",
+        "blockNetwork",
+        "enforcePolicy"
+      ],
+      "found": [],
+      "source_hits": [],
+      "errors": [],
+      "passed": true
+    }
+  ]
+}

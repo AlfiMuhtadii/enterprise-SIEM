@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\BaselineAnomalyScore;
+use App\Models\EndpointPrivilegeEscalation;
+use App\Models\EndpointScriptExecution;
 use App\Models\BaselineObservation;
 use App\Models\EndpointAgent;
 use App\Models\EndpointAgentEnrollmentEvent;
@@ -72,6 +74,12 @@ class ThreatHuntingService
         'endpoint_agent_heartbeats',
         'endpoint_agent_policy_assignments',
         'endpoint_agent_enrollment_events',
+        // Low-level endpoint telemetry domains — Phase 1
+        'endpoint_process_executions',
+        'endpoint_network_connections',
+        'endpoint_script_executions',
+        'endpoint_persistence_indicators',
+        'endpoint_privilege_escalations',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -303,6 +311,49 @@ class ThreatHuntingService
             'entity_count'   => ['>=', '<='],
             'advisory_only'  => ['='],
         ],
+        // Low-level endpoint telemetry domains — Phase 1
+        'endpoint_process_executions' => [
+            'process_name'        => ['=', 'contains'],
+            'parent_process_name' => ['=', 'contains'],
+            'command_line'        => ['contains'],
+            'user'                => ['='],
+            'is_shell'            => ['='],
+            'is_suspicious'       => ['='],
+            'trace_id'            => ['='],
+        ],
+        'endpoint_network_connections' => [
+            'process_name'            => ['=', 'contains'],
+            'remote_ip'               => ['='],
+            'remote_port'             => ['='],
+            'correlation_confidence'  => ['>='],
+            'trace_id'                => ['='],
+        ],
+        'endpoint_script_executions' => [
+            'process_name'        => ['=', 'contains'],
+            'parent_process_name' => ['=', 'contains'],
+            'script_source'       => ['='],
+            'is_encoded'          => ['='],
+            'user'                => ['='],
+            'telemetry_source'    => ['='],
+            'script_hash'         => ['='],
+            'trace_id'            => ['='],
+        ],
+        'endpoint_persistence_indicators' => [
+            'item_type'  => ['='],
+            'item_key'   => ['=', 'contains'],
+            'item_name'  => ['contains'],
+            'item_path'  => ['contains'],
+            'is_new'     => ['='],
+        ],
+        'endpoint_privilege_escalations' => [
+            'process_name'    => ['=', 'contains'],
+            'escalation_type' => ['='],
+            'original_user'   => ['='],
+            'escalated_user'  => ['='],
+            'telemetry_source'=> ['='],
+            'confidence'      => ['>='],
+            'trace_id'        => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -333,6 +384,12 @@ class ThreatHuntingService
         'endpoint_agent_heartbeats'         => EndpointAgentHeartbeat::class,
         'endpoint_agent_policy_assignments' => EndpointAgentPolicyAssignment::class,
         'endpoint_agent_enrollment_events'  => EndpointAgentEnrollmentEvent::class,
+        // Low-level endpoint telemetry — Phase 1
+        'endpoint_process_executions'       => EndpointProcessEntry::class,
+        'endpoint_network_connections'      => EndpointNetworkCorrelation::class,
+        'endpoint_script_executions'        => EndpointScriptExecution::class,
+        'endpoint_persistence_indicators'   => EndpointPersistenceItem::class,
+        'endpoint_privilege_escalations'    => EndpointPrivilegeEscalation::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -363,6 +420,12 @@ class ThreatHuntingService
         'endpoint_agent_heartbeats'         => 'heartbeat_at',
         'endpoint_agent_policy_assignments' => 'assigned_at',
         'endpoint_agent_enrollment_events'  => 'occurred_at',
+        // Low-level endpoint telemetry — Phase 1
+        'endpoint_process_executions'       => 'created_at',
+        'endpoint_network_connections'      => 'created_at',
+        'endpoint_script_executions'        => 'occurred_at',
+        'endpoint_persistence_indicators'   => 'last_seen_at',
+        'endpoint_privilege_escalations'    => 'occurred_at',
     ];
 
     // -----------------------------------------------------------------------

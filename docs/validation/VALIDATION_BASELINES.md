@@ -1,7 +1,7 @@
 # Validation Baselines
 
 Current pass criteria and expected outputs for all validation suites.
-Last updated: 2026-05-19
+Last updated: 2026-05-20 (LLTET Phase 1)
 
 This is the authoritative source for test counts and threshold values.
 Update this file whenever a validation count changes (new tests, new rules).
@@ -14,7 +14,7 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan test
 ```
 
-**Expected:** `1177 passed` — zero failures, zero skipped.
+**Expected:** `1362 passed` — zero failures, zero skipped.
 If any test fails: **STOP**. Do not commit, demo, or proceed.
 
 Do NOT run parallel `php artisan test` processes against the same PostgreSQL test database.
@@ -27,9 +27,9 @@ Do NOT run parallel `php artisan test` processes against the same PostgreSQL tes
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 ```
 
-**Expected:** `126 tests, 0 failures`
+**Expected:** `186 tests, 0 failures`
 
-Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/net/tcp), buffer retry/recovery, signed heartbeat, health state thresholds, quality metrics, behavioral snapshot, command execution (safe types only), threat hunting integration, host isolation simulation (config-gated, disabled by default), streaming engine (bounded queue, sequence tracking, local spool, rapid analytics).
+Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/net/tcp), buffer retry/recovery, signed heartbeat, health state thresholds, quality metrics, behavioral snapshot, command execution (safe types only), threat hunting integration, host isolation simulation (config-gated, disabled by default), streaming engine (bounded queue, sequence tracking, local spool, rapid analytics), tamper visibility, spool stats, SOC heartbeat with spool_stats.
 
 ---
 
@@ -39,11 +39,13 @@ Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/ne
 python scripts/xdr_rule_registry_validate.py
 ```
 
-**Expected:** `status=PASS  rules=56  checks=21/21  failures=0`
+**Expected:** `status=PASS  rules=73  checks=21/21  failures=0`
 
 Current registry breakdown:
 - 12 `staged_active` — identity (6), cloud (5), SaaS (1)
 - 32 `shadow` — endpoint behavioral (22 base + 5 cross-domain + 5 streaming)
+- 8 `shadow` — low-level endpoint telemetry (LLTET Phase 1)
+- 9 `shadow` — UEBA behavioral analytics
 - 9 `shadow` — network (DNS/proxy/firewall)
 - 3 `shadow` — threat-intel/IOC
 
@@ -98,6 +100,30 @@ Active scenario invariants:
 - Invalid auth token → 401, no write to `xdr_operational_events`
 - Replay of same `event_id` → exactly 1 record (`insertOrIgnore` idempotency)
 - Endpoint alert types → never appear in `security_alerts`
+
+---
+
+## Fleet Simulation Validation
+
+```powershell
+python scripts/xdr_fleet_simulation_validate.py
+```
+
+**Expected:** `8/8 passed` — all scenarios pass, exit code 0
+
+Scenarios:
+1. `healthy_fleet_baseline` — no indicators, no spool issues for healthy agent
+2. `stale_agent_detection` — `heartbeat_gap` raised after 2-hour silence
+3. `policy_drift_visibility` — `config_mismatch` raised for drifted config hash
+4. `spool_capped_agent` — `spool_capped=True` at exactly 10 MiB (`STREAM_SPOOL_MAX_BYTES`)
+5. `telemetry_lag_agent` — `queued_events`, `dropped_events`, `retry_count` propagated correctly
+6. `tamper_advisory_only` — all 3 indicator types present, all `advisory=True`, `autonomous_action=False`
+7. `mixed_degraded_fleet` — healthy + stale + drifted + capped correct across one run
+8. `safety_invariants` — no forbidden enforcement APIs in agent module
+
+Report: `reports/xdr_fleet_simulation_validation.json`
+
+See: `docs/operations/ENDPOINT_FLEET_SIMULATION_GUIDE.md`, `docs/operations/ENDPOINT_FLEET_FAILURE_MATRIX.md`
 
 ---
 

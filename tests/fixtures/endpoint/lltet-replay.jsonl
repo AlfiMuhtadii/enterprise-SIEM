@@ -1,0 +1,1 @@
+{"event_type": "script_execution", "process_name": "powershell.exe", "is_encoded": true, "host_id": "test-host", "trace_id": "test-trace-001", "telemetry_type": "endpoint", "ts": "2026-05-20T00:00:00Z", "event_id": "lltet-test-001", "script_source": "encoded"}

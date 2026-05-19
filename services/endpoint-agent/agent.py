@@ -2353,6 +2353,774 @@ def collect_behavioral_snapshot(
 
 
 # ---------------------------------------------------------------------------
+# Low-level behavioral telemetry collectors — Phase 1
+# No kernel EDR. No eBPF. No syscall hooking. No memory scanning.
+# No autonomous enforcement. Read-only observation only.
+# ---------------------------------------------------------------------------
+
+# Script/interpreter names that warrant script_execution events
+_SCRIPT_INTERPRETERS: frozenset[str] = frozenset([
+    "powershell", "powershell.exe", "pwsh", "pwsh.exe",
+    "cmd", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe",
+    "python", "python3", "python2", "python.exe",
+    "perl", "ruby", "node", "node.exe", "php", "php.exe",
+    "bash", "sh", "zsh", "dash", "ksh",
+])
+
+# Processes that indicate privilege escalation attempts on Linux
+_PRIV_ESC_NAMES: frozenset[str] = frozenset([
+    "sudo", "su", "doas", "pkexec", "newgrp", "runuser",
+])
+
+# Windows registry persistence key paths (HKCU/HKLM Run keys)
+_WIN_REGISTRY_PERSIST_KEYS: list[str] = [
+    r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run",
+    r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run",
+    r"HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+    r"HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce",
+]
+
+
+def _detect_encoded_payload(cmdline: str) -> tuple[bool, str | None]:
+    """
+    Detect base64-encoded payload in a command line.
+    Returns (is_encoded, decoded_preview_or_None).
+    Advisory — does not block or alter execution.
+    """
+    import base64 as _b64
+    import re as _re
+
+    # PowerShell -EncodedCommand / -enc / -e flags
+    ps_enc = _re.search(
+        r'(?:-EncodedCommand|-enc|-e)\s+([A-Za-z0-9+/=]{20,})',
+        cmdline, _re.IGNORECASE,
+    )
+    if ps_enc:
+        try:
+            decoded = _b64.b64decode(ps_enc.group(1) + "==").decode("utf-16-le", errors="replace")
+            return True, decoded[:256]
+        except Exception:
+            return True, None
+
+    # Generic long base64 blob (80+ chars, no spaces)
+    generic = _re.search(r'[A-Za-z0-9+/=]{80,}', cmdline)
+    if generic:
+        try:
+            decoded = _b64.b64decode(generic.group(0) + "==").decode("utf-8", errors="replace")
+            if any(c.isalpha() for c in decoded):
+                return True, decoded[:256]
+        except Exception:
+            pass
+
+    return False, None
+
+
+def collect_script_executions(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    proc_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Detect script/interpreter executions from running processes.
+    Identifies encoded payloads and suspicious interpreter chains.
+    Read-only — no process interference.
+    """
+    if not IS_LINUX and proc_root is None:
+        return []
+
+    root = proc_root or Path("/proc")
+    events: list[dict[str, Any]] = []
+
+    try:
+        pid_dirs = [d for d in root.iterdir() if d.name.isdigit()]
+    except (PermissionError, OSError):
+        return []
+
+    for pid_dir in pid_dirs:
+        try:
+            status_text = (pid_dir / "status").read_text(errors="replace")
+        except OSError:
+            continue
+
+        fields: dict[str, str] = {}
+        for line in status_text.splitlines():
+            if ":" in line:
+                k, _, v = line.partition(":")
+                fields[k.strip()] = v.strip()
+
+        name = fields.get("Name", "").lower()
+        if name not in _SCRIPT_INTERPRETERS:
+            continue
+
+        ppid_str = fields.get("PPid", "0")
+        uid_field = fields.get("Uid", "")
+        uid_str = uid_field.split()[0] if uid_field else "0"
+        user = _uid_to_username(int(uid_str)) if uid_str.isdigit() else uid_str
+
+        try:
+            cmdline_raw = (pid_dir / "cmdline").read_bytes()
+            cmdline = cmdline_raw.replace(b"\x00", b" ").decode(errors="replace").strip()
+        except OSError:
+            cmdline = name
+
+        # Determine parent process name
+        parent_name: str | None = None
+        try:
+            parent_status = (root / ppid_str / "status").read_text(errors="replace")
+            for line in parent_status.splitlines():
+                if line.startswith("Name:"):
+                    parent_name = line.split(":", 1)[1].strip()
+                    break
+        except OSError:
+            pass
+
+        is_encoded, decoded_preview = _detect_encoded_payload(cmdline)
+        script_source = "encoded" if is_encoded else "inline"
+
+        script_hash: str | None = None
+        if is_encoded and decoded_preview:
+            import hashlib as _hl
+            script_hash = _hl.sha256(decoded_preview.encode()).hexdigest()
+
+        ev = base_event(
+            "script_execution", agent_id, trace_id,
+            process_name=name,
+            parent_process=parent_name,
+            user=user,
+        )
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "script_execution", pid_dir.name, name,
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
+        )
+        ev["parent_process_name"] = parent_name
+        ev["command_line"] = cmdline[:4096] if cmdline else None
+        ev["script_source"] = script_source
+        ev["is_encoded"] = is_encoded
+        ev["decoded_preview"] = decoded_preview
+        ev["script_hash"] = script_hash
+        ev["telemetry_source"] = "agent_proc"
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        events.append(ev)
+
+    return events
+
+
+def collect_privilege_escalation_indicators(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    proc_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Detect privilege escalation indicators from /proc.
+    Observes uid transitions and sudo/su invocations.
+    Read-only — no process manipulation, no signal sending.
+    """
+    if not IS_LINUX and proc_root is None:
+        return []
+
+    root = proc_root or Path("/proc")
+    events: list[dict[str, Any]] = []
+
+    try:
+        pid_dirs = [d for d in root.iterdir() if d.name.isdigit()]
+    except (PermissionError, OSError):
+        return []
+
+    for pid_dir in pid_dirs:
+        try:
+            status_text = (pid_dir / "status").read_text(errors="replace")
+        except OSError:
+            continue
+
+        fields: dict[str, str] = {}
+        for line in status_text.splitlines():
+            if ":" in line:
+                k, _, v = line.partition(":")
+                fields[k.strip()] = v.strip()
+
+        name = fields.get("Name", "")
+        uid_field = fields.get("Uid", "")
+        if not uid_field:
+            continue
+
+        uid_parts = uid_field.split()
+        if len(uid_parts) < 2:
+            continue
+
+        try:
+            ruid = int(uid_parts[0])  # real uid
+            euid = int(uid_parts[1])  # effective uid
+        except ValueError:
+            continue
+
+        ppid_str = fields.get("PPid", "0")
+
+        try:
+            cmdline_raw = (pid_dir / "cmdline").read_bytes()
+            cmdline = cmdline_raw.replace(b"\x00", b" ").decode(errors="replace").strip()
+        except OSError:
+            cmdline = name
+
+        name_lower = name.lower()
+        escalation_type: str | None = None
+        confidence: float = 0.0
+        original_user = _uid_to_username(ruid)
+        escalated_user = _uid_to_username(euid) if euid == 0 else None
+
+        if name_lower in ("sudo", "pkexec", "doas", "runuser"):
+            escalation_type = "sudo_invocation"
+            confidence = 0.85
+        elif name_lower in ("su", "newgrp"):
+            escalation_type = "su_invocation"
+            confidence = 0.80
+        elif euid == 0 and ruid != 0:
+            escalation_type = "uid_transition"
+            confidence = 0.90
+
+        if escalation_type is None:
+            continue
+
+        ev = base_event(
+            "privilege_escalation_attempt", agent_id, trace_id,
+            process_name=name,
+            user=original_user,
+        )
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "priv_esc", pid_dir.name, name, escalation_type,
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
+        )
+        ev["pid"] = int(pid_dir.name)
+        ev["original_uid"] = ruid
+        ev["escalated_uid"] = euid
+        ev["original_user"] = original_user
+        ev["escalated_user"] = escalated_user
+        ev["escalation_type"] = escalation_type
+        ev["command_line"] = cmdline[:4096] if cmdline else None
+        ev["telemetry_source"] = "agent_proc"
+        ev["confidence"] = confidence
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        events.append(ev)
+
+    return events
+
+
+def collect_container_activity(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    proc_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Detect container namespace activity from /proc/[pid]/cgroup.
+    Identifies docker, containerd, lxc, kubernetes containers.
+    Read-only — no container manipulation.
+    """
+    if not IS_LINUX and proc_root is None:
+        return []
+
+    root = proc_root or Path("/proc")
+    events: list[dict[str, Any]] = []
+    seen_containers: set[str] = set()
+
+    # Detect container type from cgroup content
+    def _detect_namespace(cgroup_text: str) -> tuple[str | None, str | None]:
+        import re as _re
+        # Docker: /docker/<id> or /system.slice/docker-<id>
+        m = _re.search(r'/docker[/-]([a-f0-9]{12,64})', cgroup_text)
+        if m:
+            return NS_DOCKER, m.group(1)[:64]
+        # Kubernetes: /kubepods/.../<pod-id>/<container-id>
+        m = _re.search(r'/kubepods/[^/]+/[^/]+/([a-f0-9]{12,64})', cgroup_text)
+        if m:
+            return NS_K8S, m.group(1)[:64]
+        # containerd
+        if "containerd" in cgroup_text:
+            m = _re.search(r'/([a-f0-9]{12,64})', cgroup_text)
+            if m:
+                return NS_CONTAINERD, m.group(1)[:64]
+        # LXC
+        if "/lxc/" in cgroup_text:
+            m = _re.search(r'/lxc/([^/\n]+)', cgroup_text)
+            if m:
+                return NS_LXC, m.group(1)[:64]
+        return None, None
+
+    NS_DOCKER = "docker"
+    NS_K8S = "kubernetes"
+    NS_CONTAINERD = "containerd"
+    NS_LXC = "lxc"
+
+    try:
+        pid_dirs = [d for d in root.iterdir() if d.name.isdigit()]
+    except (PermissionError, OSError):
+        return []
+
+    for pid_dir in pid_dirs:
+        try:
+            cgroup_text = (pid_dir / "cgroup").read_text(errors="replace")
+        except OSError:
+            continue
+
+        ns_type, container_id = _detect_namespace(cgroup_text)
+        if ns_type is None or container_id is None:
+            continue
+        if container_id in seen_containers:
+            continue
+        seen_containers.add(container_id)
+
+        # Get process name
+        name = ""
+        try:
+            status_text = (pid_dir / "status").read_text(errors="replace")
+            for line in status_text.splitlines():
+                if line.startswith("Name:"):
+                    name = line.split(":", 1)[1].strip()
+                    break
+        except OSError:
+            pass
+
+        ev = base_event(
+            "container_activity", agent_id, trace_id,
+            process_name=name,
+        )
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "container_activity", container_id, ns_type,
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
+        )
+        ev["container_id"] = container_id
+        ev["container_name"] = None
+        ev["image_name"] = None
+        ev["activity_type"] = "namespace_detected"
+        ev["pid"] = int(pid_dir.name)
+        ev["namespace_type"] = ns_type
+        ev["telemetry_source"] = "agent_proc"
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        events.append(ev)
+
+    return events
+
+
+def collect_windows_sysmon(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    fixture_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Ingest Sysmon events.
+    In production (IS_WINDOWS, no fixture): reads via wevtutil subprocess.
+    In tests: reads from a JSONL fixture file.
+    Advisory-only — no process termination, no rule blocking.
+    Supports event IDs: 1 (process create), 3 (network connect),
+    11 (file create), 13 (registry value set).
+    """
+    events: list[dict[str, Any]] = []
+
+    def _parse_fixture(path: str) -> list[dict[str, Any]]:
+        result = []
+        try:
+            for line in Path(path).read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        result.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+        except OSError:
+            pass
+        return result
+
+    def _normalize_sysmon_event(raw: dict[str, Any]) -> dict[str, Any] | None:
+        event_id = raw.get("event_id") or raw.get("EventID")
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            return None
+
+        if event_id == 1:
+            event_type = "script_execution" if raw.get("process_name", "").lower() in _SCRIPT_INTERPRETERS else "process_start"
+        elif event_id == 3:
+            event_type = "network_connection"
+        elif event_id == 11:
+            event_type = "file_write"
+        elif event_id == 13:
+            event_type = "registry_value_set"
+        else:
+            event_type = f"sysmon_event_{event_id}"
+
+        ev = base_event(
+            event_type, agent_id, trace_id,
+            process_name=raw.get("process_name") or raw.get("Image", ""),
+            user=raw.get("user") or raw.get("User"),
+        )
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "sysmon", str(event_id),
+            raw.get("process_guid") or raw.get("ProcessGuid") or str(time.time()),
+        )
+        ev["command_line"] = raw.get("command_line") or raw.get("CommandLine")
+        ev["parent_process_name"] = raw.get("parent_process_name") or raw.get("ParentImage")
+        ev["telemetry_source"] = "sysmon"
+        ev["sysmon_event_id"] = event_id
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        # Network fields for event 3
+        if event_id == 3:
+            ev["destination_ip"] = raw.get("destination_ip") or raw.get("DestinationIp")
+            ev["destination_port"] = raw.get("destination_port") or raw.get("DestinationPort")
+        # Registry fields for event 13
+        if event_id == 13:
+            ev["registry_key"] = raw.get("registry_key") or raw.get("TargetObject")
+            ev["registry_value"] = raw.get("registry_value") or raw.get("Details")
+        return ev
+
+    if fixture_path is not None:
+        raw_events = _parse_fixture(fixture_path)
+    elif IS_WINDOWS:
+        # Production: query Sysmon operational log via wevtutil
+        try:
+            result = subprocess.run(
+                [
+                    "wevtutil", "qe",
+                    "Microsoft-Windows-Sysmon/Operational",
+                    "/f:Text", "/c:50", "/rd:true",
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            # wevtutil text output is not JSON; parse key:value lines
+            raw_events = []
+            current: dict[str, Any] = {}
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    if current:
+                        raw_events.append(current)
+                        current = {}
+                elif ":" in line:
+                    k, _, v = line.partition(":")
+                    current[k.strip()] = v.strip()
+            if current:
+                raw_events.append(current)
+        except Exception:
+            return []
+    else:
+        return []
+
+    for raw in raw_events[:100]:
+        ev = _normalize_sysmon_event(raw)
+        if ev:
+            events.append(ev)
+
+    return events
+
+
+def collect_windows_powershell_events(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    fixture_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Ingest Windows PowerShell operational log events (Event IDs 4103, 4104).
+    In tests: reads from a JSONL fixture file.
+    Advisory-only — no PS execution blocking.
+    """
+    events: list[dict[str, Any]] = []
+
+    def _parse_fixture(path: str) -> list[dict[str, Any]]:
+        result = []
+        try:
+            for line in Path(path).read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        result.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+        except OSError:
+            pass
+        return result
+
+    if fixture_path is not None:
+        raw_events = _parse_fixture(fixture_path)
+    elif IS_WINDOWS:
+        try:
+            result = subprocess.run(
+                [
+                    "wevtutil", "qe",
+                    "Microsoft-Windows-PowerShell/Operational",
+                    "/f:Text", "/c:50", "/rd:true",
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            raw_events = []
+            current: dict[str, Any] = {}
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    if current:
+                        raw_events.append(current)
+                        current = {}
+                elif ":" in line:
+                    k, _, v = line.partition(":")
+                    current[k.strip()] = v.strip()
+            if current:
+                raw_events.append(current)
+        except Exception:
+            return []
+    else:
+        return []
+
+    for raw in raw_events[:100]:
+        event_id = raw.get("event_id") or raw.get("EventID")
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            continue
+
+        cmdline = raw.get("script_block") or raw.get("ScriptBlockText") or raw.get("command_line") or ""
+        is_encoded, decoded_preview = _detect_encoded_payload(cmdline)
+
+        ev = base_event(
+            "script_execution", agent_id, trace_id,
+            process_name="powershell.exe",
+            user=raw.get("user") or raw.get("User"),
+        )
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "ps_event", str(event_id),
+            raw.get("script_block_id") or str(time.time()),
+        )
+        ev["command_line"] = cmdline[:4096]
+        ev["script_source"] = "encoded" if is_encoded else "inline"
+        ev["is_encoded"] = is_encoded
+        ev["decoded_preview"] = decoded_preview
+        ev["telemetry_source"] = "powershell_operational"
+        ev["ps_event_id"] = event_id
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        events.append(ev)
+
+    return events
+
+
+def collect_windows_security_events(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    fixture_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Ingest Windows Security Event Log entries relevant to process creation and
+    privilege use (Event IDs 4688, 4672, 4697, 4698).
+    In tests: reads from a JSONL fixture file.
+    Advisory-only — no account modification, no policy enforcement.
+    """
+    events: list[dict[str, Any]] = []
+
+    def _parse_fixture(path: str) -> list[dict[str, Any]]:
+        result = []
+        try:
+            for line in Path(path).read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        result.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+        except OSError:
+            pass
+        return result
+
+    if fixture_path is not None:
+        raw_events = _parse_fixture(fixture_path)
+    elif IS_WINDOWS:
+        try:
+            result = subprocess.run(
+                [
+                    "wevtutil", "qe", "Security",
+                    "/q:*[System[(EventID=4688 or EventID=4672 or EventID=4697 or EventID=4698)]]",
+                    "/f:Text", "/c:50", "/rd:true",
+                ],
+                capture_output=True, text=True, timeout=10,
+            )
+            raw_events = []
+            current: dict[str, Any] = {}
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line:
+                    if current:
+                        raw_events.append(current)
+                        current = {}
+                elif ":" in line:
+                    k, _, v = line.partition(":")
+                    current[k.strip()] = v.strip()
+            if current:
+                raw_events.append(current)
+        except Exception:
+            return []
+    else:
+        return []
+
+    for raw in raw_events[:100]:
+        event_id = raw.get("event_id") or raw.get("EventID")
+        try:
+            event_id = int(event_id)
+        except (TypeError, ValueError):
+            continue
+
+        process_name = raw.get("process_name") or raw.get("NewProcessName") or ""
+        # Strip path to basename
+        process_name = Path(process_name).name if process_name else ""
+        user = raw.get("user") or raw.get("SubjectUserName") or raw.get("AccountName")
+        integrity = raw.get("integrity_level") or raw.get("MandatoryLabel")
+
+        if event_id == 4688:
+            # Process creation
+            ev = base_event(
+                "process_start", agent_id, trace_id,
+                process_name=process_name,
+                user=user,
+            )
+            ev["command_line"] = raw.get("command_line") or raw.get("CommandLine")
+            ev["integrity_level"] = integrity
+            ev["parent_process_name"] = raw.get("parent_process_name") or raw.get("ParentProcessName")
+            ev["telemetry_source"] = "security_event"
+
+            # High integrity → potential privilege escalation indicator
+            if integrity and ("high" in str(integrity).lower() or "system" in str(integrity).lower()):
+                ev["escalation_type"] = "integrity_level_high"
+                ev["is_privilege_escalation_indicator"] = True
+
+        elif event_id == 4672:
+            # Special privileges assigned to new logon
+            ev = base_event(
+                "privilege_escalation_attempt", agent_id, trace_id,
+                process_name=process_name or "lsass.exe",
+                user=user,
+            )
+            ev["escalation_type"] = "token_impersonation"
+            ev["telemetry_source"] = "security_event"
+
+        elif event_id in (4697, 4698):
+            # Service/scheduled task installation — persistence indicator
+            ev = base_event(
+                "persistence_indicator", agent_id, trace_id,
+                process_name=process_name or "services.exe",
+                user=user,
+            )
+            ev["persistence_type"] = "service_install" if event_id == 4697 else "scheduled_task"
+            ev["telemetry_source"] = "security_event"
+        else:
+            continue
+
+        ev["event_id"] = make_event_id(
+            HOSTNAME, "sec_event", str(event_id),
+            raw.get("record_id") or str(time.time()),
+        )
+        ev["security_event_id"] = event_id
+        ev["is_advisory"] = True
+        ev["autonomous_action"] = False
+        events.append(ev)
+
+    return events
+
+
+def collect_windows_registry_persistence(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    fixture_path: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Check Windows registry Run keys for persistence entries.
+    In tests: reads from a JSONL fixture file (list of {key, name, value}).
+    Advisory-only — never modifies or deletes registry entries.
+    """
+    events: list[dict[str, Any]] = []
+
+    def _parse_fixture(path: str) -> list[dict[str, Any]]:
+        result = []
+        try:
+            for line in Path(path).read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        result.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+        except OSError:
+            pass
+        return result
+
+    def _entries_from_raw(raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        result = []
+        for item in raw_items:
+            key = item.get("key") or item.get("RegistryKey", "")
+            name = item.get("name") or item.get("ValueName", "")
+            value = item.get("value") or item.get("ValueData", "")
+            if not name:
+                continue
+            ev = base_event(
+                "registry_persistence", agent_id, trace_id,
+                process_name="reg.exe",
+            )
+            ev["event_id"] = make_event_id(
+                HOSTNAME, "reg_persist", key, name,
+                datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
+            )
+            ev["registry_key"] = key
+            ev["registry_value_name"] = name
+            ev["registry_value_data"] = str(value)[:1024]
+            ev["persistence_type"] = "registry_run_key"
+            ev["telemetry_source"] = "registry"
+            ev["is_advisory"] = True
+            ev["autonomous_action"] = False
+            result.append(ev)
+        return result
+
+    if fixture_path is not None:
+        return _entries_from_raw(_parse_fixture(fixture_path))
+
+    if not IS_WINDOWS:
+        return []
+
+    for reg_key in _WIN_REGISTRY_PERSIST_KEYS:
+        try:
+            result = subprocess.run(
+                ["reg", "query", reg_key],
+                capture_output=True, text=True, timeout=5,
+            )
+            raw_items: list[dict[str, Any]] = []
+            for line in result.stdout.splitlines():
+                parts = line.strip().split(None, 2)
+                if len(parts) >= 3 and parts[1].upper() in ("REG_SZ", "REG_EXPAND_SZ"):
+                    raw_items.append({"key": reg_key, "name": parts[0], "value": parts[2]})
+            events.extend(_entries_from_raw(raw_items))
+        except Exception:
+            pass
+
+    return events
+
+
+# ---------------------------------------------------------------------------
 # Enrollment flow
 # ---------------------------------------------------------------------------
 
@@ -2416,6 +3184,40 @@ def run_collection_cycle(
                 "Collector %s raised: %s\n%s",
                 collector.__name__, exc, traceback.format_exc(),
             )
+
+    # Low-level behavioral telemetry collectors — Phase 1
+    low_level_collectors = [
+        collect_script_executions,
+        collect_privilege_escalation_indicators,
+        collect_container_activity,
+    ]
+    for collector in low_level_collectors:
+        try:
+            new_events = collector(col_state, agent_id, trace_id, cfg)
+            all_events.extend(new_events)
+        except Exception as exc:
+            log.error(
+                "Low-level collector %s raised: %s\n%s",
+                collector.__name__, exc, traceback.format_exc(),
+            )
+
+    # Windows-specific collectors — only invoked on Windows
+    if IS_WINDOWS:
+        windows_collectors = [
+            collect_windows_sysmon,
+            collect_windows_powershell_events,
+            collect_windows_security_events,
+            collect_windows_registry_persistence,
+        ]
+        for collector in windows_collectors:
+            try:
+                new_events = collector(col_state, agent_id, trace_id, cfg)
+                all_events.extend(new_events)
+            except Exception as exc:
+                log.error(
+                    "Windows collector %s raised: %s\n%s",
+                    collector.__name__, exc, traceback.format_exc(),
+                )
 
     if quality:
         quality.record_cycle()

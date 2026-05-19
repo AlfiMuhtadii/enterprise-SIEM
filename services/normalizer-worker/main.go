@@ -458,6 +458,15 @@ func normalize(raw map[string]any) (map[string]any, error) {
 	if telemetryType == "notification" {
 		return normalizeNotificationEvent(raw)
 	}
+	if telemetryType == "sysmon" {
+		return normalizeSysmon(raw)
+	}
+	if telemetryType == "powershell" {
+		return normalizePowerShell(raw)
+	}
+	if telemetryType == "security_event" {
+		return normalizeWindowsSecurityEvent(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -522,6 +531,115 @@ func normalizeEndpoint(raw map[string]any) (map[string]any, error) {
 		"auth": map[string]any{
 			"action": strings.ToLower(first(raw, "action")),
 			"result": strings.ToLower(first(raw, "result", "outcome")),
+		},
+	}, nil
+}
+
+// normalizeSysmon normalizes Sysmon telemetry events (telemetry_type=sysmon).
+// Sysmon events already carry endpoint-like fields; we unify them with the
+// standard endpoint envelope and add sysmon-specific metadata.
+func normalizeSysmon(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	sysmonEventID := rawIntField(raw, "sysmon_event_id")
+	out := map[string]any{
+		"schema_version":        1,
+		"normalization_version": "sysmon-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "event_time"),
+		"telemetry_type":        "endpoint",
+		"event_type":            strings.ToLower(first(raw, "event_type", "action")),
+		"host":                  first(raw, "host", "host_id", "device_name"),
+		"user":                  first(raw, "user"),
+		"event_source":          "sysmon",
+		"trace_id":              first(raw, "trace_id"),
+		"sysmon_event_id":       sysmonEventID,
+		"is_advisory":           true,
+		"process": map[string]any{
+			"name":              first(raw, "process_name", "Image"),
+			"command_line":      first(raw, "command_line", "CommandLine"),
+			"parent_name":       first(raw, "parent_process_name", "ParentImage"),
+			"integrity_level":   first(raw, "integrity_level", "IntegrityLevel"),
+		},
+		"network": map[string]any{
+			"destination_ip":   first(raw, "destination_ip", "DestinationIp"),
+			"destination_port": rawIntField(raw, "destination_port"),
+		},
+		"script": map[string]any{
+			"is_encoded":      raw["is_encoded"],
+			"decoded_preview": first(raw, "decoded_preview"),
+			"script_hash":     first(raw, "script_hash"),
+			"script_source":   first(raw, "script_source"),
+		},
+		"registry": map[string]any{
+			"key":   first(raw, "registry_key", "TargetObject"),
+			"value": first(raw, "registry_value", "Details"),
+		},
+	}
+	return out, nil
+}
+
+// normalizePowerShell normalizes Windows PowerShell operational log events
+// (telemetry_type=powershell).
+func normalizePowerShell(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "powershell-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "event_time"),
+		"telemetry_type":        "endpoint",
+		"event_type":            "script_execution",
+		"host":                  first(raw, "host", "host_id", "device_name"),
+		"user":                  first(raw, "user"),
+		"event_source":          "powershell_operational",
+		"trace_id":              first(raw, "trace_id"),
+		"is_advisory":           true,
+		"process": map[string]any{
+			"name":    "powershell.exe",
+			"command_line": first(raw, "command_line", "script_block", "ScriptBlockText"),
+		},
+		"script": map[string]any{
+			"is_encoded":    raw["is_encoded"],
+			"decoded_preview": first(raw, "decoded_preview"),
+			"script_hash":   first(raw, "script_hash"),
+			"script_source": first(raw, "script_source"),
+			"ps_event_id":   rawIntField(raw, "ps_event_id"),
+		},
+	}, nil
+}
+
+// normalizeWindowsSecurityEvent normalizes Windows Security Event Log entries
+// (telemetry_type=security_event). Handles 4688 (process create),
+// 4672 (special privileges), 4697/4698 (service/task install).
+func normalizeWindowsSecurityEvent(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	securityEventID := rawIntField(raw, "security_event_id")
+	eventType := strings.ToLower(first(raw, "event_type", "action"))
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "security-event-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "event_time"),
+		"telemetry_type":        "endpoint",
+		"event_type":            eventType,
+		"host":                  first(raw, "host", "host_id", "device_name"),
+		"user":                  first(raw, "user", "SubjectUserName"),
+		"event_source":          "security_event",
+		"trace_id":              first(raw, "trace_id"),
+		"security_event_id":     securityEventID,
+		"is_advisory":           true,
+		"process": map[string]any{
+			"name":            first(raw, "process_name", "NewProcessName"),
+			"command_line":    first(raw, "command_line", "CommandLine"),
+			"integrity_level": first(raw, "integrity_level", "MandatoryLabel"),
+			"parent_name":     first(raw, "parent_process_name", "ParentProcessName"),
+		},
+		"privilege": map[string]any{
+			"escalation_type": first(raw, "escalation_type"),
+			"persistence_type": first(raw, "persistence_type"),
 		},
 	}, nil
 }

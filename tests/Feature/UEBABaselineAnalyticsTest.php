@@ -441,12 +441,12 @@ class UEBABaselineAnalyticsTest extends TestCase
         );
     }
 
-    public function test_ueba_domains_are_25_total(): void
+    public function test_ueba_domains_are_30_total(): void
     {
         $this->assertCount(
-            25,
+            30,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 25 threat hunting domains after UEBA Phase 1 (21) + Endpoint Fleet Phase 1 (4)'
+            'Should have 30 threat hunting domains after UEBA Phase 1 + Fleet Phase 1 + LLTET Phase 1'
         );
     }
 
@@ -535,17 +535,22 @@ class UEBABaselineAnalyticsTest extends TestCase
 
     public function test_detect_anomalies_returns_advisory_scores_only(): void
     {
-        // Even when anomalies are found, all must have is_advisory=true
+        // Build baseline from normal range then score an extreme outlier directly
         foreach (range(1, 10) as $v) {
             $this->svc->recordObservation('lucy@test.com', 'user', 'login_frequency', (float) $v);
         }
         $this->svc->computeBaseline('lucy@test.com', 'user', 'login_frequency');
 
-        $scores = $this->svc->detectAnomalies('lucy@test.com', 'user');
+        // Score an extreme value (z-score >> threshold) to guarantee at least one advisory score
+        $extremeScore = $this->svc->scoreAnomaly('lucy@test.com', 'user', 'login_frequency', 9999.0);
+        $this->assertNotNull($extremeScore, 'extreme value should produce a score');
+        $this->assertTrue($extremeScore->is_advisory, 'scored anomaly must be advisory');
 
+        // detectAnomalies returns a Collection; all items must carry is_advisory=true
+        $scores = $this->svc->detectAnomalies('lucy@test.com', 'user');
+        $this->assertInstanceOf(\Illuminate\Support\Collection::class, $scores);
         foreach ($scores as $s) {
-            $this->assertTrue($s->is_advisory,
-                'detectAnomalies must only return advisory scores');
+            $this->assertTrue($s->is_advisory, 'detectAnomalies must only return advisory scores');
         }
     }
 
@@ -775,7 +780,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
         $registry     = json_decode(file_get_contents($registryPath), true);
 
-        $this->assertCount(65, $registry['rules'],
-            'Registry should have exactly 65 rules after UEBA Phase 1 (56 original + 9 UEBA)');
+        $this->assertCount(73, $registry['rules'],
+            'Registry should have exactly 73 rules after UEBA Phase 1 + LLTET Phase 1');
     }
 }

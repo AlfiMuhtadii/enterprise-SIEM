@@ -68,6 +68,7 @@ use App\Http\Controllers\UEBA\UEBAController;
 use App\Http\Controllers\Api\UEBAApiController;
 use App\Http\Controllers\Endpoint\EndpointFleetController;
 use App\Http\Controllers\Api\EndpointFleetApiController;
+use App\Http\Controllers\Endpoint\EndpointTelemetryController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -732,6 +733,19 @@ Route::middleware([InternalServiceAuthMiddleware::class])->prefix('api/internal'
             'ts'      => now()->toIso8601String(),
         ]);
     })->name('api.internal.status');
+});
+
+// Low-level Endpoint Telemetry — Phase 1
+// Advisory-only. No process termination, no kernel enforcement, no isolation.
+Route::middleware(['auth', 'soc:agents.manage'])->prefix('endpoint-telemetry')->group(function () {
+    Route::get('/',                     [EndpointTelemetryController::class, 'dashboard'])->name('endpoint-telemetry.dashboard');
+    Route::get('/process-explorer',     [EndpointTelemetryController::class, 'processExplorer'])->name('endpoint-telemetry.process-explorer');
+    Route::get('/process-tree',         [EndpointTelemetryController::class, 'processTree'])->name('endpoint-telemetry.process-tree');
+    Route::get('/network-connections',  [EndpointTelemetryController::class, 'networkConnections'])->name('endpoint-telemetry.network-connections');
+    Route::get('/script-execution',     [EndpointTelemetryController::class, 'scriptExecution'])->name('endpoint-telemetry.script-execution');
+    Route::get('/privilege-escalation', [EndpointTelemetryController::class, 'privilegeEscalation'])->name('endpoint-telemetry.privilege-escalation');
+    Route::get('/persistence',          [EndpointTelemetryController::class, 'persistenceIndicators'])->name('endpoint-telemetry.persistence');
+    Route::get('/container-activity',   [EndpointTelemetryController::class, 'containerActivity'])->name('endpoint-telemetry.container-activity');
 });
 
 require __DIR__.'/auth.php';

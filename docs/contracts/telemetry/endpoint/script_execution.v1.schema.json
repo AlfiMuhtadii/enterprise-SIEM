@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "endpoint.script_execution.v1",
+  "title": "Endpoint Telemetry: script_execution v1",
+  "description": "Advisory telemetry event emitted when a script interpreter executes. Covers PowerShell, Python, bash, cmd, wscript, and similar interpreters. All fields are observational only — no enforcement.",
+  "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
+  "properties": {
+    "event_type": { "const": "script_execution" },
+    "process_name": {
+      "type": "string",
+      "maxLength": 260,
+      "description": "Name of the script interpreter process (e.g. 'powershell.exe', 'python3')."
+    },
+    "parent_process_name": {
+      "type": ["string", "null"],
+      "maxLength": 260,
+      "description": "Name of the parent process that launched the interpreter."
+    },
+    "command_line": {
+      "type": ["string", "null"],
+      "maxLength": 32768,
+      "description": "Full command line as observed by the OS."
+    },
+    "script_source": {
+      "type": "string",
+      "enum": ["inline", "file", "encoded", "piped"],
+      "description": "How the script content was provided to the interpreter."
+    },
+    "is_encoded": {
+      "type": "boolean",
+      "description": "True if a base64-encoded or compressed payload was detected in the command line."
+    },
+    "decoded_preview": {
+      "type": ["string", "null"],
+      "maxLength": 256,
+      "description": "First 256 characters of decoded script content. Advisory — never used for automated blocking."
+    },
+    "script_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "SHA-256 hash of the decoded script content when available."
+    },
+    "telemetry_source": {
+      "type": "string",
+      "enum": ["agent_proc", "sysmon", "powershell_operational", "etw", "security_event"],
+      "description": "Collection mechanism that produced this event."
+    },
+    "is_advisory": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always true — this event is observational only. No enforcement is performed."
+    },
+    "autonomous_action": {
+      "type": "boolean",
+      "const": false,
+      "description": "Always false — no autonomous action is taken on this telemetry."
+    }
+  },
+  "required": ["process_name", "script_source", "is_encoded", "is_advisory", "autonomous_action"]
+}
