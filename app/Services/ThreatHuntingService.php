@@ -52,6 +52,10 @@ class ThreatHuntingService
         'proxy_events',
         'firewall_events',
         'network_behavioral_findings',
+        'identity_provider_events',
+        'saas_audit_events',
+        'notification_events',
+        'external_case_links',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -177,6 +181,46 @@ class ThreatHuntingService
             'user'           => ['='],
             'trace_id'       => ['='],
         ],
+        'identity_provider_events' => [
+            'provider'            => ['='],
+            'event_type'          => ['='],
+            'user_email'          => ['=', 'contains'],
+            'source_ip'           => ['='],
+            'geo_country'         => ['='],
+            'mfa_used'            => ['='],
+            'is_failed'           => ['='],
+            'is_suspicious'       => ['='],
+            'risk_score'          => ['>='],
+            'failed_attempt_count'=> ['>='],
+            'trace_id'            => ['='],
+        ],
+        'saas_audit_events' => [
+            'provider'       => ['='],
+            'actor_email'    => ['=', 'contains'],
+            'actor_ip'       => ['='],
+            'action'         => ['=', 'contains'],
+            'resource_type'  => ['='],
+            'target_email'   => ['=', 'contains'],
+            'is_suspicious'  => ['='],
+            'risk_score'     => ['>='],
+            'source_country' => ['='],
+            'trace_id'       => ['='],
+        ],
+        'notification_events' => [
+            'notification_type' => ['='],
+            'severity'          => ['='],
+            'channel'           => ['='],
+            'requires_analyst_approval' => ['='],
+            'trace_id'          => ['='],
+        ],
+        'external_case_links' => [
+            'investigation_id'   => ['='],
+            'external_ticket_id' => ['=', 'contains'],
+            'link_direction'     => ['='],
+            'sync_advisory_only' => ['='],
+            'auto_closed'        => ['='],
+            'trace_id'           => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -194,6 +238,10 @@ class ThreatHuntingService
         'proxy_events'                => \App\Models\ProxyEvent::class,
         'firewall_events'             => \App\Models\FirewallEvent::class,
         'network_behavioral_findings' => \App\Models\NetworkBehavioralFinding::class,
+        'identity_provider_events'    => \App\Models\IdentityProviderEvent::class,
+        'saas_audit_events'           => \App\Models\SaasAuditEvent::class,
+        'notification_events'         => \App\Models\NotificationEvent::class,
+        'external_case_links'         => \App\Models\ExternalCaseLink::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -211,6 +259,10 @@ class ThreatHuntingService
         'proxy_events'                => 'occurred_at',
         'firewall_events'             => 'occurred_at',
         'network_behavioral_findings' => 'created_at',
+        'identity_provider_events'    => 'occurred_at',
+        'saas_audit_events'           => 'occurred_at',
+        'notification_events'         => 'created_at',
+        'external_case_links'         => 'created_at',
     ];
 
     // -----------------------------------------------------------------------

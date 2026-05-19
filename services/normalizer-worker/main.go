@@ -446,6 +446,18 @@ func normalize(raw map[string]any) (map[string]any, error) {
 	if telemetryType == "firewall" {
 		return normalizeFirewall(raw)
 	}
+	if telemetryType == "identity_provider" {
+		return normalizeIdentityProvider(raw)
+	}
+	if telemetryType == "saas_audit" {
+		return normalizeSaasAudit(raw)
+	}
+	if telemetryType == "ticket_sync" {
+		return normalizeTicketSync(raw)
+	}
+	if telemetryType == "notification" {
+		return normalizeNotificationEvent(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -694,6 +706,114 @@ func normalizeFirewall(raw map[string]any) (map[string]any, error) {
 		"user":                  first(raw, "user"),
 		"source_service":        first(raw, "source_service", "event_source", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
+	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise integration normalizers — advisory-only, inbound read
+// No account actions, no credential harvesting, no bidirectional destructive sync.
+// ---------------------------------------------------------------------------
+
+func normalizeIdentityProvider(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	failedCount := 0
+	if fc, ok := raw["failed_attempt_count"].(float64); ok {
+		failedCount = int(fc)
+	}
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "identity-provider-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "identity_provider",
+		"event_type":            first(raw, "event_type", "action"),
+		"provider":              strings.ToLower(first(raw, "provider", "idp")),
+		"user_id":               first(raw, "user_id", "sub"),
+		"user_email":            first(raw, "user_email", "email", "upn"),
+		"source_ip":             first(raw, "source_ip", "ip_address", "client_ip"),
+		"geo_country":           first(raw, "geo_country", "country"),
+		"user_agent":            first(raw, "user_agent"),
+		"mfa_used":              raw["mfa_used"],
+		"is_failed":             raw["is_failed"],
+		"failed_attempt_count":  failedCount,
+		"raw_attributes":        raw["raw_attributes"],
+		"source_service":        first(raw, "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
+		"no_account_action":     true,
+	}, nil
+}
+
+func normalizeSaasAudit(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "saas-audit-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "saas_audit",
+		"event_type":            first(raw, "action", "event_type", "operation"),
+		"provider":              strings.ToLower(first(raw, "provider", "saas_platform")),
+		"actor_id":              first(raw, "actor_id", "user_id", "sub"),
+		"actor_email":           first(raw, "actor_email", "email", "user_email"),
+		"actor_ip":              first(raw, "actor_ip", "source_ip", "ip_address"),
+		"resource_type":         first(raw, "resource_type", "object_type"),
+		"resource_id":           first(raw, "resource_id", "object_id"),
+		"target_id":             first(raw, "target_id"),
+		"target_email":          first(raw, "target_email"),
+		"source_country":        first(raw, "source_country", "geo_country", "country"),
+		"user_agent":            first(raw, "user_agent"),
+		"additional_details":    raw["additional_details"],
+		"source_service":        first(raw, "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
+		"no_account_action":     true,
+	}, nil
+}
+
+func normalizeTicketSync(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "ticket-sync-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "ticket_sync",
+		"event_type":            first(raw, "event_type", "action", "sync_type"),
+		"provider":              strings.ToLower(first(raw, "provider", "ticketing_system")),
+		"ticket_id":             first(raw, "ticket_id", "external_ticket_id"),
+		"investigation_id":      first(raw, "investigation_id"),
+		"sync_direction":        first(raw, "sync_direction", "direction"),
+		"external_status":       first(raw, "external_status", "ticket_status"),
+		"source_service":        first(raw, "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
+		"no_auto_close":         true,
+	}, nil
+}
+
+func normalizeNotificationEvent(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "notification-event-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "notification",
+		"event_type":            first(raw, "notification_type", "event_type"),
+		"channel":               strings.ToLower(first(raw, "channel")),
+		"severity":              strings.ToLower(first(raw, "severity")),
+		"subject":               first(raw, "subject"),
+		"source_reference":      raw["source_reference"],
+		"requires_approval":     raw["requires_analyst_approval"],
+		"source_service":        first(raw, "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
+		"simulated":             true,
 	}, nil
 }
 

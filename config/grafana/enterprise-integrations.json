@@ -1,0 +1,86 @@
+{
+  "title": "Enterprise Integrations — Phase 1",
+  "uid": "enterprise-integrations-v1",
+  "tags": ["xdr", "integrations", "advisory", "soc"],
+  "description": "Advisory-only. No account actions. No autonomous ticket closure.",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total External Integrations",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM external_integrations", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "cyan"}}}
+    },
+    {
+      "id": 2,
+      "title": "Active Integrations",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM external_integrations WHERE status = 'active'", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "green"}}}
+    },
+    {
+      "id": 3,
+      "title": "Identity Provider Events (24h)",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM identity_provider_events WHERE occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}}}
+    },
+    {
+      "id": 4,
+      "title": "SaaS Audit Events (24h)",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM saas_audit_events WHERE occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "purple"}}}
+    },
+    {
+      "id": 5,
+      "title": "Suspicious IdP Events (24h)",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM identity_provider_events WHERE is_suspicious = true AND occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}}
+    },
+    {
+      "id": 6,
+      "title": "Suspicious SaaS Events (24h)",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM saas_audit_events WHERE is_suspicious = true AND occurred_at >= NOW() - INTERVAL '24 hours'", "format": "table"}],
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}}
+    },
+    {
+      "id": 7,
+      "title": "IdP Events by Provider (24h)",
+      "type": "barchart",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{"rawSql": "SELECT provider, COUNT(*) as cnt FROM identity_provider_events WHERE occurred_at >= NOW() - INTERVAL '24 hours' GROUP BY provider ORDER BY cnt DESC", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "SaaS Audit Actions (24h)",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "targets": [{"rawSql": "SELECT action, provider, COUNT(*) as cnt FROM saas_audit_events WHERE occurred_at >= NOW() - INTERVAL '24 hours' GROUP BY action, provider ORDER BY cnt DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Notification Events — Simulated (Advisory Only)",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 6},
+      "targets": [{"rawSql": "SELECT ne.notification_type, ne.severity, ne.channel, ne.requires_analyst_approval, COUNT(nd.id) as deliveries FROM notification_events ne LEFT JOIN notification_deliveries nd ON nd.notification_event_id = ne.id GROUP BY ne.notification_type, ne.severity, ne.channel, ne.requires_analyst_approval ORDER BY COUNT(nd.id) DESC LIMIT 20", "format": "table"}],
+      "description": "All deliveries are simulated=true in advisory mode."
+    }
+  ],
+  "advisory_posture": {
+    "no_account_suspension": true,
+    "no_autonomous_ticket_closure": true,
+    "no_bidirectional_destructive_sync": true,
+    "no_credential_harvesting": true,
+    "all_sync_advisory_only": true,
+    "all_deliveries_simulated_by_default": true
+  }
+}

@@ -42,6 +42,11 @@
                             {{ __('Network') }}
                         </x-nav-link>
                     @endcan
+                    @can('soc:investigation.view')
+                        <x-nav-link :href="route('integrations.dashboard')" :active="request()->routeIs('integrations.*')">
+                            {{ __('Integrations') }}
+                        </x-nav-link>
+                    @endcan
                     @can('soc:rules.govern')
                         <x-nav-link :href="route('detection.index')" :active="request()->routeIs('detection.*')">
                             {{ __('Detection') }}

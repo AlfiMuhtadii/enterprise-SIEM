@@ -40,7 +40,8 @@ return [
             'security/hardening,api/internal,api/internal/*,' .
             'resilience,resilience/*,' .
             'endpoint-agents,endpoint-agents/*,api/agents,api/agents/*,' .
-            'threat-hunts,threat-hunts/*,api/threat-hunts,api/threat-hunts/*'
+            'threat-hunts,threat-hunts/*,api/threat-hunts,api/threat-hunts/*,' .
+            'integrations,integrations/*,api/integrations,api/integrations/*'
         ))
     ))),
 ];

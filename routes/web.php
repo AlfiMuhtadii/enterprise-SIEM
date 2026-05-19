@@ -62,6 +62,8 @@ use App\Http\Controllers\Network\NetworkAnalyticsController;
 use App\Http\Controllers\Api\NetworkAnalyticsApiController;
 use App\Http\Controllers\Soc\SocWorkflowController;
 use App\Http\Controllers\Api\SocWorkflowApiController;
+use App\Http\Controllers\Integration\EnterpriseIntegrationController;
+use App\Http\Controllers\Api\EnterpriseIntegrationApiController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -637,6 +639,37 @@ Route::middleware(['auth', 'soc:investigation.view'])->prefix('api/soc/workflow'
     Route::get('/timeline',      [SocWorkflowApiController::class, 'getCollaborationTimeline'])->name('api.soc.workflow.timeline');
     Route::post('/collaborator', [SocWorkflowApiController::class, 'addCollaborator'])->name('api.soc.workflow.collaborator');
     Route::post('/escalations/{escalationId}/acknowledge', [SocWorkflowApiController::class, 'acknowledgeEscalation'])->name('api.soc.workflow.escalation.ack');
+});
+
+// Enterprise Integrations — Phase 1
+// External identity, SaaS, ticketing, and notification integrations. Advisory-only inbound.
+// No autonomous account suspension, no bidirectional destructive sync.
+Route::middleware(['auth', 'soc:investigation.view'])->prefix('integrations')->group(function () {
+    Route::get('/',              [EnterpriseIntegrationController::class, 'dashboard'])->name('integrations.dashboard');
+    Route::get('/registry',      [EnterpriseIntegrationController::class, 'integrationRegistry'])->name('integrations.registry');
+    Route::get('/idp-feed',      [EnterpriseIntegrationController::class, 'identityProviderFeed'])->name('integrations.idp-feed');
+    Route::get('/saas-audit',    [EnterpriseIntegrationController::class, 'saasAuditFeed'])->name('integrations.saas-audit');
+    Route::get('/notifications', [EnterpriseIntegrationController::class, 'notificationCenter'])->name('integrations.notifications');
+    Route::get('/case-links',    [EnterpriseIntegrationController::class, 'caseLinks'])->name('integrations.case-links');
+    Route::get('/sync-history',  [EnterpriseIntegrationController::class, 'syncHistory'])->name('integrations.sync-history');
+
+    Route::post('/',                                   [EnterpriseIntegrationController::class, 'registerIntegration'])->name('integrations.register');
+    Route::post('/{integration}/activate',             [EnterpriseIntegrationController::class, 'activateIntegration'])->name('integrations.activate');
+    Route::post('/{integration}/disable',              [EnterpriseIntegrationController::class, 'disableIntegration'])->name('integrations.disable');
+    Route::post('/{integration}/link-case',            [EnterpriseIntegrationController::class, 'linkCase'])->name('integrations.link-case');
+    Route::post('/{integration}/notifications',        [EnterpriseIntegrationController::class, 'sendNotification'])->name('integrations.notify');
+});
+
+Route::middleware(['auth', 'soc:investigation.view'])->prefix('api/integrations')->group(function () {
+    Route::get('/',                                    [EnterpriseIntegrationApiController::class, 'getIntegrations'])->name('api.integrations.list');
+    Route::get('/idp-events',                          [EnterpriseIntegrationApiController::class, 'getIdpEvents'])->name('api.integrations.idp-events');
+    Route::get('/saas-events',                         [EnterpriseIntegrationApiController::class, 'getSaasEvents'])->name('api.integrations.saas-events');
+    Route::get('/high-risk',                           [EnterpriseIntegrationApiController::class, 'getHighRiskEvents'])->name('api.integrations.high-risk');
+    Route::get('/notifications',                       [EnterpriseIntegrationApiController::class, 'getNotifications'])->name('api.integrations.notifications');
+    Route::get('/{integration}/sync-history',          [EnterpriseIntegrationApiController::class, 'getSyncHistory'])->name('api.integrations.sync-history');
+
+    Route::post('/{integration}/ingest-idp',           [EnterpriseIntegrationApiController::class, 'ingestIdpEvents'])->name('api.integrations.ingest-idp');
+    Route::post('/{integration}/ingest-saas',          [EnterpriseIntegrationApiController::class, 'ingestSaasEvents'])->name('api.integrations.ingest-saas');
 });
 
 // Internal Service Auth API — protected by X-Internal-Service-Token header
