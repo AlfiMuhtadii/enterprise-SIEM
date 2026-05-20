@@ -1,0 +1,122 @@
+{
+  "title": "Advanced Threat Hunting & Investigation",
+  "uid": "athi-phase1",
+  "tags": ["xdr", "investigation", "athi", "advisory"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active Investigation Sessions",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM investigation_sessions WHERE status = 'active'", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 2,
+      "title": "Total Graph Nodes",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM investigation_graph_nodes", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 3,
+      "title": "Total Graph Edges",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM investigation_graph_edges", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 4,
+      "title": "Timeline Events",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM investigation_timeline_events", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 5,
+      "title": "Evidence Links",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM investigation_evidence_links", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 6,
+      "title": "Retrospective Queries",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM retrospective_hunt_queries WHERE status = 'executed'", "format": "table"}],
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 7,
+      "title": "Sessions by Status",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT status, COUNT(*) as count FROM investigation_sessions GROUP BY status", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Graph Nodes by Type (7d)",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT node_type, COUNT(*) as count FROM investigation_graph_nodes WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY node_type ORDER BY count DESC", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "MITRE Tactics Observed (all time)",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COALESCE(mitre_tactic, 'unknown') as tactic, COUNT(*) as count FROM investigation_timeline_events GROUP BY mitre_tactic ORDER BY count DESC LIMIT 10", "format": "table"}]
+    },
+    {
+      "id": 10,
+      "title": "New Sessions Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as sessions FROM investigation_sessions WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 11,
+      "title": "Evidence Links Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as links FROM investigation_evidence_links WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 12,
+      "title": "Top Pivot Origins",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT entity_id, node_type, COUNT(*) as pivot_count, AVG(risk_score) as avg_risk FROM investigation_graph_nodes WHERE is_pivot_origin = true GROUP BY entity_id, node_type ORDER BY pivot_count DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 13,
+      "title": "Recent Timeline Events",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT event_category, mitre_technique, mitre_tactic, ROUND(confidence::numeric, 2) as confidence, occurred_at FROM investigation_timeline_events ORDER BY occurred_at DESC LIMIT 50", "format": "table"}]
+    },
+    {
+      "id": 14,
+      "title": "Relationship Types in Graph",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT relationship_type, COUNT(*) as count FROM investigation_graph_edges GROUP BY relationship_type", "format": "table"}]
+    },
+    {
+      "id": 15,
+      "title": "Advisory Posture Invariants",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT 'graph_nodes' as table_name, COUNT(*) FILTER (WHERE is_advisory = false) as non_advisory_count FROM investigation_graph_nodes UNION ALL SELECT 'graph_edges', COUNT(*) FILTER (WHERE is_advisory = false) FROM investigation_graph_edges UNION ALL SELECT 'timeline_events', COUNT(*) FILTER (WHERE is_advisory = false) FROM investigation_timeline_events UNION ALL SELECT 'evidence_links', COUNT(*) FILTER (WHERE is_advisory = false) FROM investigation_evidence_links", "format": "table"}]
+    }
+  ]
+}

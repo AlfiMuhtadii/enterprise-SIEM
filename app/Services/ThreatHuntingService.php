@@ -86,6 +86,12 @@ class ThreatHuntingService
         'detection_false_positive_reports',
         'detection_attack_mappings',
         'detection_suppressions',
+        // Advanced Threat Hunting & Investigation Phase 1
+        'investigation_graph_nodes',
+        'investigation_graph_edges',
+        'investigation_sessions',
+        'retrospective_hunt_queries',
+        'investigation_timeline_events',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -402,6 +408,47 @@ class ThreatHuntingService
             'approval_state' => ['='],
             'is_active'      => ['='],
         ],
+        // Advanced Threat Hunting & Investigation Phase 1
+        'investigation_graph_nodes' => [
+            'node_type'        => ['='],
+            'investigation_id' => ['='],
+            'session_id'       => ['='],
+            'source_domain'    => ['='],
+            'observable_value' => ['=', 'contains'],
+            'risk_score'       => ['>='],
+            'is_pivot_origin'  => ['='],
+            'is_advisory'      => ['='],
+        ],
+        'investigation_graph_edges' => [
+            'investigation_id'  => ['='],
+            'session_id'        => ['='],
+            'from_node_id'      => ['='],
+            'to_node_id'        => ['='],
+            'relationship_type' => ['='],
+            'confidence'        => ['>='],
+        ],
+        'investigation_sessions' => [
+            'investigation_id' => ['='],
+            'status'           => ['='],
+            'focus_node_type'  => ['='],
+            'hop_depth'        => ['=', '>='],
+        ],
+        'retrospective_hunt_queries' => [
+            'investigation_id' => ['='],
+            'domain'           => ['='],
+            'status'           => ['='],
+            'is_advisory'      => ['='],
+            'replay_safe'      => ['='],
+        ],
+        'investigation_timeline_events' => [
+            'investigation_id' => ['='],
+            'event_category'   => ['='],
+            'mitre_technique'  => ['=', 'contains'],
+            'mitre_tactic'     => ['='],
+            'actor_entity_id'  => ['='],
+            'target_entity_id' => ['='],
+            'confidence'       => ['>='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -444,6 +491,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
         'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
         'detection_suppressions'            => \App\Models\DetectionSuppression::class,
+        // Advanced Threat Hunting & Investigation Phase 1
+        'investigation_graph_nodes'     => \App\Models\InvestigationGraphNode::class,
+        'investigation_graph_edges'     => \App\Models\InvestigationGraphEdge::class,
+        'investigation_sessions'        => \App\Models\InvestigationSession::class,
+        'retrospective_hunt_queries'    => \App\Models\RetrospectiveHuntQuery::class,
+        'investigation_timeline_events' => \App\Models\InvestigationTimelineEvent::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -486,6 +539,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => 'created_at',
         'detection_attack_mappings'         => 'created_at',
         'detection_suppressions'            => 'created_at',
+        // Advanced Threat Hunting & Investigation Phase 1
+        'investigation_graph_nodes'     => 'created_at',
+        'investigation_graph_edges'     => 'created_at',
+        'investigation_sessions'        => 'created_at',
+        'retrospective_hunt_queries'    => 'created_at',
+        'investigation_timeline_events' => 'occurred_at',
     ];
 
     // -----------------------------------------------------------------------
@@ -887,6 +946,25 @@ class ThreatHuntingService
     // -----------------------------------------------------------------------
     // Hunt history queries
     // -----------------------------------------------------------------------
+
+    /** Return all supported hunt domain names. */
+    public function supportedDomains(): array
+    {
+        return self::SUPPORTED_DOMAINS;
+    }
+
+    /**
+     * Lightweight hunt shorthand — accepts key-value filters and converts to field-operator-value format.
+     * Advisory-only, replay-safe wrapper around executeQuery().
+     */
+    public function hunt(string $domain, array $kvFilters = [], int $limit = 500): Collection
+    {
+        $filters = [];
+        foreach ($kvFilters as $field => $value) {
+            $filters[] = ['field' => $field, 'operator' => '=', 'value' => $value];
+        }
+        return $this->executeQuery($domain, $filters, null, null, min($limit, self::MAX_RESULTS));
+    }
 
     public function getHuntHistory(int $limit = 50): Collection
     {

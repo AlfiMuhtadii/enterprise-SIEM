@@ -70,6 +70,7 @@ use App\Http\Controllers\Endpoint\EndpointFleetController;
 use App\Http\Controllers\Api\EndpointFleetApiController;
 use App\Http\Controllers\Endpoint\EndpointTelemetryController;
 use App\Http\Controllers\Detection\DetectionLifecycleController;
+use App\Http\Controllers\Investigation\AdvancedHuntingController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -384,6 +385,19 @@ Route::middleware(['auth', 'soc:investigation.assign', 'throttle:soc-api'])->pre
 
 Route::middleware(['auth', 'soc:investigation.update', 'throttle:soc-api'])->prefix('api')->group(function () {
     Route::post('/investigations/{id}/state', [InvestigationApiController::class, 'transition'])->name('api.investigations.state');
+});
+
+// Advanced Threat Hunting & Investigation — advisory-only, no autonomous enforcement
+Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
+    Route::get('/investigation/advanced', [AdvancedHuntingController::class, 'workspace'])->name('investigation.advanced.workspace');
+    Route::get('/investigation/advanced/graph/{sessionId}', [AdvancedHuntingController::class, 'graphExplorer'])->name('investigation.advanced.graph-explorer');
+    Route::get('/investigation/advanced/timeline/{investigationId}', [AdvancedHuntingController::class, 'attackTimeline'])->name('investigation.advanced.attack-timeline');
+    Route::get('/investigation/advanced/pivot', [AdvancedHuntingController::class, 'multiHopPivot'])->name('investigation.advanced.multi-hop-pivot');
+    Route::get('/investigation/advanced/retrospective', [AdvancedHuntingController::class, 'retrospectiveHunt'])->name('investigation.advanced.retrospective-hunt');
+    Route::get('/investigation/advanced/evidence/{investigationId}', [AdvancedHuntingController::class, 'evidenceRelationships'])->name('investigation.advanced.evidence-relationships');
+    Route::get('/investigation/advanced/attack-map', [AdvancedHuntingController::class, 'attackInvestigationMap'])->name('investigation.advanced.attack-investigation-map');
+    Route::get('/investigation/advanced/cross-domain', [AdvancedHuntingController::class, 'crossDomainExplorer'])->name('investigation.advanced.cross-domain-explorer');
+    Route::get('/investigation/advanced/sessions', [AdvancedHuntingController::class, 'sessionHistory'])->name('investigation.advanced.session-history');
 });
 
 // Response Planning — advisory only, no automated execution

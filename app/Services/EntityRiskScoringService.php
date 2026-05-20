@@ -55,6 +55,11 @@ class EntityRiskScoringService
         'persistence_indicator_factor'  => 2.5,  // low-level persistence indicator (registry, cron, service)
         'abnormal_connection_factor'    => 2.0,  // outbound connection to rare/unusual destination
         'privilege_escalation_factor'   => 3.0,  // privilege escalation indicator detected on endpoint
+        // Advanced Threat Hunting & Investigation Phase 1 (advisory_only = true)
+        'attack_path_factor'              => 2.5,  // entity appears on a reconstructed attack timeline
+        'multi_host_correlation_factor'   => 2.0,  // entity observed on multiple hosts in investigation graph
+        'repeated_pivot_factor'           => 1.5,  // entity is a pivot origin multiple times across sessions
+        'investigation_relevance_factor'  => 1.0,  // entity linked as evidence in an active investigation
     ];
 
     // Score thresholds for level assignment
@@ -113,6 +118,7 @@ class EntityRiskScoringService
         $this->collectUEBAFactors($entity, $factors);               // UEBA baseline amplification — advisory_only
         $this->collectEndpointOperationalFactors($entity, $factors); // Endpoint fleet hardening — advisory_only
         $this->collectLowLevelTelemetryFactors($entity, $factors);   // Low-level telemetry — advisory_only
+        $this->collectInvestigationGraphFactors($entity, $factors);  // ATHI investigation signals — advisory_only
 
         $score = $this->aggregateScore($factors);
         $level = static::scoreToLevel($score);
@@ -736,6 +742,61 @@ class EntityRiskScoringService
 
         if ($abnormalConn > 0) {
             $factors[] = $this->makeFactor('abnormal_connection_factor', min($abnormalConn, 2), [], [], [], true);
+        }
+    }
+
+    /**
+     * Advanced Threat Hunting & Investigation factors — Phase 1.
+     * Queries investigation graph tables for entity appearance in active investigations.
+     * All contributions are advisory_only = true.
+     */
+    private function collectInvestigationGraphFactors(object $entity, array &$factors): void
+    {
+        $since7d = now()->subDays(7);
+
+        // attack_path_factor — entity appears as actor or target in recent timeline events
+        $timelineCount = DB::table('investigation_timeline_events')
+            ->where(function ($q) use ($entity) {
+                $q->where('actor_entity_id', $entity->entity_key)
+                  ->orWhere('target_entity_id', $entity->entity_key);
+            })
+            ->where('created_at', '>=', $since7d)
+            ->count();
+
+        if ($timelineCount > 0) {
+            $factors[] = $this->makeFactor('attack_path_factor', min($timelineCount, 2), [], [], [], true);
+        }
+
+        // multi_host_correlation_factor — entity appears in graph nodes on multiple distinct sessions
+        $sessionCount = DB::table('investigation_graph_nodes')
+            ->where('entity_id', $entity->entity_key)
+            ->where('created_at', '>=', $since7d)
+            ->distinct('session_id')
+            ->count('session_id');
+
+        if ($sessionCount >= 2) {
+            $factors[] = $this->makeFactor('multi_host_correlation_factor', min($sessionCount - 1, 2), [], [], [], true);
+        }
+
+        // repeated_pivot_factor — entity is a pivot origin across multiple sessions
+        $pivotCount = DB::table('investigation_graph_nodes')
+            ->where('entity_id', $entity->entity_key)
+            ->where('is_pivot_origin', true)
+            ->where('created_at', '>=', $since7d)
+            ->count();
+
+        if ($pivotCount >= 2) {
+            $factors[] = $this->makeFactor('repeated_pivot_factor', 1, [], [], [], true);
+        }
+
+        // investigation_relevance_factor — entity is linked as evidence in an active investigation
+        $evidenceCount = DB::table('investigation_evidence_links')
+            ->where('evidence_id', $entity->entity_key)
+            ->where('created_at', '>=', $since7d)
+            ->count();
+
+        if ($evidenceCount > 0) {
+            $factors[] = $this->makeFactor('investigation_relevance_factor', 1, [], [], [], true);
         }
     }
 

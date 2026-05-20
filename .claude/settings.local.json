@@ -34,7 +34,8 @@
       "Bash(xargs -I {} basename {})",
       "Bash(docker compose config *)",
       "Bash(grep -r \"^use App\\\\\\\\\\\\\\\\Models\\\\\\\\\\\\\\\\Endpoint\" D:\\\\project\\\\Detector\\\\app\\\\Services\\\\ThreatHuntingService.php)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(Get-ChildItem \"D:\\\\project\\\\Detector\\\\database\\\\migrations\\\\\" | Sort-Object Name | Select-Object -Last 10 Name *)"
     ]
   }
 }
