@@ -387,7 +387,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
 
     public function test_hunt_domains_total_is_50(): void
     {
-        $this->assertCount(50, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(55, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_endpoint_script_executions_domain_supports_field_queries(): void

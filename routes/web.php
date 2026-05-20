@@ -73,6 +73,7 @@ use App\Http\Controllers\Detection\DetectionLifecycleController;
 use App\Http\Controllers\Investigation\AdvancedHuntingController;
 use App\Http\Controllers\Soar\SoarOrchestrationController;
 use App\Http\Controllers\Reliability\DistributedReliabilityController;
+use App\Http\Controllers\Governance\ComplianceGovernanceController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -400,6 +401,19 @@ Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
     Route::get('/investigation/advanced/attack-map', [AdvancedHuntingController::class, 'attackInvestigationMap'])->name('investigation.advanced.attack-investigation-map');
     Route::get('/investigation/advanced/cross-domain', [AdvancedHuntingController::class, 'crossDomainExplorer'])->name('investigation.advanced.cross-domain-explorer');
     Route::get('/investigation/advanced/sessions', [AdvancedHuntingController::class, 'sessionHistory'])->name('investigation.advanced.session-history');
+});
+
+// Compliance / Governance / Evidence Integrity — audit-visible, replay-safe, no autonomous remediation
+Route::middleware(['auth', 'soc:audit.view'])->group(function () {
+    Route::get('/governance', [ComplianceGovernanceController::class, 'evidenceIntegrityDashboard'])->name('governance.integrity-dashboard');
+    Route::get('/governance/retention', [ComplianceGovernanceController::class, 'retentionGovernanceExplorer'])->name('governance.retention');
+    Route::get('/governance/export', [ComplianceGovernanceController::class, 'auditExportWorkflow'])->name('governance.export-workflow');
+    Route::get('/governance/tenant-isolation', [ComplianceGovernanceController::class, 'tenantIsolationValidator'])->name('governance.tenant-isolation');
+    Route::get('/governance/pii-audit', [ComplianceGovernanceController::class, 'piiAccessAuditViewer'])->name('governance.pii-audit');
+    Route::get('/governance/access-review', [ComplianceGovernanceController::class, 'governanceAccessReviewConsole'])->name('governance.access-review');
+    Route::get('/governance/compliance', [ComplianceGovernanceController::class, 'complianceReportingDashboard'])->name('governance.compliance-report');
+    Route::get('/governance/failures', [ComplianceGovernanceController::class, 'integrityFailureTimeline'])->name('governance.integrity-failures');
+    Route::get('/governance/findings', [ComplianceGovernanceController::class, 'governanceFindingsExplorer'])->name('governance.findings');
 });
 
 // HA / Distributed Reliability — operational safeguards, no autonomous remediation

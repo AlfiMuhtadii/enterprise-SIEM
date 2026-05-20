@@ -98,6 +98,12 @@ class ThreatHuntingService
         'soar_execution_results',
         'soar_approval_requests',
         'soar_simulation_results',
+        // Compliance / Governance / Evidence Integrity Phase 1
+        'evidence_integrity_runs',
+        'audit_export_requests',
+        'tenant_isolation_validation_runs',
+        'pii_access_audit',
+        'governance_access_reviews',
         // HA / Distributed Reliability Phase 1
         'system_worker_heartbeats',
         'stream_consumer_lag_snapshots',
@@ -420,6 +426,38 @@ class ThreatHuntingService
             'approval_state' => ['='],
             'is_active'      => ['='],
         ],
+        // Compliance / Governance / Evidence Integrity Phase 1
+        'evidence_integrity_runs' => [
+            'scope'           => ['='],
+            'scope_id'        => ['=', 'contains'],
+            'status'          => ['='],
+            'triggered_by'    => ['=', 'contains'],
+            'integrity_failures'=> ['>='],
+        ],
+        'audit_export_requests' => [
+            'scope'       => ['='],
+            'status'      => ['='],
+            'pii_masked'  => ['='],
+            'tenant_scope'=> ['=', 'contains'],
+        ],
+        'tenant_isolation_validation_runs' => [
+            'tenant_scope'         => ['=', 'contains'],
+            'check_type'           => ['='],
+            'status'               => ['='],
+            'cross_tenant_detected'=> ['='],
+        ],
+        'pii_access_audit' => [
+            'field_name'    => ['=', 'contains'],
+            'pii_category'  => ['='],
+            'access_context'=> ['='],
+            'was_masked'    => ['='],
+        ],
+        'governance_access_reviews' => [
+            'subject_user'  => ['=', 'contains'],
+            'privileged_role'=> ['='],
+            'review_status' => ['='],
+            'is_stale'      => ['='],
+        ],
         // HA / Distributed Reliability Phase 1
         'system_worker_heartbeats' => [
             'service_name'  => ['=', 'contains'],
@@ -572,6 +610,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
         'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
         'detection_suppressions'            => \App\Models\DetectionSuppression::class,
+        // Compliance / Governance / Evidence Integrity Phase 1
+        'evidence_integrity_runs'             => \App\Models\EvidenceIntegrityRun::class,
+        'audit_export_requests'               => \App\Models\AuditExportRequest::class,
+        'tenant_isolation_validation_runs'    => \App\Models\TenantIsolationValidationRun::class,
+        'pii_access_audit'                    => \App\Models\PiiAccessAudit::class,
+        'governance_access_reviews'           => \App\Models\GovernanceAccessReview::class,
         // HA / Distributed Reliability Phase 1
         'system_worker_heartbeats'        => \App\Models\SystemWorkerHeartbeat::class,
         'stream_consumer_lag_snapshots'   => \App\Models\StreamConsumerLagSnapshot::class,
@@ -632,6 +676,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => 'created_at',
         'detection_attack_mappings'         => 'created_at',
         'detection_suppressions'            => 'created_at',
+        // Compliance / Governance / Evidence Integrity Phase 1
+        'evidence_integrity_runs'             => 'created_at',
+        'audit_export_requests'               => 'created_at',
+        'tenant_isolation_validation_runs'    => 'created_at',
+        'pii_access_audit'                    => 'created_at',
+        'governance_access_reviews'           => 'created_at',
         // HA / Distributed Reliability Phase 1
         'system_worker_heartbeats'        => 'updated_at',
         'stream_consumer_lag_snapshots'   => 'created_at',

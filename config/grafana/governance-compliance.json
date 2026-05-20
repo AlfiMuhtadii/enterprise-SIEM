@@ -1,0 +1,116 @@
+{
+  "title": "Compliance / Governance / Evidence Integrity",
+  "uid": "governance-compliance-phase1",
+  "tags": ["xdr", "governance", "compliance", "integrity"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Failed Integrity Runs",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM evidence_integrity_runs WHERE status = 'failed'", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Integrity Failures",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM evidence_integrity_failures", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Pending Exports",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM audit_export_requests WHERE status = 'pending_approval'", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Unmasked PII Accesses",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM pii_access_audit WHERE was_masked = false", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Stale Privilege Reviews",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM governance_access_reviews WHERE is_stale = true AND review_status IN ('open','in_review')", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Critical Findings",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM governance_review_findings WHERE severity = 'critical'", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Integrity Run Status Distribution",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT status, COUNT(*) as count FROM evidence_integrity_runs GROUP BY status", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Integrity Failures by Type",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT failure_type, COUNT(*) as count FROM evidence_integrity_failures GROUP BY failure_type ORDER BY count DESC", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "PII Access by Category",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT pii_category, COUNT(*) as count FROM pii_access_audit GROUP BY pii_category ORDER BY count DESC", "format": "table"}]
+    },
+    {
+      "id": 10,
+      "title": "Integrity Validation Trends",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as runs FROM evidence_integrity_runs WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 11,
+      "title": "Export Request Activity",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('day', created_at) as time, COUNT(*) as requests FROM audit_export_requests WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 12,
+      "title": "Retention Policy Review States",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 20, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT review_status, COUNT(*) as count FROM retention_policy_versions GROUP BY review_status", "format": "table"}]
+    },
+    {
+      "id": 13,
+      "title": "Tenant Isolation Validation Results",
+      "type": "table",
+      "gridPos": {"x": 8, "y": 20, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT tenant_scope, check_type, status, violations_found, cross_tenant_detected, created_at FROM tenant_isolation_validation_runs ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 14,
+      "title": "Governance Findings by Severity",
+      "type": "table",
+      "gridPos": {"x": 16, "y": 20, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT finding_type, severity, remediation_required, description, created_at FROM governance_review_findings ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 15,
+      "title": "Advisory Posture Invariants",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT 'pii_access_always_logged' as check_name, COUNT(*) FILTER (WHERE was_masked = false AND masking_policy_applied = true) as policy_applied_unmasked FROM pii_access_audit UNION ALL SELECT 'review_findings_advisory', COUNT(*) FILTER (WHERE is_advisory = false) FROM governance_review_findings", "format": "table"}]
+    }
+  ]
+}
