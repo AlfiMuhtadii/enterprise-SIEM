@@ -92,6 +92,12 @@ class ThreatHuntingService
         'investigation_sessions',
         'retrospective_hunt_queries',
         'investigation_timeline_events',
+        // SOAR Governance & Response Orchestration Phase 1
+        'soar_playbooks',
+        'soar_execution_plans',
+        'soar_execution_results',
+        'soar_approval_requests',
+        'soar_simulation_results',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -408,6 +414,40 @@ class ThreatHuntingService
             'approval_state' => ['='],
             'is_active'      => ['='],
         ],
+        // SOAR Governance & Response Orchestration Phase 1
+        'soar_playbooks' => [
+            'status'                  => ['='],
+            'execution_scope'         => ['='],
+            'simulation_required'     => ['='],
+            'dual_approval_required'  => ['='],
+            'name'                    => ['=', 'contains'],
+        ],
+        'soar_execution_plans' => [
+            'status'                  => ['='],
+            'playbook_id'             => ['='],
+            'target_entity_id'        => ['=', 'contains'],
+            'blast_radius_score'      => ['>='],
+            'simulation_completed'    => ['='],
+            'rollback_ready'          => ['='],
+        ],
+        'soar_execution_results' => [
+            'plan_id'     => ['='],
+            'result_type' => ['='],
+            'success'     => ['='],
+            'is_simulation'=> ['='],
+            'is_advisory' => ['='],
+        ],
+        'soar_approval_requests' => [
+            'plan_id'       => ['='],
+            'approval_type' => ['='],
+            'decision'      => ['='],
+        ],
+        'soar_simulation_results' => [
+            'plan_id'            => ['='],
+            'blast_radius_score' => ['>='],
+            'rollback_ready'     => ['='],
+            'is_advisory'        => ['='],
+        ],
         // Advanced Threat Hunting & Investigation Phase 1
         'investigation_graph_nodes' => [
             'node_type'        => ['='],
@@ -491,6 +531,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
         'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
         'detection_suppressions'            => \App\Models\DetectionSuppression::class,
+        // SOAR Governance & Response Orchestration Phase 1
+        'soar_playbooks'          => \App\Models\SoarPlaybook::class,
+        'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
+        'soar_execution_results'  => \App\Models\SoarExecutionResult::class,
+        'soar_approval_requests'  => \App\Models\SoarApprovalRequest::class,
+        'soar_simulation_results' => \App\Models\SoarSimulationResult::class,
         // Advanced Threat Hunting & Investigation Phase 1
         'investigation_graph_nodes'     => \App\Models\InvestigationGraphNode::class,
         'investigation_graph_edges'     => \App\Models\InvestigationGraphEdge::class,
@@ -539,6 +585,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => 'created_at',
         'detection_attack_mappings'         => 'created_at',
         'detection_suppressions'            => 'created_at',
+        // SOAR Governance & Response Orchestration Phase 1
+        'soar_playbooks'          => 'created_at',
+        'soar_execution_plans'    => 'created_at',
+        'soar_execution_results'  => 'created_at',
+        'soar_approval_requests'  => 'created_at',
+        'soar_simulation_results' => 'created_at',
         // Advanced Threat Hunting & Investigation Phase 1
         'investigation_graph_nodes'     => 'created_at',
         'investigation_graph_edges'     => 'created_at',

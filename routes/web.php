@@ -71,6 +71,7 @@ use App\Http\Controllers\Api\EndpointFleetApiController;
 use App\Http\Controllers\Endpoint\EndpointTelemetryController;
 use App\Http\Controllers\Detection\DetectionLifecycleController;
 use App\Http\Controllers\Investigation\AdvancedHuntingController;
+use App\Http\Controllers\Soar\SoarOrchestrationController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -398,6 +399,19 @@ Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
     Route::get('/investigation/advanced/attack-map', [AdvancedHuntingController::class, 'attackInvestigationMap'])->name('investigation.advanced.attack-investigation-map');
     Route::get('/investigation/advanced/cross-domain', [AdvancedHuntingController::class, 'crossDomainExplorer'])->name('investigation.advanced.cross-domain-explorer');
     Route::get('/investigation/advanced/sessions', [AdvancedHuntingController::class, 'sessionHistory'])->name('investigation.advanced.session-history');
+});
+
+// SOAR Governance & Response Orchestration — simulation-first, approval-gated, advisory-only
+Route::middleware(['auth', 'soc:response.view'])->group(function () {
+    Route::get('/soar', [SoarOrchestrationController::class, 'governanceDashboard'])->name('soar.governance-dashboard');
+    Route::get('/soar/playbooks', [SoarOrchestrationController::class, 'playbookRegistry'])->name('soar.playbook-registry');
+    Route::get('/soar/playbooks/{playbookId}/versions', [SoarOrchestrationController::class, 'playbookVersionHistory'])->name('soar.playbook-version-history');
+    Route::get('/soar/simulation', [SoarOrchestrationController::class, 'simulationRunner'])->name('soar.simulation-runner');
+    Route::get('/soar/plans/{planId}', [SoarOrchestrationController::class, 'executionPlanViewer'])->name('soar.execution-plan-viewer');
+    Route::get('/soar/approvals', [SoarOrchestrationController::class, 'approvalConsole'])->name('soar.approval-console');
+    Route::get('/soar/rollback', [SoarOrchestrationController::class, 'rollbackViewer'])->name('soar.rollback-viewer');
+    Route::get('/soar/audit', [SoarOrchestrationController::class, 'auditTimeline'])->name('soar.audit-timeline');
+    Route::get('/soar/artifacts', [SoarOrchestrationController::class, 'simulationArtifacts'])->name('soar.simulation-artifacts');
 });
 
 // Response Planning — advisory only, no automated execution

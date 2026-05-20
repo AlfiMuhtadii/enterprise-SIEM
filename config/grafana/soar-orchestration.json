@@ -1,0 +1,116 @@
+{
+  "title": "SOAR Governance & Response Orchestration",
+  "uid": "soar-phase1",
+  "tags": ["xdr", "soar", "orchestration", "advisory"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active Playbooks",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM soar_playbooks WHERE status = 'active'", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Plans Pending Approval",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM soar_execution_plans WHERE status = 'approval_pending'", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Simulations Run",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM soar_simulation_results", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Avg Blast Radius",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT ROUND(AVG(blast_radius_score)::numeric, 2) FROM soar_simulation_results", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Pending Approvals",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM soar_approval_requests WHERE decision = 'pending'", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Audit Events (24h)",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM soar_execution_audit WHERE created_at >= NOW() - INTERVAL '24 hours'", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Execution Plan Status Distribution",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT status, COUNT(*) as count FROM soar_execution_plans GROUP BY status", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Blast Radius by Plan (7d)",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT plan_id, ROUND(blast_radius_score::numeric, 2) as blast_radius FROM soar_simulation_results WHERE created_at >= NOW() - INTERVAL '7 days' ORDER BY blast_radius_score DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Approval Decisions",
+      "type": "piechart",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT decision, COUNT(*) as count FROM soar_approval_requests GROUP BY decision", "format": "table"}]
+    },
+    {
+      "id": 10,
+      "title": "Simulation Frequency Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as simulations FROM soar_simulation_results WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 11,
+      "title": "Audit Events Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as events FROM soar_execution_audit WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 12,
+      "title": "Rollback Readiness States",
+      "type": "bargauge",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT rollback_readiness_state, COUNT(*) as count FROM soar_rollback_plans GROUP BY rollback_readiness_state", "format": "table"}]
+    },
+    {
+      "id": 13,
+      "title": "Recent Audit Events",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT event_type, from_status, to_status, description, created_at FROM soar_execution_audit ORDER BY created_at DESC LIMIT 50", "format": "table"}]
+    },
+    {
+      "id": 14,
+      "title": "Execution Step Status",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT status, COUNT(*) as count FROM soar_execution_steps GROUP BY status", "format": "table"}]
+    },
+    {
+      "id": 15,
+      "title": "Advisory Posture Invariants",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT 'execution_results' as table_name, COUNT(*) FILTER (WHERE is_advisory = false) as non_advisory FROM soar_execution_results UNION ALL SELECT 'simulation_results', COUNT(*) FILTER (WHERE is_advisory = false) FROM soar_simulation_results UNION ALL SELECT 'execution_audit', COUNT(*) FILTER (WHERE is_advisory = false) FROM soar_execution_audit", "format": "table"}]
+    }
+  ]
+}

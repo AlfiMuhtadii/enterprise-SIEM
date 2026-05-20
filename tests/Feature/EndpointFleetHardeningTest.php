@@ -493,12 +493,12 @@ class EndpointFleetHardeningTest extends TestCase
         $this->assertContains('endpoint_agent_enrollment_events', \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
-    public function test_threat_hunting_supports_40_domains(): void
+    public function test_threat_hunting_supports_45_domains(): void
     {
         $this->assertCount(
-            40,
+            45,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 40 threat hunting domains after Fleet Phase 1 + LLTET Phase 1 + DELP Phase 1 + ATHI Phase 1'
+            'Should have 45 threat hunting domains after Fleet Phase 1 + LLTET Phase 1 + DELP Phase 1 + ATHI Phase 1 + SOAR Phase 1'
         );
     }
 

@@ -55,6 +55,11 @@ class EntityRiskScoringService
         'persistence_indicator_factor'  => 2.5,  // low-level persistence indicator (registry, cron, service)
         'abnormal_connection_factor'    => 2.0,  // outbound connection to rare/unusual destination
         'privilege_escalation_factor'   => 3.0,  // privilege escalation indicator detected on endpoint
+        // SOAR Governance & Response Orchestration Phase 1 (advisory_only = true)
+        'orchestration_relevance_factor'  => 1.5,  // entity appears in an active SOAR execution plan
+        'repeated_simulation_factor'      => 1.0,  // entity is repeatedly simulated as a target
+        'soar_blast_radius_factor'        => 2.0,  // entity in a plan with high simulated blast radius
+        'rollback_readiness_factor'       => -0.5, // entity has rollback plan validated (lowers risk slightly)
         // Advanced Threat Hunting & Investigation Phase 1 (advisory_only = true)
         'attack_path_factor'              => 2.5,  // entity appears on a reconstructed attack timeline
         'multi_host_correlation_factor'   => 2.0,  // entity observed on multiple hosts in investigation graph
@@ -119,6 +124,7 @@ class EntityRiskScoringService
         $this->collectEndpointOperationalFactors($entity, $factors); // Endpoint fleet hardening — advisory_only
         $this->collectLowLevelTelemetryFactors($entity, $factors);   // Low-level telemetry — advisory_only
         $this->collectInvestigationGraphFactors($entity, $factors);  // ATHI investigation signals — advisory_only
+        $this->collectSoarOrchestrationFactors($entity, $factors);  // SOAR orchestration signals — advisory_only
 
         $score = $this->aggregateScore($factors);
         $level = static::scoreToLevel($score);
@@ -797,6 +803,59 @@ class EntityRiskScoringService
 
         if ($evidenceCount > 0) {
             $factors[] = $this->makeFactor('investigation_relevance_factor', 1, [], [], [], true);
+        }
+    }
+
+    /**
+     * SOAR Governance & Response Orchestration factors — Phase 1.
+     * Queries soar_* tables for entity involvement in orchestrated response plans.
+     * All contributions are advisory_only = true.
+     */
+    private function collectSoarOrchestrationFactors(object $entity, array &$factors): void
+    {
+        $since7d = now()->subDays(7);
+
+        // orchestration_relevance_factor — entity appears as target in an active SOAR execution plan
+        $activePlanCount = DB::table('soar_execution_plans')
+            ->where('target_entity_id', $entity->entity_key)
+            ->whereNotIn('status', ['completed', 'rolled_back', 'cancelled', 'failed'])
+            ->where('created_at', '>=', $since7d)
+            ->count();
+
+        if ($activePlanCount > 0) {
+            $factors[] = $this->makeFactor('orchestration_relevance_factor', min($activePlanCount, 2), [], [], [], true);
+        }
+
+        // repeated_simulation_factor — entity has been repeatedly simulated as target
+        $simCount = DB::table('soar_simulation_results')
+            ->where('created_at', '>=', $since7d)
+            ->whereJsonContains('affected_entity_ids', $entity->entity_key)
+            ->count();
+
+        if ($simCount >= 2) {
+            $factors[] = $this->makeFactor('repeated_simulation_factor', 1, [], [], [], true);
+        }
+
+        // soar_blast_radius_factor — entity in plan with high blast radius simulation
+        $highBlastSim = DB::table('soar_simulation_results')
+            ->where('blast_radius_score', '>=', 0.7)
+            ->where('created_at', '>=', $since7d)
+            ->whereJsonContains('affected_entity_ids', $entity->entity_key)
+            ->count();
+
+        if ($highBlastSim > 0) {
+            $factors[] = $this->makeFactor('soar_blast_radius_factor', min($highBlastSim, 2), [], [], [], true);
+        }
+
+        // rollback_readiness_factor — rollback plan validated for entity's plan (negative contribution)
+        $validatedRollbacks = DB::table('soar_rollback_plans')
+            ->join('soar_execution_plans', 'soar_rollback_plans.plan_id', '=', 'soar_execution_plans.plan_id')
+            ->where('soar_execution_plans.target_entity_id', $entity->entity_key)
+            ->where('soar_rollback_plans.rollback_readiness_state', 'validated')
+            ->count();
+
+        if ($validatedRollbacks > 0) {
+            $factors[] = $this->makeFactor('rollback_readiness_factor', 1, [], [], [], true);
         }
     }
 
