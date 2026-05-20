@@ -69,6 +69,7 @@ use App\Http\Controllers\Api\UEBAApiController;
 use App\Http\Controllers\Endpoint\EndpointFleetController;
 use App\Http\Controllers\Api\EndpointFleetApiController;
 use App\Http\Controllers\Endpoint\EndpointTelemetryController;
+use App\Http\Controllers\Detection\DetectionLifecycleController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -272,6 +273,18 @@ Route::middleware(['auth', 'soc:agents.manage'])->group(function () {
 // Detection Rule Governance
 Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
     Route::get('/detection', [DetectionRuleController::class, 'index'])->name('detection.index');
+    // Lifecycle routes BEFORE the {ruleId} catch-all to avoid route conflict
+    Route::prefix('detection/lifecycle')->group(function () {
+        Route::get('/',                 [DetectionLifecycleController::class, 'lifecycleOverview'])->name('detection.lifecycle.overview');
+        Route::get('/versions/{ruleId}',[DetectionLifecycleController::class, 'versionHistory'])->name('detection.lifecycle.versions');
+        Route::get('/replay-packs',     [DetectionLifecycleController::class, 'replayPacks'])->name('detection.lifecycle.replay-packs');
+        Route::get('/replay-results',   [DetectionLifecycleController::class, 'replayResults'])->name('detection.lifecycle.replay-results');
+        Route::get('/false-positives',  [DetectionLifecycleController::class, 'falsePositives'])->name('detection.lifecycle.false-positives');
+        Route::get('/suppressions',     [DetectionLifecycleController::class, 'suppressions'])->name('detection.lifecycle.suppressions');
+        Route::get('/attack-map',       [DetectionLifecycleController::class, 'attackMap'])->name('detection.lifecycle.attack-map');
+        Route::get('/promotions',       [DetectionLifecycleController::class, 'promotions'])->name('detection.lifecycle.promotions');
+        Route::get('/quality',          [DetectionLifecycleController::class, 'qualityDashboard'])->name('detection.lifecycle.quality');
+    });
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
     Route::post('/detection/{ruleId}/promote', [DetectionRuleController::class, 'promote'])->name('detection.promote');
     Route::post('/detection/{ruleId}/notes', [DetectionRuleController::class, 'storeNote'])->name('detection.notes.store');
@@ -747,5 +760,6 @@ Route::middleware(['auth', 'soc:agents.manage'])->prefix('endpoint-telemetry')->
     Route::get('/persistence',          [EndpointTelemetryController::class, 'persistenceIndicators'])->name('endpoint-telemetry.persistence');
     Route::get('/container-activity',   [EndpointTelemetryController::class, 'containerActivity'])->name('endpoint-telemetry.container-activity');
 });
+
 
 require __DIR__.'/auth.php';

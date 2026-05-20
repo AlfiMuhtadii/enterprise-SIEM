@@ -1,0 +1,134 @@
+{
+  "title": "Detection Engineering Lifecycle — Phase 1",
+  "uid": "detection-lifecycle-v1",
+  "tags": ["detection", "lifecycle", "governance", "advisory"],
+  "timezone": "browser",
+  "refresh": "60s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Rule Versions",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) as value FROM detection_rule_versions", "format": "table"}],
+      "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Replay Pass Rate",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND(100.0 * SUM(CASE WHEN passed THEN 1 ELSE 0 END) / COUNT(*), 1) END as value FROM detection_replay_results", "format": "table"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"steps": [{"color": "red", "value": 0}, {"color": "yellow", "value": 70}, {"color": "green", "value": 90}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "FP Reports (7d)",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) as value FROM detection_false_positive_reports WHERE created_at >= NOW() - INTERVAL '7 days'", "format": "table"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 5}, {"color": "red", "value": 20}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active Suppressions",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) as value FROM detection_suppressions WHERE is_active = true", "format": "table"}],
+      "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Expiring Suppressions (7d)",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) as value FROM detection_suppressions WHERE is_active = true AND expires_at <= NOW() + INTERVAL '7 days'", "format": "table"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "red", "value": 1}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 12, "y": 0}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Pending Promotions",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) as value FROM detection_promotion_requests WHERE status = 'pending'", "format": "table"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": 0}, {"color": "yellow", "value": 1}]}}},
+      "gridPos": {"h": 4, "w": 3, "x": 15, "y": 0}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Replay Pass/Fail Trends",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at) as time, SUM(CASE WHEN passed THEN 1 ELSE 0 END) as passed, SUM(CASE WHEN NOT passed THEN 1 ELSE 0 END) as failed FROM detection_replay_results WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "False Positive Reports Over Time",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at) as time, COUNT(*) as fp_reports FROM detection_false_positive_reports WHERE created_at >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "ATT&CK Coverage by Tactic",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT tactic, COUNT(DISTINCT technique_id) as techniques FROM detection_attack_mappings WHERE is_active = true GROUP BY tactic ORDER BY techniques DESC", "format": "table"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12}
+    },
+    {
+      "id": 10,
+      "type": "barchart",
+      "title": "FP Reports by Reason Type",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT reason_type, COUNT(*) as count FROM detection_false_positive_reports GROUP BY reason_type ORDER BY count DESC", "format": "table"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12}
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "Promotion Request States",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT status, COUNT(*) as count FROM detection_promotion_requests GROUP BY status ORDER BY count DESC", "format": "table"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12}
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Detection Quality Score Trends (avg)",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('day', computed_at) as time, AVG(quality_score) as avg_quality FROM detection_quality_metrics WHERE computed_at >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Rules with Degrading Quality",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT rule_id, round(quality_score::numeric, 3) as quality_score, quality_trend, fp_report_count, replay_fail_count FROM detection_quality_metrics WHERE quality_trend = 'degrading' ORDER BY quality_score ASC LIMIT 20", "format": "table"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Suppression Expiry Risk",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT rule_id, scope, expires_at, approval_state FROM detection_suppressions WHERE is_active = true AND expires_at IS NOT NULL ORDER BY expires_at ASC LIMIT 20", "format": "table"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28}
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Recent Rule Version Snapshots",
+      "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT rule_id, version, stage, LEFT(rule_hash, 16) as hash_prefix, change_reason, created_at FROM detection_rule_versions ORDER BY created_at DESC LIMIT 20", "format": "table"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28}
+    }
+  ]
+}

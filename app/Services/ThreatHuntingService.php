@@ -80,6 +80,12 @@ class ThreatHuntingService
         'endpoint_script_executions',
         'endpoint_persistence_indicators',
         'endpoint_privilege_escalations',
+        // Detection Engineering Lifecycle Phase 1
+        'detection_rule_versions',
+        'detection_replay_results',
+        'detection_false_positive_reports',
+        'detection_attack_mappings',
+        'detection_suppressions',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -354,6 +360,48 @@ class ThreatHuntingService
             'confidence'      => ['>='],
             'trace_id'        => ['='],
         ],
+        // Detection Engineering Lifecycle Phase 1
+        'detection_rule_versions' => [
+            'rule_id'      => ['=', 'contains'],
+            'version'      => ['='],
+            'rule_hash'    => ['='],
+            'stage'        => ['='],
+            'status'       => ['='],
+            'shadow_only'  => ['='],
+            'owner'        => ['=', 'contains'],
+        ],
+        'detection_replay_results' => [
+            'rule_id'                => ['=', 'contains'],
+            'pack_id'                => ['='],
+            'passed'                 => ['='],
+            'evidence_mismatch'      => ['='],
+            'trace_id_missing'       => ['='],
+            'unexpected_enforcement' => ['='],
+            'runner'                 => ['='],
+        ],
+        'detection_false_positive_reports' => [
+            'rule_id'                => ['=', 'contains'],
+            'reason_type'            => ['='],
+            'alert_id'               => ['='],
+            'trace_id'               => ['='],
+            'recommends_suppression' => ['='],
+            'analyst_verdict'        => ['='],
+        ],
+        'detection_attack_mappings' => [
+            'rule_id'       => ['=', 'contains'],
+            'tactic'        => ['=', 'contains'],
+            'technique_id'  => ['=', 'contains'],
+            'confidence'    => ['>='],
+            'mapping_source'=> ['='],
+            'is_active'     => ['='],
+        ],
+        'detection_suppressions' => [
+            'rule_id'        => ['=', 'contains'],
+            'scope'          => ['='],
+            'scope_value'    => ['=', 'contains'],
+            'approval_state' => ['='],
+            'is_active'      => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -390,6 +438,12 @@ class ThreatHuntingService
         'endpoint_script_executions'        => EndpointScriptExecution::class,
         'endpoint_persistence_indicators'   => EndpointPersistenceItem::class,
         'endpoint_privilege_escalations'    => EndpointPrivilegeEscalation::class,
+        // Detection Engineering Lifecycle Phase 1
+        'detection_rule_versions'           => \App\Models\DetectionRuleVersion::class,
+        'detection_replay_results'          => \App\Models\DetectionReplayResult::class,
+        'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
+        'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
+        'detection_suppressions'            => \App\Models\DetectionSuppression::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -426,6 +480,12 @@ class ThreatHuntingService
         'endpoint_script_executions'        => 'occurred_at',
         'endpoint_persistence_indicators'   => 'last_seen_at',
         'endpoint_privilege_escalations'    => 'occurred_at',
+        // Detection Engineering Lifecycle Phase 1
+        'detection_rule_versions'           => 'created_at',
+        'detection_replay_results'          => 'created_at',
+        'detection_false_positive_reports'  => 'created_at',
+        'detection_attack_mappings'         => 'created_at',
+        'detection_suppressions'            => 'created_at',
     ];
 
     // -----------------------------------------------------------------------
