@@ -4,8 +4,8 @@
     "scenario_name": "Partial Service Outage",
     "scenario_type": "simulation",
     "status": "passed",
-    "started_at": "2026-05-20T11:59:46+00:00",
-    "completed_at": "2026-05-20T11:59:46+00:00",
+    "started_at": "2026-05-20T12:23:17+00:00",
+    "completed_at": "2026-05-20T12:23:17+00:00",
     "duration_seconds": 0,
     "findings": {
         "mode": "simulation",
@@ -54,5 +54,5 @@
             "within_threshold": true
         }
     ],
-    "generated_at": "2026-05-20T11:59:46+00:00"
+    "generated_at": "2026-05-20T12:23:17+00:00"
 }

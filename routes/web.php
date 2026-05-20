@@ -72,6 +72,7 @@ use App\Http\Controllers\Endpoint\EndpointTelemetryController;
 use App\Http\Controllers\Detection\DetectionLifecycleController;
 use App\Http\Controllers\Investigation\AdvancedHuntingController;
 use App\Http\Controllers\Soar\SoarOrchestrationController;
+use App\Http\Controllers\Reliability\DistributedReliabilityController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -399,6 +400,19 @@ Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
     Route::get('/investigation/advanced/attack-map', [AdvancedHuntingController::class, 'attackInvestigationMap'])->name('investigation.advanced.attack-investigation-map');
     Route::get('/investigation/advanced/cross-domain', [AdvancedHuntingController::class, 'crossDomainExplorer'])->name('investigation.advanced.cross-domain-explorer');
     Route::get('/investigation/advanced/sessions', [AdvancedHuntingController::class, 'sessionHistory'])->name('investigation.advanced.session-history');
+});
+
+// HA / Distributed Reliability — operational safeguards, no autonomous remediation
+Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
+    Route::get('/reliability', [DistributedReliabilityController::class, 'reliabilityDashboard'])->name('reliability.dashboard');
+    Route::get('/reliability/workers', [DistributedReliabilityController::class, 'workerHealthExplorer'])->name('reliability.worker-health');
+    Route::get('/reliability/lag', [DistributedReliabilityController::class, 'consumerLagMonitor'])->name('reliability.lag-monitor');
+    Route::get('/reliability/throttle', [DistributedReliabilityController::class, 'replayThrottleConsole'])->name('reliability.throttle-console');
+    Route::get('/reliability/idempotency', [DistributedReliabilityController::class, 'idempotencyExplorer'])->name('reliability.idempotency');
+    Route::get('/reliability/duplicates', [DistributedReliabilityController::class, 'duplicateEventReports'])->name('reliability.duplicate-reports');
+    Route::get('/reliability/storage', [DistributedReliabilityController::class, 'storagePressureDashboard'])->name('reliability.storage-pressure');
+    Route::get('/reliability/degraded', [DistributedReliabilityController::class, 'degradedModeTimeline'])->name('reliability.degraded-mode');
+    Route::get('/reliability/recovery', [DistributedReliabilityController::class, 'recoveryValidationViewer'])->name('reliability.recovery-validation');
 });
 
 // SOAR Governance & Response Orchestration — simulation-first, approval-gated, advisory-only

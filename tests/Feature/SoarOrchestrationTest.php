@@ -505,9 +505,9 @@ class SoarOrchestrationTest extends TestCase
     // Threat hunting domain support
     // =========================================================================
 
-    public function test_threat_hunting_supports_45_domains(): void
+    public function test_threat_hunting_supports_50_domains(): void
     {
-        $this->assertCount(45, $this->hunting->supportedDomains());
+        $this->assertCount(50, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_soar_playbooks_domain(): void

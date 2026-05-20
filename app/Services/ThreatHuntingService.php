@@ -98,6 +98,12 @@ class ThreatHuntingService
         'soar_execution_results',
         'soar_approval_requests',
         'soar_simulation_results',
+        // HA / Distributed Reliability Phase 1
+        'system_worker_heartbeats',
+        'stream_consumer_lag_snapshots',
+        'duplicate_event_reports',
+        'degraded_mode_events',
+        'recovery_validation_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -414,6 +420,41 @@ class ThreatHuntingService
             'approval_state' => ['='],
             'is_active'      => ['='],
         ],
+        // HA / Distributed Reliability Phase 1
+        'system_worker_heartbeats' => [
+            'service_name'  => ['=', 'contains'],
+            'consumer_group'=> ['='],
+            'health_state'  => ['='],
+            'is_stale'      => ['='],
+            'is_stalled'    => ['='],
+            'current_lag'   => ['>='],
+        ],
+        'stream_consumer_lag_snapshots' => [
+            'consumer_group' => ['='],
+            'topic'          => ['=', 'contains'],
+            'pressure_state' => ['='],
+            'trend'          => ['='],
+            'dlq_growing'    => ['='],
+            'lag_count'      => ['>='],
+        ],
+        'duplicate_event_reports' => [
+            'source_topic'  => ['='],
+            'trace_id'      => ['='],
+            'severity'      => ['='],
+            'suppressed'    => ['='],
+        ],
+        'degraded_mode_events' => [
+            'service_name'    => ['='],
+            'degraded_reason' => ['='],
+            'event_type'      => ['='],
+            'auto_cleared'    => ['='],
+        ],
+        'recovery_validation_runs' => [
+            'scenario'               => ['='],
+            'status'                 => ['='],
+            'trace_propagation_ok'   => ['='],
+            'replay_idempotency_ok'  => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -531,6 +572,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
         'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
         'detection_suppressions'            => \App\Models\DetectionSuppression::class,
+        // HA / Distributed Reliability Phase 1
+        'system_worker_heartbeats'        => \App\Models\SystemWorkerHeartbeat::class,
+        'stream_consumer_lag_snapshots'   => \App\Models\StreamConsumerLagSnapshot::class,
+        'duplicate_event_reports'         => \App\Models\DuplicateEventReport::class,
+        'degraded_mode_events'            => \App\Models\DegradedModeEvent::class,
+        'recovery_validation_runs'        => \App\Models\RecoveryValidationRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -585,6 +632,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => 'created_at',
         'detection_attack_mappings'         => 'created_at',
         'detection_suppressions'            => 'created_at',
+        // HA / Distributed Reliability Phase 1
+        'system_worker_heartbeats'        => 'updated_at',
+        'stream_consumer_lag_snapshots'   => 'created_at',
+        'duplicate_event_reports'         => 'created_at',
+        'degraded_mode_events'            => 'created_at',
+        'recovery_validation_runs'        => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

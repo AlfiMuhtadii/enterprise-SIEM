@@ -1,0 +1,116 @@
+{
+  "title": "HA / Distributed Reliability",
+  "uid": "ha-reliability-phase1",
+  "tags": ["xdr", "reliability", "ha", "workers", "idempotency"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Healthy Workers",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM system_worker_heartbeats WHERE health_state = 'healthy'", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Stale Workers",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM system_worker_heartbeats WHERE is_stale = true", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Critical Lag Topics",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM stream_consumer_lag_snapshots WHERE pressure_state = 'critical' AND created_at >= NOW() - INTERVAL '10 minutes'", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Duplicate Events",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM duplicate_event_reports WHERE created_at >= NOW() - INTERVAL '24 hours'", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Degraded Mode Active",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(DISTINCT service_name) FROM degraded_mode_events WHERE event_type = 'entered' AND service_name NOT IN (SELECT service_name FROM degraded_mode_events WHERE event_type = 'cleared')", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Recovery Run Pass Rate",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT ROUND(COUNT(*) FILTER (WHERE status = 'passed') * 100.0 / NULLIF(COUNT(*), 0), 1) FROM recovery_validation_runs", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Worker Health States",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT health_state, COUNT(*) as count FROM system_worker_heartbeats GROUP BY health_state", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Consumer Lag by Group (latest)",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT DISTINCT ON (consumer_group, topic) consumer_group || ':' || topic as group_topic, lag_count FROM stream_consumer_lag_snapshots ORDER BY consumer_group, topic, id DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Storage Pressure by Backend",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT DISTINCT ON (backend) backend, ROUND(retention_pressure_pct::numeric, 1) as pct FROM storage_pressure_snapshots ORDER BY backend, id DESC", "format": "table"}]
+    },
+    {
+      "id": 10,
+      "title": "Consumer Lag Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('minute', created_at) as time, AVG(lag_count) as avg_lag FROM stream_consumer_lag_snapshots WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 11,
+      "title": "Duplicate Events Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as duplicates FROM duplicate_event_reports WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 12,
+      "title": "Replay Throttle States",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT consumer_group, topic, state, current_retry_count, retry_budget_limit, max_events_per_second FROM replay_throttle_states ORDER BY state DESC, updated_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 13,
+      "title": "Degraded Mode Events",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT service_name, degraded_reason, event_type, auto_cleared, created_at FROM degraded_mode_events ORDER BY created_at DESC LIMIT 50", "format": "table"}]
+    },
+    {
+      "id": 14,
+      "title": "Recovery Validation Results",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT scenario, status, passed_checks, total_checks, trace_propagation_ok, replay_idempotency_ok, completed_at FROM recovery_validation_runs ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 15,
+      "title": "Advisory Posture Invariants",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT 'duplicate_reports_protected' as check_name, COUNT(*) FILTER (WHERE analytics_protected = false) as violations FROM duplicate_event_reports UNION ALL SELECT 'degraded_no_auto_clear', COUNT(*) FILTER (WHERE auto_cleared = true) FROM degraded_mode_events WHERE event_type = 'cleared'", "format": "table"}]
+    }
+  ]
+}
