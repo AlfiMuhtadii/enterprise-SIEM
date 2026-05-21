@@ -74,6 +74,7 @@ use App\Http\Controllers\Investigation\AdvancedHuntingController;
 use App\Http\Controllers\Soar\SoarOrchestrationController;
 use App\Http\Controllers\Reliability\DistributedReliabilityController;
 use App\Http\Controllers\Governance\ComplianceGovernanceController;
+use App\Http\Controllers\Capacity\CapacityGovernanceController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -401,6 +402,19 @@ Route::middleware(['auth', 'soc:investigation.view'])->group(function () {
     Route::get('/investigation/advanced/attack-map', [AdvancedHuntingController::class, 'attackInvestigationMap'])->name('investigation.advanced.attack-investigation-map');
     Route::get('/investigation/advanced/cross-domain', [AdvancedHuntingController::class, 'crossDomainExplorer'])->name('investigation.advanced.cross-domain-explorer');
     Route::get('/investigation/advanced/sessions', [AdvancedHuntingController::class, 'sessionHistory'])->name('investigation.advanced.session-history');
+});
+
+// Performance / Capacity / Cost Governance — visibility controls, no autonomous scaling
+Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
+    Route::get('/capacity', [CapacityGovernanceController::class, 'capacityDashboard'])->name('capacity.dashboard');
+    Route::get('/capacity/replay-economics', [CapacityGovernanceController::class, 'replayEconomicsExplorer'])->name('capacity.replay-economics');
+    Route::get('/capacity/query-performance', [CapacityGovernanceController::class, 'queryPerformanceViewer'])->name('capacity.query-performance');
+    Route::get('/capacity/storage', [CapacityGovernanceController::class, 'storageCapacityDashboard'])->name('capacity.storage-capacity');
+    Route::get('/capacity/cardinality', [CapacityGovernanceController::class, 'cardinalityPressureExplorer'])->name('capacity.cardinality');
+    Route::get('/capacity/amplification', [CapacityGovernanceController::class, 'replayAmplificationViewer'])->name('capacity.replay-amplification');
+    Route::get('/capacity/partitions', [CapacityGovernanceController::class, 'partitionPressureMonitor'])->name('capacity.partition-pressure');
+    Route::get('/capacity/projections', [CapacityGovernanceController::class, 'capacityProjectionConsole'])->name('capacity.projection');
+    Route::get('/capacity/cost', [CapacityGovernanceController::class, 'infrastructureCostDashboard'])->name('capacity.cost');
 });
 
 // Compliance / Governance / Evidence Integrity — audit-visible, replay-safe, no autonomous remediation

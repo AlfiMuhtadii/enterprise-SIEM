@@ -55,7 +55,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 1707 passed, zero failures
+php artisan test         → 1779 passed, zero failures
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=73  checks=21/21
 fleet simulation         → 8/8 passed
@@ -114,7 +114,7 @@ Academic scope is stable and defensible as of 2026-05-18. The platform continues
 identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
 Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
 Threat-intel/IOC correlation, DNS, proxy, firewall: shadow-only, cutover not approved.
-Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 55 supported domains.
+Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 60 supported domains.
 
 SOC Collaboration & Analyst Workflow: escalation routing, SLA tracking, watchlists, shift handoffs, analyst queue, investigation sharing — all analyst-driven, no autonomous SOC operations.
 
@@ -277,7 +277,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan test
 ```
 
-Current: **1707 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **1779 tests**, all green. Do NOT run parallel processes against the same PostgreSQL test database.
 
 Rule registry: **73 rules** (12 staged_active, 61 shadow). Run `python scripts/xdr_rule_registry_validate.py`.
 
@@ -426,7 +426,7 @@ Do NOT:
 * remove `proc_root` / `proc_net_tcp` test-override kwargs from endpoint agent collectors
 * add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
 * mark response plan as `completed_documented` without analyst explicit action
-* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`, `integration_sync_events`, `external_case_links`, `notification_events`, `notification_deliveries`, `saas_audit_events`, `identity_provider_events`, `baseline_observations`, `baseline_anomaly_scores`, `endpoint_agent_policy_assignments`, `endpoint_agent_enrollment_events`, `endpoint_tamper_events`, `endpoint_spool_snapshots`, `endpoint_script_executions`, `endpoint_privilege_escalations`, `endpoint_container_activities`, `detection_rule_versions`, `detection_replay_results`, `detection_false_positive_reports`, `detection_promotion_requests`, `investigation_graph_nodes`, `investigation_graph_edges`, `investigation_evidence_links`, `investigation_timeline_events`, `soar_playbook_versions`, `soar_execution_results`, `soar_approval_requests`, `soar_execution_audit`, `soar_simulation_results`, `stream_consumer_lag_snapshots`, `duplicate_event_reports`, `storage_pressure_snapshots`, `degraded_mode_events`, `recovery_validation_runs`, `evidence_integrity_runs`, `evidence_integrity_failures`, `audit_export_access_logs`, `tenant_isolation_validation_runs`, `pii_access_audit`, `governance_review_findings`
+* delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`, `integration_sync_events`, `external_case_links`, `notification_events`, `notification_deliveries`, `saas_audit_events`, `identity_provider_events`, `baseline_observations`, `baseline_anomaly_scores`, `endpoint_agent_policy_assignments`, `endpoint_agent_enrollment_events`, `endpoint_tamper_events`, `endpoint_spool_snapshots`, `endpoint_script_executions`, `endpoint_privilege_escalations`, `endpoint_container_activities`, `detection_rule_versions`, `detection_replay_results`, `detection_false_positive_reports`, `detection_promotion_requests`, `investigation_graph_nodes`, `investigation_graph_edges`, `investigation_evidence_links`, `investigation_timeline_events`, `soar_playbook_versions`, `soar_execution_results`, `soar_approval_requests`, `soar_execution_audit`, `soar_simulation_results`, `stream_consumer_lag_snapshots`, `duplicate_event_reports`, `storage_pressure_snapshots`, `degraded_mode_events`, `recovery_validation_runs`, `evidence_integrity_runs`, `evidence_integrity_failures`, `audit_export_access_logs`, `tenant_isolation_validation_runs`, `pii_access_audit`, `governance_review_findings`, `telemetry_capacity_snapshots`, `replay_economics_runs`, `query_performance_snapshots`, `storage_capacity_snapshots`, `cardinality_pressure_reports`, `capacity_projection_runs`, `replay_amplification_reports`, `infrastructure_cost_estimates`
 * push firewall rules, block IPs/domains, or perform DPI inspection — DNS/proxy/firewall are shadow-only advisory analytics
 * promote `network` domain rules to `staged_active` without a domain-specific 6h soak PASS
 * bypass `InternalServiceAuthMiddleware` on `/api/internal/*` routes

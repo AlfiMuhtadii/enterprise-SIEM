@@ -4,8 +4,8 @@
     "scenario_name": "Signature Verification Failure",
     "scenario_type": "active",
     "status": "passed",
-    "started_at": "2026-05-20T12:43:39+00:00",
-    "completed_at": "2026-05-20T12:43:39+00:00",
+    "started_at": "2026-05-20T17:26:57+00:00",
+    "completed_at": "2026-05-20T17:26:57+00:00",
     "duration_seconds": 0,
     "findings": {
         "mode": "active",
@@ -24,7 +24,7 @@
             },
             "trace_preserved": {
                 "status": "pass",
-                "trace_id": "resilience-trace-sig-6a0dac7bd5b5d"
+                "trace_id": "resilience-trace-sig-6a0deee17df59"
             },
             "pipeline_intact": {
                 "status": "pass",
@@ -69,5 +69,5 @@
             "within_threshold": true
         }
     ],
-    "generated_at": "2026-05-20T12:43:39+00:00"
+    "generated_at": "2026-05-20T17:26:57+00:00"
 }

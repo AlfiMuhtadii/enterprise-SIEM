@@ -98,6 +98,12 @@ class ThreatHuntingService
         'soar_execution_results',
         'soar_approval_requests',
         'soar_simulation_results',
+        // Performance / Capacity / Cost Governance Phase 1
+        'telemetry_capacity_snapshots',
+        'replay_economics_runs',
+        'query_performance_snapshots',
+        'storage_capacity_snapshots',
+        'capacity_projection_runs',
         // Compliance / Governance / Evidence Integrity Phase 1
         'evidence_integrity_runs',
         'audit_export_requests',
@@ -426,6 +432,36 @@ class ThreatHuntingService
             'approval_state' => ['='],
             'is_active'      => ['='],
         ],
+        // Performance / Capacity / Cost Governance Phase 1
+        'telemetry_capacity_snapshots' => [
+            'topic'          => ['=', 'contains'],
+            'pressure_state' => ['='],
+            'window_duration'=> ['='],
+            'events_per_sec' => ['>='],
+        ],
+        'replay_economics_runs' => [
+            'consumer_group'         => ['='],
+            'topic'                  => ['=', 'contains'],
+            'concurrency_state'      => ['='],
+            'is_bounded'             => ['='],
+            'replay_amplification_ratio' => ['>='],
+        ],
+        'query_performance_snapshots' => [
+            'backend'           => ['='],
+            'latency_state'     => ['='],
+            'slow_query_count'  => ['>='],
+            'p95_latency_ms'    => ['>='],
+        ],
+        'storage_capacity_snapshots' => [
+            'backend'        => ['='],
+            'capacity_state' => ['='],
+            'shard_pressure_pct' => ['>='],
+        ],
+        'capacity_projection_runs' => [
+            'scope'                  => ['='],
+            'queue_pressure_forecast'=> ['='],
+            'deterministic'          => ['='],
+        ],
         // Compliance / Governance / Evidence Integrity Phase 1
         'evidence_integrity_runs' => [
             'scope'           => ['='],
@@ -610,6 +646,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => \App\Models\DetectionFalsePositiveReport::class,
         'detection_attack_mappings'         => \App\Models\DetectionAttackMapping::class,
         'detection_suppressions'            => \App\Models\DetectionSuppression::class,
+        // Performance / Capacity / Cost Governance Phase 1
+        'telemetry_capacity_snapshots'  => \App\Models\TelemetryCapacitySnapshot::class,
+        'replay_economics_runs'         => \App\Models\ReplayEconomicsRun::class,
+        'query_performance_snapshots'   => \App\Models\QueryPerformanceSnapshot::class,
+        'storage_capacity_snapshots'    => \App\Models\StorageCapacitySnapshot::class,
+        'capacity_projection_runs'      => \App\Models\CapacityProjectionRun::class,
         // Compliance / Governance / Evidence Integrity Phase 1
         'evidence_integrity_runs'             => \App\Models\EvidenceIntegrityRun::class,
         'audit_export_requests'               => \App\Models\AuditExportRequest::class,
@@ -676,6 +718,12 @@ class ThreatHuntingService
         'detection_false_positive_reports'  => 'created_at',
         'detection_attack_mappings'         => 'created_at',
         'detection_suppressions'            => 'created_at',
+        // Performance / Capacity / Cost Governance Phase 1
+        'telemetry_capacity_snapshots'  => 'created_at',
+        'replay_economics_runs'         => 'created_at',
+        'query_performance_snapshots'   => 'created_at',
+        'storage_capacity_snapshots'    => 'created_at',
+        'capacity_projection_runs'      => 'created_at',
         // Compliance / Governance / Evidence Integrity Phase 1
         'evidence_integrity_runs'             => 'created_at',
         'audit_export_requests'               => 'created_at',

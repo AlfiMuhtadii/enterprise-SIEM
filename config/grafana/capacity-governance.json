@@ -1,0 +1,116 @@
+{
+  "title": "Performance / Capacity / Cost Governance",
+  "uid": "capacity-governance-phase1",
+  "tags": ["xdr", "capacity", "performance", "replay", "cost"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "2m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Critical Telemetry Topics",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM telemetry_capacity_snapshots WHERE pressure_state = 'critical' AND created_at >= NOW() - INTERVAL '10 minutes'", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Unbounded Replays",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM replay_economics_runs WHERE is_bounded = false", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Degraded Query Backends",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM query_performance_snapshots WHERE latency_state IN ('degraded','critical') AND created_at >= NOW() - INTERVAL '30 minutes'", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Critical Storage Backends",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM storage_capacity_snapshots WHERE capacity_state = 'critical'", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Exceeded Amplification",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM replay_amplification_reports WHERE exceeds_safe_threshold = true", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Partition Health",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM partition_pressure_snapshots WHERE health_state != 'healthy'", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Telemetry Pressure by State",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT pressure_state, COUNT(*) as count FROM telemetry_capacity_snapshots WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY pressure_state", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Query Latency by Backend (p95)",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT DISTINCT ON (backend) backend, ROUND(p95_latency_ms::numeric, 1) as p95_ms FROM query_performance_snapshots ORDER BY backend, id DESC", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Storage Capacity by Backend",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT DISTINCT ON (backend) backend, ROUND(current_size_bytes / 1048576.0, 1) as size_mb FROM storage_capacity_snapshots ORDER BY backend, id DESC", "format": "table"}]
+    },
+    {
+      "id": 10,
+      "title": "Ingestion Throughput Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('minute', created_at) as time, AVG(events_per_sec) as eps FROM telemetry_capacity_snapshots WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 11,
+      "title": "Replay Amplification Over Time",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, AVG(amplification_ratio) as avg_ratio FROM replay_amplification_reports WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 12,
+      "title": "Capacity Projections",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT scope, ROUND(projected_30d_bytes / 1048576.0, 1) as proj_30d_mb, ROUND(projected_90d_bytes / 1048576.0, 1) as proj_90d_mb, storage_exhaustion_forecast, queue_pressure_forecast, confidence_level FROM capacity_projection_runs ORDER BY created_at DESC LIMIT 20", "format": "table"}]
+    },
+    {
+      "id": 13,
+      "title": "Infrastructure Cost Estimates",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT scope, backend, ROUND(daily_cost_estimate::numeric, 4) as daily, ROUND(monthly_cost_estimate::numeric, 2) as monthly, ROUND(projected_90d_cost::numeric, 2) as proj_90d, estimation_method FROM infrastructure_cost_estimates ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 14,
+      "title": "Cardinality Pressure Reports",
+      "type": "table",
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT field_name, pressure_type, cardinality_count, ROUND(growth_rate_pct::numeric, 1) as growth_pct, severity, bounded FROM cardinality_pressure_reports ORDER BY created_at DESC LIMIT 30", "format": "table"}]
+    },
+    {
+      "id": 15,
+      "title": "Advisory Posture Invariants",
+      "type": "table",
+      "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT 'cost_estimates_advisory' as check_name, COUNT(*) FILTER (WHERE is_advisory = false) as violations FROM infrastructure_cost_estimates UNION ALL SELECT 'replay_bounded', COUNT(*) FILTER (WHERE is_bounded = false) FROM replay_economics_runs UNION ALL SELECT 'cardinality_unbounded', COUNT(*) FILTER (WHERE bounded = false) FROM cardinality_pressure_reports", "format": "table"}]
+    }
+  ]
+}
