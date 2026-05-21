@@ -496,9 +496,9 @@ class EndpointFleetHardeningTest extends TestCase
     public function test_threat_hunting_supports_50_domains(): void
     {
         $this->assertCount(
-            60,
+            65,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 50 threat hunting domains after Fleet + LLTET + DELP + ATHI + SOAR + HA Reliability Phase 1'
+            'Should have 65 threat hunting domains after all phases through Release Governance Phase 1'
         );
     }
 

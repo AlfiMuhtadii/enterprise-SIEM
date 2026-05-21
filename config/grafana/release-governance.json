@@ -1,0 +1,74 @@
+{
+  "title": "Production Readiness / Release Governance",
+  "uid": "release-governance-phase1",
+  "tags": ["xdr", "release", "deployment", "governance", "rollback"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "2m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Release Manifests",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM release_manifests", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Go Verdicts",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM deployment_readiness_runs WHERE overall_verdict = 'go'", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Blocking Drifts",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM environment_drift_reports WHERE is_blocking = true", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Ready Rollbacks",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM rollback_validation_runs WHERE verdict = 'ready'", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Pending Approvals",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM release_approval_requests WHERE status = 'pending'", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Go/No-Go Ratio",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE decision = 'go') / NULLIF(COUNT(*), 0), 1) as go_pct FROM go_nogo_decisions", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Readiness Verdict Distribution",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT overall_verdict, COUNT(*) FROM deployment_readiness_runs GROUP BY overall_verdict", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Environment Drift by Type",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT drift_type, COUNT(*) FROM environment_drift_reports GROUP BY drift_type ORDER BY COUNT(*) DESC", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Rollback Readiness Scores",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT rollback_target_version, ROUND(AVG(readiness_score)::numeric, 2) as avg_score FROM rollback_validation_runs GROUP BY rollback_target_version ORDER BY avg_score DESC LIMIT 10", "format": "table"}]
+    }
+  ]
+}

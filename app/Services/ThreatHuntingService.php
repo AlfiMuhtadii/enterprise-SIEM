@@ -116,6 +116,12 @@ class ThreatHuntingService
         'duplicate_event_reports',
         'degraded_mode_events',
         'recovery_validation_runs',
+        // Production Readiness / Release Governance Phase 1
+        'release_manifests',
+        'deployment_readiness_runs',
+        'environment_drift_reports',
+        'rollback_validation_runs',
+        'go_nogo_decisions',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -529,6 +535,38 @@ class ThreatHuntingService
             'trace_propagation_ok'   => ['='],
             'replay_idempotency_ok'  => ['='],
         ],
+        // Production Readiness / Release Governance Phase 1
+        'release_manifests' => [
+            'release_id'      => ['='],
+            'release_version' => ['=', 'contains'],
+            'status'          => ['='],
+            'created_by'      => ['='],
+        ],
+        'deployment_readiness_runs' => [
+            'release_id'      => ['='],
+            'overall_verdict' => ['='],
+            'triggered_by'    => ['='],
+            'rollback_ready'  => ['='],
+        ],
+        'environment_drift_reports' => [
+            'drift_type'  => ['='],
+            'component'   => ['=', 'contains'],
+            'severity'    => ['='],
+            'is_blocking' => ['='],
+            'detected_by' => ['='],
+        ],
+        'rollback_validation_runs' => [
+            'release_id'              => ['='],
+            'rollback_target_version' => ['='],
+            'verdict'                 => ['='],
+            'replay_safe'             => ['='],
+        ],
+        'go_nogo_decisions' => [
+            'release_id'  => ['='],
+            'decision'    => ['='],
+            'decided_by'  => ['='],
+            'request_id'  => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -664,6 +702,12 @@ class ThreatHuntingService
         'duplicate_event_reports'         => \App\Models\DuplicateEventReport::class,
         'degraded_mode_events'            => \App\Models\DegradedModeEvent::class,
         'recovery_validation_runs'        => \App\Models\RecoveryValidationRun::class,
+        // Production Readiness / Release Governance Phase 1
+        'release_manifests'           => \App\Models\ReleaseManifest::class,
+        'deployment_readiness_runs'   => \App\Models\DeploymentReadinessRun::class,
+        'environment_drift_reports'   => \App\Models\EnvironmentDriftReport::class,
+        'rollback_validation_runs'    => \App\Models\RollbackValidationRun::class,
+        'go_nogo_decisions'           => \App\Models\GoNogoDecision::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -736,6 +780,12 @@ class ThreatHuntingService
         'duplicate_event_reports'         => 'created_at',
         'degraded_mode_events'            => 'created_at',
         'recovery_validation_runs'        => 'created_at',
+        // Production Readiness / Release Governance Phase 1
+        'release_manifests'           => 'created_at',
+        'deployment_readiness_runs'   => 'created_at',
+        'environment_drift_reports'   => 'created_at',
+        'rollback_validation_runs'    => 'created_at',
+        'go_nogo_decisions'           => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

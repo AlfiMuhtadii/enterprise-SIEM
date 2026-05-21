@@ -75,6 +75,7 @@ use App\Http\Controllers\Soar\SoarOrchestrationController;
 use App\Http\Controllers\Reliability\DistributedReliabilityController;
 use App\Http\Controllers\Governance\ComplianceGovernanceController;
 use App\Http\Controllers\Capacity\CapacityGovernanceController;
+use App\Http\Controllers\Release\ReleaseGovernanceController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -415,6 +416,19 @@ Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
     Route::get('/capacity/partitions', [CapacityGovernanceController::class, 'partitionPressureMonitor'])->name('capacity.partition-pressure');
     Route::get('/capacity/projections', [CapacityGovernanceController::class, 'capacityProjectionConsole'])->name('capacity.projection');
     Route::get('/capacity/cost', [CapacityGovernanceController::class, 'infrastructureCostDashboard'])->name('capacity.cost');
+});
+
+// Production Readiness / Release Governance — approval-gated, replay-safe, no autonomous deployment
+Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
+    Route::get('/release', [ReleaseGovernanceController::class, 'releaseDashboard'])->name('release.dashboard');
+    Route::get('/release/manifests', [ReleaseGovernanceController::class, 'releaseManifestExplorer'])->name('release.manifests');
+    Route::get('/release/readiness', [ReleaseGovernanceController::class, 'deploymentReadinessViewer'])->name('release.readiness');
+    Route::get('/release/drift', [ReleaseGovernanceController::class, 'environmentDriftTimeline'])->name('release.drift');
+    Route::get('/release/rollback', [ReleaseGovernanceController::class, 'rollbackReadinessConsole'])->name('release.rollback');
+    Route::get('/release/gonogo', [ReleaseGovernanceController::class, 'goNogoApprovalWorkflow'])->name('release.gonogo');
+    Route::get('/release/runbooks', [ReleaseGovernanceController::class, 'runbookExplorer'])->name('release.runbooks');
+    Route::get('/release/audit', [ReleaseGovernanceController::class, 'releaseAuditTimeline'])->name('release.audit');
+    Route::get('/release/safety', [ReleaseGovernanceController::class, 'deploymentSafetyDashboard'])->name('release.safety');
 });
 
 // Compliance / Governance / Evidence Integrity — audit-visible, replay-safe, no autonomous remediation

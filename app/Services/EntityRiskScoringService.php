@@ -65,6 +65,11 @@ class EntityRiskScoringService
         'multi_host_correlation_factor'   => 2.0,  // entity observed on multiple hosts in investigation graph
         'repeated_pivot_factor'           => 1.5,  // entity is a pivot origin multiple times across sessions
         'investigation_relevance_factor'  => 1.0,  // entity linked as evidence in an active investigation
+        // Production Readiness / Release Governance Phase 1 (advisory_only = true)
+        'release_drift_factor'            => 1.5,  // entity host has unresolved blocking environment drift
+        'readiness_blocker_factor'        => 2.0,  // entity associated with a failed deployment readiness run
+        'rollback_risk_factor'            => 2.5,  // entity on a host with low rollback readiness score
+        'release_audit_anomaly_factor'    => 1.0,  // entity appears in anomalous release audit event
     ];
 
     // Score thresholds for level assignment
