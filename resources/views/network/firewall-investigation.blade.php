@@ -9,6 +9,7 @@
                    class="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded px-3 py-1.5 w-60">
             <button type="submit" class="px-4 py-1.5 rounded bg-cyan-700/40 border border-cyan-400/30 text-cyan-200 text-sm">Filter</button>
         </form>
+        <div class="overflow-x-auto">
         <table class="w-full text-xs text-left text-gray-300">
             <thead class="text-gray-400 uppercase border-b border-gray-700">
                 <tr><th class="py-2 pr-3">Src IP</th><th class="py-2 pr-3">Dest IP</th><th class="py-2 pr-3">Port</th><th class="py-2 pr-3">Proto</th><th class="py-2 pr-3">Action</th><th class="py-2">Time</th></tr>
@@ -32,5 +33,6 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 </x-app-layout>

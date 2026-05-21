@@ -49,7 +49,7 @@
 
         <div class="rounded border border-gray-700/50 bg-gray-900/40 p-4">
             <h3 class="text-sm font-semibold text-gray-200 mb-2">Session Info</h3>
-            <dl class="grid grid-cols-3 gap-2 text-xs">
+            <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
                 <div><dt class="text-gray-400">Status</dt><dd class="text-cyan-300">{{ $session->status }}</dd></div>
                 <div><dt class="text-gray-400">Focus Entity</dt><dd class="text-gray-200">{{ $session->focus_entity_id ?? '—' }}</dd></div>
                 <div><dt class="text-gray-400">Hop Depth</dt><dd class="text-gray-200">{{ $session->hop_depth }}</dd></div>

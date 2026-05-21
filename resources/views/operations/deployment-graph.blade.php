@@ -8,7 +8,7 @@
         $statusByService = $snapshots->keyBy('service_name');
         @endphp
 
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             @foreach($graph['nodes'] as $node)
             @php $svc = $statusByService[$node['id']] ?? null; $state = $svc ? $svc->health_state : 'unknown'; @endphp
             <div class="glass-card p-3 flex items-center justify-between">

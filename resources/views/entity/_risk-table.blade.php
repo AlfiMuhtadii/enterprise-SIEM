@@ -1,6 +1,7 @@
 @if ($rows->isEmpty())
     <div class="px-5 py-6 text-xs text-center text-cyan-200/30">No scored entities yet.</div>
 @else
+    <div class="overflow-x-auto">
     <table class="w-full text-sm">
         <thead>
             <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -41,4 +42,5 @@
             @endforeach
         </tbody>
     </table>
+    </div>
 @endif

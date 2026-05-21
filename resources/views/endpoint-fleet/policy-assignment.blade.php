@@ -11,7 +11,7 @@
             <a href="{{ route('endpoint-fleet.dashboard') }}" class="text-xs text-cyan-400 hover:underline">← Fleet Dashboard</a>
         </div>
 
-        <div class="grid grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <div class="glass-card p-0 overflow-hidden">
                 <div class="px-4 py-3 border-b border-gray-700 text-sm font-semibold text-cyan-200">Fleet Policies</div>
                 <div style="max-height: 480px; overflow-y: auto;">
@@ -36,7 +36,7 @@
                     <div class="glass-card p-4 space-y-4">
                         <div>
                             <h3 class="text-sm font-semibold text-cyan-200">{{ $selectedPolicy->name }}</h3>
-                            <div class="grid grid-cols-3 gap-4 text-xs mt-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs mt-2">
                                 <div><span class="text-gray-400">Version: </span><span class="text-gray-200">{{ $selectedPolicy->policy_version }}</span></div>
                                 <div><span class="text-gray-400">Agents: </span><span class="text-gray-200">{{ $selectedPolicy->assigned_agent_count }}</span></div>
                                 <div><span class="text-gray-400">Rollback: </span><span class="text-gray-200">{{ $selectedPolicy->rollback_supported ? 'yes' : 'no' }}</span></div>

@@ -20,7 +20,7 @@
             <a href="{{ route('capacity.cost') }}" class="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700">Cost</a>
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Critical Telemetry', $stats['critical_telemetry'], 'text-red-300'],
                 ['Unbounded Replays', $stats['unbounded_replays'], 'text-orange-300'],
@@ -38,7 +38,7 @@
             @endforeach
         </div>
 
-        <div class="grid grid-cols-3 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
             <div class="rounded border border-green-700/30 bg-green-900/10 px-4 py-3">
                 <div class="text-green-300 font-medium">Advisory Only</div>
                 <div class="text-green-200 mt-1">{{ $stats['advisory_only'] ? 'YES' : 'NO' }}</div>

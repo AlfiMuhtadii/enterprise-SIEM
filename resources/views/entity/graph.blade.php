@@ -61,7 +61,7 @@
     <div class="space-y-6">
 
         {{-- Stats strip --}}
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             @foreach ([
                 ['label' => 'Total Nodes', 'value' => $nodes->count()],
                 ['label' => 'Relationships', 'value' => $edges->count()],
@@ -108,6 +108,7 @@
                             Connected Entities — Pivot View
                         </h3>
                     </div>
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -167,6 +168,7 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {{-- Visual hub-and-spoke (lightweight CSS only) --}}

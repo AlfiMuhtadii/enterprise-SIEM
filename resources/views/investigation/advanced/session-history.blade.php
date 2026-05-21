@@ -5,7 +5,7 @@
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Total Sessions', $stats['total_sessions'], 'text-cyan-300'],
                 ['Active', $stats['active_sessions'], 'text-green-300'],

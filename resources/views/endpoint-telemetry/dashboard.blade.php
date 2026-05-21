@@ -18,7 +18,7 @@
             <a href="{{ route('endpoint-telemetry.container-activity') }}" class="px-3 py-1.5 text-xs rounded bg-green-900/30 text-green-300 border border-green-700/40 hover:bg-green-900/50">Container Activity</a>
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             @foreach([
                 ['Script Executions (7d)', $stats['script_executions'], 'text-purple-300'],
                 ['Encoded Scripts', $stats['encoded_scripts'], 'text-red-400'],

@@ -18,7 +18,7 @@
             <a href="{{ route('soar.simulation-artifacts') }}" class="px-3 py-1.5 text-xs rounded bg-green-900/30 text-green-300 border border-green-700/40 hover:bg-green-900/50">Simulation Artifacts</a>
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Active Playbooks', $stats['active_playbooks'], 'text-cyan-300'],
                 ['Total Plans', $stats['total_plans'], 'text-blue-300'],
@@ -36,7 +36,7 @@
             @endforeach
         </div>
 
-        <div class="grid grid-cols-3 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
             <div class="rounded border border-green-700/30 bg-green-900/10 px-4 py-3">
                 <div class="text-green-300 font-medium">Simulation Required</div>
                 <div class="text-green-200 mt-1">{{ $stats['simulation_required'] ? 'YES — enforced on all plans' : 'NO' }}</div>

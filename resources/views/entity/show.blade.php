@@ -109,6 +109,7 @@
                         Relationships ({{ $relationships->count() }})
                     </h3>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -152,6 +153,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             </div>
         @endif
 
@@ -164,6 +166,7 @@
                     </h3>
                 </div>
                 @if ($alerts->isNotEmpty())
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -199,6 +202,7 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                     @if ($alerts->count() > 10)
                         <div class="border-t border-cyan-100/10 px-5 py-3 text-xs text-cyan-200/40">
                             Showing 10 of {{ $alerts->count() }}. Use
@@ -219,6 +223,7 @@
                     </h3>
                 </div>
                 @if ($incidents->isNotEmpty())
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -243,6 +248,7 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 @else
                     <div class="px-5 py-6 text-xs text-cyan-200/30 text-center">No incidents linked to this entity.</div>
                 @endif
@@ -257,6 +263,7 @@
                     <a href="{{ route('entity.timeline', $entity->id) }}"
                        class="text-xs text-cyan-400 hover:text-cyan-200 transition">Full timeline →</a>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -290,6 +297,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             </div>
         @endif
 

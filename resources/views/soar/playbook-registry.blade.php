@@ -9,7 +9,7 @@
             <strong>Governance Notice:</strong> SOAR workflows are simulation-first and approval-gated. No autonomous enforcement or destructive response is executed.
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             @foreach([
                 ['Total Playbooks', $stats['total_playbooks'], 'text-cyan-300'],
                 ['Active', $stats['active_playbooks'], 'text-green-300'],

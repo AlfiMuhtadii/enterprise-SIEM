@@ -8,6 +8,7 @@
             <strong>Governance Notice:</strong> Release governance workflows are approval-gated and replay-safe. No autonomous deployment, destructive rollback, or hidden environment mutation is executed.
         </div>
         <div class="rounded border border-slate-700 bg-slate-800/50 p-4">
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-slate-300">
                 <thead><tr class="text-slate-500 border-b border-slate-700">
                     <th class="text-left py-1">Report ID</th><th class="text-left py-1">Drift Type</th><th class="text-left py-1">Component</th><th class="text-left py-1">Severity</th><th class="text-left py-1">Blocking</th><th class="text-left py-1">Detected By</th><th class="text-left py-1">At</th>
@@ -26,6 +27,7 @@
                 @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

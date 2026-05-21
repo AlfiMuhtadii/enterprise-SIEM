@@ -37,7 +37,7 @@
             {{-- Risk factor explanation --}}
             <div class="glass-card p-4">
                 <h3 class="text-sm font-semibold text-cyan-200 mb-3">UEBA Risk Factor Weights</h3>
-                <div class="grid grid-cols-4 gap-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                     @foreach([
                         ['baseline_anomaly_factor', '2.0', 'Baseline Anomaly'],
                         ['peer_deviation_factor', '1.5', 'Peer Deviation'],

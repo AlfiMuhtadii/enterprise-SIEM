@@ -4,7 +4,7 @@
         <p class="text-xs text-amber-400/80 mt-1 font-medium">Analyst-driven collaborative workflows only. No autonomous SOC operations.</p>
     </x-slot>
     <div class="py-6 px-4 max-w-6xl mx-auto space-y-6">
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Total Breaches', $breachSummary['total'] ?? 0, 'text-gray-300'],
                 ['Unacknowledged', $breachSummary['unacked'] ?? 0, 'text-amber-400'],
@@ -36,6 +36,7 @@
 
         <div>
             <h3 class="text-sm font-semibold text-cyan-200 mb-2">Active SLA Policies</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">Type</th><th class="py-2 pr-3">Severity</th><th class="py-2">Threshold</th></tr>
@@ -50,6 +51,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

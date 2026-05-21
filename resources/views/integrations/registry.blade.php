@@ -6,6 +6,7 @@
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
         <div class="glass-card p-4">
             <h3 class="text-sm font-semibold text-cyan-200 mb-3">Registered Integrations</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead><tr class="text-gray-400 uppercase text-left border-b border-gray-700">
                     <th class="pb-2 pr-4">Name</th>
@@ -40,6 +41,7 @@
                 @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
         <div class="glass-card p-4">
             <h3 class="text-sm font-semibold text-cyan-200 mb-2">Advisory Posture</h3>

@@ -64,6 +64,7 @@
                 @if ($agents->isEmpty())
                     <div class="p-8 text-center text-sm text-cyan-200/40">No agents enrolled. Deploy the endpoint agent and register with the SOC.</div>
                 @else
+                    <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.08em] text-cyan-200/35">
@@ -118,6 +119,7 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 @endif
             </div>
 

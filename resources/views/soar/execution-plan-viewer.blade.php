@@ -5,7 +5,7 @@
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
 
-        <div class="grid grid-cols-4 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             @foreach([
                 ['Status', $plan->status, 'text-cyan-300'],
                 ['Blast Radius', number_format($plan->blast_radius_score, 2), 'text-orange-300'],

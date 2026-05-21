@@ -211,15 +211,16 @@ services:
   telemetry-worker:
     build:
       context: .
-      dockerfile: infra/production/Dockerfile
+      dockerfile: infra/telemetry-worker/Dockerfile
     container_name: detector-telemetry-worker
     profiles: ["app"]
     env_file:
       - ./.env
     environment:
       DB_HOST: postgres
-      KAFKA_REST_URL: http://redpanda:8082
-    command: ["python3", "scripts/telemetry_stream_worker.py", "--topic", "telemetry_events"]
+      KAFKA_BOOTSTRAP_SERVERS: "redpanda:9092"
+      SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:-postgres}"
+    command: ["python3", "scripts/telemetry_stream_worker.py", "--topic", "telemetry.raw", "--bootstrap-servers", "redpanda:9092"]
     depends_on:
       postgres:
         condition: service_healthy

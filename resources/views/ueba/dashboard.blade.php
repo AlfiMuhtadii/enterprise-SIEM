@@ -19,7 +19,7 @@
         </div>
 
         {{-- Summary stats --}}
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Behavioral Baselines', $stats['total_baselines'], 'text-cyan-300'],
                 ['Anomalies (7d)', $stats['total_anomalies'], 'text-yellow-400'],

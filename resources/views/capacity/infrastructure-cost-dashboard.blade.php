@@ -10,7 +10,7 @@
         </div>
 
         @if($totalDaily)
-        <div class="grid grid-cols-3 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">
                 <div class="text-gray-400">Daily Cost (total)</div>
                 <div class="text-2xl font-bold text-cyan-300">{{ number_format($totalDaily->daily_cost_estimate, 4) }} units</div>

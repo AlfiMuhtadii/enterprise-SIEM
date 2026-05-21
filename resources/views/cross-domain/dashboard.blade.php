@@ -77,6 +77,7 @@
             @if($recentCorrelations->isEmpty())
                 <p class="text-gray-500 text-sm">No correlations yet. Run correlation analysis to begin.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-sm text-left text-gray-300">
                 <thead class="text-xs text-gray-400 uppercase border-b border-gray-700">
                     <tr>
@@ -107,6 +108,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
     </div>

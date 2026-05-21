@@ -9,7 +9,7 @@
             <strong>Notice:</strong> Storage pressure is advisory visibility only. No automatic retention changes, index deletion, or compaction policy mutation is executed.
         </div>
 
-        <div class="grid grid-cols-5 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-xs">
             @foreach(\App\Models\StoragePressureSnapshot::BACKENDS as $backend)
             @php $snap = $latestPerBackend->firstWhere('backend', $backend); @endphp
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">

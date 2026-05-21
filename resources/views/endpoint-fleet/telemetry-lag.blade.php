@@ -11,7 +11,7 @@
             <a href="{{ route('endpoint-fleet.dashboard') }}" class="text-xs text-cyan-400 hover:underline">← Fleet Dashboard</a>
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             @foreach([
                 ['Total Agents', $totalAgents, 'text-gray-300'],
                 ['Stale / Offline', $staleAgents->count(), 'text-red-400'],

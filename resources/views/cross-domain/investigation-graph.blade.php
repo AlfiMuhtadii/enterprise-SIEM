@@ -43,7 +43,7 @@
             @endif
 
             {{-- Entity involvement --}}
-            <div class="grid grid-cols-3 gap-3 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                 @if($correlation->involved_hosts)
                 <div class="rounded bg-gray-800/40 p-2"><p class="text-gray-400 mb-1">Hosts</p>
                     @foreach(array_slice($correlation->involved_hosts, 0, 3) as $h)<div class="font-mono text-cyan-300">{{ $h }}</div>@endforeach</div>

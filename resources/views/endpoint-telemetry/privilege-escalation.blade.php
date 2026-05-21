@@ -9,7 +9,7 @@
             <strong>Advisory Notice:</strong> Privilege escalation indicators are advisory-only. No account suspension, process termination, or host isolation is performed.
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 mb-1">Total Indicators (7d)</div>
                 <div class="text-2xl font-bold text-orange-400">{{ $summary['total'] }}</div>

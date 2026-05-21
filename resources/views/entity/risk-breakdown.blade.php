@@ -104,6 +104,7 @@
                         Contributing Factors — Explainability
                     </h3>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -171,6 +172,7 @@
                         </tr>
                     </tfoot>
                 </table>
+                </div>
             </div>
         @else
             <div class="glass-card p-6 text-center text-sm text-cyan-200/40">
@@ -186,6 +188,7 @@
                         Risk History — Trend ({{ $history->count() }} snapshots)
                     </h3>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -232,6 +235,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             </div>
         @endif
 

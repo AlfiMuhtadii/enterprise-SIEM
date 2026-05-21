@@ -93,7 +93,7 @@
             @if($profile['peer_group'])
                 <div class="glass-card p-4">
                     <h3 class="text-sm font-semibold text-cyan-200 mb-2">Peer Group: {{ $profile['peer_group']['group_label'] }}</h3>
-                    <div class="grid grid-cols-3 gap-4 text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                         <div><span class="text-gray-400">Key: </span><code class="text-cyan-400">{{ $profile['peer_group']['peer_group_key'] }}</code></div>
                         <div><span class="text-gray-400">Type: </span><span class="text-gray-200">{{ $profile['peer_group']['group_type'] }}</span></div>
                         <div><span class="text-gray-400">Members: </span><span class="text-gray-200">{{ $profile['peer_group']['entity_count'] }}</span></div>

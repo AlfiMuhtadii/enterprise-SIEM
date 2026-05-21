@@ -16,6 +16,7 @@
         @if($shared->isEmpty())
         <p class="text-sm text-gray-500">No investigations shared with this analyst.</p>
         @else
+        <div class="overflow-x-auto">
         <table class="w-full text-xs text-left text-gray-300">
             <thead class="text-gray-400 uppercase border-b border-gray-700">
                 <tr><th class="py-2 pr-3">Investigation</th><th class="py-2 pr-3">Title</th><th class="py-2 pr-3">State</th><th class="py-2">Severity</th></tr>
@@ -31,6 +32,7 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
         @endif
     </div>
 </x-app-layout>

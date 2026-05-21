@@ -9,7 +9,7 @@
             <strong>Advisory Notice:</strong> Container activity telemetry is advisory-only. No container is stopped, paused, or killed automatically.
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 mb-1">Total Activities (7d)</div>
                 <div class="text-2xl font-bold text-green-300">{{ $summary['total_activities'] }}</div>

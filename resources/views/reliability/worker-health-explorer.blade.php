@@ -5,7 +5,7 @@
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
 
-        <div class="grid grid-cols-5 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-xs">
             @foreach(\App\Models\SystemWorkerHeartbeat::HEALTH_STATES as $state)
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">
                 <div class="text-gray-400">{{ $state }}</div>

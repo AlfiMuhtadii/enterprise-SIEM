@@ -9,7 +9,7 @@
             <strong>Governance Notice:</strong> Quality scores are deterministic and evidence-based. No automatic demotion or promotion is triggered by quality score changes.
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 mb-1">FP Reports (7d)</div>
                 <div class="text-2xl font-bold text-red-300">{{ $stats['fp_reports_7d'] }}</div>

@@ -8,7 +8,7 @@
             SaaS audit logs from Office 365, GSuite, Salesforce, GitHub are ingested for correlation.
             Risk scoring is advisory-only. No user suspension, no permission revocation.
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase mb-1">Total SaaS Events</div>
                 <div class="text-2xl font-bold text-purple-300">{{ $events->count() }}</div>
@@ -24,6 +24,7 @@
         </div>
         <div class="glass-card p-4">
             <h3 class="text-sm font-semibold text-cyan-200 mb-3">Recent SaaS Audit Events</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead><tr class="text-gray-400 uppercase text-left border-b border-gray-700">
                     <th class="pb-2 pr-4">Time</th>
@@ -60,6 +61,7 @@
                 @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

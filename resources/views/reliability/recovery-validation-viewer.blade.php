@@ -5,7 +5,7 @@
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">
                 <div class="text-xs text-gray-400">Total Runs</div>
                 <div class="text-2xl font-bold text-cyan-300">{{ $runs->count() }}</div>

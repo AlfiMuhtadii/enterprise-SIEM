@@ -1,7 +1,7 @@
 FROM php:8.3-cli-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git unzip libpq-dev postgresql-client curl ca-certificates python3 \
+    && apt-get install -y --no-install-recommends git unzip libpq-dev postgresql-client curl ca-certificates \
     && docker-php-ext-install pdo pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 

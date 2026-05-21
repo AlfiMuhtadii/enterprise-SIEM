@@ -10,6 +10,7 @@
         </div>
         <div class="glass-card p-4">
             <h3 class="text-sm font-semibold text-cyan-200 mb-3">Investigation ↔ Ticket Links</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead><tr class="text-gray-400 uppercase text-left border-b border-gray-700">
                     <th class="pb-2 pr-4">Investigation</th>
@@ -36,6 +37,7 @@
                 @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

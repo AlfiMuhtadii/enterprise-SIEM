@@ -11,7 +11,7 @@
 
         <div class="rounded border border-gray-700/50 bg-gray-900/40 p-4">
             <h3 class="text-sm font-semibold text-gray-200 mb-3">Pivot Configuration</h3>
-            <div class="grid grid-cols-3 gap-4 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                 <div>
                     <label class="text-gray-400">Starting Entity ID</label>
                     <input type="text" class="mt-1 block w-full rounded bg-gray-800 border border-gray-700 text-gray-200 text-xs px-2 py-1.5" placeholder="entity_key or entity_id" readonly>

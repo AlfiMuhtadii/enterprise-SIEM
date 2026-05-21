@@ -7,7 +7,7 @@
         <div class="rounded border border-amber-400/30 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
             DNS/proxy/firewall analytics are advisory-only. No firewall rule push. No IP/domain blocking. No DPI inspection.
         </div>
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['DNS Events (24h)', $summary['dns_events_24h'], 'text-blue-300'],
                 ['Proxy Events (24h)', $summary['proxy_events_24h'], 'text-purple-300'],
@@ -20,7 +20,7 @@
             </div>
             @endforeach
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase mb-1">NXDOMAIN (24h)</div>
                 <div class="text-xl font-bold text-red-400">{{ number_format($summary['nxdomain_24h']) }}</div>

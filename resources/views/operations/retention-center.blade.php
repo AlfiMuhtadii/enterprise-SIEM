@@ -18,6 +18,7 @@
             @if($policies->isEmpty())
                 <p class="text-xs text-gray-500">No retention policies configured.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">Domain</th><th class="py-2 pr-3">Retention</th><th class="py-2 pr-3">Batch</th><th class="py-2 pr-3">Status</th><th class="py-2">Actions</th></tr>
@@ -48,6 +49,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
 

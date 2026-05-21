@@ -33,6 +33,28 @@
 }
 
 @layer components {
+    /* ── Sidebar nav items ─────────────────────────────────────────────── */
+    .sidebar-group-label {
+        @apply px-3 text-[10px] font-semibold uppercase tracking-widest;
+        color: rgba(100, 180, 255, 0.45);
+    }
+
+    .sidebar-nav-item {
+        @apply flex items-center gap-2.5 w-full rounded-lg px-3 py-1.5 text-sm transition-colors duration-100 no-underline;
+    }
+
+    .sidebar-nav-item--default {
+        @apply text-cyan-300/70 hover:text-cyan-100 hover:bg-cyan-800/25;
+    }
+
+    .sidebar-nav-item--active {
+        @apply text-cyan-100 font-medium;
+        background: rgba(6, 30, 56, 0.7);
+        border-left: 2px solid var(--accent);
+        padding-left: calc(0.75rem - 2px);
+    }
+
+    /* ── Glass card ────────────────────────────────────────────────────── */
     .glass-card {
         @apply rounded-2xl border shadow-2xl;
         border-color: var(--card-border);

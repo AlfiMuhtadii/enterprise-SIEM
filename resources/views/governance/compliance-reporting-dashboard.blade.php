@@ -5,7 +5,7 @@
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
 
-        <div class="grid grid-cols-4 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             @foreach([
                 ['Total Findings', $stats['total_review_findings'], 'text-cyan-300'],
                 ['Critical Findings', $stats['critical_findings'], 'text-red-300'],
@@ -23,7 +23,7 @@
             @endforeach
         </div>
 
-        <div class="grid grid-cols-3 gap-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
             <div class="rounded border border-green-700/30 bg-green-900/10 px-4 py-3">
                 <div class="text-green-300 font-medium">Advisory Only</div>
                 <div class="text-green-200 mt-1">{{ $stats['advisory_only'] ? 'YES' : 'NO (WARNING)' }}</div>

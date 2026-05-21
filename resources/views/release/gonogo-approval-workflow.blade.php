@@ -9,6 +9,7 @@
         </div>
         <div class="rounded border border-slate-700 bg-slate-800/50 p-4">
             <h3 class="text-sm font-semibold text-slate-300 mb-3">Approval Requests</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-slate-300">
                 <thead><tr class="text-slate-500 border-b border-slate-700">
                     <th class="text-left py-1">Request ID</th><th class="text-left py-1">Release</th><th class="text-left py-1">Status</th><th class="text-left py-1">Requested By</th><th class="text-left py-1">At</th>
@@ -25,9 +26,11 @@
                 @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
         <div class="rounded border border-slate-700 bg-slate-800/50 p-4">
             <h3 class="text-sm font-semibold text-slate-300 mb-3">Go/No-Go Decisions</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-slate-300">
                 <thead><tr class="text-slate-500 border-b border-slate-700">
                     <th class="text-left py-1">Decision ID</th><th class="text-left py-1">Release</th><th class="text-left py-1">Decision</th><th class="text-left py-1">Decided By</th><th class="text-left py-1">At</th>
@@ -44,6 +47,7 @@
                 @endforeach
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

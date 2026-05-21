@@ -1,0 +1,42 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Pengguna Aplikasi" as User
+actor "Analis/Operator" as Analyst
+actor "Administrator Sistem" as Admin
+
+rectangle "Sistem Deteksi Serangan Aplikasi Web" {
+  usecase "Mengakses Aplikasi Web" as UC01
+  usecase "Mencatat Security Event" as UC02
+  usecase "Melakukan Ingest Event" as UC03
+  usecase "Menjalankan Deteksi Rule-Based" as UC04
+  usecase "Menjalankan Klasifikasi ML" as UC05
+  usecase "Menghasilkan Alert" as UC06
+  usecase "Melihat Dashboard Monitoring" as UC07
+  usecase "Meninjau Alert dan Bukti" as UC08
+  usecase "Membuat Rekomendasi Response" as UC09
+  usecase "Mengelola Model ML" as UC10
+  usecase "Memantau Drift Model" as UC11
+}
+
+User --> UC01
+UC01 --> UC02
+UC02 --> UC03
+UC03 --> UC04
+UC03 --> UC05
+UC04 --> UC06
+UC05 --> UC06
+
+Analyst --> UC07
+Analyst --> UC08
+Analyst --> UC09
+UC08 --> UC09
+
+Admin --> UC10
+Admin --> UC11
+UC10 --> UC05
+UC11 --> UC10
+
+@enduml

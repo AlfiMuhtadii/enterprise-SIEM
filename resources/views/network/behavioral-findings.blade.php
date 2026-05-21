@@ -13,6 +13,7 @@
             </select>
             <button type="submit" class="px-4 py-1.5 rounded bg-cyan-700/40 border border-cyan-400/30 text-cyan-200 text-sm">Filter</button>
         </form>
+        <div class="overflow-x-auto">
         <table class="w-full text-xs text-left text-gray-300">
             <thead class="text-gray-400 uppercase border-b border-gray-700">
                 <tr><th class="py-2 pr-3">Finding Type</th><th class="py-2 pr-3">Source</th><th class="py-2 pr-3">Host</th><th class="py-2 pr-3">Target</th><th class="py-2 pr-3">Severity</th><th class="py-2">Time</th></tr>
@@ -40,5 +41,6 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 </x-app-layout>

@@ -4,7 +4,7 @@
         <p class="text-xs text-amber-400/80 mt-1 font-medium">Operational hardening and recovery tooling only. No autonomous infrastructure mutation.</p>
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Platform Health Score</div>
                 <div class="text-3xl font-bold {{ $score >= 0.8 ? 'text-green-400' : ($score >= 0.5 ? 'text-amber-400' : 'text-red-400') }}">

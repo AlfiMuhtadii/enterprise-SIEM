@@ -20,7 +20,7 @@
         </div>
 
         {{-- Fleet health stats --}}
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Total Agents', $stats['total'], 'text-gray-300'],
                 ['Online', $stats['online'], 'text-green-400'],
@@ -34,7 +34,7 @@
             @endforeach
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Tamper Events (7d)', $stats['tamper_events_7d'], 'text-red-300'],
                 ['Policy Drifts', $stats['policy_drifts'], 'text-orange-300'],

@@ -15,6 +15,7 @@
             @if($lag->isEmpty())
                 <p class="text-xs text-gray-500">No lag metrics recorded.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">Consumer Group</th><th class="py-2 pr-3">Topic</th><th class="py-2 pr-3">Lag</th><th class="py-2 pr-3">Age (s)</th><th class="py-2">Trend</th></tr>
@@ -35,6 +36,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
 
@@ -43,6 +45,7 @@
             @if($pressure->isEmpty())
                 <p class="text-xs text-gray-500">No pressure metrics recorded.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">Service</th><th class="py-2 pr-3">Metric</th><th class="py-2 pr-3">Value</th><th class="py-2">State</th></tr>
@@ -63,6 +66,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
     </div>

@@ -9,7 +9,7 @@
             <strong>Advisory Notice:</strong> Process telemetry is advisory-only. No autonomous containment or enforcement is executed.
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Total Processes (7d)', $stats['total_processes'], 'text-gray-300'],
                 ['Shell Processes', $stats['shell_processes'], 'text-yellow-300'],

@@ -36,6 +36,7 @@
                 <p class="text-sm text-gray-500">No events found from sequence {{ $fromSequence }} within the replay window.</p>
             @else
             <div class="text-xs text-gray-400 mb-2">Showing {{ $events->count() }} events from sequence {{ $fromSequence }}</div>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr>
@@ -55,6 +56,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         @endif
     </div>

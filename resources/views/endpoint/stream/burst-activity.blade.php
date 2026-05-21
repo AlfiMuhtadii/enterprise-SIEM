@@ -13,6 +13,7 @@
         @if($summary->isEmpty())
             <p class="text-sm text-gray-500">No activity in the current window.</p>
         @else
+        <div class="overflow-x-auto">
         <table class="w-full text-xs text-left text-gray-300">
             <thead class="text-gray-400 uppercase border-b border-gray-700">
                 <tr>
@@ -35,6 +36,7 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
         @endif
     </div>
 </x-app-layout>

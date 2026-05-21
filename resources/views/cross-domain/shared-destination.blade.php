@@ -43,6 +43,7 @@
             @if($multiHostCorrelations->isEmpty())
                 <p class="text-sm text-gray-500">No multi-host correlations yet.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">ID</th><th class="py-2 pr-3">Destination</th><th class="py-2 pr-3">Hosts</th><th class="py-2 pr-3">Confidence</th><th class="py-2">Created</th></tr>
@@ -59,6 +60,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
     </div>

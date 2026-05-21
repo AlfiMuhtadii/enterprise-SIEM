@@ -18,7 +18,7 @@
             <a href="{{ route('investigation.advanced.session-history') }}" class="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700">Session History</a>
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Active Sessions', $stats['active_sessions'], 'text-cyan-300'],
                 ['Total Sessions', $stats['total_sessions'], 'text-blue-300'],

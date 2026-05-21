@@ -9,7 +9,7 @@
             Escalation and SLA breach notifications require analyst approval before dispatch.
             No autonomous account suspension via notification channels.
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase mb-1">Total Notifications</div>
                 <div class="text-2xl font-bold text-amber-300">{{ $notifications->count() }}</div>
@@ -25,6 +25,7 @@
         </div>
         <div class="glass-card p-4">
             <h3 class="text-sm font-semibold text-cyan-200 mb-3">Notification Events</h3>
+            <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead><tr class="text-gray-400 uppercase text-left border-b border-gray-700">
                     <th class="pb-2 pr-4">Time</th>
@@ -62,6 +63,7 @@
                 @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 </x-app-layout>

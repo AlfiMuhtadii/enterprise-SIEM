@@ -7,7 +7,7 @@
         <div class="rounded border border-amber-400/30 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
             Integration events are ingested read-only. Risk scoring is advisory. No account suspension or automatic ticket closure is performed.
         </div>
-        <div class="grid grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             @foreach([
                 ['Total Integrations', $stats['total'], 'text-cyan-300'],
                 ['Active', $stats['active'], 'text-green-400'],
@@ -52,7 +52,7 @@
                 @endforelse
             </div>
         </div>
-        <div class="grid grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             @foreach([
                 ['IdP Event Feed', route('integrations.idp-feed'), 'Identity provider login & MFA events'],
                 ['SaaS Audit Feed', route('integrations.saas-audit'), 'Office 365, GSuite, GitHub audit logs'],

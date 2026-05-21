@@ -13,7 +13,7 @@
             <a href="{{ route('ueba.dashboard') }}" class="text-xs text-cyan-400 hover:underline">← UEBA Dashboard</a>
         </div>
 
-        <div class="grid grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {{-- Group list --}}
             <div class="glass-card p-0 overflow-hidden">
                 <div class="flex justify-between items-center px-4 py-3 border-b border-gray-700">
@@ -42,7 +42,7 @@
                     <div class="glass-card p-4 space-y-4">
                         <div>
                             <h3 class="text-sm font-semibold text-cyan-200">{{ $selectedGroup->group_label }}</h3>
-                            <div class="grid grid-cols-3 gap-4 text-xs mt-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs mt-2">
                                 <div><span class="text-gray-400">Key: </span><code class="text-cyan-400">{{ $selectedGroup->peer_group_key }}</code></div>
                                 <div><span class="text-gray-400">Type: </span><span class="text-gray-200">{{ $selectedGroup->group_type }}</span></div>
                                 <div><span class="text-gray-400">Members: </span><span class="text-gray-200">{{ $selectedGroup->entity_count }}</span></div>
@@ -52,6 +52,7 @@
                         @if($selectedGroup->dimension_stats)
                             <div>
                                 <h4 class="text-xs font-semibold text-gray-300 mb-2">Dimension Statistics (Group Aggregates)</h4>
+                                <div class="overflow-x-auto">
                                 <table class="w-full text-xs border border-gray-700 rounded">
                                     <thead class="bg-gray-800/60 text-gray-400 uppercase tracking-wider">
                                         <tr>
@@ -72,6 +73,7 @@
                                     @endforeach
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
                         @else
                             <div class="text-gray-500 text-xs">Dimension statistics not yet computed for this group.</div>

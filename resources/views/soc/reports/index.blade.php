@@ -16,6 +16,9 @@
     </section>
     <section class="glass-card mt-4 overflow-hidden">
         <div class="border-b border-cyan-100/15 px-5 py-4"><h3 class="text-lg font-semibold text-main-ui">Report History</h3></div>
+        <div class="overflow-x-auto">
         <div class="overflow-x-auto"><table class="min-w-full divide-y divide-cyan-100/10 text-sm"><thead class="bg-black/20 text-left text-xs uppercase tracking-[0.12em] text-cyan-200/70"><tr><th class="px-4 py-3">Report</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Generated</th><th class="px-4 py-3">Export</th></tr></thead><tbody class="divide-y divide-cyan-100/10">@foreach ($reports as $report)<tr><td class="px-4 py-3"><a href="{{ route('soc.reports.show', $report->report_id) }}" class="mono-ui text-cyan-50 underline">{{ $report->report_id }}</a></td><td class="px-4 py-3 text-cyan-100">{{ $report->period }}<p class="text-xs text-cyan-100/50">{{ $report->period_start }} - {{ $report->period_end }}</p></td><td class="px-4 py-3 text-cyan-100">{{ $report->generated_by }} | {{ $report->created_at }}</td><td class="px-4 py-3"><a href="{{ route('soc.reports.json', $report->report_id) }}" class="text-cyan-200 underline">JSON</a></td></tr>@endforeach</tbody></table></div>
     </section>
 </x-app-layout>
+
+        </div>

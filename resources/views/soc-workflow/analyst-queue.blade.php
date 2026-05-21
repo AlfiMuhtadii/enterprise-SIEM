@@ -13,7 +13,7 @@
             <button type="submit" class="px-4 py-1.5 rounded bg-cyan-700/40 border border-cyan-400/30 text-cyan-200 text-sm">View</button>
         </form>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase mb-1">Assigned Investigations</div>
                 <div class="text-2xl font-bold text-cyan-300">{{ $queue['assigned_investigations']->count() }}</div>

@@ -18,7 +18,7 @@
                     {{ $profile->is_rare ? 'RARE' : 'known' }}
                 </span>
             </div>
-            <div class="grid grid-cols-3 gap-4 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                 <div><div class="text-gray-400">Type</div><div class="text-gray-200">{{ $profile->destination_type }}</div></div>
                 <div><div class="text-gray-400">Contacts</div><div class="text-gray-200">{{ $profile->contact_count }}</div></div>
                 <div><div class="text-gray-400">Hosts</div><div class="text-gray-200">{{ $profile->host_count }}</div></div>

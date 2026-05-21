@@ -9,7 +9,7 @@
             <strong>Advisory:</strong> Cross-domain exploration is read-only. All results are advisory. No enforcement or isolation actions are triggered.
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">
                 <div class="text-xs text-gray-400">Available Domains</div>
                 <div class="text-2xl font-bold text-cyan-300">{{ count($domains) }}</div>

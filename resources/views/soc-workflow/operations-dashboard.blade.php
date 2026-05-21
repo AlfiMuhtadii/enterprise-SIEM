@@ -7,7 +7,7 @@
         <div class="rounded border border-amber-400/30 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
             All escalations, assignments, and workflow transitions require explicit operator action. No autonomous SOC operations.
         </div>
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="glass-card p-4">
                 <div class="text-xs text-gray-400 uppercase mb-1">Open Escalations</div>
                 <div class="text-2xl font-bold {{ $escalationQueue->count() > 0 ? 'text-red-400' : 'text-green-400' }}">{{ $escalationQueue->count() }}</div>

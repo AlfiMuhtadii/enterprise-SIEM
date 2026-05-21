@@ -20,7 +20,7 @@
             <a href="{{ route('governance.findings') }}" class="px-3 py-1.5 text-xs rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700">Findings</a>
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach([
                 ['Integrity Runs', $stats['total_integrity_runs'], 'text-cyan-300'],
                 ['Failed Runs', $stats['failed_integrity_runs'], 'text-red-300'],

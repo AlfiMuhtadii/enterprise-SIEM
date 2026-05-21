@@ -8,7 +8,7 @@
             Validation is read-only and non-destructive. No live destructive restore automation.
         </div>
 
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             @foreach(['total', 'verified', 'corrupt', 'pending'] as $key)
             <div class="glass-card p-4 text-center">
                 <div class="text-xs text-gray-400 uppercase">{{ $key }}</div>
@@ -24,6 +24,7 @@
             @if($backups->isEmpty())
                 <p class="text-xs text-gray-500">No backups registered.</p>
             @else
+            <div class="overflow-x-auto">
             <table class="w-full text-xs text-left text-gray-300">
                 <thead class="text-gray-400 uppercase border-b border-gray-700">
                     <tr><th class="py-2 pr-3">Backup ID</th><th class="py-2 pr-3">Type</th><th class="py-2 pr-3">Scope</th><th class="py-2 pr-3">Status</th><th class="py-2">Backed At</th></tr>
@@ -45,6 +46,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             @endif
         </div>
 

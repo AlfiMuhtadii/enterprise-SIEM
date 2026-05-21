@@ -63,6 +63,7 @@
 
     <section class="glass-card mt-4 overflow-hidden">
         <div class="border-b border-cyan-100/15 px-5 py-4"><h3 class="text-lg font-semibold text-main-ui">Local Watchlist / Blocklist</h3></div>
+        <div class="overflow-x-auto">
         <div class="overflow-x-auto"><table class="min-w-full divide-y divide-cyan-100/10 text-sm"><thead class="bg-black/20 text-left text-xs uppercase tracking-[0.12em] text-cyan-200/70"><tr><th class="px-4 py-3">IOC</th><th class="px-4 py-3">Reputation</th><th class="px-4 py-3">Source</th><th class="px-4 py-3">Expires</th></tr></thead><tbody class="divide-y divide-cyan-100/10">@foreach ($iocs as $ioc)<tr><td class="px-4 py-3 mono-ui text-xs text-cyan-50">{{ $ioc->ioc_type }}:{{ $ioc->ioc_value }}</td><td class="px-4 py-3 text-cyan-100">{{ $ioc->reputation }}<p class="text-xs text-cyan-100/50">{{ $ioc->threat_label }}</p></td><td class="px-4 py-3 text-cyan-100">{{ $ioc->source }}</td><td class="px-4 py-3 mono-ui text-xs text-cyan-100">{{ $ioc->expires_at ?: '-' }}</td></tr>@endforeach</tbody></table></div>
         <div class="border-t border-cyan-100/15 px-5 py-4">{{ $iocs->links() }}</div>
     </section>
@@ -77,3 +78,5 @@
         <div class="glass-card p-5"><h3 class="text-lg font-semibold text-main-ui">External Feed History</h3><div class="mt-3 space-y-2">@foreach ($feeds as $feed)<div class="rounded bg-black/20 p-2 text-xs text-cyan-100">{{ $feed->feed_type }} | {{ $feed->name }} | imported={{ $feed->last_import_count }} | {{ $feed->last_imported_at ?: '-' }}</div>@endforeach</div></div>
     </section>
 </x-app-layout>
+
+        </div>

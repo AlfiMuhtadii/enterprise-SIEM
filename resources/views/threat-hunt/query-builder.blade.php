@@ -54,7 +54,7 @@
                         <label class="block text-xs text-cyan-400/70 mb-2">Filter Conditions</label>
                         <div class="space-y-2">
                             @foreach (range(0, 2) as $i)
-                            <div class="grid grid-cols-3 gap-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                 <input type="text" name="filters[{{ $i }}][field]" placeholder="Field (e.g. process_name)"
                                     class="text-sm px-3 py-2 rounded bg-black/30 border border-cyan-200/20 text-cyan-200 placeholder-cyan-400/40">
                                 <select name="filters[{{ $i }}][operator]"

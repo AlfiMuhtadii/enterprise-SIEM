@@ -9,7 +9,7 @@
             <strong>Advisory:</strong> Evidence links are append-only and cannot be deleted. All links are advisory and operator-visible.
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="rounded border border-gray-700/50 bg-gray-900/40 px-4 py-3">
                 <div class="text-xs text-gray-400">Evidence Links</div>
                 <div class="text-2xl font-bold text-cyan-300">{{ $evidenceLinks->count() }}</div>

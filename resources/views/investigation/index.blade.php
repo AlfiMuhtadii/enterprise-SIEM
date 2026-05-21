@@ -168,6 +168,7 @@
                         {{ $investigations->count() }} investigation{{ $investigations->count() === 1 ? '' : 's' }}
                     </span>
                 </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-cyan-100/10 text-left text-xs uppercase tracking-[0.09em] text-cyan-200/40">
@@ -233,6 +234,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
             </div>
         @endif
 

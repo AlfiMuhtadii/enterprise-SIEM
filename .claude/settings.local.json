@@ -38,7 +38,9 @@
       "Bash(Get-ChildItem \"D:\\\\project\\\\Detector\\\\database\\\\migrations\\\\\" | Sort-Object Name | Select-Object -Last 10 Name *)",
       "Bash(Sort-Object Name)",
       "Bash(Select-Object -Last 5)",
-      "PowerShell($content = Get-Content \"D:\\\\project\\\\Detector\\\\storage\\\\logs\\\\laravel.log\" -Raw; $content -split '\\\\[' | Where-Object { $_ -match 'ERROR|exception|message' } | Select-Object -Last 3 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(500, $_.Length\\)\\) })"
+      "PowerShell($content = Get-Content \"D:\\\\project\\\\Detector\\\\storage\\\\logs\\\\laravel.log\" -Raw; $content -split '\\\\[' | Where-Object { $_ -match 'ERROR|exception|message' } | Select-Object -Last 3 | ForEach-Object { $_.Substring\\(0, [Math]::Min\\(500, $_.Length\\)\\) })",
+      "PowerShell(cd D:\\\\project\\\\Detector; $body = '{\"name\":\"debug-test3\",\"format\":\"json\"}'; docker compose exec redpanda sh -c \"curl -s -X POST 'http://127.0.0.1:8082/consumers/telemetry-worker-v1' -H 'Content-Type: application/vnd.kafka.v2+json' -d '$body'\" 2>&1)",
+      "Bash(docker compose *)"
     ]
   }
 }
