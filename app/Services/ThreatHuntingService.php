@@ -146,6 +146,12 @@ class ThreatHuntingService
         'recovery_validation_artifacts',
         'operational_drift_reports',
         'replay_recovery_runs',
+        // Production Pilot Readiness Phase 1
+        'pilot_onboarding_runs',
+        'pilot_health_validations',
+        'pilot_success_metrics',
+        'pilot_rollback_validations',
+        'operator_readiness_reviews',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -714,6 +720,34 @@ class ThreatHuntingService
             'ordering_preserved'   => ['='],
             'continuity_verified'  => ['='],
         ],
+        // Production Pilot Readiness Phase 1
+        'pilot_onboarding_runs' => [
+            'tenant_id'  => ['=', 'contains'],
+            'status'     => ['='],
+        ],
+        'pilot_health_validations' => [
+            'tenant_id'    => ['=', 'contains'],
+            'check_type'   => ['='],
+            'check_passed' => ['='],
+            'verdict'      => ['='],
+        ],
+        'pilot_success_metrics' => [
+            'tenant_id'   => ['=', 'contains'],
+            'metric_name' => ['='],
+            'target_met'  => ['='],
+        ],
+        'pilot_rollback_validations' => [
+            'tenant_id'     => ['=', 'contains'],
+            'trigger'       => ['='],
+            'verdict'       => ['='],
+            'rollback_safe' => ['='],
+        ],
+        'operator_readiness_reviews' => [
+            'operator_id'   => ['=', 'contains'],
+            'review_type'   => ['='],
+            'operator_ready'=> ['='],
+            'verdict'       => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -879,6 +913,12 @@ class ThreatHuntingService
         'recovery_validation_artifacts'  => \App\Models\RecoveryValidationArtifact::class,
         'operational_drift_reports'      => \App\Models\OperationalDriftReport::class,
         'replay_recovery_runs'           => \App\Models\ReplayRecoveryRun::class,
+        // Production Pilot Readiness Phase 1
+        'pilot_onboarding_runs'       => \App\Models\PilotOnboardingRun::class,
+        'pilot_health_validations'    => \App\Models\PilotHealthValidation::class,
+        'pilot_success_metrics'       => \App\Models\PilotSuccessMetric::class,
+        'pilot_rollback_validations'  => \App\Models\PilotRollbackValidation::class,
+        'operator_readiness_reviews'  => \App\Models\OperatorReadinessReview::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -981,6 +1021,12 @@ class ThreatHuntingService
         'recovery_validation_artifacts' => 'created_at',
         'operational_drift_reports'     => 'created_at',
         'replay_recovery_runs'          => 'created_at',
+        // Production Pilot Readiness Phase 1
+        'pilot_onboarding_runs'       => 'created_at',
+        'pilot_health_validations'    => 'created_at',
+        'pilot_success_metrics'       => 'created_at',
+        'pilot_rollback_validations'  => 'created_at',
+        'operator_readiness_reviews'  => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

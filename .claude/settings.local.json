@@ -45,7 +45,12 @@
       "Bash(Get-Content *)",
       "Bash(Get-Item \"C:\\\\Users\\\\alfim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--project-Detector\\\\9eb1a037-2d0d-443a-bc71-ebad37bddce7\\\\tasks\\\\b9mxqnw6n.output\")",
       "Bash(Select-Object -ExpandProperty Length)",
-      "Bash(grep -v \"#\\\\|//\")"
+      "Bash(grep -v \"#\\\\|//\")",
+      "Bash(grep -v 'protected $table')",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(xargs '-I{}' bash -c 'echo \"=== {} ===\" && grep -n \"class\\\\|protected \\\\$table\" {} | head -5')",
+      "Bash(grep -rn 'soc_knowledge_base\\\\|SocKnowledgeBase\\\\|$table' D:/project/Detector/app/Models/SocKnowledgeBase.php)",
+      "Bash(Get-ChildItem -Path \"D:\\\\project\\\\Detector\\\\app\\\\Models\" -Filter \"*.php\")"
     ]
   }
 }

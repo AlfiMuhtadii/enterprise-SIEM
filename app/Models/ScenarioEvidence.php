@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScenarioEvidence extends Model
 {
+    protected $table = 'scenario_evidence';
+
     protected $fillable = [
         'scenario_run_id',
         'stage',

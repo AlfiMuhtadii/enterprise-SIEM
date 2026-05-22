@@ -8,6 +8,8 @@ use Illuminate\Support\Str;
 
 class BackupMetadata extends Model
 {
+    protected $table = 'backup_metadata';
+
     public const STATUS_PENDING   = 'pending';
     public const STATUS_VERIFIED  = 'verified';
     public const STATUS_CORRUPTED = 'corrupted';

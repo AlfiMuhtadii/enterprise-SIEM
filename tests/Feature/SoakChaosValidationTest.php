@@ -557,7 +557,7 @@ class SoakChaosValidationTest extends TestCase
 
     public function test_total_hunt_domains_is_85(): void
     {
-        $this->assertCount(85, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(90, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     // =========================================================================

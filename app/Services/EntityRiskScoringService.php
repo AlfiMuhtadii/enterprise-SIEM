@@ -91,6 +91,11 @@ class EntityRiskScoringService
         'chaos_recovery_failure_factor'       => 2.5,  // entity associated with a failed chaos recovery validation
         'operational_drift_factor'            => 1.5,  // entity linked to operational drift exceeding threshold
         'replay_continuity_failure_factor'    => 2.0,  // entity replay recovery shows ordering/continuity failure
+        // Production Pilot Readiness Phase 1 (advisory_only = true)
+        'pilot_health_failure_factor'         => 2.5,  // entity associated with a failed pilot health validation
+        'pilot_onboarding_pressure_factor'    => 1.5,  // entity tenant in critical telemetry onboarding pressure
+        'pilot_rollback_trigger_factor'       => 3.0,  // entity associated with a pilot rollback validation failure
+        'operator_readiness_failure_factor'   => 2.0,  // entity linked to an operator who failed readiness review
     ];
 
     // Score thresholds for level assignment

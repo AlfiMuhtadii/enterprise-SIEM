@@ -465,7 +465,7 @@ class CapacityGovernanceTest extends TestCase
 
     public function test_threat_hunting_supports_60_domains(): void
     {
-        $this->assertCount(85, $this->hunting->supportedDomains());
+        $this->assertCount(90, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_telemetry_capacity_snapshots_domain(): void

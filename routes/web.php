@@ -80,6 +80,7 @@ use App\Http\Controllers\Detection\AdvancedDetectionController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
+use App\Http\Controllers\Pilot\PilotReadinessController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -902,6 +903,20 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('soak-chaos')->group(funct
     Route::get('/worker',        [SoakChaosController::class, 'workerRestart'])->name('soak-chaos.worker-restart');
     Route::get('/recovery',      [SoakChaosController::class, 'recoveryTimeline'])->name('soak-chaos.recovery-timeline');
     Route::get('/stability',     [SoakChaosController::class, 'stabilityDashboard'])->name('soak-chaos.stability-dashboard');
+});
+
+// Production Pilot Readiness Phase 1
+// Bounded, approval-gated, replay-safe. No autonomous deployment or unrestricted onboarding.
+Route::middleware(['auth', 'soc:audit.view'])->prefix('pilot-readiness')->group(function () {
+    Route::get('/',            [PilotReadinessController::class, 'pilotDashboard'])->name('pilot.dashboard');
+    Route::get('/onboarding',  [PilotReadinessController::class, 'onboardingConsole'])->name('pilot.onboarding');
+    Route::get('/pressure',    [PilotReadinessController::class, 'telemetryPressure'])->name('pilot.pressure');
+    Route::get('/health',      [PilotReadinessController::class, 'healthValidation'])->name('pilot.health');
+    Route::get('/rollback',    [PilotReadinessController::class, 'rollbackTimeline'])->name('pilot.rollback');
+    Route::get('/operators',   [PilotReadinessController::class, 'operatorReadiness'])->name('pilot.operators');
+    Route::get('/metrics',     [PilotReadinessController::class, 'successMetrics'])->name('pilot.metrics');
+    Route::get('/audit',       [PilotReadinessController::class, 'auditTimeline'])->name('pilot.audit');
+    Route::get('/windows',     [PilotReadinessController::class, 'observationWindows'])->name('pilot.windows');
 });
 
 require __DIR__.'/auth.php';
