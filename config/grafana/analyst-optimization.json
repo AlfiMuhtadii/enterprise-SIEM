@@ -1,0 +1,52 @@
+{
+  "title": "Analyst Optimization Phase 1",
+  "uid": "analyst-optimization-phase1",
+  "tags": ["analyst", "optimization", "soc", "advisory"],
+  "panels": [
+    {
+      "title": "Alert Prioritization Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(final_priority_score) FROM alert_prioritization_scores GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Analyst Acknowledgment Latency",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(latency_seconds) FROM analyst_acknowledgment_audit GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Escalation Quality Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(quality_score) FROM escalation_quality_reviews GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "False-Positive Tuning Reports",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM false_positive_tuning_reports WHERE created_at > NOW() - INTERVAL '7 days'"}]
+    },
+    {
+      "title": "Analyst Workload Distribution",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT AVG(workload_score) * 100 FROM analyst_workload_snapshots WHERE created_at > NOW() - INTERVAL '1 hour'"}]
+    },
+    {
+      "title": "Fatigue Indicator Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), COUNT(*) FILTER(WHERE fatigue_detected = true) FROM operational_fatigue_indicators GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Recurring Alert Frequency",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM alert_recurrence_reports WHERE suppression_candidate = true"}]
+    },
+    {
+      "title": "Suppression Expiration Tracking",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM false_positive_tuning_reports WHERE expiry_tracked = true AND suppression_duration_days <= 7"}]
+    },
+    {
+      "title": "Investigation Duration Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at), COUNT(*) FROM investigation_ergonomic_views WHERE status = 'archived' GROUP BY 1 ORDER BY 1"}]
+    }
+  ]
+}

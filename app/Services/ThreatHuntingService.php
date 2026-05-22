@@ -164,6 +164,12 @@ class ThreatHuntingService
         'detection_confidence_history',
         'false_positive_drift_reports',
         'attack_progression_scores',
+        // Analyst Optimization Phase 1
+        'analyst_workload_snapshots',
+        'alert_prioritization_scores',
+        'false_positive_tuning_reports',
+        'escalation_quality_reviews',
+        'operational_fatigue_indicators',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -773,6 +779,35 @@ class ThreatHuntingService
             'snapshot_type' => ['='],
             'coverage_score'=> ['='],
         ],
+        // Analyst Optimization Phase 1
+        'analyst_workload_snapshots' => [
+            'analyst_id'        => ['=', 'contains'],
+            'tenant_id'         => ['=', 'contains'],
+            'overload_indicator'=> ['='],
+        ],
+        'alert_prioritization_scores' => [
+            'tenant_id'     => ['=', 'contains'],
+            'rule_id'       => ['=', 'contains'],
+            'priority_tier' => ['='],
+        ],
+        'false_positive_tuning_reports' => [
+            'tenant_id'     => ['=', 'contains'],
+            'rule_id'       => ['=', 'contains'],
+            'tuning_action' => ['='],
+            'analyst_id'    => ['=', 'contains'],
+        ],
+        'escalation_quality_reviews' => [
+            'tenant_id'   => ['=', 'contains'],
+            'reviewed_by' => ['=', 'contains'],
+            'verdict'     => ['='],
+            'quality_tier'=> ['='],
+        ],
+        'operational_fatigue_indicators' => [
+            'analyst_id'      => ['=', 'contains'],
+            'tenant_id'       => ['=', 'contains'],
+            'fatigue_detected'=> ['='],
+            'fatigue_severity'=> ['='],
+        ],
         'analyst_investigation_summaries' => [
             'tenant_id'    => ['=', 'contains'],
             'analyst_id'   => ['=', 'contains'],
@@ -1001,6 +1036,12 @@ class ThreatHuntingService
         'detection_confidence_history'         => \App\Models\DetectionConfidenceHistory::class,
         'false_positive_drift_reports'         => \App\Models\FalsePositiveDriftReport::class,
         'attack_progression_scores'            => \App\Models\AttackProgressionScore::class,
+        // Analyst Optimization Phase 1
+        'analyst_workload_snapshots'      => \App\Models\AnalystWorkloadSnapshot::class,
+        'alert_prioritization_scores'     => \App\Models\AlertPrioritizationScore::class,
+        'false_positive_tuning_reports'   => \App\Models\FalsePositiveTuningReport::class,
+        'escalation_quality_reviews'      => \App\Models\EscalationQualityReview::class,
+        'operational_fatigue_indicators'  => \App\Models\OperationalFatigueIndicator::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1121,6 +1162,12 @@ class ThreatHuntingService
         'detection_confidence_history'       => 'created_at',
         'false_positive_drift_reports'       => 'created_at',
         'attack_progression_scores'          => 'created_at',
+        // Analyst Optimization Phase 1
+        'analyst_workload_snapshots'     => 'created_at',
+        'alert_prioritization_scores'    => 'created_at',
+        'false_positive_tuning_reports'  => 'created_at',
+        'escalation_quality_reviews'     => 'created_at',
+        'operational_fatigue_indicators' => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

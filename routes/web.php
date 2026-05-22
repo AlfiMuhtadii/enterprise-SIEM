@@ -945,4 +945,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('operational-intelligence'
     Route::get('/acceleration',      [\App\Http\Controllers\OperationalIntelligenceController::class, 'acceleration'])->name('op-intel.acceleration');
 });
 
+// Analyst Optimization Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('analyst-optimization')->group(function () {
+    Route::get('/',                    [\App\Http\Controllers\AnalystOptimizationController::class, 'dashboard'])->name('analyst-opt.dashboard');
+    Route::get('/prioritization',      [\App\Http\Controllers\AnalystOptimizationController::class, 'prioritization'])->name('analyst-opt.prioritization');
+    Route::get('/fp-tuning',           [\App\Http\Controllers\AnalystOptimizationController::class, 'fpTuning'])->name('analyst-opt.fp-tuning');
+    Route::get('/workload',            [\App\Http\Controllers\AnalystOptimizationController::class, 'workload'])->name('analyst-opt.workload');
+    Route::get('/escalation-quality',  [\App\Http\Controllers\AnalystOptimizationController::class, 'escalationQuality'])->name('analyst-opt.escalation-quality');
+    Route::get('/ergonomics',          [\App\Http\Controllers\AnalystOptimizationController::class, 'ergonomics'])->name('analyst-opt.ergonomics');
+    Route::get('/fatigue',             [\App\Http\Controllers\AnalystOptimizationController::class, 'fatigue'])->name('analyst-opt.fatigue');
+    Route::get('/handoffs',            [\App\Http\Controllers\AnalystOptimizationController::class, 'handoffs'])->name('analyst-opt.handoffs');
+    Route::get('/efficiency',          [\App\Http\Controllers\AnalystOptimizationController::class, 'efficiency'])->name('analyst-opt.efficiency');
+});
+
 require __DIR__.'/auth.php';
