@@ -182,6 +182,12 @@ class ThreatHuntingService
         'false_positive_evolution_reports',
         'operational_drift_history',
         'governance_reporting_runs',
+        // Endpoint Sensor Advanced Telemetry Phase 3
+        'endpoint_file_hash_lineage',
+        'endpoint_module_loads',
+        'endpoint_registry_timelines',
+        'endpoint_socket_lifecycle',
+        'endpoint_anti_evasion_indicators',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -831,6 +837,45 @@ class ThreatHuntingService
             'window_type'       => ['='],
             'governance_verdict'=> ['='],
         ],
+        // Endpoint Sensor Advanced Telemetry Phase 3
+        'endpoint_file_hash_lineage' => [
+            'endpoint_id'            => ['=', 'contains'],
+            'tenant_id'              => ['=', 'contains'],
+            'file_hash_sha256'       => ['=', 'contains'],
+            'process_name'           => ['=', 'contains'],
+            'suspicious_propagation' => ['='],
+        ],
+        'endpoint_module_loads' => [
+            'endpoint_id'       => ['=', 'contains'],
+            'tenant_id'         => ['=', 'contains'],
+            'module_name'       => ['=', 'contains'],
+            'process_name'      => ['=', 'contains'],
+            'is_signed'         => ['='],
+            'suspicious_lineage'=> ['='],
+        ],
+        'endpoint_registry_timelines' => [
+            'endpoint_id'        => ['=', 'contains'],
+            'tenant_id'          => ['=', 'contains'],
+            'key_category'       => ['='],
+            'modification_type'  => ['='],
+            'process_name'       => ['=', 'contains'],
+            'suspicious_lineage' => ['='],
+        ],
+        'endpoint_socket_lifecycle' => [
+            'endpoint_id'    => ['=', 'contains'],
+            'tenant_id'      => ['=', 'contains'],
+            'process_name'   => ['=', 'contains'],
+            'protocol'       => ['='],
+            'state'          => ['='],
+            'suspicious_port'=> ['='],
+        ],
+        'endpoint_anti_evasion_indicators' => [
+            'endpoint_id'      => ['=', 'contains'],
+            'tenant_id'        => ['=', 'contains'],
+            'indicator_type'   => ['='],
+            'severity'         => ['='],
+            'evasion_confirmed'=> ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1120,6 +1165,12 @@ class ThreatHuntingService
         'false_positive_evolution_reports'     => \App\Models\FalsePositiveEvolutionReport::class,
         'operational_drift_history'            => \App\Models\OperationalDriftHistory::class,
         'governance_reporting_runs'            => \App\Models\GovernanceReportingRun::class,
+        // Endpoint Sensor Advanced Telemetry Phase 3
+        'endpoint_file_hash_lineage'           => \App\Models\EndpointFileHashLineage::class,
+        'endpoint_module_loads'                => \App\Models\EndpointModuleLoad::class,
+        'endpoint_registry_timelines'          => \App\Models\EndpointRegistryTimeline::class,
+        'endpoint_socket_lifecycle'            => \App\Models\EndpointSocketLifecycle::class,
+        'endpoint_anti_evasion_indicators'     => \App\Models\EndpointAntiEvasionIndicator::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1258,6 +1309,12 @@ class ThreatHuntingService
         'false_positive_evolution_reports'    => 'created_at',
         'operational_drift_history'           => 'created_at',
         'governance_reporting_runs'           => 'created_at',
+        // Endpoint Sensor Advanced Telemetry Phase 3
+        'endpoint_file_hash_lineage'          => 'created_at',
+        'endpoint_module_loads'               => 'created_at',
+        'endpoint_registry_timelines'         => 'created_at',
+        'endpoint_socket_lifecycle'           => 'created_at',
+        'endpoint_anti_evasion_indicators'    => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

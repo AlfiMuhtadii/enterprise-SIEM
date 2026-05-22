@@ -984,4 +984,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('long-running-ops')->group
     Route::get('/governance-audit',    [\App\Http\Controllers\LongRunningOperationsController::class, 'governanceAudit'])->name('long-ops.governance-audit');
 });
 
+// Endpoint Sensor Advanced Telemetry Phase 3
+Route::middleware(['auth', 'soc:audit.view'])->prefix('endpoint-sensor-telemetry')->group(function () {
+    Route::get('/',                    [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'dashboard'])->name('ep-sensor.dashboard');
+    Route::get('/file-hash-lineage',   [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'fileHashLineage'])->name('ep-sensor.file-hash-lineage');
+    Route::get('/module-dll',          [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'moduleDll'])->name('ep-sensor.module-dll');
+    Route::get('/registry-timeline',   [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'registryTimeline'])->name('ep-sensor.registry-timeline');
+    Route::get('/socket-lifecycle',    [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'socketLifecycle'])->name('ep-sensor.socket-lifecycle');
+    Route::get('/process-ancestry',    [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'processAncestry'])->name('ep-sensor.process-ancestry');
+    Route::get('/anti-evasion',        [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'antiEvasion'])->name('ep-sensor.anti-evasion');
+    Route::get('/runtime-visibility',  [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'runtimeVisibility'])->name('ep-sensor.runtime-visibility');
+    Route::get('/lineage-confidence',  [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'lineageConfidence'])->name('ep-sensor.lineage-confidence');
+});
+
 require __DIR__.'/auth.php';

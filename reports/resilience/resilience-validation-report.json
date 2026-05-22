@@ -1,8 +1,8 @@
 {
   "tool": "xdr_resilience_validate",
   "version": "1.0.0",
-  "started_at": "2026-05-22T14:52:10.867626+00:00",
-  "completed_at": "2026-05-22T14:52:10.960952+00:00",
+  "started_at": "2026-05-22T21:24:18.089644+00:00",
+  "completed_at": "2026-05-22T21:24:18.367410+00:00",
   "scenarios_run": 8,
   "passed": 8,
   "failed": 0,
@@ -33,20 +33,20 @@
       "total_count": 4,
       "dry_run_capable": true,
       "passed": true,
-      "duration_seconds": 0.043,
-      "validated_at": "2026-05-22T14:52:10.911026+00:00"
+      "duration_seconds": 0.263,
+      "validated_at": "2026-05-22T21:24:18.352756+00:00"
     },
     {
       "scenario": "consumer_reconnect",
       "service_available": true,
-      "reconnect_count": 1,
-      "recreate_count": 2,
-      "consumer_errors": 1,
+      "reconnect_count": 6,
+      "recreate_count": 7,
+      "consumer_errors": 6,
       "reconnect_loop_design": "consumeLoop() auto-restarts on any poll error",
       "no_data_loss_design": "Redpanda retains messages for consumer groups",
       "passed": true,
-      "duration_seconds": 0.04,
-      "validated_at": "2026-05-22T14:52:10.950779+00:00"
+      "duration_seconds": 0.002,
+      "validated_at": "2026-05-22T21:24:18.354409+00:00"
     },
     {
       "scenario": "backpressure_accumulation",
@@ -57,17 +57,17 @@
       "rate_limiter": "Token-bucket rate limiter in ingestion-gateway",
       "passed": true,
       "duration_seconds": 0.002,
-      "validated_at": "2026-05-22T14:52:10.952673+00:00"
+      "validated_at": "2026-05-22T21:24:18.356080+00:00"
     },
     {
       "scenario": "dlq_replay_recovery",
-      "alert_writer_dlq": 11,
-      "incident_builder_dlq": 0,
+      "alert_writer_dlq": 195,
+      "incident_builder_dlq": 195,
       "dlq_structure_valid": true,
       "replay_safe_design": "ON CONFLICT DO NOTHING in xdr_operational_events",
       "passed": true,
-      "duration_seconds": 0.004,
-      "validated_at": "2026-05-22T14:52:10.956611+00:00"
+      "duration_seconds": 0.005,
+      "validated_at": "2026-05-22T21:24:18.361226+00:00"
     },
     {
       "scenario": "signature_verification_failure",
@@ -75,7 +75,7 @@
       "note": "Pass --run-active to execute fault injection",
       "passed": true,
       "duration_seconds": 0.0,
-      "validated_at": "2026-05-22T14:52:10.956639+00:00"
+      "validated_at": "2026-05-22T21:24:18.361411+00:00"
     },
     {
       "scenario": "invalid_auth_token",
@@ -83,12 +83,12 @@
       "note": "Pass --run-active to execute fault injection",
       "passed": true,
       "duration_seconds": 0.0,
-      "validated_at": "2026-05-22T14:52:10.956647+00:00"
+      "validated_at": "2026-05-22T21:24:18.361490+00:00"
     },
     {
       "scenario": "endpoint_ingestion_interrupt",
       "service_available": true,
-      "alerts_written_main": 14,
+      "alerts_written_main": 0,
       "endpoint_shadow_design": "xdr.alerts.shadow.endpoint topic NOT consumed by alert-writer",
       "shadow_isolation": true,
       "endpoint_alert_types_blocked": [
@@ -97,18 +97,18 @@
         "C2_BEACON_PATTERN"
       ],
       "passed": true,
-      "duration_seconds": 0.002,
-      "validated_at": "2026-05-22T14:52:10.958390+00:00"
+      "duration_seconds": 0.003,
+      "validated_at": "2026-05-22T21:24:18.364701+00:00"
     },
     {
       "scenario": "replay_under_degraded_state",
       "service_available": true,
-      "duplicates_blocked": 72,
+      "duplicates_blocked": 0,
       "idempotent_design": "SEEN set + ON CONFLICT DO NOTHING prevents duplicate writes",
       "deterministic": "Same event_id \u2192 same outcome regardless of restart count",
       "passed": true,
       "duration_seconds": 0.002,
-      "validated_at": "2026-05-22T14:52:10.960906+00:00"
+      "validated_at": "2026-05-22T21:24:18.367310+00:00"
     }
   ]
 }
