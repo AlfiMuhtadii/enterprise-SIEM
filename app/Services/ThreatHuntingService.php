@@ -176,6 +176,12 @@ class ThreatHuntingService
         'analyst_load_stability_reports',
         'infrastructure_pressure_runs',
         'telemetry_growth_drift_reports',
+        // Long-Running Operational Validation Phase 1
+        'telemetry_trend_reports',
+        'analyst_behavior_trends',
+        'false_positive_evolution_reports',
+        'operational_drift_history',
+        'governance_reporting_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -797,6 +803,34 @@ class ThreatHuntingService
             'scale_profile'    => ['='],
             'validation_passed'=> ['='],
         ],
+        // Long-Running Operational Validation Phase 1
+        'telemetry_trend_reports' => [
+            'tenant_id'      => ['=', 'contains'],
+            'window_type'    => ['='],
+            'trend_verdict'  => ['='],
+        ],
+        'analyst_behavior_trends' => [
+            'analyst_id'      => ['=', 'contains'],
+            'tenant_id'       => ['=', 'contains'],
+            'window_type'     => ['='],
+            'behavior_stable' => ['='],
+        ],
+        'false_positive_evolution_reports' => [
+            'tenant_id'  => ['=', 'contains'],
+            'window_type'=> ['='],
+            'fp_verdict' => ['='],
+        ],
+        'operational_drift_history' => [
+            'tenant_id'     => ['=', 'contains'],
+            'window_type'   => ['='],
+            'drift_verdict' => ['='],
+        ],
+        'governance_reporting_runs' => [
+            'tenant_id'         => ['=', 'contains'],
+            'report_type'       => ['='],
+            'window_type'       => ['='],
+            'governance_verdict'=> ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1080,6 +1114,12 @@ class ThreatHuntingService
         'analyst_load_stability_reports'  => \App\Models\AnalystLoadStabilityReport::class,
         'infrastructure_pressure_runs'    => \App\Models\InfrastructurePressureRun::class,
         'telemetry_growth_drift_reports'  => \App\Models\TelemetryGrowthDriftReport::class,
+        // Long-Running Operational Validation Phase 1
+        'telemetry_trend_reports'              => \App\Models\TelemetryTrendReport::class,
+        'analyst_behavior_trends'              => \App\Models\AnalystBehaviorTrend::class,
+        'false_positive_evolution_reports'     => \App\Models\FalsePositiveEvolutionReport::class,
+        'operational_drift_history'            => \App\Models\OperationalDriftHistory::class,
+        'governance_reporting_runs'            => \App\Models\GovernanceReportingRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1212,6 +1252,12 @@ class ThreatHuntingService
         'analyst_load_stability_reports'  => 'created_at',
         'infrastructure_pressure_runs'    => 'created_at',
         'telemetry_growth_drift_reports'  => 'created_at',
+        // Long-Running Operational Validation Phase 1
+        'telemetry_trend_reports'             => 'created_at',
+        'analyst_behavior_trends'             => 'created_at',
+        'false_positive_evolution_reports'    => 'created_at',
+        'operational_drift_history'           => 'created_at',
+        'governance_reporting_runs'           => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

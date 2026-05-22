@@ -1,0 +1,16 @@
+{
+  "title": "Long-Running Operational Validation Phase 1",
+  "uid": "long-running-ops-phase1",
+  "tags": ["operational", "governance", "advisory", "long-running"],
+  "panels": [
+    {"title": "Telemetry Continuity Trends", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(telemetry_continuity_pct)*100 FROM operational_validation_windows GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Replay Backlog Growth Over Time", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(replay_backlog_trend_slope) FROM telemetry_trend_reports GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Analyst Workload Evolution", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(fatigue_score) FROM analyst_behavior_trends GROUP BY 1 ORDER BY 1"}]},
+    {"title": "False-Positive Drift", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(fp_trend_slope) FROM false_positive_evolution_reports GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Infrastructure Stability Trends", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(cpu_trend_slope) FROM infrastructure_stability_reports GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Replay Durability History", "type": "gauge", "targets": [{"rawSql": "SELECT AVG(replay_success_rate_pct)*100 FROM replay_durability_history WHERE created_at > NOW() - INTERVAL '7 days'"}]},
+    {"title": "Storage Pressure Evolution", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(avg_storage_pressure_pct)*100 FROM infrastructure_stability_reports GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Operational Drift Severity", "type": "timeseries", "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(composite_drift_score) FROM operational_drift_history GROUP BY 1 ORDER BY 1"}]},
+    {"title": "Governance Reporting Frequency", "type": "stat", "targets": [{"rawSql": "SELECT COUNT(*) FROM governance_reporting_runs WHERE governance_verdict = 'pass' AND created_at > NOW() - INTERVAL '30 days'"}]}
+  ]
+}

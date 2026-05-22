@@ -971,4 +971,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('telemetry-scale-pilot')->
     Route::get('/audit',            [\App\Http\Controllers\TelemetryScalePilotController::class, 'audit'])->name('scale-pilot.audit');
 });
 
+// Long-Running Operational Validation Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('long-running-ops')->group(function () {
+    Route::get('/',                    [\App\Http\Controllers\LongRunningOperationsController::class, 'dashboard'])->name('long-ops.dashboard');
+    Route::get('/telemetry-trend',     [\App\Http\Controllers\LongRunningOperationsController::class, 'telemetryTrend'])->name('long-ops.telemetry-trend');
+    Route::get('/analyst-behavior',    [\App\Http\Controllers\LongRunningOperationsController::class, 'analystBehavior'])->name('long-ops.analyst-behavior');
+    Route::get('/fp-evolution',        [\App\Http\Controllers\LongRunningOperationsController::class, 'fpEvolution'])->name('long-ops.fp-evolution');
+    Route::get('/drift',               [\App\Http\Controllers\LongRunningOperationsController::class, 'driftDashboard'])->name('long-ops.drift');
+    Route::get('/replay-durability',   [\App\Http\Controllers\LongRunningOperationsController::class, 'replayDurability'])->name('long-ops.replay-durability');
+    Route::get('/infra-stability',     [\App\Http\Controllers\LongRunningOperationsController::class, 'infraStability'])->name('long-ops.infra-stability');
+    Route::get('/governance-reporting',[\App\Http\Controllers\LongRunningOperationsController::class, 'governanceReporting'])->name('long-ops.governance-reporting');
+    Route::get('/governance-audit',    [\App\Http\Controllers\LongRunningOperationsController::class, 'governanceAudit'])->name('long-ops.governance-audit');
+});
+
 require __DIR__.'/auth.php';
