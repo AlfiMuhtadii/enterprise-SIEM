@@ -50,7 +50,13 @@
       "Bash(awk -F: '{print $1}')",
       "Bash(xargs '-I{}' bash -c 'echo \"=== {} ===\" && grep -n \"class\\\\|protected \\\\$table\" {} | head -5')",
       "Bash(grep -rn 'soc_knowledge_base\\\\|SocKnowledgeBase\\\\|$table' D:/project/Detector/app/Models/SocKnowledgeBase.php)",
-      "Bash(Get-ChildItem -Path \"D:\\\\project\\\\Detector\\\\app\\\\Models\" -Filter \"*.php\")"
+      "Bash(Get-ChildItem -Path \"D:\\\\project\\\\Detector\\\\app\\\\Models\" -Filter \"*.php\")",
+      "Bash(python3 -c ' *)",
+      "Bash(sed -i 's/assertCount\\(93, \\\\$this->rules\\(\\)\\)/assertCount\\(133, $this->rules\\(\\)\\)/g; s/assertSame\\(81, \\\\$count/assertSame\\(121, $count/g' tests/Feature/XdrRuleRegistryValidatorTest.php)",
+      "Bash(sed -i 's/assertCount\\(93, \\\\$this->registry\\(\\)\\)/assertCount\\(133, $this->registry\\(\\)\\)/g; s/assertSame\\(81, \\\\$shadow/assertSame\\(121, $shadow/g' tests/Feature/EndpointTelemetryTest.php)",
+      "Bash(sed -i 's/assertCount\\(93, \\\\$registry\\\\['\\\\''rules'\\\\''\\\\]/assertCount\\(133, $registry['\\\\''rules'\\\\'']/g' tests/Feature/EndpointLowLevelTelemetryTest.php)",
+      "Bash(sed -i 's/assertCount\\(93, \\\\$registry\\\\['\\\\''rules'\\\\''\\\\]/assertCount\\(133, $registry['\\\\''rules'\\\\'']/g' tests/Feature/UEBABaselineAnalyticsTest.php)",
+      "Bash(sed -i 's/assertCount\\(93, \\\\$rules\\)/assertCount\\(133, $rules\\)/g; s/assertSame\\(93, DetectionRule::count\\(\\)\\)/assertSame\\(133, DetectionRule::count\\(\\)\\)/g' tests/Feature/DetectionRuleGovernanceTest.php)"
     ]
   }
 }

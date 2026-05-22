@@ -932,4 +932,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('pilot-execution')->group(
     Route::get('/health',      [\App\Http\Controllers\PilotExecutionController::class, 'health'])->name('pilot-execution.health');
 });
 
+// Operational Intelligence Phase 2
+Route::middleware(['auth', 'soc:audit.view'])->prefix('operational-intelligence')->group(function () {
+    Route::get('/',                  [\App\Http\Controllers\OperationalIntelligenceController::class, 'dashboard'])->name('op-intel.dashboard');
+    Route::get('/confidence',        [\App\Http\Controllers\OperationalIntelligenceController::class, 'confidence'])->name('op-intel.confidence');
+    Route::get('/investigations',    [\App\Http\Controllers\OperationalIntelligenceController::class, 'investigations'])->name('op-intel.investigations');
+    Route::get('/fp-drift',          [\App\Http\Controllers\OperationalIntelligenceController::class, 'fpDrift'])->name('op-intel.fp-drift');
+    Route::get('/progression',       [\App\Http\Controllers\OperationalIntelligenceController::class, 'progression'])->name('op-intel.progression');
+    Route::get('/cross-host',        [\App\Http\Controllers\OperationalIntelligenceController::class, 'crossHost'])->name('op-intel.cross-host');
+    Route::get('/suppression',       [\App\Http\Controllers\OperationalIntelligenceController::class, 'suppression'])->name('op-intel.suppression');
+    Route::get('/replay-confidence', [\App\Http\Controllers\OperationalIntelligenceController::class, 'replayConfidence'])->name('op-intel.replay-confidence');
+    Route::get('/acceleration',      [\App\Http\Controllers\OperationalIntelligenceController::class, 'acceleration'])->name('op-intel.acceleration');
+});
+
 require __DIR__.'/auth.php';

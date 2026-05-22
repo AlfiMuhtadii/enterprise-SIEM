@@ -1,0 +1,52 @@
+{
+  "title": "Operational Intelligence Phase 2",
+  "uid": "operational-intelligence-phase2",
+  "tags": ["detection", "intelligence", "advisory"],
+  "panels": [
+    {
+      "title": "Detection Confidence Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(confidence_value) FROM detection_confidence_history GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "ATT&CK Coverage Growth",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM attack_progression_scores WHERE chained_confirmed = true"}]
+    },
+    {
+      "title": "False-Positive Drift",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(drift_magnitude) FROM false_positive_drift_reports GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Analyst Acknowledgment Latency",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(response_latency_seconds) FROM analyst_acknowledgment_patterns GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Suppression Effectiveness",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT AVG(effectiveness_score) * 100 FROM suppression_effectiveness_reports WHERE created_at > NOW() - INTERVAL '24 hours'"}]
+    },
+    {
+      "title": "Replay Confidence Stability",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM replay_confidence_validations WHERE verdict = 'drifted' AND created_at > NOW() - INTERVAL '24 hours'"}]
+    },
+    {
+      "title": "Attack Progression Scoring",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(progression_score) FROM attack_progression_scores GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Cross-Host Intelligence Frequency",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM chained_investigation_views WHERE status = 'active'"}]
+    },
+    {
+      "title": "Operational Intelligence Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('day', created_at), AVG(coverage_score) FROM operational_intelligence_snapshots GROUP BY 1 ORDER BY 1"}]
+    }
+  ]
+}

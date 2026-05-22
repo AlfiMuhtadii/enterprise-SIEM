@@ -158,6 +158,12 @@ class ThreatHuntingService
         'pilot_operational_reviews',
         'live_telemetry_validations',
         'production_observation_checkpoints',
+        // Operational Intelligence Phase 2
+        'operational_intelligence_snapshots',
+        'analyst_investigation_summaries',
+        'detection_confidence_history',
+        'false_positive_drift_reports',
+        'attack_progression_scores',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -761,6 +767,36 @@ class ThreatHuntingService
             'activation_approved' => ['='],
             'rollback_ready'      => ['='],
         ],
+        // Operational Intelligence Phase 2
+        'operational_intelligence_snapshots' => [
+            'tenant_id'     => ['=', 'contains'],
+            'snapshot_type' => ['='],
+            'coverage_score'=> ['='],
+        ],
+        'analyst_investigation_summaries' => [
+            'tenant_id'    => ['=', 'contains'],
+            'analyst_id'   => ['=', 'contains'],
+            'verdict'      => ['='],
+            'attack_tactic'=> ['=', 'contains'],
+        ],
+        'detection_confidence_history' => [
+            'rule_id'           => ['=', 'contains'],
+            'tenant_id'         => ['=', 'contains'],
+            'confidence_source' => ['='],
+            'replay_consistent' => ['='],
+        ],
+        'false_positive_drift_reports' => [
+            'rule_id'        => ['=', 'contains'],
+            'tenant_id'      => ['=', 'contains'],
+            'drift_direction'=> ['='],
+            'suppression_recommended' => ['='],
+        ],
+        'attack_progression_scores' => [
+            'tenant_id'         => ['=', 'contains'],
+            'attack_chain_id'   => ['=', 'contains'],
+            'chained_confirmed' => ['='],
+            'replay_validated'  => ['='],
+        ],
         'pilot_health_checkpoints' => [
             'tenant_id'             => ['=', 'contains'],
             'checkpoint_type'       => ['='],
@@ -959,6 +995,12 @@ class ThreatHuntingService
         'pilot_operational_reviews'            => \App\Models\PilotOperationalReview::class,
         'live_telemetry_validations'           => \App\Models\LiveTelemetryValidation::class,
         'production_observation_checkpoints'   => \App\Models\ProductionObservationCheckpoint::class,
+        // Operational Intelligence Phase 2
+        'operational_intelligence_snapshots'   => \App\Models\OperationalIntelligenceSnapshot::class,
+        'analyst_investigation_summaries'      => \App\Models\AnalystInvestigationSummary::class,
+        'detection_confidence_history'         => \App\Models\DetectionConfidenceHistory::class,
+        'false_positive_drift_reports'         => \App\Models\FalsePositiveDriftReport::class,
+        'attack_progression_scores'            => \App\Models\AttackProgressionScore::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1073,6 +1115,12 @@ class ThreatHuntingService
         'pilot_operational_reviews'          => 'created_at',
         'live_telemetry_validations'         => 'created_at',
         'production_observation_checkpoints' => 'created_at',
+        // Operational Intelligence Phase 2
+        'operational_intelligence_snapshots' => 'created_at',
+        'analyst_investigation_summaries'    => 'created_at',
+        'detection_confidence_history'       => 'created_at',
+        'false_positive_drift_reports'       => 'created_at',
+        'attack_progression_scores'          => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

@@ -387,7 +387,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
 
     public function test_hunt_domains_total_is_50(): void
     {
-        $this->assertCount(95, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(100, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_endpoint_script_executions_domain_supports_field_queries(): void
@@ -483,7 +483,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
     public function test_registry_total_rule_count_is_73(): void
     {
         $registry = json_decode(file_get_contents(base_path('docs/detection/rules/registry.v1.json')), true);
-        $this->assertCount(93, $registry['rules'], 'Registry should have 93 rules after Advanced Detection Coverage Phase 1');
+        $this->assertCount(133, $registry['rules'], 'Registry should have 93 rules after Advanced Detection Coverage Phase 1');
     }
 
     // =========================================================================

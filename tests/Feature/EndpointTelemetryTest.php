@@ -45,7 +45,7 @@ class EndpointTelemetryTest extends TestCase
 
     public function test_registry_now_has_65_rules(): void
     {
-        $this->assertCount(93, $this->registry()); // 73 previous + 20 Advanced Detection Coverage Phase 1
+        $this->assertCount(133, $this->registry()); // 73 previous + 20 Advanced Detection Coverage Phase 1
     }
 
     public function test_scheduled_task_persistence_rule_exists(): void
@@ -157,8 +157,8 @@ class EndpointTelemetryTest extends TestCase
     public function test_registry_has_42_endpoint_rules(): void
     {
         $count = count(array_filter($this->registry(), fn ($r) => ($r['domain'] ?? '') === 'endpoint'));
-        // 42 previous + 20 Advanced Detection Coverage Phase 1 = 62
-        $this->assertSame(62, $count, "Expected 62 endpoint rules after Advanced Detection Coverage Phase 1");
+        // 62 previous + 31 Detection Depth Phase 2 = 93
+        $this->assertSame(93, $count, "Expected 93 endpoint rules after Detection Depth Phase 2");
     }
 
     // -----------------------------------------------------------------------
@@ -510,9 +510,9 @@ class EndpointTelemetryTest extends TestCase
 
         $this->assertSame(12, $active,   "12 staged_active rules expected");
         // 61 previous + 20 Advanced Detection Coverage Phase 1 = 81
-        $this->assertSame(81, $shadow,   "81 shadow rules expected after Advanced Detection Coverage Phase 1");
-        // 42 previous + 20 new endpoint shadow rules (cred/persist/evasion/lateral/container)
-        $this->assertSame(62, $endpoint, "62 endpoint rules expected after Advanced Detection Coverage Phase 1");
+        $this->assertSame(121, $shadow,   "81 shadow rules expected after Advanced Detection Coverage Phase 1");
+        // 62 previous + 31 new endpoint shadow rules (Detection Depth Phase 2)
+        $this->assertSame(93, $endpoint, "93 endpoint rules expected after Detection Depth Phase 2");
         $this->assertSame(3,  $ioc,      "3 threat-intel rules expected");
     }
 
