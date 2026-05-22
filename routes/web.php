@@ -919,4 +919,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('pilot-readiness')->group(
     Route::get('/windows',     [PilotReadinessController::class, 'observationWindows'])->name('pilot.windows');
 });
 
+// Real Pilot Execution Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('pilot-execution')->group(function () {
+    Route::get('/',            [\App\Http\Controllers\PilotExecutionController::class, 'dashboard'])->name('pilot-execution.dashboard');
+    Route::get('/enrollment',  [\App\Http\Controllers\PilotExecutionController::class, 'enrollment'])->name('pilot-execution.enrollment');
+    Route::get('/telemetry',   [\App\Http\Controllers\PilotExecutionController::class, 'telemetry'])->name('pilot-execution.telemetry');
+    Route::get('/reviews',     [\App\Http\Controllers\PilotExecutionController::class, 'reviews'])->name('pilot-execution.reviews');
+    Route::get('/rollback',    [\App\Http\Controllers\PilotExecutionController::class, 'rollback'])->name('pilot-execution.rollback');
+    Route::get('/observation', [\App\Http\Controllers\PilotExecutionController::class, 'observation'])->name('pilot-execution.observation');
+    Route::get('/drift',       [\App\Http\Controllers\PilotExecutionController::class, 'drift'])->name('pilot-execution.drift');
+    Route::get('/audit',       [\App\Http\Controllers\PilotExecutionController::class, 'audit'])->name('pilot-execution.audit');
+    Route::get('/health',      [\App\Http\Controllers\PilotExecutionController::class, 'health'])->name('pilot-execution.health');
+});
+
 require __DIR__.'/auth.php';

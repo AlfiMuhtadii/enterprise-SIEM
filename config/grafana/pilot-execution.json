@@ -1,0 +1,67 @@
+{
+  "title": "Real Pilot Execution Phase 1",
+  "uid": "pilot-execution-phase1",
+  "tags": ["pilot", "execution", "advisory"],
+  "panels": [
+    {
+      "title": "Active Pilot Runs",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM live_pilot_runs WHERE status = 'active'"}]
+    },
+    {
+      "title": "Enrolled Endpoints",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM pilot_endpoint_enrollments WHERE status = 'enrolled'"}]
+    },
+    {
+      "title": "Live Telemetry Continuity %",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT AVG(telemetry_continuity_pct) * 100 FROM live_telemetry_validations WHERE created_at > NOW() - INTERVAL '1 hour'"}]
+    },
+    {
+      "title": "Endpoint Enrollment Growth",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), COUNT(*) FROM pilot_endpoint_enrollments GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Queue Lag During Pilot",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('minute', created_at), AVG(queue_lag) FROM live_telemetry_validations GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Replay Recovery Success %",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT AVG(replay_recovery_success_pct) * 100 FROM pilot_health_checkpoints WHERE created_at > NOW() - INTERVAL '24 hours'"}]
+    },
+    {
+      "title": "Drift Stability Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(drift_magnitude) FROM pilot_drift_reviews GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Rollback Readiness State",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM pilot_rollback_audit WHERE status = 'pending_approval'"}]
+    },
+    {
+      "title": "Operator Acknowledgment Latency",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), COUNT(*) FROM pilot_operational_reviews WHERE verdict = 'acknowledged' GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Telemetry Gap Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('minute', created_at), AVG(telemetry_gap_rate) FROM live_telemetry_validations GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Pilot Health Score (OK Rate)",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT (COUNT(*) FILTER (WHERE health_ok = true)::float / NULLIF(COUNT(*), 0)) * 100 FROM pilot_health_checkpoints WHERE created_at > NOW() - INTERVAL '24 hours'"}]
+    },
+    {
+      "title": "Observation Criteria Met",
+      "type": "stat",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM production_observation_checkpoints WHERE criteria_met = true"}]
+    }
+  ]
+}

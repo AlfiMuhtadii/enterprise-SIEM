@@ -152,6 +152,12 @@ class ThreatHuntingService
         'pilot_success_metrics',
         'pilot_rollback_validations',
         'operator_readiness_reviews',
+        // Real Pilot Execution Phase 1
+        'live_pilot_runs',
+        'pilot_health_checkpoints',
+        'pilot_operational_reviews',
+        'live_telemetry_validations',
+        'production_observation_checkpoints',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -748,6 +754,34 @@ class ThreatHuntingService
             'operator_ready'=> ['='],
             'verdict'       => ['='],
         ],
+        // Real Pilot Execution Phase 1
+        'live_pilot_runs' => [
+            'tenant_id'           => ['=', 'contains'],
+            'status'              => ['='],
+            'activation_approved' => ['='],
+            'rollback_ready'      => ['='],
+        ],
+        'pilot_health_checkpoints' => [
+            'tenant_id'             => ['=', 'contains'],
+            'checkpoint_type'       => ['='],
+            'health_ok'             => ['='],
+        ],
+        'pilot_operational_reviews' => [
+            'tenant_id'   => ['=', 'contains'],
+            'review_type' => ['='],
+            'verdict'     => ['='],
+            'reviewed_by' => ['=', 'contains'],
+        ],
+        'live_telemetry_validations' => [
+            'tenant_id'         => ['=', 'contains'],
+            'validation_passed' => ['='],
+            'worker_healthy'    => ['='],
+        ],
+        'production_observation_checkpoints' => [
+            'tenant_id'   => ['=', 'contains'],
+            'window_type' => ['='],
+            'criteria_met'=> ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -919,6 +953,12 @@ class ThreatHuntingService
         'pilot_success_metrics'       => \App\Models\PilotSuccessMetric::class,
         'pilot_rollback_validations'  => \App\Models\PilotRollbackValidation::class,
         'operator_readiness_reviews'  => \App\Models\OperatorReadinessReview::class,
+        // Real Pilot Execution Phase 1
+        'live_pilot_runs'                      => \App\Models\LivePilotRun::class,
+        'pilot_health_checkpoints'             => \App\Models\PilotHealthCheckpoint::class,
+        'pilot_operational_reviews'            => \App\Models\PilotOperationalReview::class,
+        'live_telemetry_validations'           => \App\Models\LiveTelemetryValidation::class,
+        'production_observation_checkpoints'   => \App\Models\ProductionObservationCheckpoint::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1027,6 +1067,12 @@ class ThreatHuntingService
         'pilot_success_metrics'       => 'created_at',
         'pilot_rollback_validations'  => 'created_at',
         'operator_readiness_reviews'  => 'created_at',
+        // Real Pilot Execution Phase 1
+        'live_pilot_runs'                    => 'created_at',
+        'pilot_health_checkpoints'           => 'created_at',
+        'pilot_operational_reviews'          => 'created_at',
+        'live_telemetry_validations'         => 'created_at',
+        'production_observation_checkpoints' => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',
