@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-22T07:38:25.254271+00:00",
+  "generated_at": "2026-05-22T09:33:06.182142+00:00",
   "registry_path": "docs/detection/rules/registry.v1.json",
   "checks": {
     "registry_valid_json": true,

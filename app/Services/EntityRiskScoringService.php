@@ -81,6 +81,11 @@ class EntityRiskScoringService
         'package_integrity_factor'        => 3.0,  // unsigned or hash-invalid package detected on endpoint
         'offline_duration_factor'         => 2.0,  // endpoint was offline for extended period (blind spot risk)
         'sensor_resource_pressure_factor' => 1.5,  // endpoint sensor CPU/memory in critical pressure state
+        // Multi-Tenant Production Isolation Phase 1 (advisory_only = true)
+        'tenant_isolation_failure_factor'     => 3.0,  // entity associated with a tenant isolation audit failure
+        'tenant_boundary_violation_factor'    => 3.5,  // entity linked to a detected tenant boundary violation
+        'tenant_context_propagation_factor'   => 2.0,  // entity trace shows tenant context attribution failure
+        'tenant_evidence_integrity_factor'    => 2.5,  // entity evidence refs contain cross-tenant or invalid refs
     ];
 
     // Score thresholds for level assignment

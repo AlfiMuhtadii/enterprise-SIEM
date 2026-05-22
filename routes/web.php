@@ -78,6 +78,7 @@ use App\Http\Controllers\Capacity\CapacityGovernanceController;
 use App\Http\Controllers\Release\ReleaseGovernanceController;
 use App\Http\Controllers\Detection\AdvancedDetectionController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
+use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -873,5 +874,19 @@ Route::middleware(['auth', 'soc:agents.manage'])->prefix('endpoint-telemetry')->
     Route::get('/container-activity',   [EndpointTelemetryController::class, 'containerActivity'])->name('endpoint-telemetry.container-activity');
 });
 
+
+// Multi-Tenant Production Isolation Phase 1
+// Advisory-only, replay-safe, deterministic. No cross-tenant mutation or autonomous tenant action.
+Route::middleware(['auth', 'soc:audit.view'])->prefix('multi-tenant')->group(function () {
+    Route::get('/',                  [MultiTenantIsolationController::class, 'isolationDashboard'])->name('multi-tenant.isolation-dashboard');
+    Route::get('/replay-validation', [MultiTenantIsolationController::class, 'replayValidation'])->name('multi-tenant.replay-validation');
+    Route::get('/graph-isolation',   [MultiTenantIsolationController::class, 'graphIsolation'])->name('multi-tenant.graph-isolation');
+    Route::get('/export-governance', [MultiTenantIsolationController::class, 'exportGovernance'])->name('multi-tenant.export-governance');
+    Route::get('/namespaces',        [MultiTenantIsolationController::class, 'namespaceValidation'])->name('multi-tenant.namespace-validation');
+    Route::get('/violations',        [MultiTenantIsolationController::class, 'boundaryViolations'])->name('multi-tenant.boundary-violations');
+    Route::get('/evidence-integrity',[MultiTenantIsolationController::class, 'evidenceIntegrity'])->name('multi-tenant.evidence-integrity');
+    Route::get('/context-propagation',[MultiTenantIsolationController::class, 'contextPropagation'])->name('multi-tenant.context-propagation');
+    Route::get('/governance',        [MultiTenantIsolationController::class, 'governanceDashboard'])->name('multi-tenant.governance-dashboard');
+});
 
 require __DIR__.'/auth.php';

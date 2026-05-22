@@ -1,0 +1,63 @@
+{
+  "uid": "multi-tenant-isolation-phase1",
+  "title": "Multi-Tenant Production Isolation Phase 1",
+  "tags": ["multi-tenant", "isolation", "governance", "advisory"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "id": 1, "title": "Isolation Audit Failures",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_isolation_audits WHERE isolation_ok = false", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0}
+    },
+    {
+      "id": 2, "title": "Critical Boundary Violations",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_boundary_violation_reports WHERE severity = 'critical'", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0}
+    },
+    {
+      "id": 3, "title": "Replay Contaminations",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_replay_validation_runs WHERE verdict = 'contaminated'", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0}
+    },
+    {
+      "id": 4, "title": "Graph Isolation Failures",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_graph_isolation_reports WHERE isolation_ok = false", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}
+    },
+    {
+      "id": 5, "title": "Export Validation Failures",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_export_validation_runs WHERE verdict = 'fail'", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0}
+    },
+    {
+      "id": 6, "title": "Namespace Crossovers",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM tenant_namespace_validation_reports WHERE crossover_detected = true", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0}
+    },
+    {
+      "id": 7, "title": "Isolation Audits Over Time",
+      "type": "timeseries", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) as audits FROM tenant_isolation_audits GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+    },
+    {
+      "id": 8, "title": "Boundary Violations by Type",
+      "type": "piechart", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT violation_type, COUNT(*) as count FROM tenant_boundary_violation_reports GROUP BY violation_type", "format": "table"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+    },
+    {
+      "id": 9, "title": "Evidence Integrity Validation Trends",
+      "type": "timeseries", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) FILTER (WHERE verdict='pass') as pass, COUNT(*) FILTER (WHERE verdict='fail') as fail FROM tenant_evidence_integrity_reports GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12}
+    }
+  ]
+}

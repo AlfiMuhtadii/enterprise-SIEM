@@ -42,7 +42,10 @@
       "PowerShell(cd D:\\\\project\\\\Detector; $body = '{\"name\":\"debug-test3\",\"format\":\"json\"}'; docker compose exec redpanda sh -c \"curl -s -X POST 'http://127.0.0.1:8082/consumers/telemetry-worker-v1' -H 'Content-Type: application/vnd.kafka.v2+json' -d '$body'\" 2>&1)",
       "Bash(docker compose *)",
       "PowerShell(cd D:\\\\project\\\\Detector; \\(Get-Content docs\\\\detection\\\\rules\\\\registry.v1.json | Select-String '\"rule_id\"'\\).Count)",
-      "Bash(Get-Content *)"
+      "Bash(Get-Content *)",
+      "Bash(Get-Item \"C:\\\\Users\\\\alfim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--project-Detector\\\\9eb1a037-2d0d-443a-bc71-ebad37bddce7\\\\tasks\\\\b9mxqnw6n.output\")",
+      "Bash(Select-Object -ExpandProperty Length)",
+      "Bash(grep -v \"#\\\\|//\")"
     ]
   }
 }

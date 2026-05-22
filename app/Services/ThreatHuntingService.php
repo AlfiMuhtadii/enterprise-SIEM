@@ -134,6 +134,12 @@ class ThreatHuntingService
         'chained_detection_graphs',
         'evasion_resilience_reports',
         'cross_host_correlation_runs',
+        // Multi-Tenant Production Isolation Phase 1
+        'tenant_isolation_audits',
+        'tenant_replay_validation_runs',
+        'tenant_graph_isolation_reports',
+        'tenant_boundary_violation_reports',
+        'tenant_evidence_integrity_reports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -643,6 +649,37 @@ class ThreatHuntingService
             'propagation_detected' => ['='],
             'triggered_by'         => ['='],
         ],
+        // Multi-Tenant Production Isolation Phase 1
+        'tenant_isolation_audits' => [
+            'tenant_id'    => ['=', 'contains'],
+            'scope'        => ['='],
+            'verdict'      => ['='],
+            'isolation_ok' => ['='],
+        ],
+        'tenant_replay_validation_runs' => [
+            'tenant_id'             => ['=', 'contains'],
+            'replay_id'             => ['=', 'contains'],
+            'verdict'               => ['='],
+            'cross_tenant_detected' => ['='],
+            'replay_isolated'       => ['='],
+        ],
+        'tenant_graph_isolation_reports' => [
+            'tenant_id'                   => ['=', 'contains'],
+            'graph_id'                    => ['=', 'contains'],
+            'verdict'                     => ['='],
+            'isolation_ok'                => ['='],
+            'cross_tenant_edges_detected' => ['='],
+        ],
+        'tenant_boundary_violation_reports' => [
+            'tenant_id'      => ['=', 'contains'],
+            'violation_type' => ['='],
+            'severity'       => ['='],
+        ],
+        'tenant_evidence_integrity_reports' => [
+            'tenant_id'       => ['=', 'contains'],
+            'verdict'         => ['='],
+            'cross_tenant_refs' => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -796,6 +833,12 @@ class ThreatHuntingService
         'chained_detection_graphs'    => \App\Models\ChainedDetectionGraph::class,
         'evasion_resilience_reports'  => \App\Models\EvasionResilienceReport::class,
         'cross_host_correlation_runs' => \App\Models\CrossHostCorrelationRun::class,
+        // Multi-Tenant Production Isolation Phase 1
+        'tenant_isolation_audits'           => \App\Models\TenantIsolationAudit::class,
+        'tenant_replay_validation_runs'     => \App\Models\TenantReplayValidationRun::class,
+        'tenant_graph_isolation_reports'    => \App\Models\TenantGraphIsolationReport::class,
+        'tenant_boundary_violation_reports' => \App\Models\TenantBoundaryViolationReport::class,
+        'tenant_evidence_integrity_reports' => \App\Models\TenantEvidenceIntegrityReport::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -886,6 +929,12 @@ class ThreatHuntingService
         'chained_detection_graphs'    => 'created_at',
         'evasion_resilience_reports'  => 'created_at',
         'cross_host_correlation_runs' => 'created_at',
+        // Multi-Tenant Production Isolation Phase 1
+        'tenant_isolation_audits'           => 'created_at',
+        'tenant_replay_validation_runs'     => 'created_at',
+        'tenant_graph_isolation_reports'    => 'created_at',
+        'tenant_boundary_violation_reports' => 'created_at',
+        'tenant_evidence_integrity_reports' => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',
