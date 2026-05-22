@@ -997,4 +997,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('endpoint-sensor-telemetry
     Route::get('/lineage-confidence',  [\App\Http\Controllers\EndpointSensorTelemetryController::class, 'lineageConfidence'])->name('ep-sensor.lineage-confidence');
 });
 
+// Enterprise Deployment Hardening Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-deployment')->group(function () {
+    Route::get('/',                    [\App\Http\Controllers\EnterpriseDeploymentController::class, 'dashboard'])->name('enterprise-deploy.dashboard');
+    Route::get('/packages',            [\App\Http\Controllers\EnterpriseDeploymentController::class, 'packageExplorer'])->name('enterprise-deploy.packages');
+    Route::get('/rollout-validation',  [\App\Http\Controllers\EnterpriseDeploymentController::class, 'rolloutValidation'])->name('enterprise-deploy.rollout-validation');
+    Route::get('/upgrade-governance',  [\App\Http\Controllers\EnterpriseDeploymentController::class, 'upgradeGovernance'])->name('enterprise-deploy.upgrade-governance');
+    Route::get('/drift-dashboard',     [\App\Http\Controllers\EnterpriseDeploymentController::class, 'driftDashboard'])->name('enterprise-deploy.drift-dashboard');
+    Route::get('/environment',         [\App\Http\Controllers\EnterpriseDeploymentController::class, 'environmentValidation'])->name('enterprise-deploy.environment-validation');
+    Route::get('/checkpoints',         [\App\Http\Controllers\EnterpriseDeploymentController::class, 'checkpointExplorer'])->name('enterprise-deploy.checkpoints');
+    Route::get('/observability',       [\App\Http\Controllers\EnterpriseDeploymentController::class, 'observabilityViewer'])->name('enterprise-deploy.observability');
+    Route::get('/audit',               [\App\Http\Controllers\EnterpriseDeploymentController::class, 'auditTimeline'])->name('enterprise-deploy.audit');
+});
+
 require __DIR__.'/auth.php';

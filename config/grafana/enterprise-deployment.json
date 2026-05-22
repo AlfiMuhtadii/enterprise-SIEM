@@ -1,0 +1,15 @@
+{
+  "title": "Enterprise Deployment Hardening",
+  "uid": "enterprise-deployment",
+  "panels": [
+    {"title": "Rollout Duration Trends", "type": "graph", "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}},
+    {"title": "Deployment Success Rate", "type": "stat", "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4}},
+    {"title": "Deployment Drift Trends", "type": "graph", "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}},
+    {"title": "Environment Validation Failures", "type": "stat", "gridPos": {"x": 12, "y": 4, "w": 6, "h": 4}},
+    {"title": "Replay Continuity After Upgrade", "type": "graph", "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}},
+    {"title": "Service Restart Frequency", "type": "graph", "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}},
+    {"title": "Rollout Checkpoint Failures", "type": "stat", "gridPos": {"x": 0, "y": 24, "w": 6, "h": 4}},
+    {"title": "Deployment Latency Trends", "type": "graph", "gridPos": {"x": 6, "y": 24, "w": 12, "h": 8}},
+    {"title": "Deployment Observability Health", "type": "stat", "gridPos": {"x": 18, "y": 24, "w": 6, "h": 4}}
+  ]
+}

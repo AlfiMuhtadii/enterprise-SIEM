@@ -517,7 +517,7 @@ class ComplianceGovernanceTest extends TestCase
 
     public function test_threat_hunting_supports_55_domains(): void
     {
-        $this->assertCount(120, $this->hunting->supportedDomains());
+        $this->assertCount(125, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_evidence_integrity_runs_domain(): void

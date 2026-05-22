@@ -473,7 +473,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     public function test_threat_hunting_supports_50_domains(): void
     {
         $domains = $this->hunting->supportedDomains();
-        $this->assertCount(120, $domains);
+        $this->assertCount(125, $domains);
     }
 
     public function test_hunt_investigation_graph_nodes_domain(): void

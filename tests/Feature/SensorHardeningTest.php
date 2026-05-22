@@ -433,7 +433,7 @@ class SensorHardeningTest extends TestCase
 
     public function test_total_hunt_domains_is_75(): void
     {
-        $this->assertCount(120, app(\App\Services\ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(125, app(\App\Services\ThreatHuntingService::class)->supportedDomains());
     }
 
     // ─── Routes ──────────────────────────────────────────────────────────────
