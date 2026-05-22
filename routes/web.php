@@ -958,4 +958,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('analyst-optimization')->g
     Route::get('/efficiency',          [\App\Http\Controllers\AnalystOptimizationController::class, 'efficiency'])->name('analyst-opt.efficiency');
 });
 
+// Telemetry Scale Pilot Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('telemetry-scale-pilot')->group(function () {
+    Route::get('/',                 [\App\Http\Controllers\TelemetryScalePilotController::class, 'dashboard'])->name('scale-pilot.dashboard');
+    Route::get('/replay-recovery',  [\App\Http\Controllers\TelemetryScalePilotController::class, 'replayRecovery'])->name('scale-pilot.replay-recovery');
+    Route::get('/queue-pressure',   [\App\Http\Controllers\TelemetryScalePilotController::class, 'queuePressure'])->name('scale-pilot.queue-pressure');
+    Route::get('/analyst-load',     [\App\Http\Controllers\TelemetryScalePilotController::class, 'analystLoad'])->name('scale-pilot.analyst-load');
+    Route::get('/infrastructure',   [\App\Http\Controllers\TelemetryScalePilotController::class, 'infrastructure'])->name('scale-pilot.infrastructure');
+    Route::get('/drift',            [\App\Http\Controllers\TelemetryScalePilotController::class, 'drift'])->name('scale-pilot.drift');
+    Route::get('/observation',      [\App\Http\Controllers\TelemetryScalePilotController::class, 'observation'])->name('scale-pilot.observation');
+    Route::get('/continuity',       [\App\Http\Controllers\TelemetryScalePilotController::class, 'continuity'])->name('scale-pilot.continuity');
+    Route::get('/audit',            [\App\Http\Controllers\TelemetryScalePilotController::class, 'audit'])->name('scale-pilot.audit');
+});
+
 require __DIR__.'/auth.php';

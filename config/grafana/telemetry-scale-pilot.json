@@ -1,0 +1,52 @@
+{
+  "title": "Telemetry Scale Pilot Phase 1",
+  "uid": "telemetry-scale-pilot-phase1",
+  "tags": ["scale", "telemetry", "advisory", "pilot"],
+  "panels": [
+    {
+      "title": "Telemetry Throughput",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('minute', created_at), AVG(avg_events_per_second) FROM telemetry_scale_validation_runs GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Replay Backlog Growth",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('minute', created_at), AVG(replay_backlog) FROM telemetry_scale_validation_runs GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Queue Lag Recovery",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('minute', created_at), AVG(queue_lag_at_end) FROM queue_recovery_validation_reports GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Analyst Workload Stability",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT (COUNT(*) FILTER (WHERE workload_stable = true)::float / NULLIF(COUNT(*), 0)) * 100 FROM analyst_load_stability_reports WHERE created_at > NOW() - INTERVAL '1 hour'"}]
+    },
+    {
+      "title": "Storage Pressure Trends",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(storage_pressure_pct) FROM infrastructure_pressure_runs GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Replay Amplification Drift",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(replay_amplification_factor) FROM replay_scale_recovery_runs GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Query Latency Growth",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(query_latency_ms) FROM infrastructure_pressure_runs GROUP BY 1 ORDER BY 1"}]
+    },
+    {
+      "title": "Telemetry Continuity %",
+      "type": "gauge",
+      "targets": [{"rawSql": "SELECT AVG(telemetry_continuity_pct) * 100 FROM telemetry_scale_validation_runs WHERE created_at > NOW() - INTERVAL '24 hours'"}]
+    },
+    {
+      "title": "Infrastructure Pressure Distribution",
+      "type": "timeseries",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at), AVG(cpu_usage_pct), AVG(memory_growth_mb/512) FROM infrastructure_pressure_runs GROUP BY 1 ORDER BY 1"}]
+    }
+  ]
+}

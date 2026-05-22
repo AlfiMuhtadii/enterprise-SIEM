@@ -170,6 +170,12 @@ class ThreatHuntingService
         'false_positive_tuning_reports',
         'escalation_quality_reviews',
         'operational_fatigue_indicators',
+        // Telemetry Scale Pilot Phase 1
+        'telemetry_scale_validation_runs',
+        'replay_scale_recovery_runs',
+        'analyst_load_stability_reports',
+        'infrastructure_pressure_runs',
+        'telemetry_growth_drift_reports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -785,6 +791,32 @@ class ThreatHuntingService
             'tenant_id'         => ['=', 'contains'],
             'overload_indicator'=> ['='],
         ],
+        // Telemetry Scale Pilot Phase 1
+        'telemetry_scale_validation_runs' => [
+            'tenant_id'        => ['=', 'contains'],
+            'scale_profile'    => ['='],
+            'validation_passed'=> ['='],
+        ],
+        'replay_scale_recovery_runs' => [
+            'tenant_id'             => ['=', 'contains'],
+            'recovery_successful'   => ['='],
+            'amplification_bounded' => ['='],
+        ],
+        'analyst_load_stability_reports' => [
+            'tenant_id'      => ['=', 'contains'],
+            'fatigue_detected'=> ['='],
+            'workload_stable' => ['='],
+        ],
+        'infrastructure_pressure_runs' => [
+            'tenant_id'              => ['=', 'contains'],
+            'pressure_within_bounds' => ['='],
+        ],
+        'telemetry_growth_drift_reports' => [
+            'tenant_id'       => ['=', 'contains'],
+            'drift_dimension' => ['='],
+            'drift_severity'  => ['='],
+            'drift_bounded'   => ['='],
+        ],
         'alert_prioritization_scores' => [
             'tenant_id'     => ['=', 'contains'],
             'rule_id'       => ['=', 'contains'],
@@ -1042,6 +1074,12 @@ class ThreatHuntingService
         'false_positive_tuning_reports'   => \App\Models\FalsePositiveTuningReport::class,
         'escalation_quality_reviews'      => \App\Models\EscalationQualityReview::class,
         'operational_fatigue_indicators'  => \App\Models\OperationalFatigueIndicator::class,
+        // Telemetry Scale Pilot Phase 1
+        'telemetry_scale_validation_runs' => \App\Models\TelemetryScaleValidationRun::class,
+        'replay_scale_recovery_runs'      => \App\Models\ReplayScaleRecoveryRun::class,
+        'analyst_load_stability_reports'  => \App\Models\AnalystLoadStabilityReport::class,
+        'infrastructure_pressure_runs'    => \App\Models\InfrastructurePressureRun::class,
+        'telemetry_growth_drift_reports'  => \App\Models\TelemetryGrowthDriftReport::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1168,6 +1206,12 @@ class ThreatHuntingService
         'false_positive_tuning_reports'  => 'created_at',
         'escalation_quality_reviews'     => 'created_at',
         'operational_fatigue_indicators' => 'created_at',
+        // Telemetry Scale Pilot Phase 1
+        'telemetry_scale_validation_runs' => 'created_at',
+        'replay_scale_recovery_runs'      => 'created_at',
+        'analyst_load_stability_reports'  => 'created_at',
+        'infrastructure_pressure_runs'    => 'created_at',
+        'telemetry_growth_drift_reports'  => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

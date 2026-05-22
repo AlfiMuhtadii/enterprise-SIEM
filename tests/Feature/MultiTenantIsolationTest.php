@@ -550,7 +550,7 @@ class MultiTenantIsolationTest extends TestCase
 
     public function test_total_hunt_domains_is_80(): void
     {
-        $this->assertCount(105, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(110, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     // =========================================================================

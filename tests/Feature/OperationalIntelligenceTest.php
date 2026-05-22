@@ -454,7 +454,7 @@ class OperationalIntelligenceTest extends TestCase
 
     public function test_threat_hunting_has_100_supported_domains(): void
     {
-        $this->assertCount(105, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(110, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_operational_intelligence_snapshots_domain_supported(): void
