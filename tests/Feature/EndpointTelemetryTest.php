@@ -45,7 +45,7 @@ class EndpointTelemetryTest extends TestCase
 
     public function test_registry_now_has_65_rules(): void
     {
-        $this->assertCount(73, $this->registry()); // 56 original + 9 UEBA Phase 1 + 8 LLTET Phase 1 shadow rules
+        $this->assertCount(93, $this->registry()); // 73 previous + 20 Advanced Detection Coverage Phase 1
     }
 
     public function test_scheduled_task_persistence_rule_exists(): void
@@ -157,8 +157,8 @@ class EndpointTelemetryTest extends TestCase
     public function test_registry_has_42_endpoint_rules(): void
     {
         $count = count(array_filter($this->registry(), fn ($r) => ($r['domain'] ?? '') === 'endpoint'));
-        // 32 original + 2 UEBA Phase 1 + 8 LLTET Phase 1 endpoint shadow rules
-        $this->assertSame(42, $count, "Expected 42 endpoint rules (32 original + 2 UEBA + 8 LLTET Phase 1)");
+        // 42 previous + 20 Advanced Detection Coverage Phase 1 = 62
+        $this->assertSame(62, $count, "Expected 62 endpoint rules after Advanced Detection Coverage Phase 1");
     }
 
     // -----------------------------------------------------------------------
@@ -509,10 +509,10 @@ class EndpointTelemetryTest extends TestCase
         $ioc      = count(array_filter($rules, fn ($r) => ($r['domain'] ?? '') === 'threat-intel'));
 
         $this->assertSame(12, $active,   "12 staged_active rules expected");
-        // 44 original + 9 UEBA Phase 1 shadow rules = 53
-        $this->assertSame(61, $shadow,   "61 shadow rules expected (44 original + 9 UEBA + 8 LLTET Phase 1)");
-        // 32 original + 2 UEBA endpoint = 34
-        $this->assertSame(42, $endpoint, "42 endpoint rules expected (32 original + 2 UEBA + 8 LLTET Phase 1)");
+        // 61 previous + 20 Advanced Detection Coverage Phase 1 = 81
+        $this->assertSame(81, $shadow,   "81 shadow rules expected after Advanced Detection Coverage Phase 1");
+        // 42 previous + 20 new endpoint shadow rules (cred/persist/evasion/lateral/container)
+        $this->assertSame(62, $endpoint, "62 endpoint rules expected after Advanced Detection Coverage Phase 1");
         $this->assertSame(3,  $ioc,      "3 threat-intel rules expected");
     }
 

@@ -76,6 +76,8 @@ use App\Http\Controllers\Reliability\DistributedReliabilityController;
 use App\Http\Controllers\Governance\ComplianceGovernanceController;
 use App\Http\Controllers\Capacity\CapacityGovernanceController;
 use App\Http\Controllers\Release\ReleaseGovernanceController;
+use App\Http\Controllers\Detection\AdvancedDetectionController;
+use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -429,6 +431,32 @@ Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
     Route::get('/release/runbooks', [ReleaseGovernanceController::class, 'runbookExplorer'])->name('release.runbooks');
     Route::get('/release/audit', [ReleaseGovernanceController::class, 'releaseAuditTimeline'])->name('release.audit');
     Route::get('/release/safety', [ReleaseGovernanceController::class, 'deploymentSafetyDashboard'])->name('release.safety');
+});
+
+// Sensor Hardening Phase 2 — advisory-only, replay-safe, no kernel enforcement
+Route::middleware(['auth', 'soc:agents.manage'])->group(function () {
+    Route::get('/sensor-hardening', [SensorHardeningController::class, 'sensorHealthDashboard'])->name('sensor.health-dashboard');
+    Route::get('/sensor-hardening/collector', [SensorHardeningController::class, 'collectorLifecycleExplorer'])->name('sensor.collector-lifecycle');
+    Route::get('/sensor-hardening/integrity', [SensorHardeningController::class, 'telemetryIntegrityViewer'])->name('sensor.integrity');
+    Route::get('/sensor-hardening/offline', [SensorHardeningController::class, 'offlineRecoveryConsole'])->name('sensor.offline-recovery');
+    Route::get('/sensor-hardening/packages', [SensorHardeningController::class, 'packageSignatureValidationViewer'])->name('sensor.packages');
+    Route::get('/sensor-hardening/gaps', [SensorHardeningController::class, 'telemetryGapTimeline'])->name('sensor.gaps');
+    Route::get('/sensor-hardening/restarts', [SensorHardeningController::class, 'collectorRestartAudit'])->name('sensor.restarts');
+    Route::get('/sensor-hardening/upgrades', [SensorHardeningController::class, 'endpointUpgradeValidationExplorer'])->name('sensor.upgrades');
+    Route::get('/sensor-hardening/resources', [SensorHardeningController::class, 'sensorResourceGovernanceDashboard'])->name('sensor.resources');
+});
+
+// Advanced Detection Coverage & Adversarial Validation — advisory-only, replay-safe, no offensive execution
+Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
+    Route::get('/advanced-detection', [AdvancedDetectionController::class, 'attackCoverageDashboard'])->name('advanced-detection.dashboard');
+    Route::get('/advanced-detection/chains', [AdvancedDetectionController::class, 'attackChainExplorer'])->name('advanced-detection.chains');
+    Route::get('/advanced-detection/adversarial', [AdvancedDetectionController::class, 'adversarialReplayConsole'])->name('advanced-detection.adversarial');
+    Route::get('/advanced-detection/evasion', [AdvancedDetectionController::class, 'evasionResilienceViewer'])->name('advanced-detection.evasion');
+    Route::get('/advanced-detection/cross-host', [AdvancedDetectionController::class, 'crossHostCorrelationExplorer'])->name('advanced-detection.cross-host');
+    Route::get('/advanced-detection/credential', [AdvancedDetectionController::class, 'credentialAbuseTimeline'])->name('advanced-detection.credential');
+    Route::get('/advanced-detection/lateral', [AdvancedDetectionController::class, 'lateralMovementGraph'])->name('advanced-detection.lateral');
+    Route::get('/advanced-detection/confidence', [AdvancedDetectionController::class, 'detectionConfidenceDashboard'])->name('advanced-detection.confidence');
+    Route::get('/advanced-detection/scenarios', [AdvancedDetectionController::class, 'attackScenarioPackExplorer'])->name('advanced-detection.scenarios');
 });
 
 // Compliance / Governance / Evidence Integrity — audit-visible, replay-safe, no autonomous remediation

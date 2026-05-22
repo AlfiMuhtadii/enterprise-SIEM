@@ -444,9 +444,9 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_domains_are_35_total(): void
     {
         $this->assertCount(
-            65,
+            75,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 65 threat hunting domains after all phases through Release Governance Phase 1'
+            'Should have 75 threat hunting domains after all phases through Sensor Hardening Phase 2'
         );
     }
 
@@ -780,8 +780,8 @@ class UEBABaselineAnalyticsTest extends TestCase
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
         $registry     = json_decode(file_get_contents($registryPath), true);
 
-        $this->assertCount(73, $registry['rules'],
-            'Registry should have exactly 73 rules after UEBA Phase 1 + LLTET Phase 1');
+        $this->assertCount(93, $registry['rules'],
+            'Registry should have 93 rules after Advanced Detection Coverage Phase 1');
     }
 }
 

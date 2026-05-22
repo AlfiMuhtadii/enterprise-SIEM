@@ -122,6 +122,18 @@ class ThreatHuntingService
         'environment_drift_reports',
         'rollback_validation_runs',
         'go_nogo_decisions',
+        // Sensor Hardening Phase 2
+        'collector_health_events',
+        'telemetry_gap_reports',
+        'telemetry_integrity_runs',
+        'package_signature_validations',
+        'offline_recovery_runs',
+        // Advanced Detection Coverage & Adversarial Validation Phase 1
+        'adversarial_validation_runs',
+        'attack_chain_timelines',
+        'chained_detection_graphs',
+        'evasion_resilience_reports',
+        'cross_host_correlation_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -567,6 +579,70 @@ class ThreatHuntingService
             'decided_by'  => ['='],
             'request_id'  => ['='],
         ],
+        // Sensor Hardening Phase 2
+        'collector_health_events' => [
+            'agent_id'      => ['='],
+            'host_id'       => ['=', 'contains'],
+            'health_state'  => ['='],
+            'event_type'    => ['='],
+        ],
+        'telemetry_gap_reports' => [
+            'agent_id'      => ['='],
+            'host_id'       => ['=', 'contains'],
+            'recovered'     => ['='],
+            'gap_reason'    => ['=', 'contains'],
+        ],
+        'telemetry_integrity_runs' => [
+            'agent_id'    => ['='],
+            'verdict'     => ['='],
+            'replay_safe' => ['='],
+        ],
+        'package_signature_validations' => [
+            'package_name'   => ['=', 'contains'],
+            'verdict'        => ['='],
+            'signature_valid'=> ['='],
+            'signer'         => ['=', 'contains'],
+        ],
+        'offline_recovery_runs' => [
+            'agent_id'        => ['='],
+            'recovery_verdict'=> ['='],
+            'replay_complete' => ['='],
+        ],
+        // Advanced Detection Coverage & Adversarial Validation Phase 1
+        'adversarial_validation_runs' => [
+            'scenario_name'   => ['=', 'contains'],
+            'attack_tactic'   => ['='],
+            'attack_technique'=> ['='],
+            'verdict'         => ['='],
+            'detected'        => ['='],
+            'triggered_by'    => ['='],
+        ],
+        'attack_chain_timelines' => [
+            'tactic'       => ['='],
+            'technique_id' => ['='],
+            'host_id'      => ['=', 'contains'],
+            'actor'        => ['=', 'contains'],
+            'event_type'   => ['='],
+            'chain_id'     => ['='],
+        ],
+        'chained_detection_graphs' => [
+            'chain_type'   => ['='],
+            'host_id'      => ['=', 'contains'],
+            'actor'        => ['=', 'contains'],
+            'status'       => ['='],
+            'triggered_by' => ['='],
+        ],
+        'evasion_resilience_reports' => [
+            'evasion_type'        => ['='],
+            'target_rule_id'      => ['=', 'contains'],
+            'detection_survived'  => ['='],
+            'tested_by'           => ['='],
+        ],
+        'cross_host_correlation_runs' => [
+            'correlation_type'     => ['='],
+            'propagation_detected' => ['='],
+            'triggered_by'         => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -708,6 +784,18 @@ class ThreatHuntingService
         'environment_drift_reports'   => \App\Models\EnvironmentDriftReport::class,
         'rollback_validation_runs'    => \App\Models\RollbackValidationRun::class,
         'go_nogo_decisions'           => \App\Models\GoNogoDecision::class,
+        // Sensor Hardening Phase 2
+        'collector_health_events'         => \App\Models\CollectorHealthEvent::class,
+        'telemetry_gap_reports'           => \App\Models\TelemetryGapReport::class,
+        'telemetry_integrity_runs'        => \App\Models\TelemetryIntegrityRun::class,
+        'package_signature_validations'   => \App\Models\PackageSignatureValidation::class,
+        'offline_recovery_runs'           => \App\Models\OfflineRecoveryRun::class,
+        // Advanced Detection Coverage & Adversarial Validation Phase 1
+        'adversarial_validation_runs' => \App\Models\AdversarialValidationRun::class,
+        'attack_chain_timelines'      => \App\Models\AttackChainTimeline::class,
+        'chained_detection_graphs'    => \App\Models\ChainedDetectionGraph::class,
+        'evasion_resilience_reports'  => \App\Models\EvasionResilienceReport::class,
+        'cross_host_correlation_runs' => \App\Models\CrossHostCorrelationRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -786,6 +874,18 @@ class ThreatHuntingService
         'environment_drift_reports'   => 'created_at',
         'rollback_validation_runs'    => 'created_at',
         'go_nogo_decisions'           => 'created_at',
+        // Sensor Hardening Phase 2
+        'collector_health_events'       => 'created_at',
+        'telemetry_gap_reports'         => 'created_at',
+        'telemetry_integrity_runs'      => 'created_at',
+        'package_signature_validations' => 'created_at',
+        'offline_recovery_runs'         => 'created_at',
+        // Advanced Detection Coverage & Adversarial Validation Phase 1
+        'adversarial_validation_runs' => 'created_at',
+        'attack_chain_timelines'      => 'occurred_at',
+        'chained_detection_graphs'    => 'created_at',
+        'evasion_resilience_reports'  => 'created_at',
+        'cross_host_correlation_runs' => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

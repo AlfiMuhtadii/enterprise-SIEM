@@ -1,0 +1,74 @@
+{
+  "title": "Advanced Detection Coverage & Adversarial Validation",
+  "uid": "advanced-detection-phase1",
+  "tags": ["xdr", "detection", "attck", "adversarial", "chained"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "2m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Adversarial Validation Pass Rate",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE verdict='pass') / NULLIF(COUNT(*),0),1) as pass_pct FROM adversarial_validation_runs", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Chained Detection Graphs",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM chained_detection_graphs", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Evasion Resilience: Detection Survived",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE detection_survived) / NULLIF(COUNT(*),0),1) as survived_pct FROM evasion_resilience_reports", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Cross-Host Propagation Detected",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM cross_host_correlation_runs WHERE propagation_detected = true", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Multi-Stage Attack Progressions",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM tactic_progression_snapshots WHERE multi_stage = true", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Active Scenario Packs",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM attack_scenario_packs WHERE is_active = true", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Adversarial Validation Verdicts",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT verdict, COUNT(*) FROM adversarial_validation_runs GROUP BY verdict", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Evasion Resilience by Type",
+      "type": "bargauge",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT evasion_type, ROUND(AVG(resilience_score)::numeric, 3) as avg_score FROM evasion_resilience_reports GROUP BY evasion_type ORDER BY avg_score DESC", "format": "table"}]
+    },
+    {
+      "id": 9,
+      "title": "Detection Confidence by Rule",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT rule_id, ROUND(AVG(confidence_score)::numeric, 3) as avg_conf FROM detection_confidence_reports GROUP BY rule_id ORDER BY avg_conf DESC LIMIT 15", "format": "table"}]
+    }
+  ]
+}

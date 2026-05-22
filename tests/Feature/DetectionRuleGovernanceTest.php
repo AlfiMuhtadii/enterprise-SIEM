@@ -39,7 +39,7 @@ class DetectionRuleGovernanceTest extends TestCase
     public function test_registry_loads_all_65_rules(): void
     {
         $rules = $this->registry()->allRules();
-        $this->assertCount(73, $rules); // 56 original + 9 UEBA Phase 1 + 8 LLTET Phase 1 shadow rules
+        $this->assertCount(93, $rules); // 73 previous + 20 Advanced Detection Coverage Phase 1
     }
 
     public function test_registry_merges_db_state_on_first_load(): void
@@ -49,8 +49,8 @@ class DetectionRuleGovernanceTest extends TestCase
             $this->assertInstanceOf(DetectionRule::class, $rule['db_state']);
             $this->assertNotEmpty($rule['db_state']->stage);
         }
-        // DB rows created on first load (56 original + 9 UEBA Phase 1 + 8 LLTET Phase 1 = 73)
-        $this->assertSame(73, DetectionRule::count());
+        // DB rows created on first load (73 previous + 20 Advanced Detection Coverage Phase 1 = 93)
+        $this->assertSame(93, DetectionRule::count());
     }
 
     public function test_registry_initialises_staged_active_rules_correctly(): void

@@ -70,6 +70,17 @@ class EntityRiskScoringService
         'readiness_blocker_factor'        => 2.0,  // entity associated with a failed deployment readiness run
         'rollback_risk_factor'            => 2.5,  // entity on a host with low rollback readiness score
         'release_audit_anomaly_factor'    => 1.0,  // entity appears in anomalous release audit event
+        // Advanced Detection Coverage & Adversarial Validation Phase 1 (advisory_only = true)
+        'chained_attack_factor'           => 2.5,  // entity appears in a multi-hop chained attack graph
+        'tactic_progression_factor'       => 2.0,  // entity exhibits multi-stage ATT&CK tactic progression
+        'credential_abuse_factor'         => 3.0,  // entity has credential access indicators in chain timelines
+        'lateral_movement_factor'         => 2.5,  // entity is a node in a lateral movement correlation run
+        'evasion_resilience_factor'       => 1.5,  // entity associated with failed evasion resilience tests
+        // Sensor Hardening Phase 2 (advisory_only = true)
+        'collector_restart_factor'        => 2.0,  // endpoint collector is restarting frequently (instability signal)
+        'package_integrity_factor'        => 3.0,  // unsigned or hash-invalid package detected on endpoint
+        'offline_duration_factor'         => 2.0,  // endpoint was offline for extended period (blind spot risk)
+        'sensor_resource_pressure_factor' => 1.5,  // endpoint sensor CPU/memory in critical pressure state
     ];
 
     // Score thresholds for level assignment

@@ -1,0 +1,74 @@
+{
+  "title": "Sensor Hardening Phase 2",
+  "uid": "sensor-hardening-phase2",
+  "tags": ["xdr", "sensor", "endpoint", "telemetry", "collector"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "2m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Critical Resource Pressure",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM sensor_resource_snapshots WHERE pressure_state = 'critical' AND created_at >= NOW() - INTERVAL '1 hour'", "format": "table"}]
+    },
+    {
+      "id": 2,
+      "title": "Unrecovered Telemetry Gaps",
+      "type": "stat",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM telemetry_gap_reports WHERE recovered = false", "format": "table"}]
+    },
+    {
+      "id": 3,
+      "title": "Integrity Check Failures",
+      "type": "stat",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM telemetry_integrity_runs WHERE verdict = 'fail'", "format": "table"}]
+    },
+    {
+      "id": 4,
+      "title": "Package Validation Failures",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM package_signature_validations WHERE verdict = 'fail'", "format": "table"}]
+    },
+    {
+      "id": 5,
+      "title": "Crash-Induced Restarts",
+      "type": "stat",
+      "gridPos": {"x": 16, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM collector_restart_audit WHERE crash_induced = true", "format": "table"}]
+    },
+    {
+      "id": 6,
+      "title": "Failed Offline Recoveries",
+      "type": "stat",
+      "gridPos": {"x": 20, "y": 0, "w": 4, "h": 4},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT COUNT(*) FROM offline_recovery_runs WHERE recovery_verdict = 'failed'", "format": "table"}]
+    },
+    {
+      "id": 7,
+      "title": "Collector Health States",
+      "type": "piechart",
+      "gridPos": {"x": 0, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT health_state, COUNT(*) FROM collector_health_events WHERE created_at >= NOW() - INTERVAL '24 hours' GROUP BY health_state", "format": "table"}]
+    },
+    {
+      "id": 8,
+      "title": "Telemetry Gap Duration Trend",
+      "type": "timeseries",
+      "gridPos": {"x": 8, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT date_trunc('hour', created_at) as time, AVG(gap_duration_seconds) as avg_gap FROM telemetry_gap_reports WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1", "format": "time_series"}]
+    },
+    {
+      "id": 9,
+      "title": "Sensor Resource Pressure Distribution",
+      "type": "bargauge",
+      "gridPos": {"x": 16, "y": 4, "w": 8, "h": 8},
+      "targets": [{"datasource": {"type": "postgres"}, "rawSql": "SELECT pressure_state, COUNT(*) FROM sensor_resource_snapshots WHERE created_at >= NOW() - INTERVAL '1 hour' GROUP BY pressure_state ORDER BY COUNT(*) DESC", "format": "table"}]
+    }
+  ]
+}
