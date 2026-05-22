@@ -86,6 +86,11 @@ class EntityRiskScoringService
         'tenant_boundary_violation_factor'    => 3.5,  // entity linked to a detected tenant boundary violation
         'tenant_context_propagation_factor'   => 2.0,  // entity trace shows tenant context attribution failure
         'tenant_evidence_integrity_factor'    => 2.5,  // entity evidence refs contain cross-tenant or invalid refs
+        // Long-Duration Soak & Chaos Validation Phase 1 (advisory_only = true)
+        'soak_failure_factor'                 => 2.0,  // entity involved in a failed long-duration soak validation
+        'chaos_recovery_failure_factor'       => 2.5,  // entity associated with a failed chaos recovery validation
+        'operational_drift_factor'            => 1.5,  // entity linked to operational drift exceeding threshold
+        'replay_continuity_failure_factor'    => 2.0,  // entity replay recovery shows ordering/continuity failure
     ];
 
     // Score thresholds for level assignment

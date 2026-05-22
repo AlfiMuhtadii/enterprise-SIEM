@@ -444,9 +444,9 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_domains_are_35_total(): void
     {
         $this->assertCount(
-            80,
+            85,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 80 threat hunting domains after all phases through Multi-Tenant Isolation Phase 1'
+            'Should have 85 threat hunting domains after all phases through Soak & Chaos Phase 1'
         );
     }
 

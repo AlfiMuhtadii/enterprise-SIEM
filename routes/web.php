@@ -79,6 +79,7 @@ use App\Http\Controllers\Release\ReleaseGovernanceController;
 use App\Http\Controllers\Detection\AdvancedDetectionController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
+use App\Http\Controllers\Operations\SoakChaosController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -887,6 +888,20 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('multi-tenant')->group(fun
     Route::get('/evidence-integrity',[MultiTenantIsolationController::class, 'evidenceIntegrity'])->name('multi-tenant.evidence-integrity');
     Route::get('/context-propagation',[MultiTenantIsolationController::class, 'contextPropagation'])->name('multi-tenant.context-propagation');
     Route::get('/governance',        [MultiTenantIsolationController::class, 'governanceDashboard'])->name('multi-tenant.governance-dashboard');
+});
+
+// Long-Duration Production Soak & Chaos Validation Phase 1
+// Bounded, replay-safe, advisory-only. No destructive infrastructure mutation or autonomous remediation.
+Route::middleware(['auth', 'soc:audit.view'])->prefix('soak-chaos')->group(function () {
+    Route::get('/',              [SoakChaosController::class, 'soakDashboard'])->name('soak-chaos.soak-dashboard');
+    Route::get('/chaos',         [SoakChaosController::class, 'chaosExplorer'])->name('soak-chaos.chaos-explorer');
+    Route::get('/replay',        [SoakChaosController::class, 'replayRecovery'])->name('soak-chaos.replay-recovery');
+    Route::get('/telemetry',     [SoakChaosController::class, 'telemetryContinuity'])->name('soak-chaos.telemetry-continuity');
+    Route::get('/drift',         [SoakChaosController::class, 'driftDetection'])->name('soak-chaos.drift-detection');
+    Route::get('/queue',         [SoakChaosController::class, 'queuePressure'])->name('soak-chaos.queue-pressure');
+    Route::get('/worker',        [SoakChaosController::class, 'workerRestart'])->name('soak-chaos.worker-restart');
+    Route::get('/recovery',      [SoakChaosController::class, 'recoveryTimeline'])->name('soak-chaos.recovery-timeline');
+    Route::get('/stability',     [SoakChaosController::class, 'stabilityDashboard'])->name('soak-chaos.stability-dashboard');
 });
 
 require __DIR__.'/auth.php';

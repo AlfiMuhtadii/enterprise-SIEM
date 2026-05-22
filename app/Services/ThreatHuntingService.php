@@ -140,6 +140,12 @@ class ThreatHuntingService
         'tenant_graph_isolation_reports',
         'tenant_boundary_violation_reports',
         'tenant_evidence_integrity_reports',
+        // Long-Duration Production Soak & Chaos Validation Phase 1
+        'soak_validation_runs',
+        'chaos_simulation_runs',
+        'recovery_validation_artifacts',
+        'operational_drift_reports',
+        'replay_recovery_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -680,6 +686,34 @@ class ThreatHuntingService
             'verdict'         => ['='],
             'cross_tenant_refs' => ['='],
         ],
+        // Long-Duration Production Soak & Chaos Validation Phase 1
+        'soak_validation_runs' => [
+            'soak_type'   => ['='],
+            'status'      => ['='],
+            'passed'      => ['='],
+        ],
+        'chaos_simulation_runs' => [
+            'scenario'          => ['='],
+            'verdict'           => ['='],
+            'recovery_verified' => ['='],
+            'replay_safe'       => ['='],
+        ],
+        'recovery_validation_artifacts' => [
+            'recovery_type'              => ['='],
+            'verdict'                    => ['='],
+            'duplicates_prevented'       => ['='],
+            'tenant_isolation_preserved' => ['='],
+        ],
+        'operational_drift_reports' => [
+            'drift_type'              => ['='],
+            'drift_exceeds_threshold' => ['='],
+        ],
+        'replay_recovery_runs' => [
+            'trigger'              => ['='],
+            'verdict'              => ['='],
+            'ordering_preserved'   => ['='],
+            'continuity_verified'  => ['='],
+        ],
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks' => [
             'status'                  => ['='],
@@ -839,6 +873,12 @@ class ThreatHuntingService
         'tenant_graph_isolation_reports'    => \App\Models\TenantGraphIsolationReport::class,
         'tenant_boundary_violation_reports' => \App\Models\TenantBoundaryViolationReport::class,
         'tenant_evidence_integrity_reports' => \App\Models\TenantEvidenceIntegrityReport::class,
+        // Long-Duration Production Soak & Chaos Validation Phase 1
+        'soak_validation_runs'           => \App\Models\SoakValidationRun::class,
+        'chaos_simulation_runs'          => \App\Models\ChaosSimulationRun::class,
+        'recovery_validation_artifacts'  => \App\Models\RecoveryValidationArtifact::class,
+        'operational_drift_reports'      => \App\Models\OperationalDriftReport::class,
+        'replay_recovery_runs'           => \App\Models\ReplayRecoveryRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -935,6 +975,12 @@ class ThreatHuntingService
         'tenant_graph_isolation_reports'    => 'created_at',
         'tenant_boundary_violation_reports' => 'created_at',
         'tenant_evidence_integrity_reports' => 'created_at',
+        // Long-Duration Production Soak & Chaos Validation Phase 1
+        'soak_validation_runs'          => 'created_at',
+        'chaos_simulation_runs'         => 'created_at',
+        'recovery_validation_artifacts' => 'created_at',
+        'operational_drift_reports'     => 'created_at',
+        'replay_recovery_runs'          => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

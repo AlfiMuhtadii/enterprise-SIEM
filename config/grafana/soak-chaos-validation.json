@@ -1,0 +1,63 @@
+{
+  "uid": "soak-chaos-validation-phase1",
+  "title": "Long-Duration Soak & Chaos Validation Phase 1",
+  "tags": ["soak", "chaos", "resilience", "advisory"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "panels": [
+    {
+      "id": 1, "title": "Soak Pass Rate",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT ROUND(100.0*COUNT(*) FILTER (WHERE passed) / NULLIF(COUNT(*),0), 1) FROM soak_validation_runs WHERE status='completed'", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0}
+    },
+    {
+      "id": 2, "title": "Chaos Recovery Rate",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT ROUND(100.0*COUNT(*) FILTER (WHERE verdict='pass') / NULLIF(COUNT(*),0), 1) FROM chaos_simulation_runs", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0}
+    },
+    {
+      "id": 3, "title": "Drift Threshold Exceeded",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM operational_drift_reports WHERE drift_exceeds_threshold = true", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0}
+    },
+    {
+      "id": 4, "title": "Replay Recovery Pass Rate",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT ROUND(100.0*COUNT(*) FILTER (WHERE verdict='pass') / NULLIF(COUNT(*),0), 1) FROM replay_recovery_runs", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0}
+    },
+    {
+      "id": 5, "title": "Telemetry Continuity OK",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM telemetry_continuity_reports WHERE continuity_ok = true", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0}
+    },
+    {
+      "id": 6, "title": "Worker Failure Recovery",
+      "type": "stat", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT COUNT(*) FROM chaos_failure_events WHERE component='worker' AND outcome='recovered'", "format": "table"}],
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0}
+    },
+    {
+      "id": 7, "title": "Soak Stability Trends",
+      "type": "timeseries", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at) as time, AVG(memory_growth_mb) as memory, AVG(telemetry_gap_rate)*100 as gap_pct FROM soak_validation_runs GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+    },
+    {
+      "id": 8, "title": "Chaos Recovery Success Rate",
+      "type": "timeseries", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at) as time, COUNT(*) FILTER (WHERE verdict='pass') as pass, COUNT(*) FILTER (WHERE verdict='fail') as fail FROM chaos_simulation_runs GROUP BY 1 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+    },
+    {
+      "id": 9, "title": "Operational Drift Growth Trends",
+      "type": "timeseries", "datasource": "PostgreSQL",
+      "targets": [{"rawSql": "SELECT date_trunc('hour', created_at) as time, drift_type, AVG(drift_pct) as avg_drift FROM operational_drift_reports GROUP BY 1, 2 ORDER BY 1", "format": "time_series"}],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12}
+    }
+  ]
+}
