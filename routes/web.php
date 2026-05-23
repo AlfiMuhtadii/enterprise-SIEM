@@ -1036,4 +1036,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('commercial-readiness')->g
     Route::get('/audit',     [\App\Http\Controllers\CommercialReadinessController::class, 'auditTimeline'])->name('commercial.audit');
 });
 
+// Enterprise Scale Architecture & HA Governance Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-scale')->group(function () {
+    Route::get('/',            [\App\Http\Controllers\EnterpriseScaleController::class, 'dashboard'])->name('enterprise-scale.dashboard');
+    Route::get('/topology',    [\App\Http\Controllers\EnterpriseScaleController::class, 'clusterTopology'])->name('enterprise-scale.topology');
+    Route::get('/ha',          [\App\Http\Controllers\EnterpriseScaleController::class, 'haGovernance'])->name('enterprise-scale.ha');
+    Route::get('/distribution',[\App\Http\Controllers\EnterpriseScaleController::class, 'telemetryDistribution'])->name('enterprise-scale.distribution');
+    Route::get('/failover',    [\App\Http\Controllers\EnterpriseScaleController::class, 'failoverTimeline'])->name('enterprise-scale.failover');
+    Route::get('/cost',        [\App\Http\Controllers\EnterpriseScaleController::class, 'infrastructureCost'])->name('enterprise-scale.cost');
+    Route::get('/replay',      [\App\Http\Controllers\EnterpriseScaleController::class, 'replayContinuity'])->name('enterprise-scale.replay');
+    Route::get('/scale',       [\App\Http\Controllers\EnterpriseScaleController::class, 'scaleValidation'])->name('enterprise-scale.scale');
+    Route::get('/audit',       [\App\Http\Controllers\EnterpriseScaleController::class, 'auditTimeline'])->name('enterprise-scale.audit');
+});
+
 require __DIR__.'/auth.php';

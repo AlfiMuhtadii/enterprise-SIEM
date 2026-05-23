@@ -1,8 +1,8 @@
 {
   "tool": "xdr_fleet_simulation_validate",
   "version": "1.0.0",
-  "started_at": "2026-05-23T06:08:59.906160+00:00",
-  "completed_at": "2026-05-23T06:08:59.923744+00:00",
+  "started_at": "2026-05-23T06:36:16.711285+00:00",
+  "completed_at": "2026-05-23T06:36:16.732446+00:00",
   "scenarios_run": 8,
   "passed": 8,
   "failed": 0,
@@ -33,7 +33,7 @@
           "gap_seconds": 7200,
           "expected_interval": 60,
           "stale_threshold": 600,
-          "last_heartbeat_at": "2026-05-23T04:08:59.909083+00:00",
+          "last_heartbeat_at": "2026-05-23T04:36:16.714573+00:00",
           "advisory": true,
           "autonomous_action": false
         }
@@ -93,8 +93,8 @@
       "indicator_count": 3,
       "indicator_types": [
         "config_mismatch",
-        "disabled_collector",
-        "heartbeat_gap"
+        "heartbeat_gap",
+        "disabled_collector"
       ],
       "errors": [],
       "passed": true

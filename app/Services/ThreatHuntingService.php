@@ -206,6 +206,12 @@ class ThreatHuntingService
         'support_bundle_exports',
         'deployment_readiness_reports',
         'release_compatibility_reports',
+        // Enterprise Scale Architecture & HA Governance Phase 1
+        'cluster_topology_reports',
+        'ha_validation_runs',
+        'telemetry_distribution_reports',
+        'failover_coordination_history',
+        'infrastructure_cost_reports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1000,6 +1006,41 @@ class ThreatHuntingService
             'schema_compatible'        => ['='],
             'rollback_safe'            => ['='],
         ],
+        'cluster_topology_reports' => [
+            'cluster_id'         => ['=', 'contains'],
+            'cluster_role'       => ['='],
+            'topology_state'     => ['='],
+            'quorum_achieved'    => ['='],
+            'replication_lag_ms' => ['>=', '<='],
+        ],
+        'ha_validation_runs' => [
+            'cluster_id'         => ['=', 'contains'],
+            'ha_check_type'      => ['='],
+            'ha_state'           => ['='],
+            'quorum_valid'       => ['='],
+            'failover_ready'     => ['='],
+        ],
+        'telemetry_distribution_reports' => [
+            'cluster_id'                 => ['=', 'contains'],
+            'distribution_state'         => ['='],
+            'load_balanced'              => ['='],
+            'replay_amplification_ratio' => ['>=', '<='],
+            'queue_pressure_pct'         => ['>=', '<='],
+        ],
+        'failover_coordination_history' => [
+            'cluster_id'            => ['=', 'contains'],
+            'failover_type'         => ['='],
+            'failover_state'        => ['='],
+            'dependency_ordered'    => ['='],
+            'uncontrolled_failover' => ['='],
+        ],
+        'infrastructure_cost_reports' => [
+            'cluster_id'                 => ['=', 'contains'],
+            'cost_window'                => ['='],
+            'total_cost_estimate'        => ['>=', '<='],
+            'utilization_efficiency_pct' => ['>=', '<='],
+            'is_advisory'                => ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1313,6 +1354,12 @@ class ThreatHuntingService
         'support_bundle_exports'               => \App\Models\SupportBundleExport::class,
         'deployment_readiness_reports'         => \App\Models\DeploymentReadinessReport::class,
         'release_compatibility_reports'        => \App\Models\ReleaseCompatibilityReport::class,
+        // Enterprise Scale Architecture & HA Governance Phase 1
+        'cluster_topology_reports'             => \App\Models\ClusterTopologyReport::class,
+        'ha_validation_runs'                   => \App\Models\HaValidationRun::class,
+        'telemetry_distribution_reports'       => \App\Models\TelemetryDistributionReport::class,
+        'failover_coordination_history'        => \App\Models\FailoverCoordinationHistory::class,
+        'infrastructure_cost_reports'          => \App\Models\InfrastructureCostReport::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1475,6 +1522,12 @@ class ThreatHuntingService
         'support_bundle_exports'              => 'created_at',
         'deployment_readiness_reports'        => 'created_at',
         'release_compatibility_reports'       => 'created_at',
+        // Enterprise Scale Architecture & HA Governance Phase 1
+        'cluster_topology_reports'            => 'created_at',
+        'ha_validation_runs'                  => 'created_at',
+        'telemetry_distribution_reports'      => 'created_at',
+        'failover_coordination_history'       => 'created_at',
+        'infrastructure_cost_reports'         => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',
