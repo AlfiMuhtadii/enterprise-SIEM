@@ -1,0 +1,15 @@
+{
+  "title": "Enterprise Operations Automation & Recovery Governance",
+  "uid": "enterprise-ops-automation",
+  "panels": [
+    {"title": "Recovery Duration Trends", "type": "graph", "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}},
+    {"title": "Service Restart Frequency", "type": "graph", "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}},
+    {"title": "Lifecycle Drift Trends", "type": "graph", "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}},
+    {"title": "Failover Validation Health", "type": "stat", "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4}},
+    {"title": "Replay Continuity After Recovery", "type": "graph", "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}},
+    {"title": "Recovery Checkpoint Failures", "type": "stat", "gridPos": {"x": 12, "y": 12, "w": 6, "h": 4}},
+    {"title": "Bounded Automation Activity", "type": "graph", "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8}},
+    {"title": "Operational Continuity Scores", "type": "graph", "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}},
+    {"title": "Recovery Simulation Frequency", "type": "graph", "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8}}
+  ]
+}

@@ -1010,4 +1010,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-deployment')->
     Route::get('/audit',               [\App\Http\Controllers\EnterpriseDeploymentController::class, 'auditTimeline'])->name('enterprise-deploy.audit');
 });
 
+// Enterprise Operations Automation & Recovery Governance Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-ops')->group(function () {
+    Route::get('/',               [\App\Http\Controllers\EnterpriseOperationsController::class, 'dashboard'])->name('enterprise-ops.dashboard');
+    Route::get('/recovery',       [\App\Http\Controllers\EnterpriseOperationsController::class, 'recoveryOrchestration'])->name('enterprise-ops.recovery');
+    Route::get('/lifecycle',      [\App\Http\Controllers\EnterpriseOperationsController::class, 'lifecycleExplorer'])->name('enterprise-ops.lifecycle');
+    Route::get('/failover',       [\App\Http\Controllers\EnterpriseOperationsController::class, 'failoverGovernance'])->name('enterprise-ops.failover');
+    Route::get('/continuity',     [\App\Http\Controllers\EnterpriseOperationsController::class, 'continuityDashboard'])->name('enterprise-ops.continuity');
+    Route::get('/dependencies',   [\App\Http\Controllers\EnterpriseOperationsController::class, 'dependencyGraphViewer'])->name('enterprise-ops.dependencies');
+    Route::get('/simulations',    [\App\Http\Controllers\EnterpriseOperationsController::class, 'simulationTimeline'])->name('enterprise-ops.simulations');
+    Route::get('/automation',     [\App\Http\Controllers\EnterpriseOperationsController::class, 'automationViewer'])->name('enterprise-ops.automation');
+    Route::get('/audit',          [\App\Http\Controllers\EnterpriseOperationsController::class, 'auditTimeline'])->name('enterprise-ops.audit');
+});
+
 require __DIR__.'/auth.php';

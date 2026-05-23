@@ -194,6 +194,12 @@ class ThreatHuntingService
         'deployment_upgrade_history',
         'deployment_drift_reports',
         'environment_validation_reports',
+        // Enterprise Operations Automation & Recovery Governance Phase 1
+        'operational_recovery_runs',
+        'service_lifecycle_audit',
+        'failover_validation_runs',
+        'operational_continuity_reports',
+        'recovery_simulation_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -918,6 +924,41 @@ class ThreatHuntingService
             'storage_available'=> ['='],
             'overall_valid'    => ['='],
         ],
+        // Enterprise Operations Automation & Recovery Governance Phase 1
+        'operational_recovery_runs' => [
+            'service_name'     => ['=', 'contains'],
+            'recovery_type'    => ['='],
+            'recovery_state'   => ['='],
+            'replay_continuous'=> ['='],
+            'bounded_scope'    => ['='],
+        ],
+        'service_lifecycle_audit' => [
+            'service_name'         => ['=', 'contains'],
+            'lifecycle_event'      => ['='],
+            'current_state'        => ['=', 'contains'],
+            'drift_detected'       => ['='],
+            'dependency_satisfied' => ['='],
+        ],
+        'failover_validation_runs' => [
+            'service_name'        => ['=', 'contains'],
+            'failover_type'       => ['='],
+            'readiness_verified'  => ['='],
+            'continuity_verified' => ['='],
+            'rollback_ready'      => ['='],
+        ],
+        'operational_continuity_reports' => [
+            'environment'          => ['='],
+            'replay_continuous'    => ['='],
+            'queue_continuous'     => ['='],
+            'overall_continuous'   => ['='],
+        ],
+        'recovery_simulation_runs' => [
+            'simulation_type'         => ['='],
+            'target_service'          => ['=', 'contains'],
+            'simulation_passed'       => ['='],
+            'destructive_action_taken'=> ['='],
+            'replay_safe'             => ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1219,6 +1260,12 @@ class ThreatHuntingService
         'deployment_upgrade_history'           => \App\Models\DeploymentUpgradeHistory::class,
         'deployment_drift_reports'             => \App\Models\DeploymentDriftReport::class,
         'environment_validation_reports'       => \App\Models\EnvironmentValidationReport::class,
+        // Enterprise Operations Automation & Recovery Governance Phase 1
+        'operational_recovery_runs'            => \App\Models\OperationalRecoveryRun::class,
+        'service_lifecycle_audit'              => \App\Models\ServiceLifecycleAudit::class,
+        'failover_validation_runs'             => \App\Models\FailoverValidationRun::class,
+        'operational_continuity_reports'       => \App\Models\OperationalContinuityReport::class,
+        'recovery_simulation_runs'             => \App\Models\RecoverySimulationRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1369,6 +1416,12 @@ class ThreatHuntingService
         'deployment_upgrade_history'          => 'created_at',
         'deployment_drift_reports'            => 'created_at',
         'environment_validation_reports'      => 'created_at',
+        // Enterprise Operations Automation & Recovery Governance Phase 1
+        'operational_recovery_runs'           => 'created_at',
+        'service_lifecycle_audit'             => 'created_at',
+        'failover_validation_runs'            => 'created_at',
+        'operational_continuity_reports'      => 'created_at',
+        'recovery_simulation_runs'            => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

@@ -56,7 +56,8 @@
       "Bash(sed -i 's/assertCount\\(93, \\\\$this->registry\\(\\)\\)/assertCount\\(133, $this->registry\\(\\)\\)/g; s/assertSame\\(81, \\\\$shadow/assertSame\\(121, $shadow/g' tests/Feature/EndpointTelemetryTest.php)",
       "Bash(sed -i 's/assertCount\\(93, \\\\$registry\\\\['\\\\''rules'\\\\''\\\\]/assertCount\\(133, $registry['\\\\''rules'\\\\'']/g' tests/Feature/EndpointLowLevelTelemetryTest.php)",
       "Bash(sed -i 's/assertCount\\(93, \\\\$registry\\\\['\\\\''rules'\\\\''\\\\]/assertCount\\(133, $registry['\\\\''rules'\\\\'']/g' tests/Feature/UEBABaselineAnalyticsTest.php)",
-      "Bash(sed -i 's/assertCount\\(93, \\\\$rules\\)/assertCount\\(133, $rules\\)/g; s/assertSame\\(93, DetectionRule::count\\(\\)\\)/assertSame\\(133, DetectionRule::count\\(\\)\\)/g' tests/Feature/DetectionRuleGovernanceTest.php)"
+      "Bash(sed -i 's/assertCount\\(93, \\\\$rules\\)/assertCount\\(133, $rules\\)/g; s/assertSame\\(93, DetectionRule::count\\(\\)\\)/assertSame\\(133, DetectionRule::count\\(\\)\\)/g' tests/Feature/DetectionRuleGovernanceTest.php)",
+      "Bash(grep -v \"assertCount\\(120,$\\\\|assertCount\\(125,\")"
     ]
   }
 }
