@@ -200,6 +200,12 @@ class ThreatHuntingService
         'failover_validation_runs',
         'operational_continuity_reports',
         'recovery_simulation_runs',
+        // Commercial Readiness & Productization Phase 1
+        'tenant_onboarding_runs',
+        'commercial_release_history',
+        'support_bundle_exports',
+        'deployment_readiness_reports',
+        'release_compatibility_reports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -959,6 +965,41 @@ class ThreatHuntingService
             'destructive_action_taken'=> ['='],
             'replay_safe'             => ['='],
         ],
+        'tenant_onboarding_runs' => [
+            'tenant_id'         => ['=', 'contains'],
+            'onboarding_phase'  => ['='],
+            'onboarding_state'  => ['='],
+            'validation_passed' => ['='],
+            'rollback_capable'  => ['='],
+        ],
+        'commercial_release_history' => [
+            'release_version'      => ['=', 'contains'],
+            'release_stage'        => ['='],
+            'release_state'        => ['='],
+            'migration_compatible' => ['='],
+            'rollback_compatible'  => ['='],
+        ],
+        'support_bundle_exports' => [
+            'bundle_type'              => ['='],
+            'export_scope'             => ['='],
+            'size_bounded'             => ['='],
+            'destructive_action_taken' => ['='],
+            'replay_safe'              => ['='],
+        ],
+        'deployment_readiness_reports' => [
+            'tenant_id'           => ['=', 'contains'],
+            'environment'         => ['='],
+            'deployment_ready'    => ['='],
+            'onboarding_complete' => ['='],
+            'telemetry_healthy'   => ['='],
+        ],
+        'release_compatibility_reports' => [
+            'release_id'               => ['=', 'contains'],
+            'from_version'             => ['=', 'contains'],
+            'to_version'               => ['=', 'contains'],
+            'schema_compatible'        => ['='],
+            'rollback_safe'            => ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1266,6 +1307,12 @@ class ThreatHuntingService
         'failover_validation_runs'             => \App\Models\FailoverValidationRun::class,
         'operational_continuity_reports'       => \App\Models\OperationalContinuityReport::class,
         'recovery_simulation_runs'             => \App\Models\RecoverySimulationRun::class,
+        // Commercial Readiness & Productization Phase 1
+        'tenant_onboarding_runs'               => \App\Models\TenantOnboardingRun::class,
+        'commercial_release_history'           => \App\Models\CommercialReleaseHistory::class,
+        'support_bundle_exports'               => \App\Models\SupportBundleExport::class,
+        'deployment_readiness_reports'         => \App\Models\DeploymentReadinessReport::class,
+        'release_compatibility_reports'        => \App\Models\ReleaseCompatibilityReport::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1422,6 +1469,12 @@ class ThreatHuntingService
         'failover_validation_runs'            => 'created_at',
         'operational_continuity_reports'      => 'created_at',
         'recovery_simulation_runs'            => 'created_at',
+        // Commercial Readiness & Productization Phase 1
+        'tenant_onboarding_runs'              => 'created_at',
+        'commercial_release_history'          => 'created_at',
+        'support_bundle_exports'              => 'created_at',
+        'deployment_readiness_reports'        => 'created_at',
+        'release_compatibility_reports'       => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

@@ -1023,4 +1023,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-ops')->group(f
     Route::get('/audit',          [\App\Http\Controllers\EnterpriseOperationsController::class, 'auditTimeline'])->name('enterprise-ops.audit');
 });
 
+// Commercial Readiness & Productization Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('commercial-readiness')->group(function () {
+    Route::get('/',          [\App\Http\Controllers\CommercialReadinessController::class, 'dashboard'])->name('commercial.dashboard');
+    Route::get('/onboarding',[\App\Http\Controllers\CommercialReadinessController::class, 'tenantOnboarding'])->name('commercial.onboarding');
+    Route::get('/packages',  [\App\Http\Controllers\CommercialReadinessController::class, 'deploymentPackages'])->name('commercial.packages');
+    Route::get('/releases',  [\App\Http\Controllers\CommercialReadinessController::class, 'releaseTimeline'])->name('commercial.releases');
+    Route::get('/readiness', [\App\Http\Controllers\CommercialReadinessController::class, 'readinessConsole'])->name('commercial.readiness');
+    Route::get('/support',   [\App\Http\Controllers\CommercialReadinessController::class, 'supportDiagnostics'])->name('commercial.support');
+    Route::get('/health',    [\App\Http\Controllers\CommercialReadinessController::class, 'customerHealth'])->name('commercial.health');
+    Route::get('/upgrade',   [\App\Http\Controllers\CommercialReadinessController::class, 'upgradeCompatibility'])->name('commercial.upgrade');
+    Route::get('/audit',     [\App\Http\Controllers\CommercialReadinessController::class, 'auditTimeline'])->name('commercial.audit');
+});
+
 require __DIR__.'/auth.php';

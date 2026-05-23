@@ -501,7 +501,7 @@ class PilotReadinessTest extends TestCase
 
     public function test_total_hunt_domains_is_90(): void
     {
-        $this->assertCount(130, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(135, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     // =========================================================================
