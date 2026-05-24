@@ -3,11 +3,18 @@
 # Development environment bootstrap for XDR Platform demo.
 # DEVELOPMENT ONLY — runs migrate:fresh which drops all data.
 # All demo scenarios are synthetic, replay-safe, advisory-only, and bounded.
+#
+# Usage:
+#   ./bootstrap-dev.sh               # Full bootstrap
+#   ./bootstrap-dev.sh reset          # Same as full bootstrap (replay-safe reset)
+#   SKIP_DOCKER=true ./bootstrap-dev.sh  # Skip Docker check
+#   SKIP_SEED=true ./bootstrap-dev.sh    # Skip demo seeding
 
 set -euo pipefail
 
 SKIP_DOCKER=${SKIP_DOCKER:-false}
 SKIP_SEED=${SKIP_SEED:-false}
+MODE=${1:-bootstrap}
 
 echo "=== XDR Platform Bootstrap (Development) ==="
 echo "Advisory only — no destructive execution, no real malware, no autonomous remediation."
@@ -58,3 +65,9 @@ echo ""
 echo "Run tests to verify the environment:"
 echo "  php artisan test"
 echo "  python -m unittest discover -s tests/endpoint_agent -p 'test_*.py' -v"
+echo ""
+echo "To reset the demo (replay-safe — idempotent re-seed):"
+echo "  ./bootstrap-dev.sh reset"
+echo ""
+echo "To tear down infrastructure:"
+echo "  docker compose down"

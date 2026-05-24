@@ -1,0 +1,60 @@
+@startuml detection_lifecycle
+title Detection Engineering Lifecycle
+
+skinparam backgroundColor #FAFAFA
+skinparam roundcorner 10
+skinparam stateBackgroundColor LightBlue
+skinparam stateBorderColor DarkBlue
+
+[*] --> Draft : Rule authored
+
+state Draft {
+  note : Schema validated\nATT&CK mapped\nOwner assigned
+}
+
+Draft --> ShadowValidation : Submit for validation
+
+state ShadowValidation {
+  note : Replay against historical events\nFP/FN rate measured\nEvidence linkage checked
+}
+
+ShadowValidation --> ShadowActive : Validation PASS
+ShadowValidation --> Draft : Validation FAIL — return to author
+
+state ShadowActive {
+  note : Rule runs in shadow pipeline\nNo active alerts produced\nPerformance monitored
+}
+
+ShadowActive --> SoakCandidate : 6h soak scheduled
+
+state SoakCandidate {
+  note : Domain-specific 6h soak\nfallback_count = 0\nfailure_count = 0\nduplicate_rate = 0\np95_latency_ms < 300
+}
+
+SoakCandidate --> StagedActive : Soak PASS + ACTIVE_ALLOWLIST entry
+SoakCandidate --> ShadowActive : Soak FAIL — remain shadow
+
+state StagedActive {
+  note : Rule produces active alerts\nalert-writer-service consumes\nFP/FN tracking continues
+}
+
+StagedActive --> Suppression : Analyst recommends suppression
+Suppression --> StagedActive : Suppression approved + active
+
+StagedActive --> Deprecated : Rule retired
+
+Deprecated --> [*]
+
+note right of SoakCandidate
+  ACTIVE_ALLOWLIST in xdr_rule_registry_validate.py
+  Currently intentionally EMPTY for all shadow domains
+  Requires explicit domain-specific soak evidence
+end note
+
+note right of Suppression
+  Suppression advisory only
+  No autonomous suppression
+  Analyst explicit approval required
+end note
+
+@enduml

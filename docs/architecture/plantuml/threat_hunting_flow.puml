@@ -1,0 +1,53 @@
+@startuml threat_hunting_flow
+title Threat Hunting Query Engine Flow
+
+skinparam backgroundColor #FAFAFA
+skinparam roundcorner 10
+skinparam sequenceArrowThickness 2
+
+actor Analyst
+participant "Threat Hunt UI\n(Laravel Blade)" as UI
+participant "ThreatHuntingService\n(PHP)" as SVC
+database "Domain Tables\n(PostgreSQL)" as DB
+database "threat_hunts\nappend-only" as HUNTS
+database "threat_hunt_queries\nappend-only" as QUERIES
+database "threat_hunt_results\nappend-only" as RESULTS
+
+note over SVC
+  MAX_RESULTS = 500
+  MAX_QUERY_WINDOW_DAYS = 30
+  MAX_GRAPH_DEPTH = 5
+  158 supported domains
+  All fields allowlisted per domain
+  No arbitrary SQL — allowlist enforced
+end note
+
+Analyst -> UI : Select domain\nSet filters\nSet time range
+UI -> SVC : executeHunt(domain, filters, timeRange)
+
+SVC -> SVC : validateDomain(domain)\nvalidateFilters(domain, filters)\nvalidateTimeRange(start, end)
+
+alt Validation fails
+  SVC --> UI : InvalidArgumentException
+  UI --> Analyst : Error: invalid domain or field
+end
+
+SVC -> HUNTS : INSERT hunt record
+SVC -> QUERIES : INSERT query record
+SVC -> DB : SELECT from domain table\nWHERE allowlisted_fields\nLIMIT MAX_RESULTS
+DB --> SVC : result rows
+
+loop For each result row
+  SVC -> RESULTS : INSERT result snapshot\n(append-only)
+end
+
+SVC --> UI : ThreatHunt model
+UI --> Analyst : Advisory-only results\nNo destructive output
+
+note over RESULTS
+  Results are advisory snapshots
+  Never modify source records
+  Append-only — no UPDATE/DELETE
+end note
+
+@enduml

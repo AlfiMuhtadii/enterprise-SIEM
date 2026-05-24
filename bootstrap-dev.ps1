@@ -2,15 +2,40 @@
 # Development environment bootstrap for XDR Platform demo.
 # DEVELOPMENT ONLY — runs migrate:fresh which drops all data.
 # All demo scenarios are synthetic, replay-safe, advisory-only, and bounded.
+#
+# Usage:
+#   .\bootstrap-dev.ps1                         # Full bootstrap
+#   .\bootstrap-dev.ps1 -Reset                  # Replay-safe demo reset (same as full)
+#   .\bootstrap-dev.ps1 -SkipDockerCheck        # Skip Docker check
+#   .\bootstrap-dev.ps1 -SkipSeed               # Skip demo seeding
+#   .\bootstrap-dev.ps1 -Teardown               # Stop infrastructure only
 
 param(
     [switch]$SkipDockerCheck,
-    [switch]$SkipSeed
+    [switch]$SkipSeed,
+    [switch]$Reset,
+    [switch]$Teardown
 )
 
 $ErrorActionPreference = "Stop"
 
+# Teardown mode — stop infrastructure only
+if ($Teardown) {
+    Write-Host "=== XDR Platform Teardown ===" -ForegroundColor Cyan
+    Write-Host "Stopping infrastructure services..." -ForegroundColor Yellow
+    docker compose down
+    Write-Host "Infrastructure stopped." -ForegroundColor Green
+    Write-Host "Note: database data is preserved in Docker volumes." -ForegroundColor Gray
+    Write-Host "To remove volumes: docker compose down -v" -ForegroundColor Gray
+    exit 0
+}
+
 Write-Host "=== XDR Platform Bootstrap (Development) ===" -ForegroundColor Cyan
+if ($Reset) {
+    Write-Host "Mode: RESET (replay-safe re-seed)" -ForegroundColor Yellow
+} else {
+    Write-Host "Mode: FULL BOOTSTRAP" -ForegroundColor Yellow
+}
 Write-Host "Advisory only — no destructive execution, no real malware, no autonomous remediation." -ForegroundColor Yellow
 Write-Host ""
 
@@ -75,3 +100,9 @@ Write-Host ""
 Write-Host "Run tests to verify the environment:" -ForegroundColor Yellow
 Write-Host "  php artisan test" -ForegroundColor White
 Write-Host "  python -m unittest discover -s tests/endpoint_agent -p 'test_*.py' -v" -ForegroundColor White
+Write-Host ""
+Write-Host "To reset the demo (replay-safe — idempotent re-seed):" -ForegroundColor Yellow
+Write-Host "  .\bootstrap-dev.ps1 -Reset" -ForegroundColor White
+Write-Host ""
+Write-Host "To tear down infrastructure:" -ForegroundColor Yellow
+Write-Host "  .\bootstrap-dev.ps1 -Teardown" -ForegroundColor White

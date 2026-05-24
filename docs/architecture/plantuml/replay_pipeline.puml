@@ -1,0 +1,47 @@
+@startuml replay_pipeline
+title Replay-Safe Event Pipeline
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam sequenceParticipant underline
+
+participant "Telemetry\nSource" as SRC #LightBlue
+participant "ingestion-gateway\n(Go)" as GW #LightGreen
+queue "telemetry.raw\n(Redpanda)" as RAW #Orange
+participant "normalizer-worker\n(Go)" as NW #LightGreen
+queue "telemetry.normalized\n(Redpanda)" as NORM #Orange
+participant "correlation-worker\n(Go)" as CW #LightGreen
+queue "xdr.alerts\n[active]" as ALERTS #Red
+queue "xdr.alerts.shadow.*\n[shadow]" as SHADOW #Gray
+participant "alert-writer-service\n(Python)" as AW #LightYellow
+database "security_alerts\n(PostgreSQL)" as DB #LightCyan
+queue "alerts.created\n(Redpanda)" as AC #Orange
+participant "incident-builder\n(Python)" as IB #LightYellow
+database "security_incidents\n(PostgreSQL)" as IDB #LightCyan
+
+note over SRC, DB
+  All events have trace_id — propagated through entire pipeline
+  ON CONFLICT DO NOTHING at every write = replay-safe
+  Failed consumer resumes from last committed offset
+end note
+
+SRC -> GW : POST /v1/ingest\n(HMAC-SHA256 signed)
+GW -> RAW : publish(event + trace_id)
+RAW -> NW : consume
+NW -> NORM : publish(normalized_event)
+NORM -> CW : consume
+CW -> ALERTS : publish(alert) [identity/cloud/SaaS]
+CW -> SHADOW : publish(shadow_alert) [endpoint/DNS/proxy]
+ALERTS -> AW : consume
+AW -> DB : INSERT ... ON CONFLICT DO NOTHING
+AW -> AC : publish(alerts.created)
+AC -> IB : consume
+IB -> IDB : INSERT incident ON CONFLICT DO NOTHING
+
+note over SHADOW
+  Shadow alerts NOT consumed by alert-writer
+  Advisory pipeline only — no active incidents
+end note
+
+@enduml

@@ -1,0 +1,55 @@
+@startuml ha_topology
+title HA Governance Topology (Simulated — Single Node Dev)
+
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+skinparam roundcorner 10
+
+package "Laravel SOC Control Plane" {
+  [EnterpriseScaleHaService] as HASC
+  [HA Validation Dashboard] as HAVD
+}
+
+package "Infrastructure (Single Node)" {
+  database "PostgreSQL\n(primary)" as PG
+  queue "Redpanda\n(single broker)" as RP
+  [OpenSearch] as OS
+  [ClickHouse] as CH
+  [Qdrant] as QD
+  [Grafana] as GF
+}
+
+package "HA Governance Tables (Append-Only)" {
+  storage "cluster_topology_reports" as CTR
+  storage "ha_validation_runs" as HVR
+  storage "failover_coordination_history" as FCH
+  storage "telemetry_distribution_reports" as TDR
+  storage "infrastructure_cost_reports" as ICR
+}
+
+note top of HASC
+  MAX_CLUSTER_NODES = 50
+  HA_PASS_THRESHOLD = 0.80
+  Governance is implemented;
+  multi-node cluster is future roadmap
+end note
+
+HASC --> CTR : append
+HASC --> HVR : append
+HASC --> FCH : append
+HASC --> TDR : append
+HASC --> ICR : append
+HAVD --> HASC : query
+GF --> PG : metrics
+
+note bottom of PG
+  Production: streaming replication
+  Dev: single node (migrate:fresh safe)
+end note
+
+note bottom of RP
+  Production: 3-node cluster
+  Dev: single broker
+end note
+
+@enduml

@@ -1,0 +1,59 @@
+@startuml governance_workflow
+title SOAR Governance & Response Orchestration Workflow
+
+skinparam backgroundColor #FAFAFA
+skinparam roundcorner 10
+skinparam actorStyle awesome
+
+actor "Analyst 1\n(Proposer)" as A1
+actor "Analyst 2\n(Approver)" as A2
+actor "Analyst 3\n(Second Approver)" as A3
+participant "SoarOrchestrationService\n(PHP)" as SOAR
+database "soar_execution_plans\n(PostgreSQL)" as PLAN
+database "soar_simulation_results\nappend-only" as SIM
+database "soar_approval_requests\nappend-only" as APPROVE
+database "soar_execution_results\nappend-only" as EXEC
+
+note over SOAR
+  Safe action types only:
+  - noop
+  - collect_diagnostics
+  - refresh_config
+  - upload_health_snapshot
+  - recommend_isolation (recommend only)
+
+  NO execute_* types
+  NO isolateHost / quarantineHost
+  NO autonomous execution
+end note
+
+A1 -> SOAR : createExecutionPlan(playbook, target)
+SOAR -> PLAN : INSERT plan\n[status=pending_simulation]
+SOAR -> SIM : runSimulation(plan)
+SIM --> SOAR : blast_radius_score, rollback_ready
+SOAR -> PLAN : UPDATE status=pending_approval
+
+A1 -> A2 : Request first approval
+A2 -> APPROVE : approve(plan_id, analyst_2_id)
+SOAR -> PLAN : UPDATE status=pending_second_approval
+
+A2 -> A3 : Request second approval
+A3 -> APPROVE : approve(plan_id, analyst_3_id)
+
+note right of APPROVE
+  Self-approve blocked:
+  proposer ≠ first approver ≠ second approver
+end note
+
+SOAR -> PLAN : UPDATE status=approved
+A1 -> SOAR : executeApprovedPlan(plan_id)
+SOAR -> EXEC : INSERT execution_result\n[is_simulation=false, is_advisory=true]
+
+note over EXEC
+  Execution produces advisory output
+  No destructive action
+  Full audit trail preserved
+  Rollback plan appended on completion
+end note
+
+@enduml
