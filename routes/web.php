@@ -1049,6 +1049,19 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-scale')->group
     Route::get('/audit',       [\App\Http\Controllers\EnterpriseScaleController::class, 'auditTimeline'])->name('enterprise-scale.audit');
 });
 
+// Final Demo / Portfolio / Thesis Packaging Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('demo-platform')->group(function () {
+    Route::get('/',              [\App\Http\Controllers\DemoPlatformPackagingController::class, 'dashboard'])->name('demo-platform.dashboard');
+    Route::get('/scenarios',     [\App\Http\Controllers\DemoPlatformPackagingController::class, 'scenarioLauncher'])->name('demo-platform.scenarios');
+    Route::get('/timeline',      [\App\Http\Controllers\DemoPlatformPackagingController::class, 'attackTimeline'])->name('demo-platform.timeline');
+    Route::get('/readiness',     [\App\Http\Controllers\DemoPlatformPackagingController::class, 'readinessDashboard'])->name('demo-platform.readiness');
+    Route::get('/architecture',  [\App\Http\Controllers\DemoPlatformPackagingController::class, 'architectureExplorer'])->name('demo-platform.architecture');
+    Route::get('/capabilities',  [\App\Http\Controllers\DemoPlatformPackagingController::class, 'capabilityMatrix'])->name('demo-platform.capabilities');
+    Route::get('/replay',        [\App\Http\Controllers\DemoPlatformPackagingController::class, 'replayExplorer'])->name('demo-platform.replay');
+    Route::get('/walkthrough',   [\App\Http\Controllers\DemoPlatformPackagingController::class, 'walkthroughConsole'])->name('demo-platform.walkthrough');
+    Route::get('/showcase',      [\App\Http\Controllers\DemoPlatformPackagingController::class, 'showcaseDashboard'])->name('demo-platform.showcase');
+});
+
 // Code-Level XDR Maturity Acceleration Phase 1
 Route::middleware(['auth', 'soc:audit.view'])->prefix('xdr-maturity')->group(function () {
     Route::get('/',          [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'dashboard'])->name('xdr-maturity.dashboard');

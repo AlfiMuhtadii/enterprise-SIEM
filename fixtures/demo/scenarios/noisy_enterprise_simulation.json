@@ -1,0 +1,35 @@
+{
+  "scenario": "noisy_enterprise_simulation",
+  "name": "Noisy Enterprise Simulation",
+  "objective": "Validate FP resistance and analyst workload under high-volume benign enterprise noise.",
+  "is_lab_safe": true,
+  "is_destructive": false,
+  "has_real_malware": false,
+  "mitre_tactics": [],
+  "timeline": [
+    {"t": 0, "event": "patch_management_wave_start", "source": "endpoint_agent"},
+    {"t": 60, "event": "vpn_reconnect_storm", "source": "identity_provider"},
+    {"t": 120, "event": "saas_audit_flood", "source": "saas_audit"},
+    {"t": 180, "event": "noise_analysis_complete", "source": "correlation_worker"}
+  ],
+  "expected_alerts": [],
+  "expected_hunt_pivots": [
+    "noisy_enterprise_simulations → fp_resistance_score",
+    "telemetry_quality_scorecards → malformed_event_ratio"
+  ],
+  "expected_dashboard_outputs": [
+    "FP resistance score: >= 0.75",
+    "Alert amplification within bounds",
+    "Analyst pressure score measured"
+  ],
+  "expected_soc_workflow": [
+    "No false positive escalations",
+    "Telemetry quality score maintained",
+    "Demo readiness snapshot updated"
+  ],
+  "events": [
+    {"seq": 1, "type": "endpoint_reconnect", "count": 50, "trace_id": "trace-noisy-001"},
+    {"seq": 2, "type": "vpn_auth", "count": 200, "trace_id": "trace-noisy-001"},
+    {"seq": 3, "type": "saas_audit", "count": 100, "trace_id": "trace-noisy-001"}
+  ]
+}

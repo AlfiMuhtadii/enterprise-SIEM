@@ -1,0 +1,41 @@
+{
+  "scenario": "lolbin_execution_chain",
+  "name": "LOLBin Execution Chain",
+  "objective": "Demonstrate detection of living-off-the-land binary abuse for payload execution.",
+  "is_lab_safe": true,
+  "is_destructive": false,
+  "has_real_malware": false,
+  "mitre_tactics": ["TA0002", "TA0005"],
+  "timeline": [
+    {"t": 0, "event": "certutil_invoked_with_url", "source": "endpoint_agent"},
+    {"t": 15, "event": "regsvr32_child_process", "source": "endpoint_agent"},
+    {"t": 30, "event": "mshta_network_connection", "source": "endpoint_agent"},
+    {"t": 60, "event": "lolbin_chain_detected", "source": "correlation_worker"}
+  ],
+  "expected_alerts": [
+    "LOLBIN_EXECUTION_CHAIN",
+    "CERTUTIL_URL_DOWNLOAD",
+    "REGSVR32_PROXY_EXECUTION"
+  ],
+  "expected_hunt_pivots": [
+    "execution_chains → lolbin",
+    "processes → certutil.exe",
+    "network_correlations → download_url"
+  ],
+  "expected_dashboard_outputs": [
+    "Execution chain visualization",
+    "LOLBin risk score elevated",
+    "Process ancestry graph populated"
+  ],
+  "expected_soc_workflow": [
+    "Chained detection alert created",
+    "Analyst reviews execution chain",
+    "Advisory containment recommendation issued"
+  ],
+  "events": [
+    {"seq": 1, "type": "process_start", "name": "certutil.exe", "args": "-urlcache -split -f", "trace_id": "trace-lolbin-001"},
+    {"seq": 2, "type": "network_connect", "remote_ip": "203.0.113.10", "process": "certutil.exe", "trace_id": "trace-lolbin-001"},
+    {"seq": 3, "type": "process_start", "name": "regsvr32.exe", "parent": "certutil.exe", "trace_id": "trace-lolbin-001"},
+    {"seq": 4, "type": "alert", "rule": "LOLBIN_EXECUTION_CHAIN", "severity": "high", "trace_id": "trace-lolbin-001"}
+  ]
+}

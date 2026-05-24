@@ -230,6 +230,10 @@ class ThreatHuntingService
         'false_positive_negative_reports',
         'telemetry_quality_scorecards',
         'xdr_maturity_scorecards',
+        // Final Demo / Portfolio / Thesis Packaging Phase 1
+        'demo_scenario_runs',
+        'demo_readiness_snapshots',
+        'platform_showcase_exports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1326,6 +1330,27 @@ class ThreatHuntingService
             'target_entity_id' => ['='],
             'confidence'       => ['>='],
         ],
+        // Final Demo / Portfolio / Thesis Packaging Phase 1
+        'demo_scenario_runs' => [
+            'scenario_name'            => ['=', 'contains'],
+            'scenario_state'           => ['='],
+            'is_lab_safe'              => ['='],
+            'is_destructive'           => ['='],
+            'has_autonomous_remediation'=> ['='],
+            'demo_mode'                => ['='],
+        ],
+        'demo_readiness_snapshots' => [
+            'overall_ready'      => ['='],
+            'rule_registry_pass' => ['='],
+            'php_tests_passed'   => ['>=', '<='],
+        ],
+        'platform_showcase_exports' => [
+            'export_type'     => ['='],
+            'export_format'   => ['='],
+            'is_deterministic'=> ['='],
+            'is_advisory'     => ['='],
+            'is_fabricated'   => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -1512,6 +1537,10 @@ class ThreatHuntingService
         'investigation_sessions'        => \App\Models\InvestigationSession::class,
         'retrospective_hunt_queries'    => \App\Models\RetrospectiveHuntQuery::class,
         'investigation_timeline_events' => \App\Models\InvestigationTimelineEvent::class,
+        // Final Demo / Portfolio / Thesis Packaging Phase 1
+        'demo_scenario_runs'        => \App\Models\DemoScenarioRun::class,
+        'demo_readiness_snapshots'  => \App\Models\DemoReadinessSnapshot::class,
+        'platform_showcase_exports' => \App\Models\PlatformShowcaseExport::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -1698,6 +1727,10 @@ class ThreatHuntingService
         'investigation_sessions'        => 'created_at',
         'retrospective_hunt_queries'    => 'created_at',
         'investigation_timeline_events' => 'occurred_at',
+        // Final Demo / Portfolio / Thesis Packaging Phase 1
+        'demo_scenario_runs'        => 'created_at',
+        'demo_readiness_snapshots'  => 'created_at',
+        'platform_showcase_exports' => 'created_at',
     ];
 
     // -----------------------------------------------------------------------

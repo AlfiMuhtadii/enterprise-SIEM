@@ -1,0 +1,45 @@
+{
+  "scenario": "phishing_attack_chain",
+  "name": "Phishing to Script Execution",
+  "objective": "Demonstrate detection of a phishing email leading to script execution and credential theft attempt.",
+  "is_lab_safe": true,
+  "is_destructive": false,
+  "has_real_malware": false,
+  "mitre_tactics": ["TA0001", "TA0002", "TA0006"],
+  "timeline": [
+    {"t": 0, "event": "phishing_email_received", "source": "saas_audit"},
+    {"t": 30, "event": "link_clicked", "source": "identity_provider"},
+    {"t": 45, "event": "browser_child_process_spawned", "source": "endpoint_agent"},
+    {"t": 60, "event": "encoded_powershell_executed", "source": "endpoint_agent"},
+    {"t": 90, "event": "network_beacon_detected", "source": "endpoint_agent"},
+    {"t": 120, "event": "alert_generated", "source": "correlation_worker"}
+  ],
+  "expected_alerts": [
+    "ENCODED_COMMAND_EXECUTION",
+    "BROWSER_CHILD_PROCESS_ANOMALY",
+    "OUTBOUND_BEACON_DETECTED"
+  ],
+  "expected_hunt_pivots": [
+    "processes → encoded_powershell",
+    "beacon_patterns → remote_ip",
+    "identity_provider_events → user_login"
+  ],
+  "expected_dashboard_outputs": [
+    "Security Incident created",
+    "Attack stage timeline populated",
+    "Entity graph: user → process → network"
+  ],
+  "expected_soc_workflow": [
+    "Alert escalated to analyst queue",
+    "Analyst investigates process ancestry",
+    "Hunt pivot to network correlations",
+    "Advisory response plan generated"
+  ],
+  "events": [
+    {"seq": 1, "type": "saas_audit_event", "user": "demo-user@example.com", "action": "email_link_clicked", "trace_id": "trace-phish-001"},
+    {"seq": 2, "type": "identity_event", "user": "demo-user@example.com", "action": "token_issued", "trace_id": "trace-phish-001"},
+    {"seq": 3, "type": "process_start", "name": "powershell.exe", "parent": "chrome.exe", "encoded": true, "trace_id": "trace-phish-001"},
+    {"seq": 4, "type": "network_connect", "remote_ip": "198.51.100.42", "process": "powershell.exe", "trace_id": "trace-phish-001"},
+    {"seq": 5, "type": "alert", "rule": "ENCODED_COMMAND_EXECUTION", "severity": "high", "trace_id": "trace-phish-001"}
+  ]
+}

@@ -480,7 +480,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
 
     public function test_threat_hunting_service_has_correct_domain_count(): void
     {
-        $this->assertCount(155, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(158, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_release_stabilization_domains_registered(): void

@@ -487,7 +487,7 @@ class CodeLevelXdrMaturityTest extends TestCase
 
     public function test_threat_hunting_service_has_155_domains(): void
     {
-        $this->assertCount(155, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(158, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_xdr_maturity_domains_are_registered(): void

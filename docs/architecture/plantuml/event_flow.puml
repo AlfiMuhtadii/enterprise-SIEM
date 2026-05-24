@@ -1,0 +1,40 @@
+@startuml XDR Event Flow
+!pragma teoz true
+skinparam backgroundColor #FEFEFE
+skinparam sequenceMessageAlign center
+
+title XDR Platform — Event Flow Pipeline
+
+actor "Telemetry Source\n(Web App / Endpoint Agent)" as SRC
+participant "ingestion-gateway\n(Go)\nHMAC-SHA256 auth" as IG
+queue "telemetry.raw\n(Redpanda)" as TR
+participant "normalizer-worker\n(Go)\nSchema normalization" as NW
+queue "telemetry.normalized\n(Redpanda)" as TN
+participant "correlation-worker\n(Go)\n12 active rules\nidentity/cloud/SaaS" as CW
+queue "xdr.alerts\n(active)" as XA
+queue "xdr.alerts.shadow.endpoint\n(shadow — NOT consumed)" as XS
+participant "alert-writer-service\n(Python/FastAPI)" as AW
+database "security_alerts\n(PostgreSQL)" as DB
+queue "alerts.created\n(Redpanda)" as AC
+participant "incident-builder-service\n(Python/FastAPI)" as IB
+database "security_incidents\n(PostgreSQL)" as IDB
+participant "Laravel SOC\n(Control Plane)" as SOC
+
+SRC -> IG : POST /v1/ingest\n(HMAC-SHA256 signed)
+IG -> TR : publish telemetry.raw
+TR -> NW : consume raw events
+NW -> TN : publish normalized events
+TN -> CW : consume normalized events
+CW -> XA : publish active alerts\n(identity/cloud/SaaS)
+CW -> XS : publish shadow alerts\n(endpoint — advisory only)
+XA -> AW : consume active alerts
+AW -> DB : INSERT security_alerts\n(ON CONFLICT DO NOTHING)
+AW -> AC : publish alerts.created
+AC -> IB : consume alerts.created
+IB -> IDB : INSERT security_incidents
+IDB -> SOC : SOC investigates\n(entity graph, hunt, response)
+
+note over XS : Shadow alerts NOT consumed\nby alert-writer-service\nEndpoint cutover pending\ndomain-specific 6h soak
+
+note over SOC : Control plane only\nNo autonomous remediation\nAdvisory-only response plans
+@enduml

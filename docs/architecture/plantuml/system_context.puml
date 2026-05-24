@@ -1,0 +1,61 @@
+@startuml XDR System Context
+!pragma teoz true
+skinparam backgroundColor #FEFEFE
+
+title XDR Platform — System Context (C4 Level 1)
+
+rectangle "External Sources" {
+  actor "Web Application" as WA
+  actor "Endpoint Agent\n(Linux /proc)" as EA
+}
+
+rectangle "XDR Platform" {
+  rectangle "Go Microservices\n(Pipeline)" {
+    component "ingestion-gateway" as IG
+    component "normalizer-worker" as NW
+    component "correlation-worker" as CW
+    component "alert-writer-service" as AW
+    component "incident-builder-service" as IB
+  }
+  rectangle "Event Backbone" {
+    database "Redpanda\n(Kafka-compatible)" as RP
+  }
+  rectangle "Storage Layer" {
+    database "PostgreSQL\n(SOC state)" as PG
+    database "ClickHouse\n(analytics)" as CH
+    database "OpenSearch\n(alert index)" as OS
+    database "Qdrant\n(vector store)" as QD
+  }
+  rectangle "Control Plane" {
+    component "Laravel SOC\n(PHP/Blade)" as SOC
+    component "ai-rag-service\n(Python/FastAPI)" as RAG
+  }
+  rectangle "Observability" {
+    component "Grafana\n(dashboards)" as GR
+  }
+}
+
+WA --> IG : HMAC-SHA256 POST /v1/ingest
+EA --> IG : HMAC-SHA256 signed heartbeat
+
+IG --> RP : telemetry.raw
+RP --> NW : consume
+NW --> RP : telemetry.normalized
+RP --> CW : consume
+CW --> RP : xdr.alerts (active)\nxdr.alerts.shadow.endpoint
+RP --> AW : consume active alerts
+AW --> PG : security_alerts
+AW --> OS : alert index
+AW --> RP : alerts.created
+RP --> IB : consume
+IB --> PG : security_incidents
+
+SOC --> PG : read/write control plane
+SOC --> QD : vector search
+RAG --> QD : analyst assist
+
+GR --> PG : metrics queries
+GR --> CH : analytics queries
+
+note right of CW : Active scope: identity/cloud/SaaS only\nEndpoint scope: shadow/advisory\nNo autonomous remediation
+@enduml
