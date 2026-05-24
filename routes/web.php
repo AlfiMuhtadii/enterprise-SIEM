@@ -1049,6 +1049,19 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-scale')->group
     Route::get('/audit',       [\App\Http\Controllers\EnterpriseScaleController::class, 'auditTimeline'])->name('enterprise-scale.audit');
 });
 
+// Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('release-stabilization')->group(function () {
+    Route::get('/',                [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'dashboard'])->name('release-stab.dashboard');
+    Route::get('/freeze',          [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'featureFreezeGovernance'])->name('release-stab.freeze');
+    Route::get('/artifacts',       [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'artifactExplorer'])->name('release-stab.artifacts');
+    Route::get('/pilot',           [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'pilotReadiness'])->name('release-stab.pilot');
+    Route::get('/validation',      [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'operationalValidation'])->name('release-stab.validation');
+    Route::get('/reproducibility', [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'reproducibilityTimeline'])->name('release-stab.reproducibility');
+    Route::get('/blockers',        [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'blockerExplorer'])->name('release-stab.blockers');
+    Route::get('/stabilization',   [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'stabilizationViewer'])->name('release-stab.stabilization');
+    Route::get('/audit',           [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'auditTimeline'])->name('release-stab.audit');
+});
+
 // Final XDR Readiness Certification Phase 1
 Route::middleware(['auth', 'soc:audit.view'])->prefix('xdr-certification')->group(function () {
     Route::get('/',             [\App\Http\Controllers\FinalXdrCertificationController::class, 'dashboard'])->name('xdr-cert.dashboard');

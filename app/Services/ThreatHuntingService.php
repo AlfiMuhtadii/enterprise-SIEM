@@ -218,6 +218,12 @@ class ThreatHuntingService
         'operational_limitation_reports',
         'production_risk_register',
         'go_live_validation_runs',
+        // Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
+        'release_candidate_manifests',
+        'feature_freeze_audit',
+        'deployment_artifact_reports',
+        'pilot_deployment_preparation_runs',
+        'deployment_reproducibility_reports',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1047,6 +1053,41 @@ class ThreatHuntingService
             'utilization_efficiency_pct' => ['>=', '<='],
             'is_advisory'                => ['='],
         ],
+        // Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
+        'release_candidate_manifests' => [
+            'rc_version'              => ['=', 'contains'],
+            'rc_state'                => ['='],
+            'readiness_score'         => ['>=', '<='],
+            'feature_freeze_enforced' => ['='],
+            'soak_validated'          => ['='],
+        ],
+        'feature_freeze_audit' => [
+            'freeze_event'  => ['='],
+            'freeze_scope'  => ['='],
+            'subsystem'     => ['=', 'contains'],
+            'rc_version'    => ['=', 'contains'],
+            'hotfix_allowed'=> ['='],
+        ],
+        'deployment_artifact_reports' => [
+            'artifact_type'      => ['='],
+            'artifact_state'     => ['='],
+            'integrity_verified' => ['='],
+            'rc_version'         => ['=', 'contains'],
+        ],
+        'pilot_deployment_preparation_runs' => [
+            'preparation_scope'  => ['='],
+            'preparation_state'  => ['='],
+            'readiness_score'    => ['>=', '<='],
+            'onboarding_ready'   => ['='],
+            'rollback_ready'     => ['='],
+        ],
+        'deployment_reproducibility_reports' => [
+            'deployment_scope'            => ['='],
+            'reproducibility_score'       => ['>=', '<='],
+            'artifact_hash_verified'      => ['='],
+            'configuration_deterministic' => ['='],
+            'rc_version'                  => ['=', 'contains'],
+        ],
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications' => [
             'certification_type'  => ['='],
@@ -1400,6 +1441,12 @@ class ThreatHuntingService
         'telemetry_distribution_reports'       => \App\Models\TelemetryDistributionReport::class,
         'failover_coordination_history'        => \App\Models\FailoverCoordinationHistory::class,
         'infrastructure_cost_reports'          => \App\Models\InfrastructureCostReport::class,
+        // Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
+        'release_candidate_manifests'          => \App\Models\ReleaseCandidateManifest::class,
+        'feature_freeze_audit'                 => \App\Models\FeatureFreezeAudit::class,
+        'deployment_artifact_reports'          => \App\Models\DeploymentArtifactReport::class,
+        'pilot_deployment_preparation_runs'    => \App\Models\PilotDeploymentPreparationRun::class,
+        'deployment_reproducibility_reports'   => \App\Models\DeploymentReproducibilityReport::class,
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications'         => \App\Models\XdrReadinessCertification::class,
         'production_acceptance_gates'          => \App\Models\ProductionAcceptanceGate::class,
@@ -1574,6 +1621,12 @@ class ThreatHuntingService
         'telemetry_distribution_reports'      => 'created_at',
         'failover_coordination_history'       => 'created_at',
         'infrastructure_cost_reports'         => 'created_at',
+        // Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
+        'release_candidate_manifests'         => 'created_at',
+        'feature_freeze_audit'                => 'created_at',
+        'deployment_artifact_reports'         => 'created_at',
+        'pilot_deployment_preparation_runs'   => 'created_at',
+        'deployment_reproducibility_reports'  => 'created_at',
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications'        => 'created_at',
         'production_acceptance_gates'         => 'created_at',
