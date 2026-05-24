@@ -27,7 +27,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->svc = app(AdvancedDetectionService::class);
     }
 
-    // ─── Hard constraints ─────────────────────────────────────────────────────
+    // â”€â”€â”€ Hard constraints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_no_isolate_host(): void
     {
@@ -84,7 +84,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertTrue($stats['advisory_only']);
     }
 
-    // ─── Adversarial Validation ───────────────────────────────────────────────
+    // â”€â”€â”€ Adversarial Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_adversarial_validation_pass_verdict(): void
     {
@@ -148,7 +148,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertEquals($r1->detection_confidence, $r2->detection_confidence);
     }
 
-    // ─── Chained Detection ────────────────────────────────────────────────────
+    // â”€â”€â”€ Chained Detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_chained_detection_persists(): void
     {
@@ -198,7 +198,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertEquals($g1->chain_confidence, $g2->chain_confidence);
     }
 
-    // ─── Attack Chain Timeline ────────────────────────────────────────────────
+    // â”€â”€â”€ Attack Chain Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_append_chain_timeline_persists(): void
     {
@@ -226,7 +226,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $e->save();
     }
 
-    // ─── Evasion Resilience ───────────────────────────────────────────────────
+    // â”€â”€â”€ Evasion Resilience â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_evasion_resilience_detection_survived(): void
     {
@@ -282,7 +282,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertLessThanOrEqual(1.0, $r->resilience_score);
     }
 
-    // ─── Detection Confidence ─────────────────────────────────────────────────
+    // â”€â”€â”€ Detection Confidence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_confidence_report_fp_rate_computed(): void
     {
@@ -313,7 +313,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $r->save();
     }
 
-    // ─── Tactic Progression ───────────────────────────────────────────────────
+    // â”€â”€â”€ Tactic Progression â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_tactic_progression_multi_stage_on_3_plus_tactics(): void
     {
@@ -353,7 +353,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertEquals($s1->progression_score, $s2->progression_score);
     }
 
-    // ─── Cross-Host Correlation ───────────────────────────────────────────────
+    // â”€â”€â”€ Cross-Host Correlation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_cross_host_correlation_persists(): void
     {
@@ -400,7 +400,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertEquals($r1->correlation_confidence, $r2->correlation_confidence);
     }
 
-    // ─── Scenario Packs & Fixtures ────────────────────────────────────────────
+    // â”€â”€â”€ Scenario Packs & Fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_create_scenario_pack_persists(): void
     {
@@ -433,7 +433,7 @@ class AdvancedDetectionCoverageTest extends TestCase
         $this->assertStringStartsWith('raf-', $fix->fixture_id);
     }
 
-    // ─── Hunt domain integration ──────────────────────────────────────────────
+    // â”€â”€â”€ Hunt domain integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_adversarial_validation_runs_domain_supported(): void
     {
@@ -468,10 +468,10 @@ class AdvancedDetectionCoverageTest extends TestCase
     public function test_total_hunt_domains(): void
     {
         $hunting = app(\App\Services\ThreatHuntingService::class);
-        $this->assertCount(140, $hunting->supportedDomains());
+        $this->assertCount(145, $hunting->supportedDomains());
     }
 
-    // ─── Routes ───────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_attack_coverage_dashboard_route(): void
     {
@@ -504,7 +504,7 @@ class AdvancedDetectionCoverageTest extends TestCase
             ->assertSee('advisory-only');
     }
 
-    // ─── Dashboard stats ──────────────────────────────────────────────────────
+    // â”€â”€â”€ Dashboard stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function test_dashboard_stats_all_keys_present(): void
     {
@@ -521,3 +521,4 @@ class AdvancedDetectionCoverageTest extends TestCase
         }
     }
 }
+

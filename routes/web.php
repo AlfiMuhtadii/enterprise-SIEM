@@ -1049,4 +1049,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-scale')->group
     Route::get('/audit',       [\App\Http\Controllers\EnterpriseScaleController::class, 'auditTimeline'])->name('enterprise-scale.audit');
 });
 
+// Final XDR Readiness Certification Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('xdr-certification')->group(function () {
+    Route::get('/',             [\App\Http\Controllers\FinalXdrCertificationController::class, 'dashboard'])->name('xdr-cert.dashboard');
+    Route::get('/certifications',[\App\Http\Controllers\FinalXdrCertificationController::class, 'certificationCenter'])->name('xdr-cert.certifications');
+    Route::get('/gates',        [\App\Http\Controllers\FinalXdrCertificationController::class, 'acceptanceGates'])->name('xdr-cert.gates');
+    Route::get('/limitations',  [\App\Http\Controllers\FinalXdrCertificationController::class, 'limitationRegister'])->name('xdr-cert.limitations');
+    Route::get('/risks',        [\App\Http\Controllers\FinalXdrCertificationController::class, 'riskRegister'])->name('xdr-cert.risks');
+    Route::get('/executive',    [\App\Http\Controllers\FinalXdrCertificationController::class, 'executiveReports'])->name('xdr-cert.executive');
+    Route::get('/technical',    [\App\Http\Controllers\FinalXdrCertificationController::class, 'technicalReports'])->name('xdr-cert.technical');
+    Route::get('/go-live',      [\App\Http\Controllers\FinalXdrCertificationController::class, 'goLiveValidations'])->name('xdr-cert.go-live');
+    Route::get('/audit',        [\App\Http\Controllers\FinalXdrCertificationController::class, 'auditTimeline'])->name('xdr-cert.audit');
+});
+
 require __DIR__.'/auth.php';

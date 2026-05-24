@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Endpoint Low-Level Telemetry Phase 1 — Feature Tests.
+ * Endpoint Low-Level Telemetry Phase 1 â€” Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -45,7 +45,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
     }
 
     // =========================================================================
-    // Schema — new tables exist
+    // Schema â€” new tables exist
     // =========================================================================
 
     public function test_endpoint_script_executions_table_exists(): void
@@ -64,7 +64,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
     }
 
     // =========================================================================
-    // Append-only guarantees — no updated_at
+    // Append-only guarantees â€” no updated_at
     // =========================================================================
 
     public function test_script_executions_table_has_no_updated_at(): void
@@ -387,7 +387,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
 
     public function test_hunt_domains_total_is_50(): void
     {
-        $this->assertCount(140, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(145, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_endpoint_script_executions_domain_supports_field_queries(): void
@@ -409,7 +409,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
     }
 
     // =========================================================================
-    // Risk engine — new factors
+    // Risk engine â€” new factors
     // =========================================================================
 
     public function test_low_level_telemetry_risk_factors_in_weights(): void
@@ -561,7 +561,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
     }
 
     // =========================================================================
-    // HARD SAFETY INVARIANTS — these must NEVER be removed or loosened
+    // HARD SAFETY INVARIANTS â€” these must NEVER be removed or loosened
     // =========================================================================
 
     public function test_no_isolate_host_in_telemetry_analytics_service(): void
@@ -630,7 +630,7 @@ class EndpointLowLevelTelemetryTest extends TestCase
         ]);
 
         $id = $esc->id;
-        // Attempt to delete should not be done from service — table is append-only
+        // Attempt to delete should not be done from service â€” table is append-only
         // The test verifies the record persists and cannot be changed via model update
         $this->assertNotNull(EndpointPrivilegeEscalation::find($id));
     }
@@ -673,3 +673,4 @@ class EndpointLowLevelTelemetryTest extends TestCase
         ], $overrides));
     }
 }
+

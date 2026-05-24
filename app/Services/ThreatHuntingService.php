@@ -212,6 +212,12 @@ class ThreatHuntingService
         'telemetry_distribution_reports',
         'failover_coordination_history',
         'infrastructure_cost_reports',
+        // Final XDR Readiness Certification Phase 1
+        'xdr_readiness_certifications',
+        'production_acceptance_gates',
+        'operational_limitation_reports',
+        'production_risk_register',
+        'go_live_validation_runs',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1041,6 +1047,40 @@ class ThreatHuntingService
             'utilization_efficiency_pct' => ['>=', '<='],
             'is_advisory'                => ['='],
         ],
+        // Final XDR Readiness Certification Phase 1
+        'xdr_readiness_certifications' => [
+            'certification_type'  => ['='],
+            'certification_state' => ['='],
+            'readiness_score'     => ['>=', '<='],
+            'all_gates_passed'    => ['='],
+            'soak_validated'      => ['='],
+        ],
+        'production_acceptance_gates' => [
+            'gate_name'    => ['='],
+            'gate_state'   => ['='],
+            'gate_passed'  => ['='],
+            'gate_score'   => ['>=', '<='],
+        ],
+        'operational_limitation_reports' => [
+            'limitation_category' => ['='],
+            'limitation_severity' => ['='],
+            'cutover_blocked'     => ['='],
+            'affected_domain'     => ['=', 'contains'],
+        ],
+        'production_risk_register' => [
+            'risk_category'    => ['='],
+            'risk_severity'    => ['='],
+            'risk_state'       => ['='],
+            'cutover_blocker'  => ['='],
+            'risk_score'       => ['>=', '<='],
+        ],
+        'go_live_validation_runs' => [
+            'validation_scope'     => ['='],
+            'validation_state'     => ['='],
+            'soak_requirement_met' => ['='],
+            'gate_requirement_met' => ['='],
+            'rollback_ready'       => ['='],
+        ],
         'replay_scale_recovery_runs' => [
             'tenant_id'             => ['=', 'contains'],
             'recovery_successful'   => ['='],
@@ -1360,6 +1400,12 @@ class ThreatHuntingService
         'telemetry_distribution_reports'       => \App\Models\TelemetryDistributionReport::class,
         'failover_coordination_history'        => \App\Models\FailoverCoordinationHistory::class,
         'infrastructure_cost_reports'          => \App\Models\InfrastructureCostReport::class,
+        // Final XDR Readiness Certification Phase 1
+        'xdr_readiness_certifications'         => \App\Models\XdrReadinessCertification::class,
+        'production_acceptance_gates'          => \App\Models\ProductionAcceptanceGate::class,
+        'operational_limitation_reports'       => \App\Models\OperationalLimitationReport::class,
+        'production_risk_register'             => \App\Models\ProductionRiskRegister::class,
+        'go_live_validation_runs'              => \App\Models\GoLiveValidationRun::class,
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => \App\Models\SoarPlaybook::class,
         'soar_execution_plans'    => \App\Models\SoarExecutionPlan::class,
@@ -1528,6 +1574,12 @@ class ThreatHuntingService
         'telemetry_distribution_reports'      => 'created_at',
         'failover_coordination_history'       => 'created_at',
         'infrastructure_cost_reports'         => 'created_at',
+        // Final XDR Readiness Certification Phase 1
+        'xdr_readiness_certifications'        => 'created_at',
+        'production_acceptance_gates'         => 'created_at',
+        'operational_limitation_reports'      => 'created_at',
+        'production_risk_register'            => 'created_at',
+        'go_live_validation_runs'             => 'created_at',
         // SOAR Governance & Response Orchestration Phase 1
         'soar_playbooks'          => 'created_at',
         'soar_execution_plans'    => 'created_at',

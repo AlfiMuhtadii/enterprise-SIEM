@@ -512,7 +512,7 @@ class LongRunningOperationalTest extends TestCase
 
     public function test_threat_hunting_has_115_supported_domains(): void
     {
-        $this->assertCount(140, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(145, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_telemetry_trend_reports_domain_supported(): void
@@ -584,3 +584,4 @@ class LongRunningOperationalTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
+

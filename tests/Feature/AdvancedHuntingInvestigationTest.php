@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Advanced Threat Hunting & Investigation Phase 1 — Feature Tests.
+ * Advanced Threat Hunting & Investigation Phase 1 â€” Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -50,7 +50,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Schema — new tables exist
+    // Schema â€” new tables exist
     // =========================================================================
 
     public function test_investigation_graph_nodes_table_exists(): void
@@ -143,7 +143,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph nodes — append-safe
+    // Graph nodes â€” append-safe
     // =========================================================================
 
     public function test_add_node_creates_investigation_graph_node(): void
@@ -196,7 +196,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph edges — append-safe
+    // Graph edges â€” append-safe
     // =========================================================================
 
     public function test_add_edge_creates_investigation_graph_edge(): void
@@ -265,7 +265,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Timeline events — append-only
+    // Timeline events â€” append-only
     // =========================================================================
 
     public function test_add_timeline_event_creates_record(): void
@@ -378,7 +378,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Evidence linking — append-only
+    // Evidence linking â€” append-only
     // =========================================================================
 
     public function test_link_evidence_creates_append_only_record(): void
@@ -425,7 +425,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Bookmarks — mutable
+    // Bookmarks â€” mutable
     // =========================================================================
 
     public function test_add_bookmark_creates_record(): void
@@ -473,7 +473,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     public function test_threat_hunting_supports_50_domains(): void
     {
         $domains = $this->hunting->supportedDomains();
-        $this->assertCount(140, $domains);
+        $this->assertCount(145, $domains);
     }
 
     public function test_hunt_investigation_graph_nodes_domain(): void
@@ -560,7 +560,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Entity risk scoring — ATHI factors
+    // Entity risk scoring â€” ATHI factors
     // =========================================================================
 
     public function test_entity_risk_scoring_service_has_athi_weights(): void
@@ -662,7 +662,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Safety invariants — no autonomous enforcement methods exist
+    // Safety invariants â€” no autonomous enforcement methods exist
     // =========================================================================
 
     public function test_investigation_graph_service_has_no_isolate_host(): void
@@ -734,3 +734,4 @@ class AdvancedHuntingInvestigationTest extends TestCase
         $this->assertTrue($query->is_advisory);
     }
 }
+

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Performance / Capacity / Cost Governance Phase 1 — Feature Tests.
+ * Performance / Capacity / Cost Governance Phase 1 â€” Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No autonomous scaling
@@ -48,7 +48,7 @@ class CapacityGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // Schema — new tables exist
+    // Schema â€” new tables exist
     // =========================================================================
 
     public function test_telemetry_capacity_snapshots_table_exists(): void
@@ -368,7 +368,7 @@ class CapacityGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // Partition pressure snapshots — mutable
+    // Partition pressure snapshots â€” mutable
     // =========================================================================
 
     public function test_upsert_partition_pressure_creates_record(): void
@@ -465,7 +465,7 @@ class CapacityGovernanceTest extends TestCase
 
     public function test_threat_hunting_supports_60_domains(): void
     {
-        $this->assertCount(140, $this->hunting->supportedDomains());
+        $this->assertCount(145, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_telemetry_capacity_snapshots_domain(): void
@@ -629,3 +629,4 @@ class CapacityGovernanceTest extends TestCase
         $this->assertStringContainsString('No autonomous scaling', $proj->assumptions);
     }
 }
+

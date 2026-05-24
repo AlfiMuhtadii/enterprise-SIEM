@@ -494,7 +494,7 @@ class TelemetryScalePilotTest extends TestCase
 
     public function test_threat_hunting_has_110_supported_domains(): void
     {
-        $this->assertCount(140, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(145, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_telemetry_scale_validation_runs_domain_supported(): void
@@ -560,3 +560,4 @@ class TelemetryScalePilotTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
+

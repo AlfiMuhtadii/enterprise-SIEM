@@ -32,7 +32,7 @@ class MultiTenantIsolationTest extends TestCase
     }
 
     // =========================================================================
-    // Hard constraint — no forbidden operations
+    // Hard constraint â€” no forbidden operations
     // =========================================================================
 
     public function test_no_isolate_host(): void
@@ -550,7 +550,7 @@ class MultiTenantIsolationTest extends TestCase
 
     public function test_total_hunt_domains_is_80(): void
     {
-        $this->assertCount(140, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(145, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     // =========================================================================
@@ -604,3 +604,4 @@ class MultiTenantIsolationTest extends TestCase
             ->assertSee('Tenant governance workflows are replay-safe and isolation-enforced');
     }
 }
+

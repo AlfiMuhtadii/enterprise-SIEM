@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Compliance / Governance / Evidence Integrity Phase 1 — Feature Tests.
+ * Compliance / Governance / Evidence Integrity Phase 1 â€” Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No destructive evidence deletion
@@ -53,7 +53,7 @@ class ComplianceGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // Schema — new tables exist
+    // Schema â€” new tables exist
     // =========================================================================
 
     public function test_evidence_integrity_runs_table_exists(): void
@@ -141,7 +141,7 @@ class ComplianceGovernanceTest extends TestCase
             'version_id'  => 'drv-test-integrity',
             'rule_id'     => 'TEST_RULE',
             'version'     => '1.0',
-            'rule_hash'   => '', // empty hash — should be flagged
+            'rule_hash'   => '', // empty hash â€” should be flagged
             'status'      => 'active',
             'stage'       => 'draft',
             'shadow_only' => true,
@@ -361,7 +361,7 @@ class ComplianceGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // PII access audit — append-only
+    // PII access audit â€” append-only
     // =========================================================================
 
     public function test_log_pii_access_creates_audit_record(): void
@@ -517,7 +517,7 @@ class ComplianceGovernanceTest extends TestCase
 
     public function test_threat_hunting_supports_55_domains(): void
     {
-        $this->assertCount(140, $this->hunting->supportedDomains());
+        $this->assertCount(145, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_evidence_integrity_runs_domain(): void
@@ -696,3 +696,4 @@ class ComplianceGovernanceTest extends TestCase
         $this->assertTrue($req->pii_masked);
     }
 }
+
