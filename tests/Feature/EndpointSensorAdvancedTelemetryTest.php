@@ -524,7 +524,7 @@ class EndpointSensorAdvancedTelemetryTest extends TestCase
 
     public function test_threat_hunting_has_120_supported_domains(): void
     {
-        $this->assertCount(150, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(155, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_endpoint_file_hash_lineage_domain_supported(): void

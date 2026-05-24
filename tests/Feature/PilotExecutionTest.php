@@ -577,7 +577,7 @@ class PilotExecutionTest extends TestCase
 
     public function test_threat_hunting_has_95_supported_domains(): void
     {
-        $this->assertCount(150, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(155, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_live_pilot_runs_domain_is_supported(): void

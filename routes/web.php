@@ -1049,6 +1049,19 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('enterprise-scale')->group
     Route::get('/audit',       [\App\Http\Controllers\EnterpriseScaleController::class, 'auditTimeline'])->name('enterprise-scale.audit');
 });
 
+// Code-Level XDR Maturity Acceleration Phase 1
+Route::middleware(['auth', 'soc:audit.view'])->prefix('xdr-maturity')->group(function () {
+    Route::get('/',          [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'dashboard'])->name('xdr-maturity.dashboard');
+    Route::get('/fixtures',  [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'fixtureExplorer'])->name('xdr-maturity.fixtures');
+    Route::get('/detection', [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'detectionScorecard'])->name('xdr-maturity.detection');
+    Route::get('/fpfn',      [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'fpfnAnalysis'])->name('xdr-maturity.fpfn');
+    Route::get('/telemetry', [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'telemetryQuality'])->name('xdr-maturity.telemetry');
+    Route::get('/triage',    [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'triageSimulation'])->name('xdr-maturity.triage');
+    Route::get('/hotspots',  [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'hotspotExplorer'])->name('xdr-maturity.hotspots');
+    Route::get('/noisy',     [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'noisySimulation'])->name('xdr-maturity.noisy');
+    Route::get('/report',    [\App\Http\Controllers\CodeLevelXdrMaturityController::class, 'readinessReport'])->name('xdr-maturity.report');
+});
+
 // Release Candidate Stabilization & Pilot Deployment Preparation Phase 1
 Route::middleware(['auth', 'soc:audit.view'])->prefix('release-stabilization')->group(function () {
     Route::get('/',                [\App\Http\Controllers\ReleaseCandidateStabilizationController::class, 'dashboard'])->name('release-stab.dashboard');

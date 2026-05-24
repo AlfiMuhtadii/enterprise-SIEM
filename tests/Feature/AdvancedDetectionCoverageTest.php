@@ -468,7 +468,7 @@ class AdvancedDetectionCoverageTest extends TestCase
     public function test_total_hunt_domains(): void
     {
         $hunting = app(\App\Services\ThreatHuntingService::class);
-        $this->assertCount(150, $hunting->supportedDomains());
+        $this->assertCount(155, $hunting->supportedDomains());
     }
 
     // â”€â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

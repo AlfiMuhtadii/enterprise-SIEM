@@ -224,6 +224,12 @@ class ThreatHuntingService
         'deployment_artifact_reports',
         'pilot_deployment_preparation_runs',
         'deployment_reproducibility_reports',
+        // Code-Level XDR Maturity Acceleration Phase 1
+        'synthetic_attack_fixtures',
+        'detection_quality_scorecards',
+        'false_positive_negative_reports',
+        'telemetry_quality_scorecards',
+        'xdr_maturity_scorecards',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1088,6 +1094,41 @@ class ThreatHuntingService
             'configuration_deterministic' => ['='],
             'rc_version'                  => ['=', 'contains'],
         ],
+        // Code-Level XDR Maturity Acceleration Phase 1
+        'synthetic_attack_fixtures' => [
+            'fixture_scenario' => ['='],
+            'fixture_state'    => ['='],
+            'is_lab_safe'      => ['='],
+            'is_destructive'   => ['='],
+            'total_events'     => ['>=', '<='],
+        ],
+        'detection_quality_scorecards' => [
+            'scored_rule_id'          => ['='],
+            'precision_score'         => ['>=', '<='],
+            'recall_score'            => ['>=', '<='],
+            'overall_quality_score'   => ['>=', '<='],
+            'is_advisory'             => ['='],
+        ],
+        'false_positive_negative_reports' => [
+            'analyzed_rule_id'   => ['='],
+            'fp_prevalence_rate' => ['>=', '<='],
+            'fn_prevalence_rate' => ['>=', '<='],
+            'advisory_only'      => ['='],
+        ],
+        'telemetry_quality_scorecards' => [
+            'tenant_id'               => ['='],
+            'overall_quality_score'   => ['>=', '<='],
+            'malformed_event_ratio'   => ['>=', '<='],
+            'trace_id_completeness'   => ['>=', '<='],
+            'is_advisory'             => ['='],
+        ],
+        'xdr_maturity_scorecards' => [
+            'maturity_tier'           => ['='],
+            'overall_maturity_score'  => ['>=', '<='],
+            'detection_quality_score' => ['>=', '<='],
+            'telemetry_quality_score' => ['>=', '<='],
+            'is_advisory'             => ['='],
+        ],
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications' => [
             'certification_type'  => ['='],
@@ -1447,6 +1488,12 @@ class ThreatHuntingService
         'deployment_artifact_reports'          => \App\Models\DeploymentArtifactReport::class,
         'pilot_deployment_preparation_runs'    => \App\Models\PilotDeploymentPreparationRun::class,
         'deployment_reproducibility_reports'   => \App\Models\DeploymentReproducibilityReport::class,
+        // Code-Level XDR Maturity Acceleration Phase 1
+        'synthetic_attack_fixtures'            => \App\Models\SyntheticAttackFixture::class,
+        'detection_quality_scorecards'         => \App\Models\DetectionQualityScorecard::class,
+        'false_positive_negative_reports'      => \App\Models\FalsePositiveNegativeReport::class,
+        'telemetry_quality_scorecards'         => \App\Models\TelemetryQualityScorecard::class,
+        'xdr_maturity_scorecards'              => \App\Models\XdrMaturityScorecard::class,
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications'         => \App\Models\XdrReadinessCertification::class,
         'production_acceptance_gates'          => \App\Models\ProductionAcceptanceGate::class,
@@ -1627,6 +1674,12 @@ class ThreatHuntingService
         'deployment_artifact_reports'         => 'created_at',
         'pilot_deployment_preparation_runs'   => 'created_at',
         'deployment_reproducibility_reports'  => 'created_at',
+        // Code-Level XDR Maturity Acceleration Phase 1
+        'synthetic_attack_fixtures'           => 'created_at',
+        'detection_quality_scorecards'        => 'created_at',
+        'false_positive_negative_reports'     => 'created_at',
+        'telemetry_quality_scorecards'        => 'created_at',
+        'xdr_maturity_scorecards'             => 'created_at',
         // Final XDR Readiness Certification Phase 1
         'xdr_readiness_certifications'        => 'created_at',
         'production_acceptance_gates'         => 'created_at',
