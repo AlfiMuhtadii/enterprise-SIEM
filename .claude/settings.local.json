@@ -65,7 +65,8 @@
       "PowerShell(\\(Get-Content D:\\\\project\\\\Detector\\\\routes\\\\web.php\\) | Select-Object -Last 20)",
       "PowerShell(Select-String -Path D:\\\\project\\\\Detector\\\\tests\\\\Feature\\\\EndpointFleetHardeningTest.php -Pattern \"assertCount\" | Where-Object { $_.Line -match \"135|140\" } | Select-Object LineNumber, Line)",
       "Bash(Select-Object -Last 30)",
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "Bash(pip install *)"
     ]
   }
 }
