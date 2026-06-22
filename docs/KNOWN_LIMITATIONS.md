@@ -108,3 +108,15 @@ This document honestly describes the known limitations of the platform. These ar
 **Why:** XAI integration is planned as future work (see `docs/FUTURE_ROADMAP.md`).
 
 **Impact:** Analysts receive the classification verdict and confidence score but cannot inspect which features drove the decision.
+
+---
+
+## 11. Validator Processing Movement — Not True Kafka Consumer Lag
+
+**Limitation:** The live pipeline validator's checks 12–13 (`check_worker_processing_movement`) report `delta = max_offset − processed_since_restart`. This is **not** true Kafka consumer group committed-offset lag.
+
+**Why:** After any container restart, `processed_since_restart` resets to 0 while `max_offset` accumulates. `delta = max_offset` even when the worker has committed its offset and is fully healthy. True lag (`committed_offset − high_watermark` per consumer group) requires a broker consumer group query — a side effect that this read-only validator cannot perform.
+
+**Impact:** A large delta after a restart is expected and does not indicate a problem. The validator correctly interprets `recreate_count >= 10` or `poll_error_count >= 10` as failure indicators (these survive restarts). For accurate lag measurement use `rpk consumer-group describe <group>`.
+
+**Mitigation:** The validator function and check labels explicitly say "processing movement (not committed-offset lag)". The evidence strings say `delta~{n}` not `lag~{n}`. Section 12 of `docs/guides/LIMITATIONS_AND_CLAIMS.md` documents this in full.

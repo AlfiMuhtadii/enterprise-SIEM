@@ -2,8 +2,17 @@
 """
 Read-only live XDR pipeline readiness validator.
 
-Performs 9 checks across all pipeline services without ingesting data,
+Performs 16 checks across all pipeline services without ingesting data,
 publishing to Redpanda, writing to PostgreSQL, or starting any service.
+
+Check status semantics:
+  PASS    — check passed
+  FAIL    — check failed; required=True blocks LIVE_PIPELINE_READY, required=False is advisory
+  WARN    — advisory security or observability note; never blocks readiness
+  UNKNOWN — service unreachable or response unparseable; required=True blocks readiness
+
+Checks 12–13 measure processing delta (max_offset − processed_since_restart).
+This is NOT true Kafka consumer group committed-offset lag — see function docstring.
 
 Usage:
     python scripts/validate_live_xdr_pipeline.py
@@ -11,9 +20,9 @@ Usage:
     python scripts/validate_live_xdr_pipeline.py --timeout 5
 
 Exit codes:
-    0 — all checks PASS
-    1 — one or more checks FAIL
-    2 — no FAIL but one or more checks UNKNOWN
+    0 — all required checks PASS
+    1 — one or more required checks FAIL
+    2 — no required FAIL but one or more required checks UNKNOWN
 """
 
 from __future__ import annotations
@@ -246,31 +255,42 @@ def check_env_value(
 
 
 # ---------------------------------------------------------------------------
-# Advisory checks — consumer stability and topic watermarks
+# Advisory checks — processing movement and topic watermarks
 # ---------------------------------------------------------------------------
 
-def check_worker_consumer_lag(
+def check_worker_processing_movement(
     component: str,
     metrics_url: str,
     input_topic: str,
     redpanda_admin_url: str,
     timeout: int,
 ) -> CheckResult:
-    """Advisory check: consumer group lag for a Go pipeline worker.
+    """Advisory check: processing movement for a Go pipeline worker.
 
-    Combines two sources:
-    - Worker /metrics  → ``processed`` count since last restart (approximate position)
-    - Redpanda public_metrics → topic ``max_offset`` (high watermark)
+    IMPORTANT — this is NOT true Kafka consumer group committed-offset lag.
 
-    Approximate lag = max_offset − processed.  This resets when the worker
-    restarts (processed returns to 0), so the value is only meaningful when
-    the worker has been running long enough to catch up.  High
-    ``consumer_recreate_count`` (≥ 10) or ``poll_error_count`` (≥ 10) are
-    independent signals of a stale committed-offset loop.
+    Two sources are combined:
+    - Worker /metrics  → ``processed`` count since last restart (in-memory, resets to 0
+      on every container restart regardless of the Pandaproxy committed offset)
+    - Redpanda Admin API public_metrics → topic ``max_offset`` (high watermark)
 
-    FAIL threshold: lag > 500 OR recreate_count >= 10 OR poll_error_count >= 10.
+    ``delta = max_offset − processed`` is a coarse movement indicator, not a lag metric.
+    After a restart, delta = max_offset (all historical records) even when the worker
+    has committed its offset and is healthy. A large delta alone is not a problem.
+
+    True Kafka consumer group lag = committed_offset − high_watermark, read from the
+    broker. That requires a consumer group query (side effect); this validator is
+    read-only and cannot perform one.
+
+    What the check IS useful for:
+    - ``recreate_count >= 10``: consumer cycling without advancing (survives restarts)
+    - ``poll_error_count >= 10``: stuck in a Pandaproxy error loop
+    - ``poison_skipped`` / ``dlq_written``: DLQ isolation activity visibility
+    - ``delta > 500``: possible slow consumer (confirm with rpk consumer-group describe)
+
+    FAIL threshold: delta > 500 OR recreate_count >= 10 OR poll_error_count >= 10.
     """
-    check_name = f"consumer lag: {input_topic} (max_offset-processed)"
+    check_name = f"processing movement: {input_topic} (not committed-offset lag)"
 
     # --- 1. Fetch worker metrics ---
     wurl = metrics_url.rstrip("/") + "/metrics"
@@ -315,32 +335,32 @@ def check_worker_consumer_lag(
         {"redpanda_namespace": "kafka", "redpanda_topic": input_topic},
     )
 
-    # --- 3. Compute lag and status ---
+    # --- 3. Compute delta and status ---
     if max_offset_f is not None:
         max_offset = int(max_offset_f)
         lag = max_offset - processed
         evidence = (
-            f"lag~{lag} (max_offset={max_offset}, processed={processed}), "
+            f"delta~{lag} (max_offset={max_offset}, processed_since_restart={processed}), "
             f"recreate_count={recreate}, poll_errors={poll_errs}, "
             f"poison_skipped={poison_skip}, dlq_written={dlq_written}"
         )
     else:
         lag = None
         evidence = (
-            f"max_offset unavailable, processed={processed}, "
+            f"max_offset unavailable, processed_since_restart={processed}, "
             f"recreate_count={recreate}, poll_errors={poll_errs}, "
             f"poison_skipped={poison_skip}, dlq_written={dlq_written}"
         )
 
     if poll_errs >= 10:
         status = FAIL
-        evidence += " — poll_errors>=10: consumer may be in a stale offset loop"
+        evidence += " — poll_errors>=10: consumer stuck (verify with rpk consumer-group describe)"
     elif recreate >= 10:
         status = FAIL
-        evidence += " — recreate_count>=10: consumer cycling on stale offset"
+        evidence += " — recreate_count>=10: consumer cycling without advancing"
     elif lag is not None and lag > 500:
         status = FAIL
-        evidence += f" — lag>{500}: worker is significantly behind"
+        evidence += f" — delta>{500}: worker behind (restart resets counter; verify committed offset via rpk)"
     else:
         status = PASS
     return {
@@ -663,13 +683,13 @@ def main() -> int:
             env_vars, env_path,
             required=False,
         ),
-        # 12: normalizer consumer lag (telemetry.raw → normalizer-worker)
-        check_worker_consumer_lag(
+        # 12: processing movement — telemetry.raw → normalizer-worker (advisory; NOT committed-offset lag)
+        check_worker_processing_movement(
             "normalizer-worker", normalizer_url,
             "telemetry.raw", "http://127.0.0.1:9644", timeout,
         ),
-        # 13: correlation consumer lag (telemetry.normalized → correlation-worker)
-        check_worker_consumer_lag(
+        # 13: processing movement — telemetry.normalized → correlation-worker (advisory; NOT committed-offset lag)
+        check_worker_processing_movement(
             "correlation-worker", correlation_url,
             "telemetry.normalized", "http://127.0.0.1:9644", timeout,
         ),

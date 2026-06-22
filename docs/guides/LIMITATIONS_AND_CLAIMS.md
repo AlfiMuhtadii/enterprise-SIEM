@@ -218,6 +218,8 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 | Multi-tenant isolation | Real audit/governance records | No DB-level RLS enforcement |
 | External integrations (Okta/Jira/Slack) | Real pipeline code | Simulated delivery by default |
 | DNS/proxy/firewall analytics | Real analysis logic + shadow correlation | Network data is seeded/synthetic |
+| DLQ (telemetry.normalization_failed) | Real — normalizer isolates poison messages and writes to DLQ topic; alert-writer has DLQ topic | No consumer reads DLQ; records accumulate unprocessed |
+| Internal auth hardening (normalizer) | Real enforcement mode available (`XDR_ENFORCE_INTERNAL_AUTH=true`) | Default is permissive (demo-safe); validator WARNs when unset |
 
 ---
 
@@ -225,19 +227,42 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 
 ## 9. Live pipeline readiness validator
 
-`scripts/validate_live_xdr_pipeline.py` is a read-only tool that confirms all pipeline services are running and correctly configured before a demo. It performs 9 checks:
+`scripts/validate_live_xdr_pipeline.py` is a read-only tool that confirms all pipeline services are running and correctly configured before a demo. It performs **16 checks**.
 
-1. ingestion-gateway `/health` reachable
-2. normalizer-worker `/health` reachable
-3. correlation-worker `/health` reachable
-4. alert-writer-service `/health` reachable
-5. incident-builder `/health` reachable
-6. Redpanda REST API (`GET /topics`) reachable
-7. Required Redpanda topics exist (`telemetry.raw`, `telemetry.normalized`, `xdr.alerts`)
-8. `XDR_CORRELATION_EVENT_LOOP_ENABLED=true` — correlation-worker Redpanda consumer loop
-9. `XDR_EVENT_LOOP_ENABLED=true` — alert-writer-service Redpanda consumer loop
+### Check status semantics
 
-**These are two independent flags for two separate services.** Both must be enabled for the full alert pipeline to function end-to-end.
+| Status | Meaning | Blocks `LIVE_PIPELINE_READY`? |
+|---|---|---|
+| `PASS` | Check passed | No |
+| `FAIL` (required=True) | Required check failed | **Yes** |
+| `FAIL` (required=False) | Advisory check failed | No — counted in `warn_count` |
+| `WARN` | Advisory security or observability note | **Never** — counted in `warn_count` only |
+| `UNKNOWN` | Service unreachable or response unparseable | Yes when required=True |
+
+`LIVE_PIPELINE_READY` is only `false` if one or more checks fail with `required=True` (or `UNKNOWN` with `required=True`). `WARN` and advisory `FAIL` checks are surfaced in the report but never block readiness.
+
+### All 16 checks
+
+| # | Component | Check | Required |
+|---|---|---|---|
+| 1 | ingestion-gateway | `/health` reachable | Yes |
+| 2 | normalizer-worker | `/health` reachable | Yes |
+| 3 | correlation-worker | `/health` reachable | Yes |
+| 4 | alert-writer-service | `/health` reachable | Yes |
+| 5 | incident-builder | `/health` reachable | Yes |
+| 6 | Redpanda | REST API (`GET /topics`) reachable | Yes |
+| 7 | Redpanda | Required topics exist (`telemetry.raw`, `telemetry.normalized`, `xdr.alerts`) | Yes |
+| 8 | correlation-worker | `XDR_CORRELATION_EVENT_LOOP_ENABLED=true` | Yes |
+| 9 | alert-writer-service | `XDR_EVENT_LOOP_ENABLED=true` | Yes |
+| 10 | alert-writer-service | `XDR_ALERT_WRITER_AUTO_OFFSET_RESET` valid value | No (advisory) |
+| 11 | incident-builder | `XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET` valid value | No (advisory) |
+| 12 | normalizer-worker | Processing movement: `telemetry.raw` (advisory; NOT committed-offset lag) | No (advisory) |
+| 13 | correlation-worker | Processing movement: `telemetry.normalized` (advisory; NOT committed-offset lag) | No (advisory) |
+| 14 | Redpanda | Topic high watermarks — events have flowed through each topic | No (advisory) |
+| 15 | Pandaproxy | Pandaproxy exposure — WARN if reachable without auth | No (WARN) |
+| 16 | normalizer-worker | Internal auth posture (`XDR_ENFORCE_INTERNAL_AUTH`) | No (WARN) |
+
+**Checks 8 and 9 are two independent flags for two separate services.** Both must be enabled for the full alert pipeline to function end-to-end.
 
 | Flag | Service | What it controls |
 |---|---|---|
@@ -252,7 +277,7 @@ The script does NOT ingest data, publish to Redpanda, write to PostgreSQL, or st
 python scripts/validate_live_xdr_pipeline.py
 ```
 
-Exit codes: 0=all PASS, 1=any FAIL, 2=no FAIL but some UNKNOWN.
+Exit codes: 0=all required checks PASS, 1=one or more required checks FAIL, 2=no required FAIL but some required checks UNKNOWN.
 
 ### Correct live demo path
 
@@ -361,6 +386,78 @@ The proof is repeatable: each run uses a unique `event_id` (= `trace_id`, format
 > "The platform verifies a real pipeline path from synthetic event ingestion to persisted alerts with field-level `demo_run_id` lineage. This proves the plumbing is functional for cloud correlation rules on synthetic data. It does not prove production-grade XDR readiness, real threat detection, or autonomous response capability."
 
 **Evidence:** `scripts/demo_causal_verify.py`, `docs/guides/DEMO_CAUSAL_PROOF.md`, commit `2f05e44`
+
+---
+
+## 12. Validator processing movement checks — NOT true Kafka committed-offset lag
+
+Checks 12 and 13 in `validate_live_xdr_pipeline.py` are named "processing movement" deliberately. They are **not** true Kafka consumer group committed-offset lag metrics.
+
+**What the check measures:**
+
+Two sources are combined per worker:
+- Worker `/metrics` → `processed` counter: messages processed since last container restart (resets to 0 on every restart, regardless of the committed Kafka offset)
+- Redpanda Admin API public_metrics → `max_offset` (high watermark for the input topic)
+
+`delta = max_offset − processed`
+
+**Why this is not lag:**
+
+After a container restart, `processed = 0` while `max_offset` reflects all historical messages. `delta` equals `max_offset` — the entire topic history — even when the worker has committed its offset and is fully caught up. A large `delta` is not a problem in isolation.
+
+True Kafka consumer group lag = `committed_offset − high_watermark`, read from the broker per consumer group. Obtaining this requires a consumer group query — a side effect. This validator is read-only and cannot perform one.
+
+**What the check IS useful for:**
+
+- `recreate_count >= 10`: consumer group being recreated repeatedly without advancing (survives restarts; indicates cycling on stale/out-of-range offset)
+- `poll_error_count >= 10`: consumer stuck in a persistent Pandaproxy error loop
+- `poison_skipped` / `dlq_written`: DLQ isolation activity — poison messages were encountered and isolated
+- `delta > 500` after a long-running session: coarse indicator of slow processing (confirm with `rpk consumer-group describe`)
+
+**Correct claim:**
+
+> "Validator checks 12–13 measure `max_offset − processed_since_restart`. This is a coarse processing movement indicator, not true Kafka consumer group committed-offset lag. After any container restart, delta = max_offset (all history). The checks are advisory and do not block `LIVE_PIPELINE_READY`. For accurate lag, use `rpk consumer-group describe <group>`."
+
+**Evidence:** `scripts/validate_live_xdr_pipeline.py` (`check_worker_processing_movement` function docstring)
+
+---
+
+## 13. DLQ and internal auth hardening — current scope
+
+### Dead-Letter Queue (DLQ)
+
+**What is implemented:**
+- normalizer-worker (Go): when a message cannot be parsed or normalised after retries, it writes the raw bytes and error metadata to `telemetry.normalization_failed` topic, commits the offset, and continues polling. Poison messages do not block the consumer.
+- alert-writer-service (Python): `xdr.alerts.dlq` topic reference in configuration.
+- Validator check 12/13 surfaces `poison_skipped` and `dlq_written` counts from worker `/metrics`.
+
+**What is NOT implemented:**
+- No service consumes `telemetry.normalization_failed` or `xdr.alerts.dlq`. Records accumulate on the topics and are not reprocessed, alerted on, or expired automatically.
+- There is no DLQ replay UI in the SOC dashboard.
+- There is no dead-letter-specific alert or incident lifecycle.
+
+**Correct claim:**
+> "The normalizer isolates unparseable messages into a DLQ topic rather than blocking the pipeline. The DLQ topic exists and accumulates records. There is currently no consumer, replay mechanism, or SOC workflow for DLQ records — they require manual `rpk` inspection."
+
+### Internal Auth Hardening
+
+**What is implemented:**
+- normalizer-worker exposes `internal_auth_mode` in `/metrics` (`"permissive"` or `"enforced"`)
+- `XDR_ENFORCE_INTERNAL_AUTH=true` + `XDR_NORMALIZER_INTERNAL_TOKEN=<secret>`: normalizer rejects all `/v1/normalize` requests without a valid `X-Internal-Service-Token` header; startup fails fast if token not configured
+- `XDR_ENFORCE_INTERNAL_AUTH=false` (default): validator WARNs but demo works without a token
+- Pandaproxy port is bound to `127.0.0.1:8082` (loopback-only) in `docker-compose.yml`
+- Validator check 15 WARNs if Pandaproxy is reachable without auth; check 16 WARNs if permissive mode
+- `WARN` status never blocks `LIVE_PIPELINE_READY`
+
+**What is NOT implemented:**
+- Mutual TLS between Go services
+- Token enforcement on correlation-worker or alert-writer internal endpoints
+- Network policy or firewall rules enforced by docker-compose (Pandaproxy loopback binding is a port-level hint, not a hard firewall rule)
+
+**Correct claim:**
+> "Internal auth enforcement is available for the normalizer-worker via `XDR_ENFORCE_INTERNAL_AUTH=true`. Default is permissive for local demo compatibility. The validator WARNs when running in permissive mode. This hardening covers one internal endpoint; other services do not yet enforce token-based internal auth."
+
+**Evidence:** `services/normalizer-worker/main.go` (`validateNormalizerSecrets`, `verifyInternalToken`, `metrics`), `docker-compose.yml` (Pandaproxy port binding), `scripts/validate_live_xdr_pipeline.py` (checks 15–16)
 
 ---
 

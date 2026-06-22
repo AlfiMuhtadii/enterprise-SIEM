@@ -1,7 +1,7 @@
 """Tests for BACKLOG-LIVE-PIPELINE-008: Poison Message Isolation & DLQ.
 
 Verifies the Python-side pieces:
-- validate_live_xdr_pipeline.check_worker_consumer_lag now exposes
+- validate_live_xdr_pipeline.check_worker_processing_movement now exposes
   poison_skipped and dlq_written in evidence
 - xdr_topic_bootstrap.REQUIRED_TOPICS includes telemetry.normalization_failed
 
@@ -42,7 +42,7 @@ class TestRequiredTopicsIncludesDlq(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Validator: check_worker_consumer_lag exposes poison_skipped / dlq_written
+# Validator: check_worker_processing_movement exposes poison_skipped / dlq_written
 # ---------------------------------------------------------------------------
 
 def _mock_urlopen_for_metrics(status: int, body: str):
@@ -54,7 +54,7 @@ def _mock_urlopen_for_metrics(status: int, body: str):
     return patch("urllib.request.urlopen", return_value=resp)
 
 
-class TestCheckWorkerConsumerLagDlqFields(unittest.TestCase):
+class TestCheckWorkerProcessingMovementDlqFields(unittest.TestCase):
     """Verify evidence string contains poison_skipped and dlq_written."""
 
     def _run_check(self, metrics_dict: dict, prom_body: str = "") -> dict:
@@ -66,7 +66,7 @@ class TestCheckWorkerConsumerLagDlqFields(unittest.TestCase):
                 # Redpanda public_metrics
                 return 200, prom_body
             mock_get.side_effect = side
-            return vlp.check_worker_consumer_lag(
+            return vlp.check_worker_processing_movement(
                 "normalizer-worker",
                 "http://127.0.0.1:8092",
                 "telemetry.raw",
