@@ -224,8 +224,17 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 5. incident-builder `/health` reachable
 6. Redpanda REST API (`GET /topics`) reachable
 7. Required Redpanda topics exist (`telemetry.raw`, `telemetry.normalized`, `xdr.alerts`)
-8. `XDR_CORRELATION_EVENT_LOOP_ENABLED=true` in `.env`
-9. `XDR_EVENT_LOOP_ENABLED=true` in `.env`
+8. `XDR_CORRELATION_EVENT_LOOP_ENABLED=true` — correlation-worker Redpanda consumer loop
+9. `XDR_EVENT_LOOP_ENABLED=true` — alert-writer-service Redpanda consumer loop
+
+**These are two independent flags for two separate services.** Both must be enabled for the full alert pipeline to function end-to-end.
+
+| Flag | Service | What it controls |
+|---|---|---|
+| `XDR_CORRELATION_EVENT_LOOP_ENABLED` | correlation-worker (Go) | Consumes `telemetry.normalized`, produces `xdr.alerts` |
+| `XDR_EVENT_LOOP_ENABLED` | alert-writer-service (Python) | Consumes `xdr.alerts`, writes `security_alerts` table |
+
+The `docker-compose.yml` hardcodes `XDR_CORRELATION_EVENT_LOOP_ENABLED: "true"` for the containerised service (strangler profile). For local/out-of-Docker usage, both flags must be present in `.env`.
 
 The script does NOT ingest data, publish to Redpanda, write to PostgreSQL, or start services.
 
