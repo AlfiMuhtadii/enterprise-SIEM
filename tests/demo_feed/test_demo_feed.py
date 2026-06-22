@@ -192,6 +192,21 @@ class TestEventsTaggedCorrectly(unittest.TestCase):
         # _SAMPLE_EVENTS[0] has event_id="test-ev-001"
         self.assertEqual(tagged[0]["source_event_id"], "test-ev-001")
 
+    def test_event_id_replaced_with_trace_id(self):
+        """event_id must equal trace_id so each run produces unique alert fingerprints."""
+        demo_id = "demo-20260622-abc123"
+        tagged = df.tag_events(_SAMPLE_EVENTS, demo_id)
+        for ev in tagged:
+            self.assertEqual(ev["event_id"], ev["trace_id"])
+
+    def test_event_id_unique_across_runs(self):
+        """Two separate runs must produce different event_ids (no fingerprint collision)."""
+        tagged_a = df.tag_events(_SAMPLE_EVENTS, "demo-run-aaa")
+        tagged_b = df.tag_events(_SAMPLE_EVENTS, "demo-run-bbb")
+        ids_a = {ev["event_id"] for ev in tagged_a}
+        ids_b = {ev["event_id"] for ev in tagged_b}
+        self.assertTrue(ids_a.isdisjoint(ids_b), "event_ids must not overlap across runs")
+
     def test_scenario_id_injected(self):
         tagged = df.tag_events(_SAMPLE_EVENTS, "demo-x", scenario_id="s-001")
         for ev in tagged:

@@ -152,6 +152,10 @@ def tag_events(
         ev["source_event_id"] = ev.get("event_id") or ev.get("id") or f"src-{seq}"
         if not ev.get("trace_id"):
             ev["trace_id"] = f"{demo_run_id}-trace-{seq}"
+        # Replace event_id with trace_id so each run produces a unique alert fingerprint.
+        # Static event_ids in the scenario file would cause fingerprint collisions across runs,
+        # making alert-writer deduplicate every run after the first (FIELD_MATCH always FAIL).
+        ev["event_id"] = ev["trace_id"]
         if scenario_id:
             ev["scenario_id"] = scenario_id
         if tenant_id:

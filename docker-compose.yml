@@ -264,6 +264,7 @@ services:
       XDR_RAW_TOPIC: telemetry.raw
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalized.dlq
+      XDR_NORMALIZER_GROUP: ${XDR_NORMALIZER_GROUP:-normalizer-worker-v1}
       XDR_NORMALIZER_QUEUE_DEPTH: 200000
       XDR_NORMALIZER_PRODUCER_BATCH: 100
       XDR_NORMALIZER_PRODUCERS: 16
@@ -287,7 +288,7 @@ services:
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_ALERTS_TOPIC: xdr.alerts
       XDR_CORRELATION_DLQ_TOPIC: xdr.alerts.dlq
-      XDR_CORRELATION_GROUP: correlation-worker-v1
+      XDR_CORRELATION_GROUP: ${XDR_CORRELATION_GROUP:-correlation-worker-v1}
       XDR_CORRELATION_SCOPE: ${XDR_CORRELATION_SCOPE:-identity-cloud}
       XDR_CORRELATION_EVENT_LOOP_ENABLED: "true"
     ports:
