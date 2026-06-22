@@ -61,12 +61,16 @@ def load_dotenv(env_path: Path) -> dict[str, str]:
 # HTTP check — GET only, no side effects
 # ---------------------------------------------------------------------------
 
-def http_get(url: str, timeout: int) -> tuple[int | None, str]:
-    """Return (status_code, body_preview) or (None, error_message)."""
+def http_get(url: str, timeout: int, max_bytes: int = 512) -> tuple[int | None, str]:
+    """Return (status_code, body) or (None, error_message).
+
+    max_bytes controls how much of the response body is read.  Use a large
+    value (e.g. 65536) for Prometheus /public_metrics which can be >40 KB.
+    """
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read(512).decode("utf-8", errors="replace")
+            body = resp.read(max_bytes).decode("utf-8", errors="replace")
             return resp.status, body
     except urllib.error.HTTPError as exc:
         return exc.code, str(exc)
@@ -241,6 +245,201 @@ def check_env_value(
 
 
 # ---------------------------------------------------------------------------
+# Advisory checks — consumer stability and topic watermarks
+# ---------------------------------------------------------------------------
+
+def check_worker_consumer_lag(
+    component: str,
+    metrics_url: str,
+    input_topic: str,
+    redpanda_admin_url: str,
+    timeout: int,
+) -> CheckResult:
+    """Advisory check: consumer group lag for a Go pipeline worker.
+
+    Combines two sources:
+    - Worker /metrics  → ``processed`` count since last restart (approximate position)
+    - Redpanda public_metrics → topic ``max_offset`` (high watermark)
+
+    Approximate lag = max_offset − processed.  This resets when the worker
+    restarts (processed returns to 0), so the value is only meaningful when
+    the worker has been running long enough to catch up.  High
+    ``consumer_recreate_count`` (≥ 10) or ``poll_error_count`` (≥ 10) are
+    independent signals of a stale committed-offset loop.
+
+    FAIL threshold: lag > 500 OR recreate_count >= 10 OR poll_error_count >= 10.
+    """
+    check_name = f"consumer lag: {input_topic} (max_offset-processed)"
+
+    # --- 1. Fetch worker metrics ---
+    wurl = metrics_url.rstrip("/") + "/metrics"
+    code, body = http_get(wurl, timeout)
+    if code is None:
+        return {
+            "component": component,
+            "check": check_name,
+            "status": UNKNOWN,
+            "evidence": f"Cannot reach {wurl}: {body[:80]}",
+            "required": False,
+        }
+    if code != 200:
+        return {
+            "component": component,
+            "check": check_name,
+            "status": UNKNOWN,
+            "evidence": f"HTTP {code} from {wurl}",
+            "required": False,
+        }
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        return {
+            "component": component,
+            "check": check_name,
+            "status": UNKNOWN,
+            "evidence": "Could not parse worker metrics JSON",
+            "required": False,
+        }
+    processed = int(data.get("processed", 0))
+    recreate  = int(data.get("consumer_recreate_count", 0))
+    poll_errs = int(data.get("poll_error_count", 0))
+
+    # --- 2. Fetch topic max_offset from Redpanda public_metrics ---
+    purl = redpanda_admin_url.rstrip("/") + "/public_metrics"
+    _, prom_body = http_get(purl, timeout, max_bytes=131072)
+    max_offset_f = _parse_prometheus_gauge(
+        prom_body, "redpanda_kafka_max_offset",
+        {"redpanda_namespace": "kafka", "redpanda_topic": input_topic},
+    )
+
+    # --- 3. Compute lag and status ---
+    if max_offset_f is not None:
+        max_offset = int(max_offset_f)
+        lag = max_offset - processed
+        evidence = (
+            f"lag~{lag} (max_offset={max_offset}, processed={processed}), "
+            f"recreate_count={recreate}, poll_errors={poll_errs}"
+        )
+    else:
+        lag = None
+        evidence = (
+            f"max_offset unavailable, processed={processed}, "
+            f"recreate_count={recreate}, poll_errors={poll_errs}"
+        )
+
+    if poll_errs >= 10:
+        status = FAIL
+        evidence += " — poll_errors>=10: consumer may be in a stale offset loop"
+    elif recreate >= 10:
+        status = FAIL
+        evidence += " — recreate_count>=10: consumer cycling on stale offset"
+    elif lag is not None and lag > 500:
+        status = FAIL
+        evidence += f" — lag>{500}: worker is significantly behind"
+    else:
+        status = PASS
+    return {
+        "component": component,
+        "check": check_name,
+        "status": status,
+        "evidence": evidence,
+        "required": False,
+    }
+
+
+def _parse_prometheus_gauge(
+    text: str,
+    metric_name: str,
+    required_labels: dict[str, str],
+) -> float | None:
+    """Return the numeric value of a Prometheus gauge matching all required_labels.
+
+    Parses the Prometheus text exposition format line-by-line.  Returns None if
+    no matching series is found or the value cannot be parsed as float.
+    """
+    prefix = metric_name + "{"
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("#") or not line.startswith(prefix):
+            continue
+        try:
+            brace_end = line.index("}")
+            label_str = line[len(prefix):brace_end]
+            labels: dict[str, str] = {}
+            for part in label_str.split(","):
+                if "=" not in part:
+                    continue
+                k, _, v = part.partition("=")
+                labels[k.strip()] = v.strip().strip('"')
+            if not all(labels.get(k) == v for k, v in required_labels.items()):
+                continue
+            val_str = line[brace_end + 1:].strip().split()[0]
+            return float(val_str)
+        except (ValueError, IndexError):
+            continue
+    return None
+
+
+def check_topic_watermarks(
+    redpanda_admin_url: str,
+    topics: list[str],
+    timeout: int,
+) -> CheckResult:
+    """Advisory check: read topic high watermarks from Redpanda public_metrics.
+
+    Reports the current max_offset (high watermark) for each required topic.
+    A max_offset > 0 confirms events have flowed through the topic.
+    A max_offset == 0 on a fresh install is normal; after a demo run all
+    offsets should be > 0.
+    """
+    url = redpanda_admin_url.rstrip("/") + "/public_metrics"
+    code, body = http_get(url, timeout, max_bytes=131072)
+    if code is None:
+        return {
+            "component": "Redpanda",
+            "check": "topic watermarks (max_offset per topic)",
+            "status": UNKNOWN,
+            "evidence": f"Cannot reach {url}: {body[:80]}",
+            "required": False,
+        }
+    if code != 200:
+        return {
+            "component": "Redpanda",
+            "check": "topic watermarks (max_offset per topic)",
+            "status": UNKNOWN,
+            "evidence": f"Redpanda public_metrics HTTP {code}",
+            "required": False,
+        }
+
+    parts: list[str] = []
+    all_positive = True
+    for topic in topics:
+        offset = _parse_prometheus_gauge(
+            body, "redpanda_kafka_max_offset",
+            {"redpanda_namespace": "kafka", "redpanda_topic": topic},
+        )
+        if offset is None:
+            parts.append(f"{topic}=?")
+            all_positive = False
+        else:
+            parts.append(f"{topic}={int(offset)}")
+            if offset == 0:
+                all_positive = False
+
+    evidence = ", ".join(parts)
+    status = PASS if all_positive else PASS  # informational only — always PASS
+    if not all_positive:
+        evidence += " (0=topic empty or not yet used)"
+    return {
+        "component": "Redpanda",
+        "check": "topic watermarks (max_offset per topic)",
+        "status": status,
+        "evidence": evidence,
+        "required": False,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Table rendering
 # ---------------------------------------------------------------------------
 
@@ -358,6 +557,18 @@ def main() -> int:
             env_vars, env_path,
             required=False,
         ),
+        # 12: normalizer consumer lag (telemetry.raw → normalizer-worker)
+        check_worker_consumer_lag(
+            "normalizer-worker", normalizer_url,
+            "telemetry.raw", "http://127.0.0.1:9644", timeout,
+        ),
+        # 13: correlation consumer lag (telemetry.normalized → correlation-worker)
+        check_worker_consumer_lag(
+            "correlation-worker", correlation_url,
+            "telemetry.normalized", "http://127.0.0.1:9644", timeout,
+        ),
+        # 14: topic high watermarks — confirms events have flowed through each topic
+        check_topic_watermarks("http://127.0.0.1:9644", required_topics + ["alerts.created"], timeout),
     ]
 
     print()
