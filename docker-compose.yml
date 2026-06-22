@@ -327,6 +327,7 @@ services:
       XDR_ALERTS_DLQ_TOPIC: xdr.alerts.dlq
       XDR_ALERT_WRITER_GROUP: alert-writer-v1
       XDR_EVENT_LOOP_ENABLED: "true"
+      XDR_ALERT_WRITER_AUTO_OFFSET_RESET: ${XDR_ALERT_WRITER_AUTO_OFFSET_RESET:-earliest}
     ports:
       - "8095:8095"
     depends_on:
@@ -353,6 +354,7 @@ services:
       XDR_INCIDENTS_TOPIC: incidents.updated
       XDR_INCIDENT_BUILDER_GROUP: incident-builder-v1
       XDR_EVENT_LOOP_ENABLED: "true"
+      XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET: ${XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET:-earliest}
     ports:
       - "8096:8096"
     depends_on:

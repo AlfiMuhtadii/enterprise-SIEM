@@ -262,15 +262,48 @@ def produce(topic: str, events: List[Dict[str, Any]]) -> int:
     return len(events)
 
 
-def consumer_create(group: str, name: str) -> str:
+# Signals that identify an offset-out-of-range response from Pandaproxy.
+_OFFSET_RANGE_SIGNALS = frozenset([
+    "offset_out_of_range",
+    "40002",
+    "offset does not exist",
+    "requested offset",
+    "out of range",
+])
+
+
+def _is_offset_range_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    body = ""
+    if hasattr(exc, "response") and exc.response is not None:
+        try:
+            body = exc.response.text.lower()
+        except Exception:
+            pass
+    combined = msg + " " + body
+    return any(sig in combined for sig in _OFFSET_RANGE_SIGNALS)
+
+
+def consumer_create(group: str, name: str, offset_reset: str = "earliest") -> str:
     resp = requests.post(
         f"{redpanda_rest()}/consumers/{group}",
-        json={"name": name, "format": "json", "auto.offset.reset": "earliest"},
+        json={"name": name, "format": "json", "auto.offset.reset": offset_reset},
         headers={"Content-Type": "application/vnd.kafka.v2+json", "Accept": "application/vnd.kafka.v2+json"},
         timeout=10,
     )
     resp.raise_for_status()
     return normalize_consumer_base_uri(str(resp.json()["base_uri"]))
+
+
+def consumer_delete(base_uri: str) -> None:
+    try:
+        requests.delete(
+            base_uri,
+            headers={"Content-Type": "application/vnd.kafka.v2+json"},
+            timeout=5,
+        )
+    except Exception:
+        pass  # best-effort; stale instances are cleaned up by Redpanda session timeout
 
 
 def consumer_subscribe(base_uri: str, topic: str) -> None:
@@ -356,30 +389,93 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
 
 def event_loop() -> None:
     topic = os.getenv("XDR_ALERTS_TOPIC", "xdr.alerts")
-    start_id = int(time.time())
-    group = f"{os.getenv('XDR_ALERT_WRITER_GROUP', 'alert-writer-v1')}-{start_id}"
-    name = f"alert-writer-{start_id}"
+    offset_reset = os.getenv("XDR_ALERT_WRITER_AUTO_OFFSET_RESET", "earliest")
+    _MAX_ERRORS_BEFORE_RECREATE = 3
+
+    # Use ms-resolution timestamp so rapid restarts get distinct group names.
+    def _new_ids() -> tuple[str, str]:
+        ts = int(time.time() * 1000)
+        g = f"{os.getenv('XDR_ALERT_WRITER_GROUP', 'alert-writer-v1')}-{ts}"
+        n = f"alert-writer-{ts}"
+        return g, n
+
+    group, name = _new_ids()
+    base_uri: Optional[str] = None
+    consecutive_errors = 0
+
+    def _setup_consumer(g: str, n: str) -> str:
+        uri = consumer_create(g, n, offset_reset=offset_reset)
+        consumer_subscribe(uri, topic)
+        print(
+            f"[alert-writer] consumer ready  topic={topic}  group={g}"
+            f"  instance={n}  auto.offset.reset={offset_reset}",
+            flush=True,
+        )
+        return uri
+
+    print(
+        f"[alert-writer] consumer starting  topic={topic}  group={group}"
+        f"  instance={name}  auto.offset.reset={offset_reset}",
+        flush=True,
+    )
     try:
-        base_uri = consumer_create(group, name)
-        consumer_subscribe(base_uri, topic)
+        base_uri = _setup_consumer(group, name)
     except Exception as exc:
         METRICS["consumer_errors"] += 1
         DLQ.append({"ts": now_iso(), "target": topic, "error": f"consumer_start_failed: {exc}"})
         METRICS["dlq_count"] = len(DLQ)
         return
+
     while not STOP.is_set():
         try:
             records = consumer_poll(base_uri)
             METRICS["consumer_polls"] += 1
+            consecutive_errors = 0
             alerts = normalize_records(records)
             if alerts:
+                print(
+                    f"[alert-writer] consumed {len(records)} records → {len(alerts)} alerts"
+                    f"  group={group}  topic={topic}",
+                    flush=True,
+                )
                 batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
                 process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
         except Exception as exc:
             METRICS["consumer_errors"] += 1
-            DLQ.append({"ts": now_iso(), "target": topic, "error": str(exc)})
+            consecutive_errors += 1
+            is_offset_err = _is_offset_range_error(exc)
+            DLQ.append({
+                "ts": now_iso(),
+                "target": topic,
+                "error": str(exc),
+                "consecutive_errors": consecutive_errors,
+                "offset_range_error": is_offset_err,
+            })
             METRICS["dlq_count"] = len(DLQ)
-            time.sleep(2)
+
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE
+            if should_recreate:
+                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
+                print(
+                    f"[alert-writer] WARN: consumer recovery triggered ({reason})"
+                    f"  group={group}  topic={topic}  — deleting and recreating",
+                    flush=True,
+                )
+                if base_uri:
+                    consumer_delete(base_uri)
+                group, name = _new_ids()
+                consecutive_errors = 0
+                try:
+                    base_uri = _setup_consumer(group, name)
+                except Exception as setup_exc:
+                    print(
+                        f"[alert-writer] ERROR: consumer recreate failed: {setup_exc}",
+                        flush=True,
+                    )
+                    METRICS["consumer_errors"] += 1
+                    time.sleep(5)
+            else:
+                time.sleep(2)
 
 
 @app.get("/health")

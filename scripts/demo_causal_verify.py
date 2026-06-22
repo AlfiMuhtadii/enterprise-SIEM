@@ -491,6 +491,18 @@ def main(
         field_match, alert_count, rule_ids, trace_ids, verdict,
     )
 
+    # ── Consumer hint when ingestion passed but no alerts found ─────────────
+    if verdict == "FAIL" and accepted > 0:
+        print(
+            "  HINT: Events were accepted by ingestion-gateway but no alerts were found.\n"
+            "        Check alert-writer Redpanda consumer offset state:\n"
+            "          docker compose --profile strangler logs --tail=50 alert-writer-service\n"
+            "        Look for: [alert-writer] WARN: consumer recovery triggered (offset_out_of_range)\n"
+            "        If repeated, ensure XDR_ALERT_WRITER_AUTO_OFFSET_RESET=earliest in .env\n"
+            "        and restart: docker compose --profile strangler up --build -d alert-writer-service"
+        )
+        print()
+
     # ── Write reports ────────────────────────────────────────────────────────
     if not args.no_report_write:
         json_path, md_path = write_reports(

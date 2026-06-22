@@ -313,6 +313,8 @@ def main() -> int:
 
     TRUE_FLAGS = {"1", "true", "yes"}
 
+    OFFSET_RESET_VALS = {"earliest", "latest", "none"}
+
     results: list[CheckResult] = [
         # 1–5: service health
         check_service_health("ingestion-gateway",    ingest_url,      timeout, required=True),
@@ -340,6 +342,22 @@ def main() -> int:
             env_vars, env_path,
             required=True,
         ),
+        # 10: alert-writer offset reset policy (advisory — code defaults to earliest)
+        check_env_value(
+            "alert-writer-service",
+            "XDR_ALERT_WRITER_AUTO_OFFSET_RESET",
+            OFFSET_RESET_VALS,
+            env_vars, env_path,
+            required=False,
+        ),
+        # 11: incident-builder offset reset policy (advisory — code defaults to earliest)
+        check_env_value(
+            "incident-builder",
+            "XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET",
+            OFFSET_RESET_VALS,
+            env_vars, env_path,
+            required=False,
+        ),
     ]
 
     print()
@@ -350,29 +368,44 @@ def main() -> int:
     print(render_table(results))
     print()
 
-    fail_count    = sum(1 for r in results if r["status"] == FAIL)
-    unknown_count = sum(1 for r in results if r["status"] == UNKNOWN)
+    # Required checks determine LIVE_PIPELINE_READY. Advisory (required=False) checks are
+    # surfaced as warnings but do not block readiness.
+    fail_count    = sum(1 for r in results if r["status"] == FAIL    and r.get("required", True))
+    unknown_count = sum(1 for r in results if r["status"] == UNKNOWN and r.get("required", True))
     pass_count    = sum(1 for r in results if r["status"] == PASS)
+    warn_count    = sum(1 for r in results if r["status"] == FAIL    and not r.get("required", True))
+    total_count   = len(results)
 
     if fail_count == 0 and unknown_count == 0:
         ready = "true"
-        summary_line = "LIVE_PIPELINE_READY=true  (all 9 checks PASS)"
+        warn_suffix = f"  ({warn_count} advisory WARN)" if warn_count else ""
+        summary_line = f"LIVE_PIPELINE_READY=true  (all {total_count} checks{warn_suffix})"
     elif fail_count > 0:
         ready = "false"
-        summary_line = f"LIVE_PIPELINE_READY=false  ({fail_count} FAIL, {unknown_count} UNKNOWN, {pass_count} PASS)"
+        summary_line = (
+            f"LIVE_PIPELINE_READY=false  ({fail_count} FAIL, {unknown_count} UNKNOWN,"
+            f" {pass_count} PASS, {warn_count} advisory WARN)"
+        )
     else:
         ready = "unknown"
-        summary_line = f"LIVE_PIPELINE_READY=unknown  (0 FAIL, {unknown_count} UNKNOWN, {pass_count} PASS)"
+        summary_line = (
+            f"LIVE_PIPELINE_READY=unknown  (0 FAIL, {unknown_count} UNKNOWN,"
+            f" {pass_count} PASS, {warn_count} advisory WARN)"
+        )
 
     print(summary_line)
     print()
 
-    if fail_count > 0 or unknown_count > 0:
+    if fail_count > 0 or unknown_count > 0 or warn_count > 0:
         print("Remediation:")
         if fail_count > 0:
             print("  - Start the full pipeline: docker compose --profile strangler up -d")
         print("  - Ensure XDR_CORRELATION_EVENT_LOOP_ENABLED=true in .env (correlation-worker)")
         print("  - Ensure XDR_EVENT_LOOP_ENABLED=true in .env (alert-writer-service)")
+        if warn_count > 0:
+            print("  - Advisory: set XDR_ALERT_WRITER_AUTO_OFFSET_RESET=earliest in .env")
+            print("  - Advisory: set XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET=earliest in .env")
+            print("    (these default to 'earliest' in code; setting explicitly improves offset recovery)")
         print("  - See docs/guides/LIMITATIONS_AND_CLAIMS.md for pipeline architecture")
         print()
 
