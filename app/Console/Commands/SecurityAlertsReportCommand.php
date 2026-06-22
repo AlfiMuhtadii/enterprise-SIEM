@@ -51,9 +51,23 @@ class SecurityAlertsReportCommand extends Command
 
         if ($demoRun) {
             $this->info("Demo run   : {$demoRun}");
-            $this->line("Window     : {$since} → " . ($until ?? 'now'));
+            $this->line("Window     : {$since} to " . ($until ?? 'now'));
         } else {
             $this->info("Window     : last {$minutes} minutes (since {$since})");
+        }
+
+        // FIELD_MATCH check — run before printing tables so status appears at top.
+        if ($demoRun) {
+            $fieldMatchCount = $this->countFieldLevelMatches($demoRun);
+            $windowCount     = (clone $query)->count();
+            $this->newLine();
+            if ($fieldMatchCount > 0) {
+                $this->info("FIELD_MATCH=PASS  ({$fieldMatchCount} alert(s) matched by demo_run_id in evidence — lineage is field-level proven)");
+            } elseif ($windowCount > 0) {
+                $this->warn("FIELD_MATCH=WARN  ({$windowCount} alert(s) matched by manifest time-window only — demo_run_id not yet in evidence; correlation-worker may be older build or events did not trigger a rule)");
+            } else {
+                $this->error("FIELD_MATCH=FAIL  (no alerts found by field-level or time-window filter — pipeline may not be processing events)");
+            }
         }
 
         $this->newLine();
@@ -71,10 +85,10 @@ class SecurityAlertsReportCommand extends Command
                 $r->alert_id,
                 $r->detected_at,
                 $r->alert_type,
-                $r->detector_name ?? '—',
+                $r->detector_name ?? '(none)',
                 $r->severity,
-                $r->actor_key ?? '—',
-                $r->score ?? '—',
+                $r->actor_key ?? '(none)',
+                $r->score ?? '(none)',
             ])->all()
         );
 
@@ -90,6 +104,27 @@ class SecurityAlertsReportCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Count alerts with field-level demo_run_id match in evidence or raw_event.
+     *
+     * Matches either:
+     *   evidence->>'demo_run_id' = ?     (scalar, set when all contributors share one id)
+     *   raw_event->>'demo_run_id' = ?    (future-compat for other writers)
+     *
+     * The evidence.demo_run_ids array containment check requires jsonb casting.
+     * We also check that via a separate clause to handle the array case.
+     */
+    private function countFieldLevelMatches(string $demoRunId): int
+    {
+        return (int) DB::table('security_alerts')
+            ->where(function ($q) use ($demoRunId) {
+                $q->whereRaw("evidence->>'demo_run_id' = ?", [$demoRunId])
+                  ->orWhereRaw("raw_event->>'demo_run_id' = ?", [$demoRunId])
+                  ->orWhereRaw("evidence::jsonb @> jsonb_build_object('demo_run_ids', jsonb_build_array(?::text))", [$demoRunId]);
+            })
+            ->count();
     }
 
     /**
@@ -111,8 +146,10 @@ class SecurityAlertsReportCommand extends Command
                 $endedAt   = $manifest['ended_at']   ?? null;
                 if ($startedAt) {
                     // Give 3-minute buffer after ended_at for pipeline processing lag.
+                    // Use Carbon::parse() — strtotime() does not handle fractional seconds
+                    // in ISO 8601 (e.g. 2026-06-22T09:05:00.123456Z) reliably.
                     $until = $endedAt
-                        ? date('Y-m-d H:i:sP', strtotime($endedAt) + 180)
+                        ? \Carbon\Carbon::parse($endedAt)->addSeconds(180)->format('Y-m-d H:i:sP')
                         : null;
                     return [$startedAt, $until];
                 }

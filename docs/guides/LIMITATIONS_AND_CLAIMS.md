@@ -85,22 +85,31 @@ This requires `docker compose --profile strangler up` and both event loops enabl
 
 ---
 
-## 4. demo_run_id filtering — time-window fallback only via current Go pipeline
+## 4. demo_run_id filtering — field-level propagation now implemented
 
-**What works:**
-`php artisan security:alerts-report --demo-run=<id>` reads the manifest file and filters `security_alerts` by `detected_at BETWEEN started_at AND ended_at+180s`.
+**Current state (post pipeline: propagate demo lineage into correlation alerts):**
 
-**What does NOT work currently:**
-The Go correlation worker's `makeAlert()` function does NOT copy `demo_run_id` from source events into the alert's `evidence` or `raw_event` fields. Therefore:
-- `WHERE raw_event->>'demo_run_id' = ?` — always returns 0 rows from Go-produced alerts
-- `WHERE evidence->>'demo_run_id' = ?` — always returns 0 rows from Go-produced alerts
+The Go correlation-worker `makeAlert()` now propagates demo lineage fields from all contributing events into the `evidence` map:
+- `evidence.demo_run_id` — scalar, set when all contributing events share one `demo_run_id`
+- `evidence.demo_run_ids` — array of all contributing demo_run_ids
+- `evidence.trace_ids` — all trace IDs from contributing events
+- `evidence.source_event_ids` — all source event IDs
+- `evidence.scenario_id` — scenario ID if present and unique
+- `evidence.demo_lineage_present` — always `true` when demo fields are present
 
-The JSON filter clauses in `SecurityAlertsReportCommand` are present for future compatibility but are currently dead code for Go pipeline alerts.
+`php artisan security:alerts-report --demo-run=<id>` now reports:
+- `FIELD_MATCH=PASS` — alerts matched by `evidence.demo_run_id` field (field-level lineage proven)
+- `FIELD_MATCH=WARN` — alerts matched by manifest time-window only (demo_run_id not in evidence; event may not have triggered a rule, or alert was produced before this change)
+- `FIELD_MATCH=FAIL` — no alerts found by either method
+
+**Non-demo events** (without `demo_run_id`) are completely unaffected — no demo keys appear in their evidence.
+
+**Historical note:** Alerts produced before this change only support manifest time-window fallback and will report `FIELD_MATCH=WARN`.
 
 **Correct claim:**
-> "The `--demo-run` filter identifies alerts by time window (from the manifest). It does not prove field-level `demo_run_id` propagation through the Go correlation worker, because the Go worker does not currently pass this field into the published alert payload."
+> "For alerts produced after the lineage propagation change, `demo_run_id` is field-level proven in `evidence`. The `--demo-run` filter first tries field-level match and reports `FIELD_MATCH=PASS` when successful. Older alerts or events that did not trigger a rule will fall back to time-window and report `FIELD_MATCH=WARN`."
 
-**Evidence:** `services/correlation-worker/main.go:694-742` (`makeAlert()` — evidence map does not include `demo_run_id`), `app/Console/Commands/SecurityAlertsReportCommand.php:31-35`
+**Evidence:** `services/correlation-worker/main.go` (`Event` struct, `makeAlert()` lineage block), `app/Console/Commands/SecurityAlertsReportCommand.php` (`countFieldLevelMatches()`)
 
 ---
 

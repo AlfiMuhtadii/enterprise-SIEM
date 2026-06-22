@@ -52,6 +52,11 @@ type Event struct {
 	RiskScore      float64 `json:"risk_score"`
 	EventSource    string  `json:"event_source"`
 	TraceID        string  `json:"trace_id"`
+	// Demo lineage fields — injected by demo_feed.py, omitted in non-demo events.
+	DemoRunID     string `json:"demo_run_id,omitempty"`
+	SourceEventID string `json:"source_event_id,omitempty"`
+	ScenarioID    string `json:"scenario_id,omitempty"`
+	TenantID      string `json:"tenant_id,omitempty"`
 }
 
 type Alert struct {
@@ -719,25 +724,52 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		severity = "high"
 	}
 	sum := sha256.Sum256([]byte(alertType + "|" + actor + "|" + strings.Join(ids, ",")))
+	evidence := map[string]any{
+		"evidence_ids":            ids,
+		"involved_users":          uniqueNonEmpty(events, func(ev Event) string { return ev.User }),
+		"involved_hosts":          uniqueNonEmpty(events, func(ev Event) string { return ev.Host }),
+		"involved_cloud_accounts": uniqueNonEmpty(events, func(ev Event) string { return ev.CloudAccount }),
+		"involved_external_ips":   uniqueNonEmpty(events, func(ev Event) string { return ev.SourceIP }),
+		"telemetry_domains":       domainList,
+	}
+	// Propagate demo lineage from contributing events when any event carries demo fields.
+	// Non-demo events have empty DemoRunID and are completely unaffected by this block.
+	demoRunIDs  := uniqueNonEmpty(events, func(ev Event) string { return ev.DemoRunID })
+	traceIDs    := uniqueNonEmpty(events, func(ev Event) string { return ev.TraceID })
+	srcEventIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.SourceEventID })
+	scenarioIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.ScenarioID })
+	tenantIDs   := uniqueNonEmpty(events, func(ev Event) string { return ev.TenantID })
+	if len(demoRunIDs) > 0 {
+		evidence["demo_lineage_present"] = true
+		evidence["demo_run_ids"]         = demoRunIDs
+		evidence["trace_ids"]            = traceIDs
+		evidence["source_event_ids"]     = srcEventIDs
+		if len(demoRunIDs) == 1 {
+			evidence["demo_run_id"] = demoRunIDs[0]
+		}
+		if len(scenarioIDs) == 1 {
+			evidence["scenario_id"] = scenarioIDs[0]
+		} else if len(scenarioIDs) > 1 {
+			evidence["scenario_ids"] = scenarioIDs
+		}
+		if len(tenantIDs) == 1 {
+			evidence["tenant_id"] = tenantIDs[0]
+		} else if len(tenantIDs) > 1 {
+			evidence["tenant_ids"] = tenantIDs
+		}
+	}
 	return Alert{
-		AlertID: hex.EncodeToString(sum[:])[:40],
-		AlertType: alertType,
-		Actor: actor,
-		ActorKey: actor,
-		Severity: severity,
-		Score: score,
-		Domains: domainList,
+		AlertID:     hex.EncodeToString(sum[:])[:40],
+		AlertType:   alertType,
+		Actor:       actor,
+		ActorKey:    actor,
+		Severity:    severity,
+		Score:       score,
+		Domains:     domainList,
 		EvidenceIDs: ids,
-		Evidence: map[string]any{
-			"evidence_ids": ids,
-			"involved_users": uniqueNonEmpty(events, func(ev Event) string { return ev.User }),
-			"involved_hosts": uniqueNonEmpty(events, func(ev Event) string { return ev.Host }),
-			"involved_cloud_accounts": uniqueNonEmpty(events, func(ev Event) string { return ev.CloudAccount }),
-			"involved_external_ips": uniqueNonEmpty(events, func(ev Event) string { return ev.SourceIP }),
-			"telemetry_domains": domainList,
-		},
-		ShadowMode: true,
-		TraceID:    traceID,
+		Evidence:    evidence,
+		ShadowMode:  true,
+		TraceID:     traceID,
 	}
 }
 

@@ -487,6 +487,11 @@ func normalize(raw map[string]any) (map[string]any, error) {
 		"risk_score":      number(first(raw, "risk_score", "risk", "score")),
 		"event_source":    first(raw, "event_source", "source_adapter", "vendor"),
 		"trace_id":        first(raw, "trace_id"),
+		// Demo lineage metadata — injected by demo_feed.py; empty string for non-demo events.
+		"demo_run_id":     first(raw, "demo_run_id"),
+		"source_event_id": first(raw, "source_event_id"),
+		"scenario_id":     first(raw, "scenario_id"),
+		"tenant_id":       first(raw, "tenant_id"),
 	}, nil
 }
 
