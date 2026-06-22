@@ -213,6 +213,7 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 | Endpoint agent (Python) | Real behavior collectors — posts to ingestion-gateway | Telemetry data in DB is seeded |
 | Shadow endpoint/network correlation | Real rule logic in Go | No consumer; output unreachable |
 | DemoScenarioSeeder | Creates demo UI records | Does NOT trigger detection pipeline |
+| Live causal proof (demo_causal_verify.py) | Real pipeline path, field-level lineage | Synthetic data only; 2 cloud rules verified |
 | SOAR execution | Real governance workflow | No external API calls |
 | Multi-tenant isolation | Real audit/governance records | No DB-level RLS enforcement |
 | External integrations (Okta/Jira/Slack) | Real pipeline code | Simulated delivery by default |
@@ -322,6 +323,44 @@ Options:
 ```
 
 **Evidence:** `scripts/demo_causal_verify.py`, `tests/demo_causal_verify/test_demo_causal_verify.py` (7 tests)
+
+---
+
+---
+
+## 11. Live causal proof — what is verified and what is not
+
+**Verified (2026-06-22, commit 2f05e44, run `demo-20260622-7cccce`):**
+
+The platform has live causal proof for safe synthetic cloud telemetry. The verifier command:
+
+```powershell
+python scripts/demo_causal_verify.py --timeout-seconds 120
+```
+
+proved that 5 synthetic cloud events flow through the full strangler pipeline (ingestion-gateway -> Redpanda -> normalizer -> correlation -> alert-writer) and produce persisted `security_alerts` records with `evidence.demo_run_id` matching the injected `demo_run_id`. Two correlation rules fired in the verified run:
+
+- `CLOUD_NEW_ACCESS_KEY` — detects cloud access key creation
+- `CLOUD_SECURITY_SETTING_MODIFIED` — detects security setting changes (e.g. MFA disable)
+
+The proof is field-level: `FIELD_MATCH=PASS` means `security_alerts.evidence->>'demo_run_id' = '<id>'` returned rows, not a time-window approximation.
+
+The proof is repeatable: each run uses a unique `event_id` (= `trace_id`, format `{demo_run_id}-trace-{seq}`) so alert fingerprints never collide across runs.
+
+**What this proof does NOT cover:**
+
+- Production-grade XDR readiness — this is a research/academic platform running on a single local machine
+- Real malware detection — the scenario uses synthetic RFC 5737 addresses and a fictional user
+- Kernel EDR, host containment, or endpoint blocking — all endpoint response is advisory/simulation-only
+- Full NDR — DNS/proxy/firewall analytics are shadow-only with no active blocking
+- Identity attack chain or cross-domain lateral movement proof — the current 5-event scenario fires only cloud rules; a full identity chain would require additional events and rule thresholds
+- Autonomous remediation — all SOAR actions are advisory or local simulation; no external API is called
+
+**Correct claim:**
+
+> "The platform verifies a real pipeline path from synthetic event ingestion to persisted alerts with field-level `demo_run_id` lineage. This proves the plumbing is functional for cloud correlation rules on synthetic data. It does not prove production-grade XDR readiness, real threat detection, or autonomous response capability."
+
+**Evidence:** `scripts/demo_causal_verify.py`, `docs/guides/DEMO_CAUSAL_PROOF.md`, commit `2f05e44`
 
 ---
 

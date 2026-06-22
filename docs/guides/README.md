@@ -69,6 +69,8 @@ Operational and reference guides for the Hybrid XDR Platform. Previously located
 | Guide | Description |
 |---|---|
 | **[Limitations and Corrected Claims](LIMITATIONS_AND_CLAIMS.md)** | **Read first — what is real vs. simulated, corrected pipeline claims** |
+| **[Live Causal Proof](DEMO_CAUSAL_PROOF.md)** | **End-to-end pipeline proof — verifier command, latest verified run (`demo-20260622-7cccce`, `LIVE_CAUSAL_PROOF=PASS`), causal path** |
+| [Live Pipeline Recovery Runbook](LIVE_PIPELINE_RECOVERY_RUNBOOK.md) | Troubleshooting guide for `LIVE_CAUSAL_PROOF=FAIL` — stale offsets, missing topics, container state, layer-by-layer diagnosis |
 | [Live Pipeline Validator](../../scripts/validate_live_xdr_pipeline.py) | Read-only 9-check pre-demo pipeline readiness validator (run: `python scripts/validate_live_xdr_pipeline.py`) |
 | [Demo Overview](README_demo.md) | Demo scenario overview |
 | [Demo Package](README_DEMO_PACKAGE.md) | Packaged demo setup |

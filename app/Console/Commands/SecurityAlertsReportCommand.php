@@ -33,7 +33,8 @@ class SecurityAlertsReportCommand extends Command
             $query->where(function ($q) use ($demoRun, $since, $until) {
                 $q->whereBetween('detected_at', [$since, $until ?? now()])
                   ->orWhereRaw("raw_event->>'demo_run_id' = ?", [$demoRun])
-                  ->orWhereRaw("evidence->>'demo_run_id' = ?", [$demoRun]);
+                  ->orWhereRaw("evidence->>'demo_run_id' = ?", [$demoRun])
+                  ->orWhereRaw("evidence::jsonb @> jsonb_build_object('demo_run_ids', jsonb_build_array(?::text))", [$demoRun]);
             });
         }
 
