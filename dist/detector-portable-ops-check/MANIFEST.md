@@ -1,4 +1,4 @@
-# Portable Detector Manifest
+﻿# Portable Detector Manifest
 
 Generated package layout:
 
@@ -65,11 +65,11 @@ Generated package layout:
 - `adapters` from `portable/adapters`
 - `docs` from `portable/docs`
 - `README.md` from `portable/README.md`
-- `docs/README_PRODUCTION_DEPLOYMENT.md` from `README_PRODUCTION_DEPLOYMENT.md`
-- `docs/README_BACKUP_RECOVERY.md` from `README_BACKUP_RECOVERY.md`
-- `docs/README_OPERATIONAL_RUNBOOKS.md` from `README_OPERATIONAL_RUNBOOKS.md`
-- `docs/README_ENVIRONMENTS.md` from `README_ENVIRONMENTS.md`
-- `docs/README_PERFORMANCE_TESTING.md` from `README_PERFORMANCE_TESTING.md`
+- `docs/README_PRODUCTION_DEPLOYMENT.md` from `docs/guides/README_PRODUCTION_DEPLOYMENT.md`
+- `docs/README_BACKUP_RECOVERY.md` from `docs/guides/README_BACKUP_RECOVERY.md`
+- `docs/README_OPERATIONAL_RUNBOOKS.md` from `docs/guides/README_OPERATIONAL_RUNBOOKS.md`
+- `docs/README_ENVIRONMENTS.md` from `docs/guides/README_ENVIRONMENTS.md`
+- `docs/README_PERFORMANCE_TESTING.md` from `docs/guides/README_PERFORMANCE_TESTING.md`
 - `.env.local.example` from `.env.local.example`
 - `.env.staging.example` from `.env.staging.example`
 - `.env.production.example` from `.env.production.example`

@@ -56,7 +56,7 @@ Alternatively, run the validation suite:
 
 ```powershell
 php artisan test
-# Expected: 3043 passed, 0 failures
+# Expected: 3077 passed, 0 failures
 
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 # Expected: 186 tests, OK

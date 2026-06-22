@@ -1,4 +1,4 @@
-# Portable Detector Manifest
+﻿# Portable Detector Manifest
 
 Generated package layout:
 
@@ -62,7 +62,7 @@ Generated package layout:
 - `adapters` from `portable/adapters`
 - `docs` from `portable/docs`
 - `README.md` from `portable/README.md`
-- `docs/README_PRODUCTION_DEPLOYMENT.md` from `README_PRODUCTION_DEPLOYMENT.md`
-- `docs/README_BACKUP_RECOVERY.md` from `README_BACKUP_RECOVERY.md`
+- `docs/README_PRODUCTION_DEPLOYMENT.md` from `docs/guides/README_PRODUCTION_DEPLOYMENT.md`
+- `docs/README_BACKUP_RECOVERY.md` from `docs/guides/README_BACKUP_RECOVERY.md`
 
 Start with `README.md`, then follow `docs/DEPLOY_TO_NEW_SYSTEM.md`.

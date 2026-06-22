@@ -8,7 +8,7 @@
 
 ## Defense Preparation Checklist
 
-- [ ] Run `php artisan migrate:fresh --force && php artisan test` — confirm 3043 passed
+- [ ] Run `php artisan migrate:fresh --force && php artisan test` — confirm 3077 passed
 - [ ] Run `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v` — confirm 186 passed
 - [ ] Run `python scripts/xdr_rule_registry_validate.py` — confirm PASS, 133 rules
 - [ ] Start platform: `.\bootstrap-dev.ps1` then `php artisan serve`
@@ -114,6 +114,6 @@ The outputs are correlated in the event-driven pipeline, producing a fused advis
 3. Show the XDR Maturity scorecard — maturity tier and component scores
 4. Show the Capability Matrix — honest tier disclosure including `not_implemented`
 5. Show the XDR Certification — acceptance gates, SELF_APPROVE_BLOCKED
-6. Show `php artisan test` output — 3043 passed, 0 failures
+6. Show `php artisan test` output — 3077 passed, 0 failures
 
 **Key statement for defense:** "Every component shown is backed by a test, every architectural claim is validated by a script, and every advisory-only constraint is enforced by code — not just documented."

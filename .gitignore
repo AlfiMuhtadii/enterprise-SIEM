@@ -19,3 +19,15 @@ yarn-error.log
 /.vscode
 /docs/thesis
 
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+

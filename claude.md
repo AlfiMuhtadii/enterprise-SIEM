@@ -55,7 +55,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 2692 passed, zero failures (always prefix with migrate:fresh --force)
+php artisan test         → 3077 passed, zero failures (always prefix with migrate:fresh --force)
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=133  checks=21/21
 fleet simulation         → 8/8 passed
@@ -279,7 +279,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan migrate:fresh --force && php artisan test
 ```
 
-Current: **2692 tests**, all green. Always prefix with `migrate:fresh --force` to avoid intermittent `QueryException` failures from stale schema state. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **3077 tests**, all green. Always prefix with `migrate:fresh --force` to avoid intermittent `QueryException` failures from stale schema state. Do NOT run parallel processes against the same PostgreSQL test database.
 
 Rule registry: **133 rules** (12 staged_active, 121 shadow). Run `python scripts/xdr_rule_registry_validate.py`.
 

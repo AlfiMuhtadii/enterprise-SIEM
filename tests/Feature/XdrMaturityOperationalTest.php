@@ -171,8 +171,8 @@ class XdrMaturityOperationalTest extends TestCase
             'samples/golden/xdr_identity_cloud_golden.jsonl',
             'samples/golden/xdr_endpoint_dns_proxy_golden.jsonl',
             'reports/xdr_endpoint_dns_proxy_shadow_prep.json',
-            'README_XDR_STRANGLER_OPERATIONAL_VALIDATION.md',
-            'README_XDR_SERVICE_MIGRATION_RUNBOOK.md',
+            'docs/guides/README_XDR_STRANGLER_OPERATIONAL_VALIDATION.md',
+            'docs/guides/README_XDR_SERVICE_MIGRATION_RUNBOOK.md',
         ] as $path) {
             $this->assertFileExists($root.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $path));
         }

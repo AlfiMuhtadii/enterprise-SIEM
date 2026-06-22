@@ -1,8 +1,8 @@
 {
-    "name": "laravel/laravel",
+    "name": "alfi/xdr-soc-platform",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture.",
+    "keywords": ["xdr", "soc", "security", "detection", "laravel"],
     "license": "MIT",
     "require": {
         "php": "^8.1",

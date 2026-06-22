@@ -1,0 +1,80 @@
+services:
+  app:
+    build:
+      context: ../../
+      dockerfile: infra/production/Dockerfile
+    container_name: detector-soc-app
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      QUEUE_CONNECTION: database
+      DB_HOST: postgres
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  queue:
+    build:
+      context: ../../
+      dockerfile: infra/production/Dockerfile
+    container_name: detector-soc-queue
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      QUEUE_CONNECTION: database
+      DB_HOST: postgres
+    command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=120"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ../../
+      dockerfile: infra/production/Dockerfile
+    container_name: detector-soc-scheduler
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_HOST: postgres
+    command: ["sh", "-lc", "while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: detector-soc-postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-detector}
+      POSTGRES_USER: ${DB_USERNAME:-detector}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - detector_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-detector} -d ${DB_DATABASE:-detector}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  detector_pgdata:

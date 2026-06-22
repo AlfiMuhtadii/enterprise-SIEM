@@ -15,7 +15,7 @@ A full-stack, enterprise-governed, AI-assisted XDR-like platform built as an aca
 | Correlation | Identity/cloud/SaaS: active (6h soak PASS); endpoint/DNS/proxy: shadow-only |
 | Threat Hunting | 158 query domains, advisory-only, append-only results |
 | Governance | 50+ governance subsystems: HA, compliance, SOAR, release governance, XDR maturity |
-| Test Coverage | 3043 PHP tests, 186 Python tests, all green |
+| Test Coverage | 3077 PHP tests, 186 Python tests, all green |
 | Validation | Rule registry 133/21 checks PASS; fleet sim 8/8; resilience 8/8 |
 
 ---
@@ -164,7 +164,7 @@ python scripts/xdr_resilience_validate.py
 python scripts/xdr_fleet_simulation_validate.py
 ```
 
-**Current baselines:** 3043 PHP tests, 186 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
+**Current baselines:** 3077 PHP tests, 186 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
 
 ---
 
