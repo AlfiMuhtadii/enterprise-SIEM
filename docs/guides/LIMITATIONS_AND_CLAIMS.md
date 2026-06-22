@@ -244,6 +244,32 @@ python scripts/validate_live_xdr_pipeline.py
 
 Exit codes: 0=all PASS, 1=any FAIL, 2=no FAIL but some UNKNOWN.
 
+### Correct live demo path
+
+```
+# Step 1: verify pipeline is up and event loops are enabled
+python scripts/validate_live_xdr_pipeline.py
+
+# Step 2: tag-only dry run (no network calls)
+python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl
+
+# Step 3: pipeline dry-run (validate + tag, no POST)
+python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \
+    --mode pipeline --dry-run \
+    --ingest-url http://localhost:8091/v1/ingest
+
+# Step 4: pipeline live (tag + POST to ingestion-gateway)
+python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \
+    --mode pipeline \
+    --ingest-url http://localhost:8091/v1/ingest
+
+# Step 5: after 30-60s, check alerts (manifest time window)
+php artisan security:alerts-report --minutes=5 --demo-run=<demo_run_id from output>
+
+# Step 6: show the rule that fired
+python scripts/show_rule.py --rule-id <rule_id from alerts report>
+```
+
 ---
 
 *This document is maintained alongside `docs/KNOWN_LIMITATIONS.md`. For academic scope boundaries see `docs/thesis/THESIS_POSITIONING.md`. For operational posture see `docs/operations/OPERATIONAL_POSTURE.md`.*

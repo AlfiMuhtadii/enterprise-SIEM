@@ -1,53 +1,66 @@
 #!/usr/bin/env python3
 """
-Tag a JSONL event file with a unique demo_run_id and sequential trace_ids,
-then write the tagged events + a manifest to storage/logs/.
+Tag and optionally ingest demo events into the XDR pipeline.
 
-WARNING: This script prepares events for demo lineage purposes only.
-It does NOT send events to the ingestion-gateway or any Redpanda topic.
-It does NOT produce security_alerts rows on its own.
+Modes:
+  tag-only  (default)
+    Tag events with demo_run_id + trace_id, write manifest. No network calls.
+    Use this to prepare events before the pipeline is running.
 
-To prove end-to-end pipeline execution, the tagged events must be sent through
-the real ingestion-gateway/Redpanda path (requires --profile strangler stack):
+  pipeline
+    Tag events, verify ingestion-gateway is healthy, then POST to
+    POST /v1/ingest with HMAC-SHA256 signature.
+    Requires --profile strangler stack running and event loops enabled:
+      docker compose --profile strangler up -d
+      XDR_CORRELATION_EVENT_LOOP_ENABLED=true  (correlation-worker)
+      XDR_EVENT_LOOP_ENABLED=true              (alert-writer-service)
 
-    POST /v1/ingest (ingestion-gateway, HMAC-SHA256 signature required)
-    -> telemetry.raw (Redpanda)
-    -> normalizer-worker
-    -> telemetry.normalized (Redpanda)
-    -> correlation-worker  (XDR_CORRELATION_EVENT_LOOP_ENABLED=true)
-    -> xdr.alerts (Redpanda)
-    -> alert-writer-service  (XDR_EVENT_LOOP_ENABLED=true)
-    -> security_alerts (PostgreSQL)
+WARNING: This script does NOT call scripts/ingest_security_events.py.
+That script writes to the security_events table (HTTP request log) and
+does NOT trigger the Go correlation engine or produce security_alerts rows.
 
-NOTE: scripts/ingest_security_events.py writes to the security_events table
-(HTTP request log), NOT to security_alerts. It does NOT trigger the Go
-correlation engine and should NOT be used to demonstrate XDR alert creation.
+Correct live demo path:
+  python scripts/validate_live_xdr_pipeline.py
+  python scripts/demo_feed.py --input <file> --mode pipeline \\
+      --ingest-url http://localhost:8091/v1/ingest
 
 Usage:
-    # Auto-generate demo_run_id
-    python scripts/demo_feed.py --input storage/logs/attack_scenario.jsonl
+  # Tag only (no network calls):
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl
 
-    # Reuse an existing demo_run_id (to continue a partial run)
-    python scripts/demo_feed.py --input storage/logs/attack_scenario.jsonl \\
-        --demo-run-id demo-20260622-abc123
+  # Pipeline dry-run (tag + validate, no POST):
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \\
+      --mode pipeline --dry-run --ingest-url http://localhost:8091/v1/ingest
 
-Output:
-    storage/logs/<demo_run_id>_tagged.jsonl   -- tagged events (send via ingestion-gateway)
-    storage/logs/<demo_run_id>-manifest.json  -- time window for security:alerts-report --demo-run
+  # Pipeline live (tag + validate + POST):
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \\
+      --mode pipeline --ingest-url http://localhost:8091/v1/ingest
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac as _hmac_mod
 import json
+import os
 import sys
+import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-
+from typing import Any
 
 _MANIFEST_DIR = Path("storage/logs")
+_DEFAULT_INGEST_URL = "http://localhost:8091/v1/ingest"
+_DEFAULT_SECRET = "dev-secret-change-me"
 
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -59,6 +72,49 @@ def make_demo_run_id() -> str:
     return f"demo-{date}-{suffix}"
 
 
+def load_dotenv(env_path: Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    if not env_path.exists():
+        return result
+    with env_path.open(encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            result[key.strip()] = val.strip().strip('"').strip("'")
+    return result
+
+
+def resolve_secret(explicit_secret: str | None, env_vars: dict[str, str]) -> str:
+    """Resolve HMAC secret: explicit arg > XDR_INGEST_SECRET env > .env > dev default."""
+    if explicit_secret:
+        return explicit_secret
+    return (
+        os.environ.get("XDR_INGEST_SECRET")
+        or env_vars.get("XDR_INGEST_SECRET")
+        or _DEFAULT_SECRET
+    )
+
+
+# ---------------------------------------------------------------------------
+# HMAC signing — matches ingestion-gateway verifySignature()
+# ---------------------------------------------------------------------------
+
+def sign_body(secret: str, body: bytes) -> str:
+    """Return 'sha256=<hex>' HMAC-SHA256 of body with secret."""
+    if not secret:
+        return ""
+    mac = _hmac_mod.new(secret.encode(), body, hashlib.sha256)
+    return "sha256=" + mac.hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Event loading and tagging
+# ---------------------------------------------------------------------------
+
 def load_events(path: Path) -> list[dict]:
     events: list[dict] = []
     with path.open(encoding="utf-8-sig") as f:
@@ -69,72 +125,183 @@ def load_events(path: Path) -> list[dict]:
             try:
                 ev = json.loads(line)
             except json.JSONDecodeError as exc:
-                print(f"WARN: line {lineno} is not valid JSON ({exc}) — skipped", file=sys.stderr)
+                print(f"WARN: line {lineno} not valid JSON ({exc}) -- skipped", file=sys.stderr)
                 continue
             if not isinstance(ev, dict):
-                print(f"WARN: line {lineno} is not a JSON object — skipped", file=sys.stderr)
+                print(f"WARN: line {lineno} not a JSON object -- skipped", file=sys.stderr)
                 continue
             events.append(ev)
     return events
 
 
-def tag_events(events: list[dict], demo_run_id: str) -> list[dict]:
+def tag_events(
+    events: list[dict],
+    demo_run_id: str,
+    scenario_id: str | None = None,
+    tenant_id: str | None = None,
+) -> list[dict]:
+    """
+    Inject demo_run_id, trace_id (if absent), and source_event_id into each event.
+    trace_id format: <demo_run_id>-trace-<seq> so the ID is visible in filter queries.
+    """
     tagged: list[dict] = []
     for i, ev in enumerate(events, 1):
         ev = dict(ev)
         seq = str(i).zfill(4)
         ev["demo_run_id"] = demo_run_id
-        # Only set trace_id if not already present; prefix with demo_run_id so
-        # the demo_run_id is visible in the trace view URL filter.
+        ev["source_event_id"] = ev.get("event_id") or ev.get("id") or f"src-{seq}"
         if not ev.get("trace_id"):
             ev["trace_id"] = f"{demo_run_id}-trace-{seq}"
+        if scenario_id:
+            ev["scenario_id"] = scenario_id
+        if tenant_id:
+            ev.setdefault("tenant_id", tenant_id)
         tagged.append(ev)
     return tagged
 
 
-def write_manifest(demo_run_id: str, input_path: Path, event_count: int, started_at: str) -> Path:
-    _MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------------
+# HTTP helpers — injectable for testing
+# ---------------------------------------------------------------------------
+
+def _http_get(url: str, timeout: int) -> tuple[int | None, str]:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.status, resp.read(256).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, str(exc)
+    except OSError as exc:
+        return None, str(exc)
+
+
+def _http_post(url: str, headers: dict[str, str], body: bytes, timeout: int) -> tuple[int, str]:
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read(512).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        body_text = ""
+        try:
+            body_text = exc.read(512).decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        return exc.code, body_text
+    except OSError as exc:
+        return 0, str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Readiness check — GET /health on ingest base URL
+# ---------------------------------------------------------------------------
+
+def check_readiness(ingest_url: str, timeout: int, _get_fn=None) -> tuple[bool, str]:
+    """
+    Quick check: is the ingestion-gateway reachable and healthy?
+    Strips /v1/ingest from the URL to derive the base, then GETs /health.
+    """
+    if _get_fn is None:
+        _get_fn = _http_get
+    base = ingest_url.split("/v1/ingest")[0] if "/v1/ingest" in ingest_url else ingest_url
+    health_url = base.rstrip("/") + "/health"
+    code, body = _get_fn(health_url, timeout)
+    if code == 200:
+        return True, f"HTTP 200 from {health_url}"
+    if code is None:
+        return False, f"Connection refused at {health_url}: {body}"
+    return False, f"HTTP {code} from {health_url}: {body[:120]}"
+
+
+# ---------------------------------------------------------------------------
+# Batch send
+# ---------------------------------------------------------------------------
+
+def send_batch(
+    batch: list[dict],
+    ingest_url: str,
+    secret: str,
+    timeout: int,
+    _post_fn=None,
+) -> tuple[int, dict]:
+    """POST one batch to ingest URL. Returns (http_status, parsed_response)."""
+    if _post_fn is None:
+        _post_fn = _http_post
+    body_bytes = json.dumps(batch).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-XDR-Signature": sign_body(secret, body_bytes),
+    }
+    status, body = _post_fn(ingest_url, headers, body_bytes, timeout)
+    try:
+        parsed: dict = json.loads(body)
+    except Exception:
+        parsed = {"raw": body[:256]}
+    return status, parsed
+
+
+# ---------------------------------------------------------------------------
+# Manifest writer
+# ---------------------------------------------------------------------------
+
+def write_manifest(
+    *,
+    demo_run_id: str,
+    scenario_id: str | None,
+    mode: str,
+    dry_run: bool,
+    input_path: Path,
+    tagged_path: Path,
+    ingest_url: str | None,
+    started_at: str,
+    ended_at: str,
+    event_count: int,
+    sent_count: int,
+    failed_count: int,
+    tagged: list[dict],
+    readiness_check_result: str,
+    response_summary: list[dict],
+    output_dir: Path,
+) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
         "demo_run_id": demo_run_id,
+        "scenario_id": scenario_id,
+        "mode": mode,
+        "dry_run": dry_run,
+        "input_path": str(input_path),
+        "tagged_output_path": str(tagged_path),
+        "ingest_url": ingest_url,
         "started_at": started_at,
-        "ended_at": None,
-        "input_file": str(input_path),
+        "ended_at": ended_at,
         "event_count": event_count,
-        "status": "running",
+        "sent_count": sent_count,
+        "failed_count": failed_count,
+        "trace_id_first": tagged[0].get("trace_id", "") if tagged else "",
+        "trace_id_last": tagged[-1].get("trace_id", "") if tagged else "",
+        "readiness_check_result": readiness_check_result,
+        "response_summary": response_summary,
     }
-    manifest_path = _MANIFEST_DIR / f"{demo_run_id}-manifest.json"
+    manifest_path = output_dir / f"{demo_run_id}-manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest_path
 
 
-def finalize_manifest(manifest_path: Path) -> None:
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    data["ended_at"] = now_iso()
-    data["status"] = "ready"
-    manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+# ---------------------------------------------------------------------------
+# Mode: tag-only
+# ---------------------------------------------------------------------------
 
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Tag demo events with demo_run_id + sequential trace_ids")
-    parser.add_argument("--input", required=True, help="Input JSONL file of telemetry events")
-    parser.add_argument("--demo-run-id", default=None,
-                        help="Use an existing demo_run_id (default: auto-generate)")
-    parser.add_argument("--output-dir", default=str(_MANIFEST_DIR),
-                        help=f"Directory for output files (default: {_MANIFEST_DIR})")
-    args = parser.parse_args()
-
+def run_tag_only(args: argparse.Namespace, demo_run_id: str) -> int:
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"ERROR: Input file not found: {input_path}", file=sys.stderr)
         return 1
 
-    demo_run_id = args.demo_run_id or make_demo_run_id()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     sep = "=" * 64
     print(f"\n{sep}")
     print(f"  demo_run_id  : {demo_run_id}")
+    print(f"  mode         : tag-only")
     print(f"  input        : {input_path}")
     print(sep)
 
@@ -145,60 +312,292 @@ def main() -> int:
         return 1
     print(f"  Loaded {len(events)} events")
 
-    print("\n[2/3] Tagging events with demo_run_id + trace_id...")
+    print("\n[2/3] Tagging events with demo_run_id + trace_id + source_event_id...")
     started_at = now_iso()
-    tagged = tag_events(events, demo_run_id)
+    tagged = tag_events(events, demo_run_id, getattr(args, "scenario_id", None),
+                        getattr(args, "tenant_id", None))
     tagged_path = output_dir / f"{demo_run_id}_tagged.jsonl"
     with tagged_path.open("w", encoding="utf-8") as f:
         for ev in tagged:
             f.write(json.dumps(ev) + "\n")
     print(f"  Tagged {len(tagged)} events -> {tagged_path}")
-    print(f"  trace_id format: {demo_run_id}-trace-0001 ... {demo_run_id}-trace-{str(len(tagged)).zfill(4)}")
 
     print("\n[3/3] Writing manifest...")
-    manifest_path = write_manifest(demo_run_id, input_path, len(tagged), started_at)
+    manifest_path = write_manifest(
+        demo_run_id=demo_run_id,
+        scenario_id=getattr(args, "scenario_id", None),
+        mode="tag-only",
+        dry_run=False,
+        input_path=input_path,
+        tagged_path=tagged_path,
+        ingest_url=None,
+        started_at=started_at,
+        ended_at=now_iso(),
+        event_count=len(events),
+        sent_count=0,
+        failed_count=0,
+        tagged=tagged,
+        readiness_check_result="skipped",
+        response_summary=[],
+        output_dir=output_dir,
+    )
     print(f"  Manifest -> {manifest_path}")
 
-    finalize_manifest(manifest_path)
-
     print(f"\n{sep}")
-    print(f"  DONE: demo_run_id: {demo_run_id}")
+    print(f"  DONE (tag-only): demo_run_id={demo_run_id}")
     print(sep)
     print(f"""
-IMPORTANT — this script tags events for demo lineage tracking.
-It does NOT by itself prove the full XDR pipeline. To produce real
-security_alerts, the tagged events must go through ingestion-gateway
-and be processed by the Go correlation + alert-writer services.
+WARNING: tag-only mode. No events were sent to any service.
+The tagged JSONL is ready: {tagged_path}
+
+To send events through the live pipeline (requires --profile strangler stack):
+
+  1. Verify pipeline is ready:
+       python scripts/validate_live_xdr_pipeline.py
+
+  2. Send tagged events:
+       python scripts/demo_feed.py --input {input_path} \\
+           --demo-run-id {demo_run_id} \\
+           --mode pipeline \\
+           --ingest-url http://localhost:8091/v1/ingest
 
 DO NOT use scripts/ingest_security_events.py for XDR alert creation.
-That script writes to the security_events table (HTTP request log),
-not to security_alerts. It does not trigger the Go correlation engine.
-
---- To verify end-to-end (requires --profile strangler stack) ---
-
-  0. Check pipeline is up:
-       docker compose --profile strangler ps
-       (ingestion-gateway, normalizer-worker, correlation-worker, alert-writer must be running)
-       Set in .env: XDR_CORRELATION_EVENT_LOOP_ENABLED=true
-       Set in .env: XDR_EVENT_LOOP_ENABLED=true
-
-  1. Send events through ingestion-gateway (requires HMAC-SHA256 signature):
-       Use the telemetry adapter + ingestion script for your source type.
-       Tagged file for reference: {tagged_path}
-
-  2. Wait 30-60s for pipeline processing:
-       php artisan security:pipeline-health
-
-  3. Show alerts (time-window filter from manifest):
-       php artisan security:alerts-report --minutes=5 --demo-run={demo_run_id}
-
-  4. Show exact rule that fired:
-       python scripts/show_rule.py --rule-id <rule_id from report above>
-
-  5. See further details in docs/guides/LIMITATIONS_AND_CLAIMS.md
-{sep}
+That script writes to security_events (HTTP request log), not security_alerts.
 """)
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Mode: pipeline
+# ---------------------------------------------------------------------------
+
+def run_pipeline(
+    args: argparse.Namespace,
+    demo_run_id: str,
+    _post_fn=None,
+    _get_fn=None,
+) -> int:
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"ERROR: Input file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    env_vars = load_dotenv(Path(".env"))
+    secret = resolve_secret(getattr(args, "ingest_secret", None), env_vars)
+    ingest_url: str = args.ingest_url
+    timeout: int = args.timeout_seconds
+    batch_size: int = max(1, min(args.batch_size, 1000))
+    dry_run: bool = args.dry_run
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    sep = "=" * 64
+    mode_label = "pipeline [DRY-RUN]" if dry_run else "pipeline"
+    print(f"\n{sep}")
+    print(f"  demo_run_id  : {demo_run_id}")
+    print(f"  mode         : {mode_label}")
+    print(f"  input        : {input_path}")
+    print(f"  ingest_url   : {ingest_url}")
+    print(f"  batch_size   : {batch_size}")
+    print(sep)
+
+    # Step 1 — Readiness check
+    readiness_result = "skipped"
+    if not args.skip_readiness_check:
+        print("\n[1/4] Checking ingestion-gateway readiness...")
+        ok, msg = check_readiness(ingest_url, timeout, _get_fn)
+        if ok:
+            readiness_result = "pass"
+            print(f"  OK: {msg}")
+        else:
+            readiness_result = "fail"
+            print(f"  FAIL: {msg}", file=sys.stderr)
+            print("  Tip: run python scripts/validate_live_xdr_pipeline.py", file=sys.stderr)
+            print("  Use --skip-readiness-check to bypass (not recommended for live demo)", file=sys.stderr)
+            return 1
+    else:
+        print("\n[1/4] Readiness check skipped (--skip-readiness-check)")
+
+    # Step 2 — Load and tag
+    print("\n[2/4] Loading and tagging events...")
+    events = load_events(input_path)
+    if not events:
+        print("ERROR: No events found in input file.", file=sys.stderr)
+        return 1
+    started_at = now_iso()
+    tagged = tag_events(events, demo_run_id,
+                        getattr(args, "scenario_id", None),
+                        getattr(args, "tenant_id", None))
+    tagged_path = output_dir / f"{demo_run_id}_tagged.jsonl"
+    with tagged_path.open("w", encoding="utf-8") as f:
+        for ev in tagged:
+            f.write(json.dumps(ev) + "\n")
+    print(f"  Tagged {len(tagged)} events -> {tagged_path}")
+    n_batches = (len(tagged) + batch_size - 1) // batch_size
+
+    if dry_run:
+        # Step 3 dry — report without POST
+        print(f"\n[3/4] DRY-RUN: would POST {len(tagged)} events in {n_batches} "
+              f"batch(es) to {ingest_url} (no network call made)")
+        manifest_path = write_manifest(
+            demo_run_id=demo_run_id,
+            scenario_id=getattr(args, "scenario_id", None),
+            mode="pipeline",
+            dry_run=True,
+            input_path=input_path,
+            tagged_path=tagged_path,
+            ingest_url=ingest_url,
+            started_at=started_at,
+            ended_at=now_iso(),
+            event_count=len(events),
+            sent_count=0,
+            failed_count=0,
+            tagged=tagged,
+            readiness_check_result=readiness_result,
+            response_summary=[],
+            output_dir=output_dir,
+        )
+        print(f"\n[4/4] Manifest -> {manifest_path}")
+        print(f"\n{sep}")
+        print(f"  DONE (dry-run): {len(tagged)} events ready, no POST performed.")
+        print(sep)
+        return 0
+
+    # Step 3 live — send batches
+    print(f"\n[3/4] Sending {len(tagged)} events in {n_batches} batch(es)...")
+    sent_count = 0
+    failed_count = 0
+    response_summary: list[dict] = []
+    batches = [tagged[i:i + batch_size] for i in range(0, len(tagged), batch_size)]
+    for batch_num, batch in enumerate(batches, 1):
+        status, parsed = send_batch(batch, ingest_url, secret, timeout, _post_fn)
+        entry: dict = {"batch": batch_num, "size": len(batch), "status": status}
+        for k in ("accepted", "latency_ms", "error", "raw"):
+            if k in parsed:
+                entry[k] = parsed[k]
+        if status == 202:
+            sent_count += len(batch)
+            print(f"  batch {batch_num}/{n_batches}: HTTP 202 "
+                  f"accepted={parsed.get('accepted', '?')} "
+                  f"latency_ms={parsed.get('latency_ms', '?')}")
+        else:
+            failed_count += len(batch)
+            print(f"  batch {batch_num}/{n_batches}: HTTP {status} FAIL -- {parsed}",
+                  file=sys.stderr)
+        response_summary.append(entry)
+        if batch_num < n_batches:
+            time.sleep(0.05)  # stay well under 50 RPS default rate limit
+
+    ended_at = now_iso()
+
+    # Step 4 — manifest
+    manifest_path = write_manifest(
+        demo_run_id=demo_run_id,
+        scenario_id=getattr(args, "scenario_id", None),
+        mode="pipeline",
+        dry_run=False,
+        input_path=input_path,
+        tagged_path=tagged_path,
+        ingest_url=ingest_url,
+        started_at=started_at,
+        ended_at=ended_at,
+        event_count=len(events),
+        sent_count=sent_count,
+        failed_count=failed_count,
+        tagged=tagged,
+        readiness_check_result=readiness_result,
+        response_summary=response_summary,
+        output_dir=output_dir,
+    )
+    print(f"\n[4/4] Manifest -> {manifest_path}")
+    print(f"\n{sep}")
+    print(f"  DONE: demo_run_id={demo_run_id}")
+    print(f"  sent={sent_count}  failed={failed_count}  total={len(tagged)}")
+    print(sep)
+
+    if failed_count == 0:
+        print(f"""
+Next steps (wait 30-60s for pipeline processing):
+
+  1. Verify full pipeline:
+       python scripts/validate_live_xdr_pipeline.py
+
+  2. Show alerts (manifest time window):
+       php artisan security:alerts-report --minutes=5 --demo-run={demo_run_id}
+
+  3. Show the rule that fired:
+       python scripts/show_rule.py --rule-id <rule_id from report>
+
+  4. See docs/guides/LIMITATIONS_AND_CLAIMS.md for pipeline architecture.
+""")
+    else:
+        print(f"\nWARNING: {failed_count} event(s) failed ingestion.", file=sys.stderr)
+        print(f"  Check: XDR_INGEST_SECRET matches the gateway secret.", file=sys.stderr)
+        print(f"  Default dev secret: {_DEFAULT_SECRET}", file=sys.stderr)
+        print(f"  Check gateway logs: docker compose logs correlation-worker", file=sys.stderr)
+
+    return 0 if failed_count == 0 else 1
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Tag and optionally ingest demo events into the XDR pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Modes:
+  tag-only (default)
+    Tag events with demo_run_id + trace_id. No network calls.
+
+  pipeline
+    Tag events then POST to ingestion-gateway via HMAC-SHA256.
+    Requires --profile strangler stack + event loops enabled in .env.
+
+Examples:
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl
+
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \\
+      --mode pipeline --dry-run
+
+  python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl \\
+      --mode pipeline --ingest-url http://localhost:8091/v1/ingest
+""",
+    )
+    parser.add_argument("--input", required=True,
+                        help="Input JSONL file of telemetry events")
+    parser.add_argument("--mode", choices=["tag-only", "pipeline"], default="tag-only",
+                        help="Execution mode (default: tag-only)")
+    parser.add_argument("--demo-run-id", default=None,
+                        help="Reuse an existing demo_run_id (default: auto-generate)")
+    parser.add_argument("--output-dir", default=str(_MANIFEST_DIR),
+                        help=f"Output directory for tagged JSONL + manifest (default: {_MANIFEST_DIR})")
+    parser.add_argument("--ingest-url", default=_DEFAULT_INGEST_URL,
+                        help=f"Ingestion-gateway URL (default: {_DEFAULT_INGEST_URL})")
+    parser.add_argument("--ingest-secret", default=None, dest="ingest_secret",
+                        help="HMAC secret (default: XDR_INGEST_SECRET env var or dev-secret-change-me)")
+    parser.add_argument("--tenant-id", default=None, dest="tenant_id",
+                        help="Optional tenant_id injected into each event")
+    parser.add_argument("--scenario-id", default=None, dest="scenario_id",
+                        help="Optional scenario_id injected into each event")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Pipeline mode: validate + tag but do not POST")
+    parser.add_argument("--skip-readiness-check", action="store_true",
+                        dest="skip_readiness_check",
+                        help="Pipeline mode: skip ingestion-gateway health check")
+    parser.add_argument("--timeout-seconds", type=int, default=5, dest="timeout_seconds",
+                        help="HTTP timeout in seconds (default: 5)")
+    parser.add_argument("--batch-size", type=int, default=10, dest="batch_size",
+                        help="Events per POST request, 1-1000 (default: 10)")
+    args = parser.parse_args()
+
+    demo_run_id = args.demo_run_id or make_demo_run_id()
+
+    if args.mode == "tag-only":
+        return run_tag_only(args, demo_run_id)
+    return run_pipeline(args, demo_run_id)
 
 
 if __name__ == "__main__":
