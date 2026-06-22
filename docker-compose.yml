@@ -263,7 +263,7 @@ services:
       XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
       XDR_RAW_TOPIC: telemetry.raw
       XDR_NORMALIZED_TOPIC: telemetry.normalized
-      XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalized.dlq
+      XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalization_failed
       XDR_NORMALIZER_GROUP: ${XDR_NORMALIZER_GROUP:-normalizer-worker-v1}
       XDR_NORMALIZER_QUEUE_DEPTH: 200000
       XDR_NORMALIZER_PRODUCER_BATCH: 100

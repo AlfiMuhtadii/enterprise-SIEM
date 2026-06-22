@@ -300,9 +300,11 @@ def check_worker_consumer_lag(
             "evidence": "Could not parse worker metrics JSON",
             "required": False,
         }
-    processed = int(data.get("processed", 0))
-    recreate  = int(data.get("consumer_recreate_count", 0))
-    poll_errs = int(data.get("poll_error_count", 0))
+    processed   = int(data.get("processed", 0))
+    recreate    = int(data.get("consumer_recreate_count", 0))
+    poll_errs   = int(data.get("poll_error_count", 0))
+    dlq_written = int(data.get("dlq_written", 0))
+    poison_skip = int(data.get("poison_skipped", 0))
 
     # --- 2. Fetch topic max_offset from Redpanda public_metrics ---
     purl = redpanda_admin_url.rstrip("/") + "/public_metrics"
@@ -318,13 +320,15 @@ def check_worker_consumer_lag(
         lag = max_offset - processed
         evidence = (
             f"lag~{lag} (max_offset={max_offset}, processed={processed}), "
-            f"recreate_count={recreate}, poll_errors={poll_errs}"
+            f"recreate_count={recreate}, poll_errors={poll_errs}, "
+            f"poison_skipped={poison_skip}, dlq_written={dlq_written}"
         )
     else:
         lag = None
         evidence = (
             f"max_offset unavailable, processed={processed}, "
-            f"recreate_count={recreate}, poll_errors={poll_errs}"
+            f"recreate_count={recreate}, poll_errors={poll_errs}, "
+            f"poison_skipped={poison_skip}, dlq_written={dlq_written}"
         )
 
     if poll_errs >= 10:
@@ -568,7 +572,11 @@ def main() -> int:
             "telemetry.normalized", "http://127.0.0.1:9644", timeout,
         ),
         # 14: topic high watermarks — confirms events have flowed through each topic
-        check_topic_watermarks("http://127.0.0.1:9644", required_topics + ["alerts.created"], timeout),
+        check_topic_watermarks(
+            "http://127.0.0.1:9644",
+            required_topics + ["alerts.created", "telemetry.normalization_failed"],
+            timeout,
+        ),
     ]
 
     print()

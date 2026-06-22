@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,6 +19,23 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+// PoisonError is returned by consumerPoll when Pandaproxy reports it cannot
+// deserialize a record (error_code 40801). It carries source coordinates so
+// the caller can write a structured DLQ record and advance past the bad offset.
+type PoisonError struct {
+	HTTPStatus int
+	ErrorCode  int
+	Message    string
+	Topic      string
+	Partition  int
+	Offset     int64
+}
+
+func (e *PoisonError) Error() string {
+	return fmt.Sprintf("consumer_poll_failed status=%d body={\"error_code\":%d,\"message\":\"%s\"}",
+		e.HTTPStatus, e.ErrorCode, e.Message)
+}
 
 var httpClient = &http.Client{
 	Timeout: 15 * time.Second,
@@ -45,6 +63,9 @@ type Worker struct {
 	reconnectCount        atomic.Int64
 	pollErrorCount        atomic.Int64
 	consumerRecreateCount atomic.Int64
+	dlqWritten            atomic.Int64
+	dlqWriteErrors        atomic.Int64
+	poisonSkipped         atomic.Int64
 	queueCapacity int
 	producerBatch int
 	producerFlush time.Duration
@@ -64,7 +85,7 @@ func main() {
 		redpandaREST: env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
 		inputTopic:   env("XDR_RAW_TOPIC", "telemetry.raw"),
 		outputTopic:  env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
-		dlqTopic:     env("XDR_NORMALIZER_DLQ_TOPIC", "telemetry.normalized.dlq"),
+		dlqTopic:     env("XDR_NORMALIZER_DLQ_TOPIC", "telemetry.normalization_failed"),
 		group:        env("XDR_NORMALIZER_GROUP", "normalizer-worker-v1"),
 		queueCapacity: envInt("XDR_NORMALIZER_QUEUE_DEPTH", 200000),
 		producerBatch: envInt("XDR_NORMALIZER_PRODUCER_BATCH", 5000),
@@ -124,9 +145,12 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"poll_error_count":        w.pollErrorCount.Load(),
 		"consumer_recreate_count": w.consumerRecreateCount.Load(),
 		"queue_depth":             w.queueDepth.Load(),
-		"queue_capacity": w.queueCapacity,
-		"goroutines":     runtime.NumGoroutine(),
-		"heap_alloc_mb":  float64(mem.HeapAlloc) / 1024.0 / 1024.0,
+		"queue_capacity":   w.queueCapacity,
+		"goroutines":       runtime.NumGoroutine(),
+		"heap_alloc_mb":    float64(mem.HeapAlloc) / 1024.0 / 1024.0,
+		"dlq_written":      w.dlqWritten.Load(),
+		"dlq_write_errors": w.dlqWriteErrors.Load(),
+		"poison_skipped":   w.poisonSkipped.Load(),
 	})
 }
 
@@ -158,9 +182,19 @@ func (w *Worker) consumeOnce() {
 		records, err := w.consumerPoll(baseURI)
 		w.consumerPolls.Add(1)
 		if err != nil {
-			w.pollErrorCount.Add(1)
-			w.consumerErrors.Add(1)
-			log.Printf("normalizer consumer poll failed: %v — reconnecting", err)
+			var pe *PoisonError
+			if errors.As(err, &pe) {
+				// Pandaproxy serialization failure: isolate to DLQ and advance offset.
+				if w.isolatePoisonRecord(baseURI, pe) {
+					continue
+				}
+				log.Printf("normalizer DLQ isolation failed for poison at %s:%d offset=%d — reconnecting",
+					pe.Topic, pe.Partition, pe.Offset)
+			} else {
+				w.pollErrorCount.Add(1)
+				w.consumerErrors.Add(1)
+				log.Printf("normalizer consumer poll failed: %v — reconnecting", err)
+			}
 			return
 		}
 		if len(records) == 0 {
@@ -248,6 +282,9 @@ func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if pe := parsePoisonErr(resp.StatusCode, body); pe != nil {
+			return nil, pe
+		}
 		return nil, fmt.Errorf("consumer_poll_failed status=%d body=%s", resp.StatusCode, string(body))
 	}
 	if strings.TrimSpace(string(body)) == "" {
@@ -258,6 +295,118 @@ func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 		return nil, err
 	}
 	return records, nil
+}
+
+// parsePoisonErr returns a *PoisonError when the Pandaproxy response body
+// contains error_code 40801 (serialization failure), or nil for any other error.
+// Pandaproxy message format: "Unable to serialize value of record at offset N in topic:partition T:P"
+func parsePoisonErr(httpStatus int, body []byte) *PoisonError {
+	var resp struct {
+		ErrorCode int    `json:"error_code"`
+		Message   string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil || resp.ErrorCode != 40801 {
+		return nil
+	}
+	pe := &PoisonError{
+		HTTPStatus: httpStatus,
+		ErrorCode:  resp.ErrorCode,
+		Message:    resp.Message,
+		Offset:     -1,
+		Partition:  -1,
+	}
+	if idx := strings.Index(resp.Message, "at offset "); idx >= 0 {
+		rest := resp.Message[idx+len("at offset "):]
+		parts := strings.Fields(rest)
+		if len(parts) >= 1 {
+			if n, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+				pe.Offset = n
+			}
+		}
+	}
+	if idx := strings.Index(resp.Message, "topic:partition "); idx >= 0 {
+		rest := resp.Message[idx+len("topic:partition "):]
+		parts := strings.Fields(rest)
+		if len(parts) >= 1 {
+			tp := parts[0]
+			if colon := strings.LastIndex(tp, ":"); colon >= 0 {
+				pe.Topic = tp[:colon]
+				if p, err := strconv.Atoi(tp[colon+1:]); err == nil {
+					pe.Partition = p
+				}
+			}
+		}
+	}
+	if pe.Topic == "" {
+		pe.Topic = "unknown"
+	}
+	return pe
+}
+
+// isolatePoisonRecord writes a structured DLQ record for the poison message and
+// advances the consumer past its offset using Pandaproxy's offset commit API.
+// Returns true only if BOTH the DLQ write and the offset advance succeed.
+// On any failure the caller should reconnect rather than silently skip the record.
+func (w *Worker) isolatePoisonRecord(baseURI string, pe *PoisonError) bool {
+	if pe.Topic == "" || pe.Topic == "unknown" || pe.Offset < 0 || pe.Partition < 0 {
+		log.Printf("normalizer: unparseable poison error coordinates — reconnecting")
+		return false
+	}
+	dlqRecord := map[string]any{
+		"dlq_event_type":   "poison_message_isolated",
+		"schema_version":   1,
+		"isolation_reason": "pandaproxy_serialization_failure",
+		"source_topic":     pe.Topic,
+		"source_partition": pe.Partition,
+		"source_offset":    pe.Offset,
+		"error_code":       pe.ErrorCode,
+		"error_message":    pe.Message,
+		"isolated_at":      time.Now().UTC().Format(time.RFC3339),
+		"consumer_group":   w.group,
+	}
+	if err := w.publish(w.dlqTopic, []map[string]any{dlqRecord}); err != nil {
+		w.dlqWriteErrors.Add(1)
+		log.Printf("normalizer DLQ write failed for poison %s:%d offset=%d: %v",
+			pe.Topic, pe.Partition, pe.Offset, err)
+		return false
+	}
+	w.dlqWritten.Add(1)
+	if err := w.consumerCommitOffset(baseURI, pe.Topic, pe.Partition, pe.Offset); err != nil {
+		w.dlqWriteErrors.Add(1)
+		log.Printf("normalizer offset advance failed for poison %s:%d offset=%d: %v",
+			pe.Topic, pe.Partition, pe.Offset, err)
+		return false
+	}
+	w.poisonSkipped.Add(1)
+	log.Printf("normalizer isolated poison: topic=%s partition=%d offset=%d dlq=%s",
+		pe.Topic, pe.Partition, pe.Offset, w.dlqTopic)
+	return true
+}
+
+// consumerCommitOffset explicitly commits an offset via the Pandaproxy consumer
+// instance. Offset N means "last consumed is N; next fetch starts at N+1".
+func (w *Worker) consumerCommitOffset(baseURI, topic string, partition int, offset int64) error {
+	payload, _ := json.Marshal(map[string]any{
+		"offsets": []map[string]any{
+			{
+				"topic":     topic,
+				"partition": partition,
+				"offset":    offset,
+			},
+		},
+	})
+	req, _ := http.NewRequest(http.MethodPost, baseURI+"/offsets", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/vnd.kafka.v2+json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("offset_commit_failed status=%d body=%s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
