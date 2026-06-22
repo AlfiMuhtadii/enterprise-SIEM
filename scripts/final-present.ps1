@@ -61,7 +61,8 @@ if ($ManualApp) {
     Run-Step "3) Run deterministic attack scenario" "python scripts/demo_runbook.py run --base-url $BaseUrl --auto-serve=1"
 }
 Run-Step "5) Verify end-to-end assertions" "python scripts/demo_runbook.py verify --min-events $MinEvents --min-alerts $MinAlerts --min-responses $MinResponses --max-alert-age-sec $MaxAlertAgeSec"
-Run-Step "6) Show alert summary (rules + ML)" "php artisan security:alerts-report --minutes=15"
+Run-Step "6) Tag events with demo_run_id for causal proof" "python scripts/demo_feed.py --input storage/logs/attack_scenario.jsonl"
+Run-Step "6b) Show alert summary with exact rule_id" "php artisan security:alerts-report --minutes=15"
 Run-Step "7) Show pipeline health" "php artisan security:pipeline-health --minutes=15"
 Run-Step "8) Show URLs for live dashboard" "python scripts/demo_runbook.py open --base-url $BaseUrl"
 Run-Step "9) Ensure active MLOps deployment" "python scripts/mlops_ensure_active_deployment.py --env local"

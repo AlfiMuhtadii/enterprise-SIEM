@@ -89,6 +89,48 @@ Script ini secara otomatis:
 
 ## Alur Demo Manual (5–15 menit)
 
+### F. Causal Proof — demo_run_id (lakukan SEBELUM demo dimulai)
+
+Ini yang membuktikan sistem nyata, bukan dashboard statis.
+
+```powershell
+# 1. Siapkan event file (atau gunakan sample yang sudah ada)
+#    Tagged file akan berisi demo_run_id unik di setiap event
+
+python scripts/demo_feed.py --input storage/logs/attack_scenario.jsonl
+# → Output: demo_run_id = demo-20260622-abc123
+#           Tagged: storage/logs/demo-20260622-abc123_tagged.jsonl
+#           Manifest: storage/logs/demo-20260622-abc123-manifest.json
+```
+
+Catat `demo_run_id` (e.g. `demo-20260622-abc123`). Ini ID kausal unik yang Anda tunjukkan ke audience.
+
+```powershell
+# 2. Tunjukkan: sebelum ingest, tidak ada alert dengan demo_run_id ini
+php artisan security:alerts-report --minutes=5 --demo-run=demo-20260622-abc123
+# → 0 alerts (bukti baseline)
+
+# 3. Feed events ke pipeline
+python scripts/ingest_security_events.py --file storage/logs/demo-20260622-abc123_tagged.jsonl
+
+# 4. Tunggu 30-60 detik untuk pipeline processing
+
+# 5. Tunjukkan: setelah ingest, alert muncul dengan demo_run_id ini
+php artisan security:alerts-report --minutes=5 --demo-run=demo-20260622-abc123
+# → Alert: alert_001 | Rule: IDENTITY_MFA_FAILURE_BURST | MITRE: T1110 | ...
+```
+
+**Framing yang benar untuk audience:**
+"demo_run_id ini hanya ada di run ini. Kita lihat bahwa ID yang sama muncul di event yang kita feed, di alert yang dihasilkan pipeline, dan di trace view. Itu membuktikan cross-service causality, event lineage, dan pipeline continuity — bukan klaim 'tidak bisa di-fake', tapi klaim bahwa seluruh pipeline memproses event yang sama secara traceable."
+
+```powershell
+# 6. Lihat exact rule yang fired (ambil rule_id dari output step 5)
+python scripts/show_rule.py --rule-id IDENTITY_MFA_FAILURE_BURST
+# → Tampil: title, domain, severity, MITRE ATT&CK, conditions, FP notes, validation evidence
+```
+
+---
+
 ### A. Tunjukkan Deteksi (3 menit)
 1. Buka **Demo Platform** → Overview
 2. Buka **Security Alerts** → filter by severity=HIGH
@@ -109,8 +151,11 @@ Script ini secara otomatis:
 ### D. Tunjukkan Architecture (3 menit)
 1. Buka **XDR Maturity** → capability matrix
 2. Buka **XDR Certification** → readiness score, open risks
-3. Terminal: `php artisan security:alerts-report --minutes=15`
-4. Terminal: `python scripts/xdr_rule_registry_validate.py`
+3. Terminal: `php artisan security:alerts-report --minutes=15 --demo-run=<demo_run_id>`
+   — output menampilkan `rule_id (detector_name)` per alert
+4. Terminal: `python scripts/show_rule.py --rule-id <rule_id dari output di atas>`
+   — ini tunjukkan bukan 3 rule acak, tapi EXACT rule yang fired
+5. Terminal: `python scripts/xdr_rule_registry_validate.py`
 
 ### E. Tunjukkan Threat Hunting (2 menit)
 1. Buka **Threat Hunting** → New Hunt

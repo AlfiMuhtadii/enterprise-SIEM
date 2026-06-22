@@ -68,6 +68,8 @@ Operational and reference guides for the Hybrid XDR Platform. Previously located
 
 | Guide | Description |
 |---|---|
+| **[Limitations and Corrected Claims](LIMITATIONS_AND_CLAIMS.md)** | **Read first — what is real vs. simulated, corrected pipeline claims** |
+| [Live Pipeline Validator](../../scripts/validate_live_xdr_pipeline.py) | Read-only 9-check pre-demo pipeline readiness validator (run: `python scripts/validate_live_xdr_pipeline.py`) |
 | [Demo Overview](README_demo.md) | Demo scenario overview |
 | [Demo Package](README_DEMO_PACKAGE.md) | Packaged demo setup |
 | [Demo Deterministic Runbook](README_demo_deterministic_runbook.md) | Deterministic demo runbook |
