@@ -26,7 +26,9 @@ services:
     ports:
       - "19092:19092"
       - "9644:9644"
-      - "8082:8082"
+      # Pandaproxy REST API — unauthenticated, internal-only boundary.
+      # Exposed on 127.0.0.1 for local demo only. Remove or firewall in non-local deployments.
+      - "127.0.0.1:8082:8082"
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health --brokers=127.0.0.1:9092 >/dev/null 2>&1"]
       interval: 30s
@@ -270,6 +272,9 @@ services:
       XDR_NORMALIZER_PRODUCERS: 16
       XDR_NORMALIZER_WORKERS: 8
       XDR_NORMALIZER_FLUSH_MS: 50
+      # Internal auth enforcement. Default false keeps local demo usable without a token.
+      # Set to true (+ XDR_NORMALIZER_INTERNAL_TOKEN) for non-local deployments.
+      XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
     ports:
       - "8092:8092"
     depends_on:

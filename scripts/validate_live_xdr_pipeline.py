@@ -32,6 +32,7 @@ TIMEOUT_S = 3
 
 PASS = "PASS"
 FAIL = "FAIL"
+WARN = "WARN"
 UNKNOWN = "UNKNOWN"
 
 
@@ -444,6 +445,107 @@ def check_topic_watermarks(
 
 
 # ---------------------------------------------------------------------------
+# Security posture checks (advisory — required=False)
+# ---------------------------------------------------------------------------
+
+def check_pandaproxy_exposure(pandaproxy_url: str, timeout: int) -> CheckResult:
+    """Advisory security check: Pandaproxy must be internal-only in production.
+
+    Pandaproxy provides unauthenticated Kafka REST access (read + write topics).
+    In the local demo it is intentionally exposed on 127.0.0.1:8082.
+    In any non-local deployment this port MUST be firewalled or removed.
+
+    WARN if reachable without auth from this host (explicitly unsafe for non-local).
+    PASS if not reachable (expected in a hardened or production-equivalent setup).
+    """
+    url = pandaproxy_url.rstrip("/") + "/topics"
+    code, _ = http_get(url, timeout)
+    if code is None:
+        return {
+            "component": "Pandaproxy",
+            "check": "pandaproxy exposure (internal-only boundary)",
+            "status": PASS,
+            "evidence": f"Pandaproxy not reachable at {pandaproxy_url} (expected in hardened setup)",
+            "required": False,
+        }
+    return {
+        "component": "Pandaproxy",
+        "check": "pandaproxy exposure (internal-only boundary)",
+        "status": WARN,
+        "evidence": (
+            f"Pandaproxy reachable at {pandaproxy_url} without auth (HTTP {code})"
+            " — local demo only; firewall port 8082 in non-local deployments"
+        ),
+        "required": False,
+    }
+
+
+def check_internal_auth_posture(
+    normalizer_url: str,
+    env_vars: dict,
+    timeout: int,
+) -> CheckResult:
+    """Advisory security check: normalizer /v1/normalize internal auth posture.
+
+    Checks whether the normalizer enforces token auth on its internal HTTP endpoint.
+    Permissive mode (XDR_ENFORCE_INTERNAL_AUTH not set) allows unauthenticated
+    POST to /v1/normalize — acceptable for local demo, unsafe for any other context.
+
+    PASS if XDR_ENFORCE_INTERNAL_AUTH=true and XDR_NORMALIZER_INTERNAL_TOKEN is set.
+    WARN otherwise (permissive posture — make explicit that hardening is needed).
+    """
+    check_name = "internal auth posture (XDR_ENFORCE_INTERNAL_AUTH)"
+
+    TRUE_FLAGS = {"1", "true", "yes"}
+    enforce_flag = env_vars.get("XDR_ENFORCE_INTERNAL_AUTH", "").strip().lower() in TRUE_FLAGS
+    token_set    = bool(env_vars.get("XDR_NORMALIZER_INTERNAL_TOKEN", "").strip())
+    secret_set   = bool(env_vars.get("XDR_INTERNAL_AUTH_SECRET", "").strip())
+
+    # Read live internal_auth_mode from normalizer metrics.
+    murl = normalizer_url.rstrip("/") + "/metrics"
+    code, body = http_get(murl, timeout)
+    live_mode = "unknown"
+    if code == 200:
+        try:
+            live_mode = json.loads(body).get("internal_auth_mode", "unknown")
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    secret_note = "" if secret_set else "; XDR_INTERNAL_AUTH_SECRET not set (using APP_KEY fallback)"
+
+    if enforce_flag and token_set:
+        return {
+            "component": "normalizer-worker",
+            "check": check_name,
+            "status": PASS,
+            "evidence": (
+                f"internal_auth_mode={live_mode}, "
+                f"XDR_ENFORCE_INTERNAL_AUTH=true, token=configured{secret_note}"
+            ),
+            "required": False,
+        }
+
+    reasons: list[str] = []
+    if not enforce_flag:
+        reasons.append("XDR_ENFORCE_INTERNAL_AUTH not set")
+    if not token_set:
+        reasons.append("XDR_NORMALIZER_INTERNAL_TOKEN not set")
+    if not secret_set:
+        reasons.append("XDR_INTERNAL_AUTH_SECRET not set")
+
+    return {
+        "component": "normalizer-worker",
+        "check": check_name,
+        "status": WARN,
+        "evidence": (
+            f"internal_auth_mode={live_mode} — {', '.join(reasons)}"
+            "; /v1/normalize unauthenticated (local demo only)"
+        ),
+        "required": False,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Table rendering
 # ---------------------------------------------------------------------------
 
@@ -577,6 +679,10 @@ def main() -> int:
             required_topics + ["alerts.created", "telemetry.normalization_failed"],
             timeout,
         ),
+        # 15: Pandaproxy exposure — advisory security posture (internal-only boundary)
+        check_pandaproxy_exposure(redpanda_url, timeout),
+        # 16: internal auth posture — advisory security posture (XDR_ENFORCE_INTERNAL_AUTH)
+        check_internal_auth_posture(normalizer_url, env_vars, timeout),
     ]
 
     print()
@@ -592,7 +698,9 @@ def main() -> int:
     fail_count    = sum(1 for r in results if r["status"] == FAIL    and r.get("required", True))
     unknown_count = sum(1 for r in results if r["status"] == UNKNOWN and r.get("required", True))
     pass_count    = sum(1 for r in results if r["status"] == PASS)
-    warn_count    = sum(1 for r in results if r["status"] == FAIL    and not r.get("required", True))
+    warn_count    = sum(1 for r in results if
+                        r["status"] == WARN or
+                        (r["status"] == FAIL and not r.get("required", True)))
     total_count   = len(results)
 
     if fail_count == 0 and unknown_count == 0:
@@ -625,6 +733,9 @@ def main() -> int:
             print("  - Advisory: set XDR_ALERT_WRITER_AUTO_OFFSET_RESET=earliest in .env")
             print("  - Advisory: set XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET=earliest in .env")
             print("    (these default to 'earliest' in code; setting explicitly improves offset recovery)")
+            print("  - Security (check 15): Pandaproxy port 8082 must be firewalled in non-local deployments")
+            print("  - Security (check 16): set XDR_INTERNAL_AUTH_SECRET + XDR_NORMALIZER_INTERNAL_TOKEN")
+            print("    and XDR_ENFORCE_INTERNAL_AUTH=true for any non-local deployment")
         print("  - See docs/guides/LIMITATIONS_AND_CLAIMS.md for pipeline architecture")
         print()
 

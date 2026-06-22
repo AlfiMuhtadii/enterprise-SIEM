@@ -134,6 +134,10 @@ func (w *Worker) ready(rw http.ResponseWriter, r *http.Request) {
 func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
+	authMode := "permissive"
+	if envBool("XDR_ENFORCE_INTERNAL_AUTH", false) {
+		authMode = "enforced"
+	}
 	writeJSON(rw, http.StatusOK, map[string]any{
 		"processed":      w.processed.Load(),
 		"malformed":      w.malformed.Load(),
@@ -145,12 +149,13 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"poll_error_count":        w.pollErrorCount.Load(),
 		"consumer_recreate_count": w.consumerRecreateCount.Load(),
 		"queue_depth":             w.queueDepth.Load(),
-		"queue_capacity":   w.queueCapacity,
-		"goroutines":       runtime.NumGoroutine(),
-		"heap_alloc_mb":    float64(mem.HeapAlloc) / 1024.0 / 1024.0,
-		"dlq_written":      w.dlqWritten.Load(),
-		"dlq_write_errors": w.dlqWriteErrors.Load(),
-		"poison_skipped":   w.poisonSkipped.Load(),
+		"queue_capacity":          w.queueCapacity,
+		"goroutines":              runtime.NumGoroutine(),
+		"heap_alloc_mb":           float64(mem.HeapAlloc) / 1024.0 / 1024.0,
+		"dlq_written":             w.dlqWritten.Load(),
+		"dlq_write_errors":        w.dlqWriteErrors.Load(),
+		"poison_skipped":          w.poisonSkipped.Load(),
+		"internal_auth_mode":      authMode,
 	})
 }
 
@@ -884,11 +889,22 @@ func envBool(name string, fallback bool) bool {
 
 func validateNormalizerSecrets() {
 	if env("XDR_INTERNAL_AUTH_SECRET", "") == "" {
-		log.Printf("[SECURITY-WARN] XDR_INTERNAL_AUTH_SECRET is not set — internal service auth uses fallback")
+		log.Printf("[SECURITY-WARN] XDR_INTERNAL_AUTH_SECRET is not set — internal service auth uses APP_KEY fallback")
 	}
+	enforced := envBool("XDR_ENFORCE_INTERNAL_AUTH", false)
 	token := env("XDR_NORMALIZER_INTERNAL_TOKEN", "")
-	if token == "" {
-		log.Printf("[SECURITY-INFO] XDR_NORMALIZER_INTERNAL_TOKEN not set — /v1/normalize internal auth is permissive")
+	if enforced {
+		if token == "" {
+			log.Fatalf("[SECURITY-FATAL] XDR_ENFORCE_INTERNAL_AUTH=true but XDR_NORMALIZER_INTERNAL_TOKEN is not set — refusing to start")
+		}
+		log.Printf("[SECURITY] internal auth enforced — /v1/normalize requires X-Internal-Service-Token")
+	} else {
+		if token == "" {
+			log.Printf("[SECURITY-WARN] XDR_ENFORCE_INTERNAL_AUTH not set — /v1/normalize has no token enforcement (unsafe for non-local deployments)")
+			log.Printf("[SECURITY-WARN] Set XDR_ENFORCE_INTERNAL_AUTH=true + XDR_NORMALIZER_INTERNAL_TOKEN=<secret> to harden")
+		} else {
+			log.Printf("[SECURITY-INFO] XDR_NORMALIZER_INTERNAL_TOKEN set (permissive mode — set XDR_ENFORCE_INTERNAL_AUTH=true to enforce)")
+		}
 	}
 }
 
@@ -1090,9 +1106,25 @@ func normalizeNotificationEvent(raw map[string]any) (map[string]any, error) {
 }
 
 func verifyInternalToken(token string) error {
+	enforced := envBool("XDR_ENFORCE_INTERNAL_AUTH", false)
 	expected := env("XDR_NORMALIZER_INTERNAL_TOKEN", "")
+	if enforced {
+		// Strict mode: always require a valid token. If no token is configured
+		// the service should have failed at startup; reject all requests.
+		if expected == "" {
+			return fmt.Errorf("internal_auth_enforced_no_token_configured")
+		}
+		if token == "" {
+			return fmt.Errorf("missing_token")
+		}
+		if token != expected {
+			return fmt.Errorf("invalid_token")
+		}
+		return nil
+	}
+	// Permissive mode: validate only when token is configured.
 	if expected == "" {
-		return nil // permissive mode: token not required
+		return nil
 	}
 	if token == "" {
 		return fmt.Errorf("missing_token")
