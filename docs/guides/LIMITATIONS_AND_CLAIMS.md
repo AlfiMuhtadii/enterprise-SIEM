@@ -281,4 +281,48 @@ python scripts/show_rule.py --rule-id <rule_id from alerts report>
 
 ---
 
+## 10. Causal live demo verifier
+
+`scripts/demo_causal_verify.py` is a single reviewer-friendly command that orchestrates the three-stage causal proof end-to-end without manual steps.
+
+**What it does:**
+1. Runs `validate_live_xdr_pipeline.py` — stops immediately if `LIVE_PIPELINE_READY` is not `true`
+2. Runs `demo_feed.py --mode pipeline` — POSTs tagged events to ingestion-gateway; extracts `demo_run_id` from output
+3. Polls `php artisan security:alerts-report --demo-run=<id>` until `FIELD_MATCH=PASS`, `FIELD_MATCH=WARN`, or timeout (default 60s, 3s interval)
+4. Prints a structured proof table with 8 steps
+5. Writes `reports/demo-causal-<demo_run_id>.json` and `.md`
+
+**Verdict definitions:**
+
+| Verdict | Meaning |
+|---|---|
+| `LIVE_CAUSAL_PROOF=PASS` | `demo_run_id` found in `security_alerts.evidence` — field-level lineage proven end-to-end |
+| `LIVE_CAUSAL_PROOF=WARN` | Events accepted, alerts found via manifest time-window fallback only — `demo_run_id` not in evidence |
+| `LIVE_CAUSAL_PROOF=FAIL` | Pipeline not ready, ingestion failed, no alerts found, or timeout |
+
+**Exit codes:** 0=PASS, 1=WARN, 2=FAIL.
+
+**What it does NOT do:**
+- Does NOT write directly to `security_alerts` or `security_events`
+- Does NOT use `DemoScenarioSeeder` or create alerts manually
+- Does NOT bypass ingestion-gateway
+- Does NOT hide WARN/FAIL (no fake PASS)
+- Does NOT require external network access
+
+```
+python scripts/demo_causal_verify.py [options]
+
+Options:
+  --input               Path to demo scenario JSONL (default: fixtures/demo/attack_scenario.jsonl)
+  --ingest-url          Ingestion-gateway URL (default: http://localhost:8091/v1/ingest)
+  --timeout-seconds     Alert polling timeout (default: 60)
+  --poll-interval-seconds  Seconds between polls (default: 3.0)
+  --no-report-write     Skip writing report files
+  --verbose             Print full subprocess output at each step
+```
+
+**Evidence:** `scripts/demo_causal_verify.py`, `tests/demo_causal_verify/test_demo_causal_verify.py` (7 tests)
+
+---
+
 *This document is maintained alongside `docs/KNOWN_LIMITATIONS.md`. For academic scope boundaries see `docs/thesis/THESIS_POSITIONING.md`. For operational posture see `docs/operations/OPERATIONAL_POSTURE.md`.*
