@@ -328,11 +328,14 @@ class DomainSoakHarnessService
         return $run->fresh();
     }
 
-    public function getSummary(string $domain = null): array
+    public function getSummary(string $domain = null, ?string $tenantId = null): array
     {
         $q = ShadowSoakRun::query();
         if ($domain) {
             $q->where('domain', $domain);
+        }
+        if ($tenantId !== null) {
+            $q->where('tenant_id', $tenantId);
         }
 
         $runs = $q->get();
@@ -356,6 +359,9 @@ class DomainSoakHarnessService
         }
         if (!empty($filters['status'])) {
             $q->where('status', $filters['status']);
+        }
+        if (!empty($filters['tenant_id'])) {
+            $q->where('tenant_id', $filters['tenant_id']);
         }
 
         return $q->paginate($perPage);

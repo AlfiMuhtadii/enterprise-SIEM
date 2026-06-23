@@ -19,7 +19,7 @@ class DlqController extends Controller
 
     public function index(Request $request)
     {
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $filters  = $request->only(['status', 'dlq_event_type', 'tenant_id', 'source_topic', 'replayable']);
 
         if ($tenantId !== null) {

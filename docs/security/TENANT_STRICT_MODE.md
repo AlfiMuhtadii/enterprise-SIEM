@@ -53,23 +53,38 @@ exempt:
 
 ## Which Routes Require Tenant Context
 
-Routes that fetch or mutate a **specific record** opt in via
-`requireTenantContext: true` in `validateAndResolve()`:
+All tenant-scoped routes use `requireTenantContext: true` in `validateAndResolve()`.
+In legacy mode this parameter has no effect — missing headers are always allowed
+through regardless of the value.
 
-| Route | requireTenantContext |
-|---|---|
-| `GET /advisory/findings/{id}` | `true` |
-| `POST /advisory/findings/{id}/review` | `true` |
-| `GET /dlq/records/{id}` | `true` |
-| `POST /dlq/records/{id}/review` | `true` |
-| `GET /shadow-soak/{runId}` | `true` |
-| `GET /advisory/findings` (index) | `false` |
-| `GET /dlq/records` (index) | `false` |
-| `GET /shadow-soak` (index) | `false` |
-| `POST /shadow-soak` (store) | `false` |
+| Route | requireTenantContext | Added by |
+|---|---|---|
+| `GET /advisory/findings` (index) | `true` | BACKLOG-022 |
+| `GET /advisory/findings/{id}` | `true` | BACKLOG-021 |
+| `POST /advisory/findings/{id}/review` | `true` | BACKLOG-021 |
+| `GET /dlq/records` (index) | `true` | BACKLOG-022 |
+| `GET /dlq/records/{id}` | `true` | BACKLOG-021 |
+| `POST /dlq/records/{id}/review` | `true` | BACKLOG-021 |
+| `GET /shadow-soak` (index) | `true` | BACKLOG-022 |
+| `POST /shadow-soak` (store) | `true` | BACKLOG-022 |
+| `GET /shadow-soak/{runId}` | `true` | BACKLOG-021 |
 
-In legacy mode, `requireTenantContext` has no effect — missing headers are
-always allowed through.
+## Creation Safety (BACKLOG-022)
+
+In strict mode, user-facing store actions must not create `tenant_id = NULL`
+records for users who have tenant memberships.
+
+| Actor | Header supplied | Outcome |
+|---|---|---|
+| Member user, no header | — | 403 `TenantContextMissingException` |
+| Member user, valid header | `X-Tenant-ID: tenant-A` | Record created with `tenant_id = 'tenant-A'` |
+| Admin, no header | — | Record created with `tenant_id = NULL` (unscoped — intentional) |
+| Zero-membership user, no header | — | 403 `TenantContextMissingException` |
+| Zero-membership user, any header | `X-Tenant-ID: tenant-A` | 403 `TenantSpoofAttemptException` |
+
+**Legacy mode behavior (non-production):** store routes create `tenant_id = NULL`
+when no header is supplied, regardless of the user's membership. This is preserved
+for migration compatibility only and must not be used in production.
 
 ---
 

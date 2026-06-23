@@ -19,9 +19,15 @@ class ShadowSoakController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->only(['domain', 'status']);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
+        $filters  = $request->only(['domain', 'status']);
+
+        if ($tenantId !== null) {
+            $filters['tenant_id'] = $tenantId;
+        }
+
         $runs    = $this->service->getRuns($filters);
-        $summary = $this->service->getSummary($filters['domain'] ?? null);
+        $summary = $this->service->getSummary($filters['domain'] ?? null, $tenantId);
 
         return view('shadow-soak.index', compact('runs', 'summary', 'filters'));
     }
@@ -46,7 +52,7 @@ class ShadowSoakController extends Controller
             'dry_run' => 'boolean',
         ]);
 
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
 
         $run = $this->service->startSoakRun(
             domain:      $request->input('domain'),

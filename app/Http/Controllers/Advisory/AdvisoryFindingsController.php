@@ -20,7 +20,7 @@ class AdvisoryFindingsController extends Controller
 
     public function index(Request $request)
     {
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $filters  = $request->only(['status', 'domain', 'severity', 'rule_id', 'promotion_candidate']);
 
         if ($tenantId !== null) {

@@ -314,18 +314,18 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => false]);
     }
 
-    public function test_strict_advisory_index_no_header_returns_200(): void
+    public function test_strict_advisory_index_no_header_returns_403(): void
     {
+        // BACKLOG-022: index now uses requireTenantContext=true — member must supply header
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
         $admin   = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        // Index route uses requireTenantContext=false — no exception in strict mode
         $this->actingAs($analyst)
             ->get('/advisory/findings')
-            ->assertOk();
+            ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
     }
@@ -403,8 +403,9 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => false]);
     }
 
-    public function test_strict_dlq_index_no_header_returns_200(): void
+    public function test_strict_dlq_index_no_header_returns_403(): void
     {
+        // BACKLOG-022: index now uses requireTenantContext=true — member must supply header
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
@@ -413,7 +414,7 @@ class TenantStrictModeTest extends TestCase
 
         $this->actingAs($analyst)
             ->get('/dlq/records')
-            ->assertOk();
+            ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
     }
@@ -454,8 +455,9 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => false]);
     }
 
-    public function test_strict_shadow_soak_index_no_header_returns_200(): void
+    public function test_strict_shadow_soak_index_no_header_returns_403(): void
     {
+        // BACKLOG-022: index now uses requireTenantContext=true — member must supply header
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
@@ -464,7 +466,7 @@ class TenantStrictModeTest extends TestCase
 
         $this->actingAs($analyst)
             ->get('/shadow-soak')
-            ->assertOk();
+            ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
     }
