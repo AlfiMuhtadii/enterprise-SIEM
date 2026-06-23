@@ -7,18 +7,20 @@ use App\Http\Controllers\Controller;
 use App\Models\AdvisoryFinding;
 use App\Services\AdvisoryFindingService;
 use App\Services\TenantBoundaryService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 
 class AdvisoryFindingsController extends Controller
 {
     public function __construct(
         private readonly AdvisoryFindingService $service,
-        private readonly TenantBoundaryService $tenantBoundary,
+        private readonly TenantBoundaryService  $tenantBoundary,
+        private readonly TenantContextAuthority $tenantAuthority,
     ) {}
 
     public function index(Request $request)
     {
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $filters  = $request->only(['status', 'domain', 'severity', 'rule_id', 'promotion_candidate']);
 
         if ($tenantId !== null) {
@@ -34,7 +36,7 @@ class AdvisoryFindingsController extends Controller
 
     public function show(Request $request, string $findingId)
     {
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);
@@ -53,7 +55,7 @@ class AdvisoryFindingsController extends Controller
             'note'   => 'nullable|string|max:1000',
         ]);
 
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);

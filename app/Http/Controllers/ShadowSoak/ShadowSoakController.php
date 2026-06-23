@@ -6,13 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\ShadowSoakRun;
 use App\Services\DomainSoakHarnessService;
 use App\Services\TenantBoundaryService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 
 class ShadowSoakController extends Controller
 {
     public function __construct(
         private readonly DomainSoakHarnessService $service,
-        private readonly TenantBoundaryService $tenantBoundary,
+        private readonly TenantBoundaryService    $tenantBoundary,
+        private readonly TenantContextAuthority   $tenantAuthority,
     ) {}
 
     public function index(Request $request)
@@ -26,7 +28,7 @@ class ShadowSoakController extends Controller
 
     public function show(Request $request, string $runId)
     {
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $detail   = $this->service->getRunDetail($runId);
 
         $this->tenantBoundary->assertAccess($detail['run']->tenant_id ?? null, $tenantId);
@@ -44,7 +46,7 @@ class ShadowSoakController extends Controller
             'dry_run' => 'boolean',
         ]);
 
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
 
         $run = $this->service->startSoakRun(
             domain:      $request->input('domain'),

@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use App\Exceptions\TenantSpoofAttemptException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 
@@ -9,6 +10,7 @@ class Handler extends ExceptionHandler
 {
     protected $dontReport = [
         TenantBoundaryViolationException::class,
+        TenantSpoofAttemptException::class,
     ];
 
     /**
@@ -32,6 +34,13 @@ class Handler extends ExceptionHandler
         });
 
         $this->renderable(function (TenantBoundaryViolationException $e) {
+            if (request()->expectsJson()) {
+                return response()->json(['error' => 'Forbidden', 'message' => $e->getMessage()], 403);
+            }
+            abort(403, $e->getMessage());
+        });
+
+        $this->renderable(function (TenantSpoofAttemptException $e) {
             if (request()->expectsJson()) {
                 return response()->json(['error' => 'Forbidden', 'message' => $e->getMessage()], 403);
             }

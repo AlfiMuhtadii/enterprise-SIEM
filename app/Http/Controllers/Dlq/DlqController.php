@@ -6,21 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\DlqRecord;
 use App\Services\DlqReviewService;
 use App\Services\TenantBoundaryService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 
 class DlqController extends Controller
 {
     public function __construct(
-        private readonly DlqReviewService $service,
+        private readonly DlqReviewService      $service,
         private readonly TenantBoundaryService $tenantBoundary,
+        private readonly TenantContextAuthority $tenantAuthority,
     ) {}
 
     public function index(Request $request)
     {
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $filters  = $request->only(['status', 'dlq_event_type', 'tenant_id', 'source_topic', 'replayable']);
 
-        // If a tenant context is present, enforce it (overrides any explicit tenant_id filter)
         if ($tenantId !== null) {
             $filters['tenant_id'] = $tenantId;
         }
@@ -33,7 +34,7 @@ class DlqController extends Controller
 
     public function show(Request $request, string $recordId)
     {
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $record   = DlqRecord::where('record_id', $recordId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($record->tenant_id, $tenantId);
@@ -50,7 +51,7 @@ class DlqController extends Controller
             'note'   => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $tenantId = $request->header('X-Tenant-ID');
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $record   = DlqRecord::where('record_id', $recordId)->firstOrFail();
         $analyst  = $request->user();
         $note     = $request->input('note');

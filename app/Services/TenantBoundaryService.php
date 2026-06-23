@@ -10,22 +10,25 @@ use Illuminate\Database\Eloquent\Builder;
  *
  * Provides object-level tenant authorization and query scoping.
  *
- * Current posture (2026-06-23):
+ * Current posture (2026-06-23/020):
  * - PostgreSQL Row-Level Security (RLS) is NOT enabled. This service is the
  *   primary enforcement layer until RLS is activated.
- * - User model does NOT carry tenant_id. The tenant context is derived from
- *   the X-Tenant-ID request header. See TENANT_ISOLATION_POSTURE.md.
+ * - User model does NOT carry tenant_id. Tenant context reaches controllers via
+ *   X-Tenant-ID header, validated by TenantContextAuthority (BACKLOG-020).
  * - null tenant_id on a record = legacy single-tenant mode (no isolation);
  *   such records are accessible regardless of the request's tenant context.
  * - null tenant_id in the request context = no scoping (backward compatible).
+ * - user_tenant_memberships table added (BACKLOG-020) — authority validation
+ *   runs before this service's assertAccess() is reached.
  *
- * See docs/security/TENANT_ISOLATION_POSTURE.md for the full gap register
- * and roadmap to RLS enforcement.
+ * See docs/security/TENANT_ISOLATION_POSTURE.md and
+ *     docs/security/TENANT_NULL_MIGRATION_PLAN.md
  */
 class TenantBoundaryService
 {
     public const RLS_ENABLED = false;
     public const USER_MODEL_HAS_TENANT_ID = false;
+    public const USER_TENANT_MEMBERSHIPS_SUPPORTED = true;
 
     // Tables with tenant_id column — isolation is possible for these
     public const ISOLATED_TABLES = [
@@ -44,6 +47,8 @@ class TenantBoundaryService
         'shadow_soak_audit_events',
         'security_alerts',
         'security_incidents',
+        'user_tenant_memberships',
+        'tenant_membership_audit_events',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap
