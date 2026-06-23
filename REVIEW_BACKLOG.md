@@ -32,30 +32,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ---
 
-## Task #18: [INGESTION-025] Ingestion-gateway backpressure and multi-tenant fairness hardening (IG-1/IG-2/IG-3) [Labels: area:ingestion, risk:medium, agent:claude, type:implementation]
-* **Target**: GitHub Issue [#18](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/18)
-* **Goal**: Grounded implementation based on issue definition.
-
-### Goal & Requirements:
-> Source: Deferred findings IG-1, IG-2, IG-3 in REVIEW_REJECTED.md Section 2.
-
-> Approved scope: services/ingestion-gateway/main.go only.
-
-> Forbidden: No ACTIVE_ALLOWLIST changes, no shadow promotion, no changes to ingestion API contract (/v1/ingest), no new topics.
-
-> Acceptance criteria:
-> IG-1: Metrics polling moved to background goroutine (not in HTTP request handler)
-> IG-2: Per-tenant rate limiter map (map[tenantID]*rate.Limiter) replacing global single limiter
-> IG-3: Bounded retry with exponential backoff + circuit breaker on Kafka producer path (max retries configurable via env)
-> - No behavioral regression on ingest endpoint
-> - Existing resilience tests pass
-
-> Validation:
-> - docker compose config --quiet
-> - python scripts/xdr_event_flow_resilience_validate.py
-
----
-
 ## Task #16: [DB-5] Populate tenant_id in security_alerts and security_incidents write paths [Labels: agent:claude, area:tenant, risk:high, type:implementation]
 * **Target**: GitHub Issue [#16](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/16)
 * **Goal**: Grounded implementation based on issue definition.
