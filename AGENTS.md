@@ -275,3 +275,24 @@ docker compose config --quiet
 5. `Gate::before()` in `AuthServiceProvider` is mandatory — without it all `@can('soc:*')` returns false
 6. Never run parallel `php artisan test` against same PostgreSQL instance
 7. Always use `migrate:fresh --force` before tests to avoid `QueryException` from stale schema
+
+---
+
+## Antigravity (Reviewer Agent) Constraints & Aligned Rules
+
+* **Role Definition**: Antigravity (Gemini) operates strictly as a **Read-Only Audit and Design Reviewer**.
+* **System Visibility**: Authorized to read and analyze all codebase files, configuration settings, environment states, database models/migrations, and tests across the entire Enterprise SIEM platform.
+* **Authorized File Modifications**: Antigravity is restricted from modifying functional code (Go/Python/PHP codebase logic). It is only authorized to write and manage:
+  * Master audit reports and checklists (e.g., `REVIEW_REPORTS.md`, `REVIEW_ALL.md`).
+  * Process tracking documents (e.g., `REVIEW_BACKLOG.md`, `REVIEW_COMPLETED.md`).
+  * Environment templates and file exclusion rules (e.g., `.env.example`, `.gitignore`).
+  * Agent instructions and workflow files (e.g., `GITHUB_PROJECT_WORKFLOW.md`, `AGENTS.md`, `claude.md`).
+* **Operational Mode**:
+  1. Inspect the codebase incrementally and explain what files are being opened.
+  2. Document code analysis results in English using the structured audit template (IG-1, IG-2 format).
+  3. Maintain the `Backlog Candidate List` (for high-confidence risks) and `Not Backlog` lists separately.
+  4. Propose backlog tasks by appending them to the bottom of `REVIEW_BACKLOG.md` locally. Do NOT push issues directly to GitHub.
+* **Backlog Boundary**: Tasks listed in [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) and all `[BACKLOG-XXX]` issues on GitHub are strictly reserved for implementation agents (Claude/Codex). Antigravity must never attempt to resolve, write functional code for, or close backlog implementation tasks.
+
+
+

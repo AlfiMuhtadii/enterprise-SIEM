@@ -30,4 +30,13 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Test Reports & Dynamic Logs
+/reports/*.json
+/reports/*.md
+/reports/*.jsonl
+/reports/*.html
+!/reports/.gitkeep
+*.jsonl
+
+
 

@@ -13,6 +13,7 @@ class AdvisoryFindingEvent extends Model
         'finding_id',
         'event_type',
         'analyst_id',
+        'tenant_id',
         'metadata',
         'created_at',
     ];

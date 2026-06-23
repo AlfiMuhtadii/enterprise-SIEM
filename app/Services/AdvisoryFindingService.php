@@ -35,7 +35,7 @@ class AdvisoryFindingService
             $this->appendEvent($existing->finding_id, 'occurrence_incremented', null, [
                 'occurrence_count' => $existing->occurrence_count,
                 'last_seen_at'     => $now->toIso8601String(),
-            ]);
+            ], $existing->tenant_id);
 
             return $existing;
         }
@@ -68,7 +68,7 @@ class AdvisoryFindingService
             'domain'     => $finding->domain,
             'severity'   => $finding->severity,
             'confidence' => $finding->confidence,
-        ]);
+        ], $finding->tenant_id);
 
         return $finding;
     }
@@ -85,7 +85,7 @@ class AdvisoryFindingService
 
         $this->appendEvent($finding->finding_id, 'reviewed', $analystId, [
             'note' => $note,
-        ]);
+        ], $finding->tenant_id);
 
         return $finding;
     }
@@ -102,7 +102,7 @@ class AdvisoryFindingService
 
         $this->appendEvent($finding->finding_id, 'dismissed', $analystId, [
             'note' => $note,
-        ]);
+        ], $finding->tenant_id);
 
         return $finding;
     }
@@ -120,7 +120,7 @@ class AdvisoryFindingService
         $this->appendEvent($finding->finding_id, 'nominated_for_promotion', $analystId, [
             'note'              => $note,
             'promotion_blocker' => $finding->promotion_blocker,
-        ]);
+        ], $finding->tenant_id);
 
         return $finding;
     }
@@ -187,13 +187,14 @@ class AdvisoryFindingService
         return implode('; ', $reasons);
     }
 
-    private function appendEvent(string $findingId, string $eventType, ?int $analystId, array $metadata = []): void
+    private function appendEvent(string $findingId, string $eventType, ?int $analystId, array $metadata = [], ?string $tenantId = null): void
     {
         AdvisoryFindingEvent::create([
             'event_id'   => Str::uuid()->toString(),
             'finding_id' => $findingId,
             'event_type' => $eventType,
             'analyst_id' => $analystId,
+            'tenant_id'  => $tenantId,
             'metadata'   => $metadata,
             'created_at' => now(),
         ]);

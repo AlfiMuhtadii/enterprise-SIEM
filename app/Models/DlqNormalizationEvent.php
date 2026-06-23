@@ -14,7 +14,7 @@ class DlqNormalizationEvent extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'event_id', 'record_id', 'event_type', 'analyst_id', 'metadata',
+        'event_id', 'record_id', 'event_type', 'analyst_id', 'tenant_id', 'metadata',
     ];
 
     protected $casts = [

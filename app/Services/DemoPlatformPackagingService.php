@@ -17,7 +17,7 @@ class DemoPlatformPackagingService
     // Platform validation baseline (matches VALIDATION_BASELINES.md)
     const BASELINE_PHP_TESTS     = 2997;
     const BASELINE_PYTHON_TESTS  = 186;
-    const BASELINE_DOMAIN_COUNT  = 158;
+    const BASELINE_DOMAIN_COUNT  = 161;
     const BASELINE_TOTAL_RULES   = 133;
 
     public function launchDemoScenario(string $scenario, array $options = []): DemoScenarioRun
@@ -128,7 +128,7 @@ class DemoPlatformPackagingService
             'threat_hunting' => [
                 ['capability' => 'Multi-domain retrospective hunting', 'status' => 'implemented', 'scope' => 'advisory_only'],
                 ['capability' => 'Allowlisted bounded queries', 'status' => 'implemented', 'scope' => 'active'],
-                ['capability' => '158 supported domains', 'status' => 'implemented', 'scope' => 'active'],
+                ['capability' => '161 supported domains', 'status' => 'implemented', 'scope' => 'active'],
                 ['capability' => 'Append-only hunt records', 'status' => 'implemented', 'scope' => 'active'],
             ],
             'operational_governance' => [
@@ -233,7 +233,7 @@ class DemoPlatformPackagingService
             'active_scope'        => 'identity/cloud/SaaS (6h soak PASS 2026-05-14)',
             'shadow_scope'        => ['endpoint behavioral', 'DNS/proxy/firewall', 'threat-intel/IOC'],
             'detection_rules'     => 133,
-            'hunt_domains'        => 158,
+            'hunt_domains'        => 161,
             'is_advisory'         => true,
         ];
     }

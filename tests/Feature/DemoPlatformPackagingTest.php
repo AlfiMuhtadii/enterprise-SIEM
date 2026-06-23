@@ -235,12 +235,12 @@ class DemoPlatformPackagingTest extends TestCase
     // ThreatHuntingService domain count
     // -----------------------------------------------------------------------
 
-    public function test_threat_hunting_domain_count_is_158(): void
+    public function test_threat_hunting_domain_count_is_161(): void
     {
         $this->assertCount(
             161,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 158 threat hunting domains after all phases through Final Demo / Portfolio / Thesis Packaging Phase 1'
+            'Should have 161 threat hunting domains after all phases through Final Demo / Portfolio / Thesis Packaging Phase 1'
         );
     }
 

@@ -519,3 +519,46 @@ Do NOT:
 * add execution-type commands to `ALLOWED_TYPES` in endpoint response framework (Phase 1 allows only: `noop`, `collect_diagnostics`, `refresh_config`, `upload_health_snapshot`)
 
 Operational rule: gate fails → remain shadow OR rollback to legacy. **Never force cutover after failed soak.**
+
+---
+
+# Git-Ops & Backlog Synchronization Workflow Rules
+
+## 1. Central Backlog Files
+* **[REVIEW_BACKLOG.md](REVIEW_BACKLOG.md)**: Contains proposed tasks suggested by Gemini under `## Proposed Task: <title>`.
+* **[REVIEW_APPROVED.md](REVIEW_APPROVED.md)**: Master log of tasks validated and approved by Claude for implementation in a table format.
+* **[REVIEW_COMPLETED.md](REVIEW_COMPLETED.md)**: Log of completed/verified tasks.
+* **[REVIEW_REJECTED.md](REVIEW_REJECTED.md)**: Log of tasks proposed by Gemini but rejected by Claude with reasoning.
+* **[GITHUB_PROJECT_WORKFLOW.md](GITHUB_PROJECT_WORKFLOW.md)**: Master project workflow policy (board columns, labels, issue templates, transition rules). Do NOT violate these templates.
+
+## 2. Automated Sync Tool
+Use the built-in sync command to communicate with GitHub:
+* **Create a task**: `python scripts/sync_backlog.py --create "<title>" "<body>" "label1,label2"`
+* **Close a task**: `python scripts/sync_backlog.py --close <issue_number> --comment "<resolution notes>"`
+* **Pull latest tasks**: `python scripts/sync_backlog.py --pull`
+
+## 3. Developer / Agent Workflow Loop
+You MUST follow this lifecycle:
+
+1. **Check & Validate Proposed Tasks**:
+   * Inspect [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) to check if Gemini has written new items under `## Proposed Task: <title>`.
+   * Evaluate the task's technical feasibility, safety boundaries, and architectural logic.
+   
+2. **If Approved (Relevant)**:
+   * Log the task under the `Approved Tasks` table in [REVIEW_APPROVED.md](REVIEW_APPROVED.md) using the format: Task ID, Description, Primary File, and Priority.
+   * Create the corresponding GitHub Issue using the sync tool:
+     ```powershell
+     python scripts/sync_backlog.py --create "[BACKLOG-XXX] <title>" "<body>" "agent:claude,type:implementation,..."
+     ```
+   * Update the task header in `REVIEW_BACKLOG.md` from `## Proposed Task: <title>` to `## Task #<number>: <title>` to map it to the generated GitHub Issue number.
+   * Implement the code, run relevant tests to verify, and once passing, close the GitHub Issue:
+     ```powershell
+     python scripts/sync_backlog.py --close <issue_number> --comment "Implemented. Tests passed."
+     ```
+   * Move the task details from `REVIEW_BACKLOG.md` into [REVIEW_COMPLETED.md](REVIEW_COMPLETED.md).
+
+3. **If Rejected (Not Relevant)**:
+   * Cut the proposed task from `REVIEW_BACKLOG.md`.
+   * Append it to [REVIEW_REJECTED.md](REVIEW_REJECTED.md) along with a section explaining your technical rejection reasoning. Do NOT write code or create GitHub issues for it.
+
+

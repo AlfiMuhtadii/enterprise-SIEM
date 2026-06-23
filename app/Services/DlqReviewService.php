@@ -35,7 +35,7 @@ class DlqReviewService
             $existing->update(['last_seen_at' => $now]);
             $this->appendEvent($existing->record_id, 'occurrence_incremented', null, [
                 'occurrence_count' => $existing->occurrence_count + 1,
-            ]);
+            ], $existing->tenant_id);
             return 'updated';
         }
 
@@ -51,8 +51,7 @@ class DlqReviewService
         $this->appendEvent($record->record_id, 'record_created', null, [
             'dlq_event_type' => $data['dlq_event_type'] ?? 'unknown',
             'source_topic'   => $data['source_topic'] ?? null,
-            'tenant_id'      => $data['tenant_id'] ?? null,
-        ]);
+        ], $record->tenant_id);
 
         return 'created';
     }
@@ -72,7 +71,7 @@ class DlqReviewService
 
         $this->appendEvent($record->record_id, 'reviewed', $analyst->id, [
             'note' => $note,
-        ]);
+        ], $record->tenant_id);
 
         return $record->fresh();
     }
@@ -92,7 +91,7 @@ class DlqReviewService
 
         $this->appendEvent($record->record_id, 'ignored', $analyst->id, [
             'note' => $note,
-        ]);
+        ], $record->tenant_id);
 
         return $record->fresh();
     }
@@ -129,7 +128,7 @@ class DlqReviewService
             'note'            => $note,
             'dlq_event_type'  => $record->dlq_event_type,
             'source_topic'    => $record->source_topic,
-        ]);
+        ], $record->tenant_id);
 
         return $record->fresh();
     }
@@ -142,7 +141,7 @@ class DlqReviewService
             'replay_result' => $result,
         ]);
 
-        $this->appendEvent($record->record_id, 'replayed', null, ['result' => $result]);
+        $this->appendEvent($record->record_id, 'replayed', null, ['result' => $result], $record->tenant_id);
 
         return $record->fresh();
     }
@@ -154,7 +153,7 @@ class DlqReviewService
             'replay_result' => ['error' => $error, 'failed_at' => now()->toIso8601String()],
         ]);
 
-        $this->appendEvent($record->record_id, 'replay_failed', null, ['error' => $error]);
+        $this->appendEvent($record->record_id, 'replay_failed', null, ['error' => $error], $record->tenant_id);
 
         return $record->fresh();
     }
@@ -230,13 +229,14 @@ class DlqReviewService
         ];
     }
 
-    private function appendEvent(string $recordId, string $eventType, ?int $analystId, array $metadata = []): void
+    private function appendEvent(string $recordId, string $eventType, ?int $analystId, array $metadata = [], ?string $tenantId = null): void
     {
         DlqNormalizationEvent::create([
             'event_id'   => 'dlqev-' . Str::uuid(),
             'record_id'  => $recordId,
             'event_type' => $eventType,
             'analyst_id' => $analystId,
+            'tenant_id'  => $tenantId,
             'metadata'   => $metadata ?: null,
         ]);
     }
