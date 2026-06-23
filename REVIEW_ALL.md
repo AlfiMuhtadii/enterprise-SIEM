@@ -124,17 +124,17 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 ### Finding IG-1 — Synchronous normalizer metrics polling in request path
 - **Severity:** Medium (Conditional Risk — high RPS only)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-1 (DEFERRED — enterprise reliability anti-pattern; not observable at academic RPS but must be async before production scale, see REVIEW_REJECTED.md §2)
+- **Task:** IG-1 (IMPLEMENTED — BACKLOG-INGESTION-025: admissionAllowed() reads cached atomic; startMetricsPoller() background goroutine; see REVIEW_REJECTED.md §2)
 
 ### Finding IG-2 — Global rate limiter token starvation
 - **Severity:** Medium (Conditional Risk — multi-tenant abuse only)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-2 (DEFERRED — enterprise multi-tenant fairness requirement; not applicable to single-tenant academic scope; required before multi-tenant pilot, see REVIEW_REJECTED.md §2)
+- **Task:** IG-2 (IMPLEMENTED — BACKLOG-INGESTION-025: per-tenant token bucket map via X-Tenant-ID header; startTenantBucketRefiller() background goroutine; see REVIEW_REJECTED.md §2)
 
 ### Finding IG-3 — 15-second publish retry timeout causing socket exhaustion
 - **Severity:** Medium (Conditional Risk — high traffic + Redpanda outage)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-3 (DEFERRED — enterprise reliability risk under sustained outage + high concurrency; existing controls adequate for academic scale; bounded retry + circuit breaker required before production load test, see REVIEW_REJECTED.md §2)
+- **Task:** IG-3 (IMPLEMENTED — BACKLOG-INGESTION-025: context.WithTimeout per attempt, exponential backoff, circuitBreaker struct with configurable failure threshold + open duration; see REVIEW_REJECTED.md §2)
 
 ---
 
@@ -169,3 +169,33 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Issue:** Setiap class mengulangi 5 method identik: `test_no_isolate_host_method`, `test_no_quarantine_host_method`, `test_no_execute_shell_method`, `test_no_kill_process_method`, `test_no_auto_remediate_method`.
 - **Fix:** Extract ke trait `tests/Traits/AssertsAdvisoryOnlyConstraints.php`, gunakan di semua class tersebut.
 - **Task:** T3
+
+---
+
+## Review Batch 8 — PIPELINE-AUDIT (2026-06-24)
+
+### Finding NW-1 — Missing tenant_id and demo lineage in normalizer worker helpers
+- **Severity:** High (Isolation & Lineage Gap)
+- **File:** `services/normalizer-worker/main.go`
+- **Issue:** Helper functions for endpoint, network, identity, saas, ticket, and notification telemetry discard `"tenant_id"`, `"demo_run_id"`, `"source_event_id"`, and `"scenario_id"`.
+- **Fix:** Propagate these keys from the raw event map to the normalized structure in all type-specific normalizer helper functions.
+- **Task:** NW-1
+
+### Finding CORR-1 — Telemetry type string mismatch for identity and saas events
+- **Severity:** High (Detection Gap)
+- **Files:** `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`
+- **Issue:** Normalizer worker outputs `"identity_provider"` and `"saas_audit"`, while correlation worker expects `"identity"` and `"saas"`. All normalized identity/SaaS events are silently ignored during correlation.
+- **Fix:** Support both strings in correlation worker telemetry type checks, or align normalizer to output `"identity"` and `"saas"`.
+- **Task:** CORR-1
+
+---
+
+## Review Batch 9 — DATABASE-PIPELINE-ALIGN (2026-06-24)
+
+### Finding DB-5 — Missing tenant_id in security_alerts and security_incidents PostgreSQL write paths
+- **Severity:** High (Isolation Gap)
+- **Files:** `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py`
+- **Issue:** The migration adds `tenant_id` column to both tables, but python services insert `NULL` since they don't map `tenant_id` in their PostgreSQL write queries. In strict tenancy mode, these records are excluded from scoped tenant queries.
+- **Fix:** Update `AlertPayload` and PostgreSQL write statements in alert-writer and incident-builder to resolve and insert `tenant_id` dynamically.
+- **Task:** DB-5
+

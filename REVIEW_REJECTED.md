@@ -53,10 +53,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Performance / Reliability
 - **Severity**: Medium (high RPS only)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-1--synchronous-normalizer-metrics-polling-in-request-path)
-- **Finding**: `ingestion-gateway/main.go` polls normalizer metrics synchronously inside the HTTP request handler. Under high RPS this adds latency to every ingest call and risks blocking goroutines if the metrics endpoint is slow.
-- **Why deferred**: Academic demo RPS is well below the threshold where this becomes observable. However, synchronous metrics polling on the hot path is an enterprise reliability anti-pattern regardless of current load. Must be made async (goroutine + channel or a separate scrape loop) before production scale.
-- **Production gate**: Move metrics poll to a background goroutine before any load test or production pilot.
-- **Status**: **DEFERRED**
+- **Status**: **IMPLEMENTED** — `admissionAllowed()` now reads a cached `normalizerQueueDepth` atomic. A background goroutine (`startMetricsPoller`) polls at configurable interval (`XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS`, default 5s). BACKLOG-INGESTION-025 / commit to follow.
 
 ---
 
@@ -65,10 +62,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Reliability / Multi-Tenant Fairness
 - **Severity**: Medium (multi-tenant abuse scenario)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-2--global-rate-limiter-token-starvation)
-- **Finding**: The ingestion-gateway uses a single global token bucket. In a multi-tenant deployment, one high-volume tenant can exhaust the bucket and starve all other tenants.
-- **Why deferred**: Current scope is single-tenant academic evaluation — global rate limiting is adequate now. Per-tenant rate limiting (e.g. `map[tenantID]*rate.Limiter`) is an enterprise multi-tenancy requirement before commercial deployment.
-- **Production gate**: Per-tenant rate limiting required before any multi-tenant pilot onboarding.
-- **Status**: **DEFERRED**
+- **Status**: **IMPLEMENTED** — Per-tenant token bucket map (`tenantLimiters sync.Map`). Each tenant identified via `X-Tenant-ID` header gets its own bucket (`XDR_INGEST_PER_TENANT_RPS`, default = global RPS). Background goroutine refills all buckets every second. Global hard-cap middleware still in place. BACKLOG-INGESTION-025 / commit to follow.
 
 ---
 
@@ -77,10 +71,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Reliability / Backpressure
 - **Severity**: Medium (sustained Redpanda outage scenario)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-3--15-second-publish-retry-timeout-causing-socket-exhaustion)
-- **Finding**: Kafka producer retries in ingestion-gateway use a 15-second timeout per attempt. Under a sustained Redpanda outage at high concurrency, in-flight goroutines accumulate and connections are not released, risking socket exhaustion.
-- **Why deferred**: Current backpressure controls and rate limits prevent this at academic scale. At production load, unbounded retry goroutines are a real resource leak. Fix: bounded retry with exponential backoff + circuit breaker on the producer path.
-- **Production gate**: Bounded retry + circuit breaker required before high-concurrency production load test.
-- **Status**: **DEFERRED**
+- **Status**: **IMPLEMENTED** — `publish()` now uses `context.WithTimeout` per attempt (`XDR_PUBLISH_TIMEOUT_SECONDS`, default 5s), exponential backoff (100ms/200ms/400ms, capped at 1s), and circuit breaker (`XDR_PUBLISH_CB_FAILURES`=5, `XDR_PUBLISH_CB_OPEN_SECONDS`=30). Circuit open = immediate fast-fail, no goroutine accumulation. BACKLOG-INGESTION-025 / commit to follow.
 
 ---
 

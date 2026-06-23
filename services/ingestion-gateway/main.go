@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -16,19 +17,71 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 )
 
 var httpClient = &http.Client{
-	Timeout: 15 * time.Second,
 	Transport: &http.Transport{
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
 		IdleConnTimeout:       90 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
 	},
+}
+
+// tenantBucket is a per-tenant token-bucket rate limiter (IG-2).
+type tenantBucket struct {
+	tokens chan struct{}
+	rps    int
+}
+
+func newTenantBucket(rps int) *tenantBucket {
+	ch := make(chan struct{}, rps)
+	for i := 0; i < rps; i++ {
+		ch <- struct{}{}
+	}
+	return &tenantBucket{tokens: ch, rps: rps}
+}
+
+// circuitBreaker protects the Kafka publish path from socket exhaustion (IG-3).
+// After maxFailures consecutive publish errors the circuit opens for openDuration.
+type circuitBreaker struct {
+	mu          sync.Mutex
+	failures    int
+	maxFailures int
+	openUntil   time.Time
+	openDuration time.Duration
+}
+
+func newCircuitBreaker(maxFailures int, openDuration time.Duration) *circuitBreaker {
+	return &circuitBreaker{maxFailures: maxFailures, openDuration: openDuration}
+}
+
+func (cb *circuitBreaker) allow() bool {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	return time.Now().After(cb.openUntil)
+}
+
+func (cb *circuitBreaker) recordSuccess() {
+	cb.mu.Lock()
+	cb.failures = 0
+	cb.mu.Unlock()
+}
+
+func (cb *circuitBreaker) recordFailure() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.failures++
+	if cb.failures >= cb.maxFailures {
+		cb.openUntil = time.Now().Add(cb.openDuration)
+		cb.failures = 0
+		log.Printf("[CIRCUIT-BREAKER] publish circuit opened for %s after %d consecutive failures",
+			cb.openDuration, cb.maxFailures)
+	}
 }
 
 type Gateway struct {
@@ -38,25 +91,53 @@ type Gateway struct {
 	maxBatchSize         int
 	normalizerMetricsURL string
 	maxNormalizerQueue   int64
-	requests             atomic.Int64
-	accepted             atomic.Int64
-	rejected             atomic.Int64
-	publishErrors        atomic.Int64
-	retryCount          atomic.Int64
+	// IG-1: cached normalizer queue depth, updated by background goroutine
+	normalizerQueueDepth atomic.Int64
+	// IG-2: per-tenant rate limiter (map[tenantID → *tenantBucket])
+	tenantLimiters sync.Map
+	perTenantRPS   int
+	// IG-3: bounded retry + circuit breaker on publish path
+	cb                *circuitBreaker
+	maxPublishRetries int
+	publishTimeoutSecs int
+	// core counters
+	requests      atomic.Int64
+	accepted      atomic.Int64
+	rejected      atomic.Int64
+	publishErrors atomic.Int64
+	retryCount    atomic.Int64
 }
 
 func main() {
 	addr := flag.String("addr", env("XDR_INGEST_ADDR", ":8091"), "listen address")
 	flag.Parse()
 
+	cbMaxFailures := envInt("XDR_PUBLISH_CB_FAILURES", 5)
+	cbOpenSecs := envInt("XDR_PUBLISH_CB_OPEN_SECONDS", 30)
+	publishTimeoutSecs := envInt("XDR_PUBLISH_TIMEOUT_SECONDS", 5)
+	maxRetries := envInt("XDR_PUBLISH_MAX_RETRIES", 3)
+	perTenantRPS := envInt("XDR_INGEST_PER_TENANT_RPS", envInt("XDR_INGEST_RPS", 50))
+	metricsPollSecs := envInt("XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS", 5)
+
 	gw := &Gateway{
-		secret:       env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		redpandaREST: env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
-		topic:        env("XDR_RAW_TOPIC", "telemetry.raw"),
-		maxBatchSize: envInt("XDR_MAX_BATCH_SIZE", 1000),
+		secret:             env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		redpandaREST:       env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
+		topic:              env("XDR_RAW_TOPIC", "telemetry.raw"),
+		maxBatchSize:       envInt("XDR_MAX_BATCH_SIZE", 1000),
 		normalizerMetricsURL: env("XDR_NORMALIZER_METRICS_URL", ""),
 		maxNormalizerQueue: int64(envInt("XDR_MAX_NORMALIZER_QUEUE_DEPTH", 150000)),
+		perTenantRPS:       perTenantRPS,
+		cb:                 newCircuitBreaker(cbMaxFailures, time.Duration(cbOpenSecs)*time.Second),
+		maxPublishRetries:  maxRetries,
+		publishTimeoutSecs: publishTimeoutSecs,
 	}
+
+	// IG-1: start background goroutine to poll normalizer metrics
+	if gw.normalizerMetricsURL != "" {
+		gw.startMetricsPoller(time.Duration(metricsPollSecs) * time.Second)
+	}
+	// IG-2: start background goroutine to refill per-tenant token buckets
+	gw.startTenantBucketRefiller()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", gw.health)
@@ -86,6 +167,72 @@ func main() {
 	}
 }
 
+// startMetricsPoller runs a background goroutine that polls the normalizer metrics
+// endpoint and updates the cached normalizerQueueDepth (IG-1).
+// The ingest handler reads the cached value instead of polling synchronously.
+func (g *Gateway) startMetricsPoller(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.normalizerMetricsURL, nil)
+			if err != nil {
+				cancel()
+				continue
+			}
+			resp, err := httpClient.Do(req)
+			cancel()
+			if err != nil || resp == nil {
+				continue
+			}
+			var m map[string]any
+			if decErr := json.NewDecoder(resp.Body).Decode(&m); decErr == nil {
+				if qd, ok := m["queue_depth"].(float64); ok {
+					g.normalizerQueueDepth.Store(int64(qd))
+				}
+			}
+			_ = resp.Body.Close()
+		}
+	}()
+}
+
+// startTenantBucketRefiller refills all per-tenant token buckets every second (IG-2).
+func (g *Gateway) startTenantBucketRefiller() {
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			g.tenantLimiters.Range(func(_, v any) bool {
+				b := v.(*tenantBucket)
+				for len(b.tokens) < b.rps {
+					select {
+					case b.tokens <- struct{}{}:
+					default:
+					}
+				}
+				return true
+			})
+		}
+	}()
+}
+
+// tenantAllowed checks per-tenant rate limit (IG-2).
+// Returns false if this tenant's bucket is empty (throttle this tenant).
+func (g *Gateway) tenantAllowed(tenantID string) bool {
+	if tenantID == "" {
+		return true
+	}
+	actual, _ := g.tenantLimiters.LoadOrStore(tenantID, newTenantBucket(g.perTenantRPS))
+	b := actual.(*tenantBucket)
+	select {
+	case <-b.tokens:
+		return true
+	default:
+		return false
+	}
+}
+
 func (g *Gateway) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "ingestion-gateway", "topic": g.topic})
 }
@@ -96,11 +243,12 @@ func (g *Gateway) ready(w http.ResponseWriter, r *http.Request) {
 
 func (g *Gateway) metrics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"requests":       g.requests.Load(),
-		"accepted":       g.accepted.Load(),
-		"rejected":       g.rejected.Load(),
-		"publish_errors": g.publishErrors.Load(),
-		"retry_count":    g.retryCount.Load(),
+		"requests":               g.requests.Load(),
+		"accepted":               g.accepted.Load(),
+		"rejected":               g.rejected.Load(),
+		"publish_errors":         g.publishErrors.Load(),
+		"retry_count":            g.retryCount.Load(),
+		"normalizer_queue_depth": g.normalizerQueueDepth.Load(),
 	})
 }
 
@@ -118,6 +266,12 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := verifySignature(g.secret, body, r.Header.Get("X-XDR-Signature")); err != nil {
 		g.reject(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// IG-2: per-tenant rate limit; X-Tenant-ID header identifies the tenant
+	tenantID := r.Header.Get("X-Tenant-ID")
+	if !g.tenantAllowed(tenantID) {
+		g.reject(w, "tenant_rate_limited", http.StatusTooManyRequests)
 		return
 	}
 	var events []map[string]any
@@ -149,22 +303,14 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// admissionAllowed reads the cached normalizer queue depth (IG-1).
+// No synchronous HTTP call in the request path.
 func (g *Gateway) admissionAllowed() (bool, string) {
 	if g.normalizerMetricsURL == "" {
 		return true, ""
 	}
-	req, _ := http.NewRequest(http.MethodGet, g.normalizerMetricsURL, nil)
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return false, "normalizer_metrics_unreachable"
-	}
-	defer resp.Body.Close()
-	var metrics map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&metrics); err != nil {
-		return false, "normalizer_metrics_invalid"
-	}
-	queueDepth, _ := metrics["queue_depth"].(float64)
-	if int64(queueDepth) >= g.maxNormalizerQueue {
+	queueDepth := g.normalizerQueueDepth.Load()
+	if queueDepth >= g.maxNormalizerQueue {
 		return false, "normalizer_queue_full"
 	}
 	return true, ""
@@ -178,7 +324,14 @@ func newTraceID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
+// publish sends events to Redpanda with bounded retry + exponential backoff
+// and circuit breaker protection (IG-3).
 func (g *Gateway) publish(events []map[string]any) error {
+	// IG-3: circuit breaker fast-fail when Redpanda is persistently down
+	if !g.cb.allow() {
+		return fmt.Errorf("circuit_open")
+	}
+
 	records := make([]map[string]any, 0, len(events))
 	for _, event := range events {
 		if tid, _ := event["trace_id"].(string); tid == "" {
@@ -187,14 +340,40 @@ func (g *Gateway) publish(events []map[string]any) error {
 		records = append(records, map[string]any{"value": event})
 	}
 	payload, _ := json.Marshal(map[string]any{"records": records})
+	url := fmt.Sprintf("%s/topics/%s", g.redpandaREST, g.topic)
+
+	baseDelay := 100 * time.Millisecond
+	maxDelay := time.Second
+	perAttemptTimeout := time.Duration(g.publishTimeoutSecs) * time.Second
+
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/topics/%s", g.redpandaREST, g.topic), bytes.NewReader(payload))
+	for attempt := 0; attempt < g.maxPublishRetries; attempt++ {
+		if attempt > 0 {
+			// IG-3: exponential backoff (100ms, 200ms, 400ms, …, capped at 1s)
+			backoff := baseDelay * (1 << uint(attempt-1))
+			if backoff > maxDelay {
+				backoff = maxDelay
+			}
+			time.Sleep(backoff)
+			g.retryCount.Add(1)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), perAttemptTimeout)
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+		if reqErr != nil {
+			cancel()
+			lastErr = reqErr
+			continue
+		}
 		req.Header.Set("Content-Type", "application/vnd.kafka.json.v2+json")
 		req.Header.Set("Accept", "application/vnd.kafka.v2+json")
+
 		resp, err := httpClient.Do(req)
+		cancel()
+
 		if err == nil && resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			_ = resp.Body.Close()
+			g.cb.recordSuccess()
 			return nil
 		}
 		if resp != nil {
@@ -203,9 +382,9 @@ func (g *Gateway) publish(events []map[string]any) error {
 		} else {
 			lastErr = err
 		}
-		g.retryCount.Add(1)
-		time.Sleep(time.Duration(100*(attempt+1)) * time.Millisecond)
 	}
+
+	g.cb.recordFailure()
 	return lastErr
 }
 

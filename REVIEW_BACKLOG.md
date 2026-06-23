@@ -56,37 +56,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ---
 
-## Task #17: [PROD-024] Production Runtime Profile and Safety Gates posture checker [Labels: agent:claude, type:security, area:infra, risk:high]
-* **Target**: GitHub Issue [#17](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/17)
-* **Goal**: Grounded implementation based on issue definition.
-
-### Goal & Requirements:
-> Source: User task BACKLOG-PROD-024.
-
-> Approved scope:
-> - scripts/xdr_posture_check.py (new, read-only)
-> - docs/operations/PRODUCTION_RUNTIME_PROFILE.md (new)
-> - .env.production.example (update missing security keys)
-> - .env.staging.example (update missing security keys)
-> - tests/xdr_topic_bootstrap/test_xdr_posture_check.py (new)
-
-> Forbidden: No detection behavior changes, no rules, no ACTIVE_ALLOWLIST mutations, no shadow/active boundary changes. Script is read-only (no env mutations).
-
-> Acceptance criteria:
-> - --profile=local: issues WARN for unsafe security posture, never FAIL
-> - --profile=staging: FAIL for placeholder secrets and missing tokens; WARN for posture gaps
-> - --profile=production: FAIL for XDR_TENANT_STRICT_MODE!=true, XDR_ENFORCE_INTERNAL_AUTH!=true, placeholder/default secrets, APP_DEBUG=true, SESSION_SECURE_COOKIE=false, APP_FORCE_HTTPS=false, XDR_SHADOW_CONSUMER_ENABLED=true
-> - Deferred production risks (IG-1/IG-2/IG-3, INFRA-3) surfaced as WARN in all profiles
-> - Accepted risks (DB-3/DB-4/INFRA-4/RAG-1) surfaced as INFO
-> - Exit 0=PASS, 1=FAIL, 2=ERROR
-> - JSON report output
-
-> Validation:
-> - python -m unittest discover -s tests/xdr_topic_bootstrap -p test_xdr_posture_check.py
-> - Full Python suite
-
----
-
 ## Task #16: [DB-5] Populate tenant_id in security_alerts and security_incidents write paths [Labels: agent:claude, area:tenant, risk:high, type:implementation]
 * **Target**: GitHub Issue [#16](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/16)
 * **Goal**: Grounded implementation based on issue definition.
