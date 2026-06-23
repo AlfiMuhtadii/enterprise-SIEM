@@ -7,11 +7,12 @@ use App\Models\DemoReadinessSnapshot;
 use App\Models\PlatformShowcaseExport;
 use App\Services\DemoPlatformPackagingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class DemoPlatformPackagingTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private DemoPlatformPackagingService $svc;
 
@@ -19,6 +20,11 @@ class DemoPlatformPackagingTest extends TestCase
     {
         parent::setUp();
         $this->svc = new DemoPlatformPackagingService();
+    }
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return DemoPlatformPackagingService::class;
     }
 
     // -----------------------------------------------------------------------
@@ -86,31 +92,6 @@ class DemoPlatformPackagingTest extends TestCase
     // -----------------------------------------------------------------------
     // No forbidden methods
     // -----------------------------------------------------------------------
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'autoRemediate'));
-    }
 
     public function test_no_real_malware_method(): void
     {

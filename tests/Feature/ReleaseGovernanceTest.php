@@ -13,11 +13,12 @@ use App\Models\ReleaseManifest;
 use App\Models\RollbackValidationRun;
 use App\Services\ReleaseGovernanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class ReleaseGovernanceTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private ReleaseGovernanceService $svc;
 
@@ -27,32 +28,12 @@ class ReleaseGovernanceTest extends TestCase
         $this->svc = app(ReleaseGovernanceService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return ReleaseGovernanceService::class;
+    }
+
     // ─── Hard constraint: no forbidden methods ────────────────────────────────
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'autoRemediate'));
-    }
 
     public function test_no_automatic_deployment_method(): void
     {

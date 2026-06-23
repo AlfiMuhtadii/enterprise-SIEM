@@ -170,7 +170,7 @@ Academic scope is stable and defensible as of 2026-05-18. The platform continues
 identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
 Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
 Threat-intel/IOC correlation, DNS, proxy, firewall: shadow-only, cutover not approved.
-Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 158 supported domains.
+Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 161 supported domains.
 
 SOC Collaboration & Analyst Workflow: escalation routing, SLA tracking, watchlists, shift handoffs, analyst queue, investigation sharing — all analyst-driven, no autonomous SOC operations.
 

@@ -14,11 +14,12 @@ use App\Models\EnterpriseScaleOperationsAudit;
 use App\Services\EnterpriseScaleHaService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class EnterpriseScaleHaTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private EnterpriseScaleHaService $service;
 
@@ -28,34 +29,14 @@ class EnterpriseScaleHaTest extends TestCase
         $this->service = app(EnterpriseScaleHaService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return EnterpriseScaleHaService::class;
+    }
+
     // =========================================================================
     // Hard constraints
     // =========================================================================
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseScaleHaService::class, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseScaleHaService::class, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseScaleHaService::class, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseScaleHaService::class, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseScaleHaService::class, 'autoRemediate'));
-    }
 
     public function test_no_uncontrolled_failover_method(): void
     {
@@ -625,5 +606,4 @@ class EnterpriseScaleHaTest extends TestCase
         }
     }
 }
-
 

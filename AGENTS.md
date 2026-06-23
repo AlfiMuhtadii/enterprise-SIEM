@@ -14,7 +14,7 @@ Last updated: 2026-06-22
 | PHP tests | **3077** (run: `php artisan migrate:fresh --force && php artisan test`) |
 | Python tests | **186** (run: `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v`) |
 | Detection rules | **133** (12 staged_active, 121 shadow) |
-| Hunt domains | **158** |
+| Hunt domains | **161** |
 | Active correlation scope | `identity-cloud` (Go engine, 6h soak PASS 2026-05-14) |
 | Shadow / advisory | endpoint, DNS/proxy/firewall, threat-intel |
 

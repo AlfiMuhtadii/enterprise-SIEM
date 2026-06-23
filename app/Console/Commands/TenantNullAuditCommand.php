@@ -33,6 +33,12 @@ class TenantNullAuditCommand extends Command
 
     public function handle(): int
     {
+        $specific = $this->option('table');
+        if ($specific !== null && !in_array($specific, TenantBoundaryService::ISOLATED_TABLES, true)) {
+            $this->error("Table '{$specific}' is not a registered tenant-isolated table. Use php artisan tenant:null-audit without --table to audit all isolated tables.");
+            return self::FAILURE;
+        }
+
         $tables = $this->resolveTables();
 
         $this->line('');

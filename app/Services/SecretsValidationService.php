@@ -43,7 +43,9 @@ class SecretsValidationService
         }
 
         // XDR_INGEST_SECRET authenticates telemetry ingestion
-        $ingestSecret = env('XDR_INGEST_SECRET', '');
+        // Use getenv() so putenv()-based test overrides are visible (env() reads from
+        // phpdotenv's ImmutableRepository which caches values at boot and ignores putenv).
+        $ingestSecret = getenv('XDR_INGEST_SECRET') ?: '';
         if ($ingestSecret === 'dev-secret-change-me') {
             $warnings[] = 'XDR_INGEST_SECRET is using dev default — set XDR_INGEST_SECRET in production';
         } elseif ($ingestSecret === '') {
@@ -51,7 +53,7 @@ class SecretsValidationService
         }
 
         // XDR_INTERNAL_AUTH_SECRET for service-to-service tokens
-        $internalSecret = env('XDR_INTERNAL_AUTH_SECRET', '');
+        $internalSecret = getenv('XDR_INTERNAL_AUTH_SECRET') ?: '';
         if ($internalSecret === '') {
             $warnings[] = 'XDR_INTERNAL_AUTH_SECRET is not set — internal service auth is falling back to APP_KEY';
         }

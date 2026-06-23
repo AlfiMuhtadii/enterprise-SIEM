@@ -15,11 +15,12 @@ use App\Services\AnalystOptimizationService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use LogicException;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class AnalystOptimizationTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private AnalystOptimizationService $service;
 
@@ -29,34 +30,14 @@ class AnalystOptimizationTest extends TestCase
         $this->service = app(AnalystOptimizationService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return AnalystOptimizationService::class;
+    }
+
     // =========================================================================
     // Hard constraint: no forbidden methods
     // =========================================================================
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists(AnalystOptimizationService::class, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists(AnalystOptimizationService::class, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists(AnalystOptimizationService::class, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists(AnalystOptimizationService::class, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists(AnalystOptimizationService::class, 'autoRemediate'));
-    }
 
     public function test_no_hidden_suppression_method(): void
     {
@@ -504,7 +485,7 @@ class AnalystOptimizationTest extends TestCase
     // ThreatHunting domain integration
     // =========================================================================
 
-    public function test_threat_hunting_has_105_supported_domains(): void
+    public function test_threat_hunting_supported_domains_count(): void
     {
         $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
@@ -578,5 +559,4 @@ class AnalystOptimizationTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
-
 

@@ -15,11 +15,12 @@ use App\Services\PilotExecutionService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use LogicException;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class PilotExecutionTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private PilotExecutionService $service;
 
@@ -29,34 +30,14 @@ class PilotExecutionTest extends TestCase
         $this->service = app(PilotExecutionService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return PilotExecutionService::class;
+    }
+
     // =========================================================================
     // Hard constraint: no forbidden methods
     // =========================================================================
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists(PilotExecutionService::class, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists(PilotExecutionService::class, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists(PilotExecutionService::class, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists(PilotExecutionService::class, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists(PilotExecutionService::class, 'autoRemediate'));
-    }
 
     public function test_no_uncontrolled_onboarding_method(): void
     {
@@ -362,7 +343,7 @@ class PilotExecutionTest extends TestCase
     }
 
     // =========================================================================
-    // Rollback audit Ã¢â‚¬â€ no destructive action
+    // Rollback audit ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no destructive action
     // =========================================================================
 
     public function test_rollback_audit_destructive_action_always_false(): void
@@ -575,7 +556,7 @@ class PilotExecutionTest extends TestCase
     // ThreatHunting domain integration
     // =========================================================================
 
-    public function test_threat_hunting_has_95_supported_domains(): void
+    public function test_threat_hunting_supported_domains_count(): void
     {
         $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
@@ -700,5 +681,4 @@ class PilotExecutionTest extends TestCase
         $this->assertEquals(1, PilotRollbackAudit::where('is_advisory', true)->count());
     }
 }
-
 

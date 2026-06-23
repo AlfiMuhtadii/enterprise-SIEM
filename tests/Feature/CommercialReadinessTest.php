@@ -14,11 +14,12 @@ use App\Models\CommercialProductAudit;
 use App\Services\CommercialReadinessService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class CommercialReadinessTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private CommercialReadinessService $service;
 
@@ -28,34 +29,14 @@ class CommercialReadinessTest extends TestCase
         $this->service = app(CommercialReadinessService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return CommercialReadinessService::class;
+    }
+
     // =========================================================================
     // Hard constraints
     // =========================================================================
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists(CommercialReadinessService::class, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists(CommercialReadinessService::class, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists(CommercialReadinessService::class, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists(CommercialReadinessService::class, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists(CommercialReadinessService::class, 'autoRemediate'));
-    }
 
     public function test_no_hidden_telemetry_collection(): void
     {
@@ -581,5 +562,4 @@ class CommercialReadinessTest extends TestCase
         }
     }
 }
-
 

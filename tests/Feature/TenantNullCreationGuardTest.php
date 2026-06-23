@@ -413,7 +413,15 @@ class TenantNullCreationGuardTest extends TestCase
 
     public function test_null_audit_command_missing_table_reports_not_fails(): void
     {
+        // A non-existent table is also not in ISOLATED_TABLES → rejected before schema check
         $this->artisan('tenant:null-audit', ['--table' => 'nonexistent_table_xyz'])
-            ->assertExitCode(0); // no null records in a missing table
+            ->assertExitCode(1);
+    }
+
+    public function test_null_audit_command_unisolated_table_option_fails(): void
+    {
+        // 'users' exists in DB but is not tenant-isolated → must be rejected
+        $this->artisan('tenant:null-audit', ['--table' => 'users'])
+            ->assertExitCode(1);
     }
 }

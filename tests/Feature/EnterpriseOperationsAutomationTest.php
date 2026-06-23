@@ -15,11 +15,12 @@ use App\Services\EnterpriseOperationsAutomationService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use LogicException;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
 
 class EnterpriseOperationsAutomationTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
 
     private EnterpriseOperationsAutomationService $service;
 
@@ -29,34 +30,14 @@ class EnterpriseOperationsAutomationTest extends TestCase
         $this->service = app(EnterpriseOperationsAutomationService::class);
     }
 
+    protected function getAdvisoryServiceClass(): string
+    {
+        return EnterpriseOperationsAutomationService::class;
+    }
+
     // =========================================================================
     // Hard constraints
     // =========================================================================
-
-    public function test_no_isolate_host_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseOperationsAutomationService::class, 'isolateHost'));
-    }
-
-    public function test_no_quarantine_host_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseOperationsAutomationService::class, 'quarantineHost'));
-    }
-
-    public function test_no_execute_shell_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseOperationsAutomationService::class, 'executeShell'));
-    }
-
-    public function test_no_kill_process_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseOperationsAutomationService::class, 'killProcess'));
-    }
-
-    public function test_no_auto_remediate_method(): void
-    {
-        $this->assertFalse(method_exists(EnterpriseOperationsAutomationService::class, 'autoRemediate'));
-    }
 
     public function test_no_destructive_infrastructure_mutation(): void
     {
@@ -463,7 +444,7 @@ class EnterpriseOperationsAutomationTest extends TestCase
     // ThreatHunting domain integration
     // =========================================================================
 
-    public function test_threat_hunting_has_130_supported_domains(): void
+    public function test_threat_hunting_supported_domains_count(): void
     {
         $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
@@ -531,5 +512,4 @@ class EnterpriseOperationsAutomationTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
-
 
