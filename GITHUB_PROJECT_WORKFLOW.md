@@ -93,20 +93,28 @@ graph TD
 * **Role**: Local code engineering, task validation, GitHub issue lifecycle management, and implementation.
 * **Responsibilities**:
   1. Read [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) to identify newly proposed tasks.
-  2. Perform technical validation on each proposed task.
-  3. **If Approved**:
-     * Log the task under the `Approved Tasks` table in [REVIEW_APPROVED.md](REVIEW_APPROVED.md) using Task ID, Description, Primary File, and Priority.
-     * Run the sync script to register the task as a GitHub Issue:
+  2. Read [REVIEW_ALL.md](REVIEW_ALL.md) for full context on each finding.
+  3. **Validate each task** — answer ALL of the following before deciding:
+     - Is it architecturally relevant to the current scope? (no speculative redesign)
+     - Does it violate any forbidden changes in `CLAUDE.md`?
+     - Would it break existing tests (currently 3390 PHP green)?
+     - Is the risk/benefit appropriate for academic scope?
+     - Does it go in the right direction (shadow→active only after soak PASS)?
+  4. **If Approved**:
+     * Log the task under the `Approved Tasks` table in [REVIEW_APPROVED.md](REVIEW_APPROVED.md) (Task ID, description, file, priority).
+     * Create a GitHub Issue via the sync script:
        ```powershell
-       python scripts/sync_backlog.py --create "[BACKLOG-XXX] <title>" "<body>" "agent:claude,..."
+       python scripts/sync_backlog.py --create "[BACKLOG-XXX] <title>" "<body>" "agent:claude,<labels>"
        ```
-     * Implement the code, run relevant tests to verify the behavior, and close the GitHub Issue:
+     * Implement the code — run targeted tests first, then full suite before commit.
+     * Close the GitHub Issue with a summary comment:
        ```powershell
-       python scripts/sync_backlog.py --close <issue_number> --comment "Implemented. Tests passed."
+       python scripts/sync_backlog.py --close <issue_number> --comment "Implemented. Tests passed. Commit: <hash>."
        ```
-     * Move the task details from `REVIEW_BACKLOG.md` to [REVIEW_COMPLETED.md](REVIEW_COMPLETED.md).
-  4. **If Rejected**:
-     * Cut the task from `REVIEW_BACKLOG.md` and append it to [REVIEW_REJECTED.md](REVIEW_REJECTED.md) along with a clear reason explaining why it is not relevant or feasible.
+     * Move the task details to [REVIEW_COMPLETED.md](REVIEW_COMPLETED.md) with commit hash.
+     * Sync the local backlog file: `python scripts/sync_backlog.py --pull`
+  5. **If Rejected**:
+     * Move the task from `REVIEW_BACKLOG.md` to [REVIEW_REJECTED.md](REVIEW_REJECTED.md) with a clear reason (not relevant, breaks system, wrong direction, low priority for academic scope).
 
 ---
 
@@ -141,8 +149,23 @@ Validation:
 
 ---
 
-## 5. Transition Rules
-* **Gemini Suggestion = Proposed Backlog**: Gemini's audit findings are only suggestions. They are written to `REVIEW_BACKLOG.md` as "Proposed Tasks".
-* **Claude Validation = GitHub Issue or Rejection**: Claude acts as the gatekeeper. Rejections are documented in `REVIEW_REJECTED.md`. Approvals are created as GitHub Issues.
-* **Done = Commit + Tests + Summary + No Boundary Violation**: An issue is marked closed on GitHub and moved to `REVIEW_COMPLETED.md` only after code changes pass verification without violating core SIEM platform boundaries.
+## 5. Tracking Files Reference
+
+| File | Owner | Purpose |
+|---|---|---|
+| `REVIEW_ALL.md` | Gemini | Full analysis: every finding with severity, evidence, category |
+| `REVIEW_REPORTS.md` | Gemini | Detailed audit report (source of REVIEW_ALL.md entries) |
+| `REVIEW_BACKLOG.md` | Gemini → Claude | Proposed tasks awaiting Claude's validation (synced from GitHub open issues via `sync_backlog.py --pull`) |
+| `REVIEW_APPROVED.md` | Claude | Tasks validated and approved; each row has a GitHub Issue number |
+| `REVIEW_REJECTED.md` | Claude | Tasks rejected; each row has a clear reason |
+| `REVIEW_COMPLETED.md` | Claude | Tasks done: commit hash + GitHub Issue closed |
+
+---
+
+## 6. Transition Rules
+* **Gemini Suggestion ≠ Backlog yet**: Audit findings are only suggestions. Gemini writes them to `REVIEW_BACKLOG.md` as `## Proposed Task:` entries. Claude must validate before anything is approved.
+* **Claude Validation = GitHub Issue or Rejection**: Claude is the gatekeeper. Only validated-and-approved tasks get a GitHub Issue. Rejections go to `REVIEW_REJECTED.md` with reasons.
+* **Approved ≠ In Progress**: Approval and GitHub Issue creation happen first; implementation starts after.
+* **Done = Commit + Tests + No Boundary Violation + Issue Closed**: An issue is marked closed on GitHub and moved to `REVIEW_COMPLETED.md` only when: code changes are committed, all relevant tests pass, and no architectural boundaries are violated.
+* **One task per session step**: Do not batch-implement multiple tasks without running targeted tests after each.
 

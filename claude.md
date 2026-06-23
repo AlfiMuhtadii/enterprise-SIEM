@@ -131,19 +131,32 @@ Use fast iteration by default.
 
 ## Review Task Management
 
-Code review findings and tasks are tracked in three files at the repo root:
+Five tracking files at repo root + GitHub Issues. Full workflow: `GITHUB_PROJECT_WORKFLOW.md`.
 
 | File | Purpose |
 |---|---|
-| `REVIEW_ALL.md` | Master list of all findings from all reviews |
-| `REVIEW_BACKLOG.md` | Tasks not yet done (todo) |
-| `REVIEW_COMPLETED.md` | Tasks done and verified (with commit) |
+| `REVIEW_ALL.md` | Master list of all findings from all reviews (Gemini/Antigravity output) |
+| `REVIEW_BACKLOG.md` | Proposed tasks from Gemini — NOT yet validated by Claude |
+| `REVIEW_APPROVED.md` | Tasks validated and approved; each has a GitHub Issue number |
+| `REVIEW_REJECTED.md` | Tasks rejected with reason (not relevant, breaks system, wrong direction) |
+| `REVIEW_COMPLETED.md` | Tasks done and verified (commit hash + GitHub Issue closed) |
 
-**Rules:**
-- Before starting a task: add it to `REVIEW_BACKLOG.md` if not already there.
-- After completing and verifying a task: move it from `REVIEW_BACKLOG.md` to `REVIEW_COMPLETED.md`.
-- Work tasks one by one (`1 task per session step`) — do not batch-apply without targeted test verification.
-- If a review task adds tests: run targeted `--filter=` first, then full suite before commit.
+**Sync script:** `python scripts/sync_backlog.py` (requires `GITHUB_TOKEN` in `.env`)
+
+**Workflow — one task per session step:**
+
+1. **Read `REVIEW_BACKLOG.md`** — identify proposed tasks from Gemini.
+2. **Validate each task** — is it relevant? safe? architecturally correct? won't break system?
+3. **If approved:**
+   - Add row to `REVIEW_APPROVED.md` table (Task ID, description, file, priority).
+   - Create GitHub Issue: `python scripts/sync_backlog.py --create "[BACKLOG-XXX] <title>" "<body>" "agent:claude,<labels>"`.
+   - Implement code, run targeted tests, then full suite.
+   - Close GitHub Issue: `python scripts/sync_backlog.py --close <issue_number> --comment "Implemented. Tests passed."`.
+   - Move task to `REVIEW_COMPLETED.md` with commit hash.
+   - Pull fresh backlog: `python scripts/sync_backlog.py --pull`.
+4. **If rejected:**
+   - Move task from `REVIEW_BACKLOG.md` to `REVIEW_REJECTED.md` with clear reason.
+5. **If a review task adds tests:** run targeted `--filter=` first, then full suite before commit.
 
 ---
 
