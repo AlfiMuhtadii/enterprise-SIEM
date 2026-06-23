@@ -13,8 +13,8 @@ class DlqRecord extends Model
     protected $fillable = [
         'record_id', 'dlq_event_type', 'source_topic', 'source_partition',
         'source_offset', 'consumer_group', 'error_code', 'error_message',
-        'raw_payload', 'isolated_at', 'tenant_id', 'status',
-        'reviewed_by', 'reviewed_at', 'review_note',
+        'raw_payload', 'isolated_at', 'tenant_id', 'replayable', 'error_reason',
+        'status', 'reviewed_by', 'reviewed_at', 'review_note',
         'replay_requested_by', 'replay_requested_at',
         'replayed_at', 'replay_result',
         'fingerprint', 'occurrence_count', 'first_seen_at', 'last_seen_at',
@@ -26,6 +26,7 @@ class DlqRecord extends Model
         'error_code'          => 'integer',
         'raw_payload'         => 'array',
         'replay_result'       => 'array',
+        'replayable'          => 'boolean',
         'occurrence_count'    => 'integer',
         'isolated_at'         => 'datetime',
         'reviewed_at'         => 'datetime',
@@ -43,13 +44,27 @@ class DlqRecord extends Model
         'normalization_failure',
         'invalid_json',
         'publish_failure',
+        // Pipeline failure types — from xdr.correlation_failed / xdr.alert_write_failed
+        'correlation_parse_error',
+        'correlation_publish_error',
+        'alert_write_failed',
         'unknown',
     ];
 
-    // Only records with raw_payload can be replayed.
+    // Records are replayable when the error class is transient AND raw_payload is present.
+    // replayable=true but raw_payload=null means the error class is transient but the
+    // replay payload wasn't captured (e.g. correlation publish failure — data not stored).
     public function isReplayable(): bool
     {
-        return $this->raw_payload !== null && !in_array($this->status, ['ignored', 'replayed']);
+        return $this->replayable
+            && $this->raw_payload !== null
+            && !in_array($this->status, ['ignored', 'replayed']);
+    }
+
+    // True when error class is transient (regardless of whether replay data is present).
+    public function isReplayableClass(): bool
+    {
+        return (bool) $this->replayable;
     }
 
     public function isActionable(): bool

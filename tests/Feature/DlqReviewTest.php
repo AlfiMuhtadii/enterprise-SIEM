@@ -134,7 +134,10 @@ class DlqReviewTest extends TestCase
     public function test_request_replay_succeeds_with_raw_payload(): void
     {
         $analyst = User::factory()->create();
-        $record  = $this->createRecord(['raw_payload' => ['ts' => '2026-06-23', 'telemetry_type' => 'endpoint', 'event_type' => 'login']]);
+        $record  = $this->createRecord([
+            'raw_payload' => ['ts' => '2026-06-23', 'telemetry_type' => 'endpoint', 'event_type' => 'login'],
+            'replayable'  => true,
+        ]);
 
         $this->service->requestReplay($record, $analyst);
 
@@ -149,7 +152,7 @@ class DlqReviewTest extends TestCase
         $record  = $this->createRecord(['raw_payload' => null, 'dlq_event_type' => 'poison_message_isolated']);
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/no raw_payload/i');
+        $this->expectExceptionMessageMatches('/not classified as replayable/i');
         $this->service->requestReplay($record, $analyst);
     }
 
@@ -171,6 +174,7 @@ class DlqReviewTest extends TestCase
         $record  = $this->createRecord([
             'status'      => 'replay_failed',
             'raw_payload' => ['ts' => '2026-06-23', 'telemetry_type' => 'endpoint', 'event_type' => 'login'],
+            'replayable'  => true,
         ]);
 
         $this->service->requestReplay($record, $analyst, 'retrying after normalizer restart');
@@ -211,7 +215,10 @@ class DlqReviewTest extends TestCase
     public function test_no_security_incidents_created(): void
     {
         $analyst = User::factory()->create();
-        $record  = $this->createRecord(['raw_payload' => ['ts' => '2026-06-23', 'telemetry_type' => 'endpoint', 'event_type' => 'login']]);
+        $record  = $this->createRecord([
+            'raw_payload' => ['ts' => '2026-06-23', 'telemetry_type' => 'endpoint', 'event_type' => 'login'],
+            'replayable'  => true,
+        ]);
 
         $this->service->requestReplay($record, $analyst);
 
@@ -249,9 +256,9 @@ class DlqReviewTest extends TestCase
 
     public function test_get_summary_replayable_counts_correctly(): void
     {
-        $this->createRecord(['raw_payload' => ['a' => 1], 'status' => 'new', 'fingerprint' => 'fp-r1']);
-        $this->createRecord(['raw_payload' => null,       'status' => 'new', 'fingerprint' => 'fp-r2']);
-        $this->createRecord(['raw_payload' => ['b' => 2], 'status' => 'ignored', 'fingerprint' => 'fp-r3']);
+        $this->createRecord(['raw_payload' => ['a' => 1], 'replayable' => true,  'status' => 'new',     'fingerprint' => 'fp-r1']);
+        $this->createRecord(['raw_payload' => null,       'replayable' => false, 'status' => 'new',     'fingerprint' => 'fp-r2']);
+        $this->createRecord(['raw_payload' => ['b' => 2], 'replayable' => true,  'status' => 'ignored', 'fingerprint' => 'fp-r3']);
 
         $this->assertSame(1, $this->service->getSummary()['replayable']);
     }
@@ -351,7 +358,10 @@ class DlqReviewTest extends TestCase
     public function test_replay_requested_via_http_succeeds_with_payload(): void
     {
         $admin  = $this->makeUser('admin');
-        $record = $this->createRecord(['raw_payload' => ['ts' => '2026-06-23', 'event_type' => 'login']]);
+        $record = $this->createRecord([
+            'raw_payload' => ['ts' => '2026-06-23', 'event_type' => 'login'],
+            'replayable'  => true,
+        ]);
 
         $this->actingAs($admin)
             ->post(route('dlq.records.review', $record->record_id), ['action' => 'replay_requested'])
@@ -392,6 +402,170 @@ class DlqReviewTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
+    // BACKLOG-017: Pipeline failure event types
+    // -----------------------------------------------------------------------
+
+    public function test_pipeline_event_types_are_registered(): void
+    {
+        $this->assertContains('correlation_parse_error',   DlqRecord::EVENT_TYPES);
+        $this->assertContains('correlation_publish_error', DlqRecord::EVENT_TYPES);
+        $this->assertContains('alert_write_failed',        DlqRecord::EVENT_TYPES);
+    }
+
+    // -----------------------------------------------------------------------
+    // BACKLOG-017: Replayability classification
+    // -----------------------------------------------------------------------
+
+    public function test_replayable_false_blocks_replay(): void
+    {
+        $analyst = User::factory()->create();
+        $record  = $this->createRecord([
+            'raw_payload'    => ['ts' => '2026-06-23', 'event_type' => 'login'],
+            'replayable'     => false,
+            'dlq_event_type' => 'correlation_parse_error',
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/not classified as replayable/i');
+        $this->service->requestReplay($record, $analyst);
+    }
+
+    public function test_replayable_true_with_no_payload_throws_no_raw_payload(): void
+    {
+        $analyst = User::factory()->create();
+        $record  = $this->createRecord([
+            'raw_payload'    => null,
+            'replayable'     => true,
+            'dlq_event_type' => 'correlation_publish_error',
+        ]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/no raw_payload/i');
+        $this->service->requestReplay($record, $analyst);
+    }
+
+    public function test_replayable_false_record_can_be_reviewed(): void
+    {
+        $analyst = User::factory()->create();
+        $record  = $this->createRecord([
+            'replayable'     => false,
+            'dlq_event_type' => 'correlation_parse_error',
+        ]);
+
+        $this->service->review($record, $analyst, 'acknowledged');
+
+        $record->refresh();
+        $this->assertSame('reviewed', $record->status);
+    }
+
+    public function test_replayable_false_record_can_be_ignored(): void
+    {
+        $analyst = User::factory()->create();
+        $record  = $this->createRecord([
+            'replayable'     => false,
+            'dlq_event_type' => 'correlation_parse_error',
+        ]);
+
+        $this->service->ignore($record, $analyst, 'noise');
+
+        $record->refresh();
+        $this->assertSame('ignored', $record->status);
+    }
+
+    public function test_is_replayable_class_returns_true_when_set(): void
+    {
+        $record = $this->createRecord([
+            'replayable'     => true,
+            'dlq_event_type' => 'correlation_publish_error',
+        ]);
+        $this->assertTrue($record->isReplayableClass());
+    }
+
+    public function test_is_replayable_class_returns_false_by_default(): void
+    {
+        $record = $this->createRecord(['dlq_event_type' => 'correlation_parse_error']);
+        $this->assertFalse($record->isReplayableClass());
+    }
+
+    // -----------------------------------------------------------------------
+    // BACKLOG-017: getSummary() new fields
+    // -----------------------------------------------------------------------
+
+    public function test_get_summary_includes_replayable_classified(): void
+    {
+        $this->createRecord(['replayable' => true,  'fingerprint' => 'fp-rc1']);
+        $this->createRecord(['replayable' => true,  'fingerprint' => 'fp-rc2']);
+        $this->createRecord(['replayable' => false, 'fingerprint' => 'fp-rc3']);
+
+        $summary = $this->service->getSummary();
+
+        $this->assertArrayHasKey('replayable_classified', $summary);
+        $this->assertSame(2, $summary['replayable_classified']);
+    }
+
+    public function test_get_summary_includes_by_source_topic(): void
+    {
+        $summary = $this->service->getSummary();
+        $this->assertArrayHasKey('by_source_topic', $summary);
+        $this->assertIsArray($summary['by_source_topic']);
+    }
+
+    public function test_get_summary_by_source_topic_groups_correctly(): void
+    {
+        $this->createRecord(['source_topic' => 'xdr.correlation_failed', 'fingerprint' => 'fp-st1']);
+        $this->createRecord(['source_topic' => 'xdr.correlation_failed', 'fingerprint' => 'fp-st2']);
+        $this->createRecord(['source_topic' => 'xdr.alert_write_failed', 'fingerprint' => 'fp-st3']);
+
+        $summary = $this->service->getSummary();
+
+        $this->assertSame(2, $summary['by_source_topic']['xdr.correlation_failed'] ?? 0);
+        $this->assertSame(1, $summary['by_source_topic']['xdr.alert_write_failed'] ?? 0);
+    }
+
+    public function test_replayable_classified_counts_regardless_of_payload(): void
+    {
+        $this->createRecord(['replayable' => true, 'raw_payload' => null,    'fingerprint' => 'fp-rnp1']);
+        $this->createRecord(['replayable' => true, 'raw_payload' => ['a' => 1], 'fingerprint' => 'fp-rnp2']);
+
+        $summary = $this->service->getSummary();
+        $this->assertSame(2, $summary['replayable_classified']);
+    }
+
+    // -----------------------------------------------------------------------
+    // BACKLOG-017: getRecords() source_topic filter
+    // -----------------------------------------------------------------------
+
+    public function test_get_records_filter_by_source_topic(): void
+    {
+        $this->createRecord(['source_topic' => 'xdr.correlation_failed', 'fingerprint' => 'fp-grf1']);
+        $this->createRecord(['source_topic' => 'xdr.alert_write_failed', 'fingerprint' => 'fp-grf2']);
+        $this->createRecord(['source_topic' => 'telemetry.raw',          'fingerprint' => 'fp-grf3']);
+
+        $result = $this->service->getRecords(['source_topic' => 'xdr.correlation_failed']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('xdr.correlation_failed', $result->first()->source_topic);
+    }
+
+    public function test_upsert_stores_replayable_and_error_reason(): void
+    {
+        $data = $this->makeRecordData([
+            'dlq_event_type' => 'correlation_publish_error',
+            'source_topic'   => 'xdr.correlation_failed',
+            'replayable'     => true,
+            'error_reason'   => 'alert_publish_failed',
+        ]);
+
+        $this->service->upsertFromConsumer($data);
+
+        $this->assertDatabaseHas('dlq_records', [
+            'fingerprint'  => $data['fingerprint'],
+            'replayable'   => true,
+            'error_reason' => 'alert_publish_failed',
+        ]);
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
@@ -408,6 +582,8 @@ class DlqReviewTest extends TestCase
             'raw_payload'     => null,
             'isolated_at'     => null,
             'tenant_id'       => null,
+            'replayable'      => false,
+            'error_reason'    => null,
             'fingerprint'     => 'fp-' . Str::random(12),
             'occurrence_count' => 1,
         ], $overrides);

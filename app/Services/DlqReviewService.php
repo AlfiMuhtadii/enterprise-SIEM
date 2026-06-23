@@ -42,6 +42,8 @@ class DlqReviewService
         $record = DlqRecord::create(array_merge($data, [
             'record_id'    => 'dlq-' . Str::uuid(),
             'status'       => 'new',
+            'replayable'   => $data['replayable'] ?? false,
+            'error_reason' => $data['error_reason'] ?? null,
             'first_seen_at' => $now,
             'last_seen_at'  => $now,
         ]));
@@ -104,9 +106,15 @@ class DlqReviewService
             );
         }
 
+        if (!$record->replayable) {
+            throw new \InvalidArgumentException(
+                "Record {$record->record_id} is not classified as replayable (error_type: {$record->dlq_event_type}) — structural failures cannot be retried."
+            );
+        }
+
         if ($record->raw_payload === null) {
             throw new \InvalidArgumentException(
-                "Record {$record->record_id} has no raw_payload — poison messages cannot be replayed."
+                "Record {$record->record_id} has no raw_payload — replay data not available."
             );
         }
 
@@ -168,8 +176,13 @@ class DlqReviewService
             $query->where('source_topic', $filters['source_topic']);
         }
         if (!empty($filters['replayable'])) {
-            $query->whereNotNull('raw_payload')
+            $query->where('replayable', true)
+                  ->whereNotNull('raw_payload')
                   ->whereNotIn('status', ['ignored', 'replayed']);
+        }
+
+        if (!empty($filters['replayable_class'])) {
+            $query->where('replayable', true);
         }
 
         return $query->paginate($perPage);
@@ -187,18 +200,26 @@ class DlqReviewService
             ->pluck('cnt', 'dlq_event_type')
             ->toArray();
 
+        $bySourceTopic = DlqRecord::selectRaw('source_topic, count(*) as cnt')
+            ->groupBy('source_topic')
+            ->pluck('cnt', 'source_topic')
+            ->toArray();
+
         return [
-            'total'            => array_sum($counts),
-            'new'              => $counts['new'] ?? 0,
-            'reviewed'         => $counts['reviewed'] ?? 0,
-            'ignored'          => $counts['ignored'] ?? 0,
-            'replay_requested' => $counts['replay_requested'] ?? 0,
-            'replayed'         => $counts['replayed'] ?? 0,
-            'replay_failed'    => $counts['replay_failed'] ?? 0,
-            'replayable'       => DlqRecord::whereNotNull('raw_payload')
-                                     ->whereNotIn('status', ['ignored', 'replayed'])
-                                     ->count(),
-            'by_type'          => $byType,
+            'total'                => array_sum($counts),
+            'new'                  => $counts['new'] ?? 0,
+            'reviewed'             => $counts['reviewed'] ?? 0,
+            'ignored'              => $counts['ignored'] ?? 0,
+            'replay_requested'     => $counts['replay_requested'] ?? 0,
+            'replayed'             => $counts['replayed'] ?? 0,
+            'replay_failed'        => $counts['replay_failed'] ?? 0,
+            'replayable'           => DlqRecord::where('replayable', true)
+                                         ->whereNotNull('raw_payload')
+                                         ->whereNotIn('status', ['ignored', 'replayed'])
+                                         ->count(),
+            'replayable_classified' => DlqRecord::where('replayable', true)->count(),
+            'by_type'              => $byType,
+            'by_source_topic'      => $bySourceTopic,
         ];
     }
 

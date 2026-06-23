@@ -83,6 +83,12 @@ METRICS: Dict[str, Any] = {
     "internal_auth_mode": "permissive",
     "alert_write_dlq_written": 0,
     "alert_write_dlq_errors": 0,
+    # Pipeline DLQ consumer metrics (xdr.correlation_failed / xdr.alert_write_failed)
+    "pipeline_dlq_consumer_polls": 0,
+    "pipeline_dlq_consumer_records_seen": 0,
+    "pipeline_dlq_consumer_records_written": 0,
+    "pipeline_dlq_consumer_records_upserted": 0,
+    "pipeline_dlq_consumer_errors": 0,
 }
 SEEN: set[str] = set()
 DLQ: List[Dict[str, Any]] = []
@@ -544,8 +550,10 @@ def _auth_mode() -> str:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
-    shadow_enabled = os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
-    dlq_enabled    = os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    shadow_enabled     = os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    dlq_enabled        = os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    corr_dlq_enabled   = os.getenv("XDR_CORRELATION_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    write_dlq_enabled  = os.getenv("XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     auth_mode = _auth_mode()
     return {
         "status": "ok",
@@ -556,10 +564,13 @@ def health() -> Dict[str, Any]:
         "shadow_consumer_enabled": shadow_enabled,
         "shadow_endpoint_topic": os.getenv("XDR_SHADOW_ENDPOINT_TOPIC", "xdr.alerts.shadow.endpoint"),
         "shadow_network_topic":  os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network"),
-        "dlq_consumer_enabled":       dlq_enabled,
-        "dlq_topic":                  os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
-        "alert_write_failed_topic":   os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed",
-        "internal_auth_mode":         auth_mode,
+        "dlq_consumer_enabled":              dlq_enabled,
+        "dlq_topic":                         os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
+        "alert_write_failed_topic":          os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed",
+        "correlation_failed_topic":          os.getenv("XDR_CORRELATION_FAILED_TOPIC") or "xdr.correlation_failed",
+        "correlation_dlq_consumer_enabled":  corr_dlq_enabled,
+        "alert_write_dlq_consumer_enabled":  write_dlq_enabled,
+        "internal_auth_mode":                auth_mode,
     }
 
 
@@ -850,8 +861,15 @@ def dlq_consumer_fingerprint(
     source_offset: Optional[int],
     error_message: str,
 ) -> str:
-    if dlq_event_type == "poison_message_isolated" and source_partition is not None and source_offset is not None:
-        material = f"poison|{source_topic}|{source_partition}|{source_offset}"
+    # Position-based fingerprint for event types where offset uniquely identifies the failure.
+    # correlation_parse_error includes source coordinates from the structured envelope.
+    position_based = (
+        dlq_event_type in ("poison_message_isolated", "correlation_parse_error")
+        and source_partition is not None
+        and source_offset is not None
+    )
+    if position_based:
+        material = f"{dlq_event_type}|{source_topic}|{source_partition}|{source_offset}"
     else:
         material = f"{dlq_event_type}|{(error_message or '')[:200]}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
@@ -901,6 +919,14 @@ def normalize_dlq_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             elif "publish" in error_message.lower():
                 dlq_event_type = "publish_failure"
 
+        # Replayability: structural errors (can't fix by retrying) vs transient (worth retrying)
+        if dlq_event_type in ("poison_message_isolated", "invalid_json", "malformed_record", "unknown"):
+            replayable = False
+        elif dlq_event_type in ("normalization_failure", "publish_failure"):
+            replayable = raw_payload is not None
+        else:
+            replayable = False
+
         fp = dlq_consumer_fingerprint(dlq_event_type, source_topic, source_part, source_off, error_message)
 
         results.append({
@@ -914,6 +940,8 @@ def normalize_dlq_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             "raw_payload":      json.dumps(raw_payload) if raw_payload is not None else None,
             "isolated_at":      isolated_at,
             "tenant_id":        tenant_id,
+            "replayable":       replayable,
+            "error_reason":     None,
             "fingerprint":      fp,
         })
     return results
@@ -932,12 +960,12 @@ def write_dlq_record(record: Dict[str, Any]) -> str:
                 INSERT INTO dlq_records (
                     record_id, dlq_event_type, source_topic, source_partition, source_offset,
                     consumer_group, error_code, error_message, raw_payload, isolated_at,
-                    tenant_id, status, fingerprint, occurrence_count,
+                    tenant_id, replayable, error_reason, status, fingerprint, occurrence_count,
                     first_seen_at, last_seen_at, created_at, updated_at
                 ) VALUES (
                     %s,%s,%s,%s,%s,
                     %s,%s,%s,%s::jsonb,%s,
-                    %s,'new',%s,1,
+                    %s,%s,%s,'new',%s,1,
                     %s,%s,now(),now()
                 )
                 ON CONFLICT (fingerprint) DO UPDATE SET
@@ -958,6 +986,8 @@ def write_dlq_record(record: Dict[str, Any]) -> str:
                     record["raw_payload"],
                     record["isolated_at"],
                     record["tenant_id"],
+                    record.get("replayable", False),
+                    record.get("error_reason"),
                     record["fingerprint"],
                     now, now,
                 ),
@@ -1042,6 +1072,135 @@ def dlq_consumer_event_loop() -> None:
                 time.sleep(2)
 
 
+def normalize_pipeline_dlq_records(records: List[Dict[str, Any]], source_topic: str) -> List[Dict[str, Any]]:
+    """Parse structured failure records from xdr.correlation_failed / xdr.alert_write_failed.
+
+    Replayability classification:
+    - correlation_parse_error: structural (invalid JSON at source) — not replayable
+    - correlation_publish_error: transient (alert publish failed) — replayable
+    - alert_write_failed with postgres_write_failed/opensearch_write_failed: transient — replayable
+    - alert_write_failed with event_loop_error: unknown consumer exception — not replayable
+    """
+    results: List[Dict[str, Any]] = []
+    for record in records:
+        value = record.get("value") or {}
+        if not isinstance(value, dict):
+            continue
+
+        dlq_event_type = value.get("dlq_event_type") or "unknown"
+        error_message  = str(value.get("error_message") or "")
+        error_reason   = value.get("reason")
+        source_part    = value.get("source_partition")
+        source_off     = value.get("source_offset")
+        tenant_id      = value.get("tenant_id")
+
+        if dlq_event_type == "correlation_publish_error":
+            replayable = True
+        elif dlq_event_type == "alert_write_failed" and error_reason in (
+            "postgres_write_failed", "opensearch_write_failed"
+        ):
+            replayable = True
+        else:
+            replayable = False
+
+        fp = dlq_consumer_fingerprint(dlq_event_type, source_topic, source_part, source_off, error_message)
+
+        results.append({
+            "dlq_event_type":   dlq_event_type,
+            "source_topic":     source_topic,
+            "source_partition": source_part,
+            "source_offset":    source_off,
+            "consumer_group":   None,
+            "error_code":       None,
+            "error_message":    error_message or None,
+            "raw_payload":      None,
+            "isolated_at":      value.get("ts"),
+            "tenant_id":        tenant_id,
+            "replayable":       replayable,
+            "error_reason":     error_reason,
+            "fingerprint":      fp,
+        })
+    return results
+
+
+def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
+    """Consumer loop for xdr.correlation_failed or xdr.alert_write_failed. Runs in a daemon thread.
+
+    Persists structured failure records to dlq_records table for SOC review.
+    Never publishes to alerts.created. Never creates incidents. Never auto-replays.
+    """
+    offset_reset = "earliest"
+    _MAX_ERRORS  = 3
+
+    def _new_ids() -> tuple[str, str]:
+        ts   = int(time.time() * 1000)
+        safe = source_topic.replace(".", "-").replace(":", "-")
+        g    = f"pipeline-dlq-consumer-{safe}-{ts}"
+        n    = f"pipeline-dlq-{safe}-{ts}"
+        return g, n
+
+    group, name = _new_ids()
+    base_uri: Optional[str] = None
+    consecutive_errors = 0
+
+    def _setup(g: str, n: str) -> str:
+        uri = consumer_create(g, n, offset_reset=offset_reset)
+        consumer_subscribe(uri, source_topic)
+        print(f"[pipeline-dlq-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        return uri
+
+    try:
+        base_uri = _setup(group, name)
+    except Exception as exc:
+        METRICS["pipeline_dlq_consumer_errors"] += 1
+        DLQ.append({"ts": now_iso(), "target": source_topic, "error": f"pipeline_dlq_start_failed: {exc}"})
+        METRICS["dlq_count"] = len(DLQ)
+        return
+
+    while not STOP.is_set():
+        try:
+            records = consumer_poll(base_uri)
+            METRICS["pipeline_dlq_consumer_polls"] += 1
+            consecutive_errors = 0
+            parsed = normalize_pipeline_dlq_records(records, source_topic)
+            METRICS["pipeline_dlq_consumer_records_seen"] += len(parsed)
+            for r in parsed:
+                outcome = write_dlq_record(r)
+                METRICS["pipeline_dlq_consumer_records_written"] += 1
+                if outcome == "updated":
+                    METRICS["pipeline_dlq_consumer_records_upserted"] += 1
+            if parsed:
+                print(f"[pipeline-dlq-consumer] {len(parsed)} records  topic={source_topic}", flush=True)
+        except Exception as exc:
+            METRICS["pipeline_dlq_consumer_errors"] += 1
+            consecutive_errors += 1
+            is_offset_err = _is_offset_range_error(exc)
+            DLQ.append({
+                "ts": now_iso(), "target": source_topic,
+                "error": str(exc), "consecutive_errors": consecutive_errors,
+            })
+            METRICS["dlq_count"] = len(DLQ)
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
+            if should_recreate:
+                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
+                print(
+                    f"[pipeline-dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}",
+                    flush=True,
+                )
+                if base_uri:
+                    consumer_delete(base_uri)
+                group, name = _new_ids()
+                consecutive_errors = 0
+                try:
+                    base_uri = _setup(group, name)
+                except Exception as se:
+                    METRICS["pipeline_dlq_consumer_errors"] += 1
+                    print(f"[pipeline-dlq-consumer] ERROR: recreate failed: {se}", flush=True)
+                    time.sleep(5)
+            else:
+                time.sleep(2)
+
+
 def validate_startup_secrets() -> None:
     enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
     token_set = bool(os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN", "").strip())
@@ -1088,6 +1247,14 @@ def startup() -> None:
         dlq_topic = os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed")
         threading.Thread(target=dlq_consumer_event_loop, daemon=True).start()
         print(f"[dlq-consumer] started  topic={dlq_topic}", flush=True)
+    if os.getenv("XDR_CORRELATION_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
+        corr_failed_topic = os.getenv("XDR_CORRELATION_FAILED_TOPIC") or "xdr.correlation_failed"
+        threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(corr_failed_topic,), daemon=True).start()
+        print(f"[pipeline-dlq-consumer] started  topic={corr_failed_topic}", flush=True)
+    if os.getenv("XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
+        write_failed_topic = os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed"
+        threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(write_failed_topic,), daemon=True).start()
+        print(f"[pipeline-dlq-consumer] started  topic={write_failed_topic}", flush=True)
 
 
 @app.on_event("shutdown")

@@ -347,6 +347,9 @@ services:
       # DLQ consumer — normalization failures only; does NOT create incidents
       XDR_DLQ_CONSUMER_ENABLED: ${XDR_DLQ_CONSUMER_ENABLED:-false}
       XDR_DLQ_TOPIC: ${XDR_DLQ_TOPIC:-telemetry.normalization_failed}
+      # Pipeline DLQ consumers — correlation/alert-write failures; advisory, never auto-replay
+      XDR_CORRELATION_DLQ_CONSUMER_ENABLED: ${XDR_CORRELATION_DLQ_CONSUMER_ENABLED:-false}
+      XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED: ${XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED:-false}
       # Internal auth enforcement
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
       XDR_ALERT_WRITER_INTERNAL_TOKEN: ${XDR_ALERT_WRITER_INTERNAL_TOKEN:-}
