@@ -1,7 +1,7 @@
 # Tenant Strict Mode
 
 **Status:** Configurable; default is legacy/migration mode (`false`).
-**Last updated:** 2026-06-23 (BACKLOG-TENANCY-021)
+**Last updated:** 2026-06-23 (BACKLOG-TENANCY-023)
 
 ---
 
@@ -25,12 +25,17 @@ compatibility during the migration period described in `TENANT_NULL_MIGRATION_PL
 
 | Condition | Legacy mode (`false`) | Strict mode (`true`) |
 |---|---|---|
-| No `X-Tenant-ID` header on listing routes | null (no scoping) | null (no scoping) |
+| No header on index/listing routes (member-user) | null (no scoping) | **403 TenantContextMissingException** |
 | No header on object-scoped routes (`show`, `review`) | null (no scoping) | **403 TenantContextMissingException** |
-| Admin user, any header or no header | Accepted (bypass) | Accepted (bypass) |
+| No header on store routes (member-user) | null → null tenant_id | **403 TenantContextMissingException** |
+| **Admin, no header on read routes** | Accepted — unscoped | Accepted — unscoped (bypass preserved) |
+| **Admin, no header on store routes** | null → null tenant_id | **403 TenantContextMissingException** |
+| **Admin, `X-Tenant-ID: _global` on store** | null → null tenant_id | null → null tenant_id (explicit) |
+| Admin, valid tenant header | Accepted (any tenant) | Accepted (any tenant) |
 | User with **zero memberships**, any header | Accepted (pass-through) | **403 TenantSpoofAttemptException** |
 | User with memberships, **valid** tenant header | Accepted | Accepted |
 | User with memberships, **foreign** tenant header | 403 TenantSpoofAttemptException | 403 TenantSpoofAttemptException |
+| Any user, `X-Tenant-ID: _global` | 403 TenantSpoofAttemptException | 403 TenantSpoofAttemptException |
 
 ---
 
@@ -39,10 +44,14 @@ compatibility during the migration period described in `TENANT_NULL_MIGRATION_PL
 Strict mode gates apply only to regular authenticated users. Two principals are
 exempt:
 
-1. **Global platform admin** (`role = admin`): bypasses all membership checks in
-   both modes. Admins can supply any tenant header or no header at all. If no
-   header is supplied, the request is unscoped (can see all records regardless
-   of `tenant_id`).
+1. **Global platform admin** (`role = admin`): bypasses membership checks in
+   both modes for **read routes**. On **store routes** in strict mode, admins
+   must explicitly declare scope (BACKLOG-023):
+   - `X-Tenant-ID: tenant-A` → record created scoped to `tenant-A`
+   - `X-Tenant-ID: _global` → record created with `tenant_id = NULL` (explicit global)
+   - No header → **403** `TenantContextMissingException` (accidental null prevented)
+   
+   In legacy mode, no header on store routes still creates a `null` tenant_id (backward compat).
 
 2. **System/Artisan context** (`TenantContextAuthority::resolveSystemContext()`):
    returns a typed context record without touching `validateAndResolve()`. Artisan
@@ -69,22 +78,42 @@ through regardless of the value.
 | `POST /shadow-soak` (store) | `true` | BACKLOG-022 |
 | `GET /shadow-soak/{runId}` | `true` | BACKLOG-021 |
 
-## Creation Safety (BACKLOG-022)
+## Creation Safety (BACKLOG-022 / 023)
 
 In strict mode, user-facing store actions must not create `tenant_id = NULL`
-records for users who have tenant memberships.
+records unless the caller explicitly signals global-scope intent (BACKLOG-023).
 
 | Actor | Header supplied | Outcome |
 |---|---|---|
 | Member user, no header | — | 403 `TenantContextMissingException` |
 | Member user, valid header | `X-Tenant-ID: tenant-A` | Record created with `tenant_id = 'tenant-A'` |
-| Admin, no header | — | Record created with `tenant_id = NULL` (unscoped — intentional) |
+| Admin, no header | — | **403** `TenantContextMissingException` (BACKLOG-023) |
+| Admin, `X-Tenant-ID: _global` | — | Record created with `tenant_id = NULL` (explicit) |
+| Admin, valid tenant header | `X-Tenant-ID: tenant-A` | Record created with `tenant_id = 'tenant-A'` |
 | Zero-membership user, no header | — | 403 `TenantContextMissingException` |
 | Zero-membership user, any header | `X-Tenant-ID: tenant-A` | 403 `TenantSpoofAttemptException` |
+| Non-admin, `X-Tenant-ID: _global` | — | 403 `TenantSpoofAttemptException` |
+
+### `_global` scope sentinel
+
+`TenantContextAuthority::GLOBAL_SCOPE = '_global'` is a reserved `X-Tenant-ID`
+value for admin-only explicit global-scope creation. It signals deliberate intent
+to create a record without a tenant boundary. Only `role = admin` users may use it.
 
 **Legacy mode behavior (non-production):** store routes create `tenant_id = NULL`
-when no header is supplied, regardless of the user's membership. This is preserved
-for migration compatibility only and must not be used in production.
+when no header is supplied, regardless of the user's membership or role. This is
+preserved for migration compatibility only and must not be used in production.
+
+### Null-record audit command
+
+```sh
+php artisan tenant:null-audit                         # report all isolated tables
+php artisan tenant:null-audit --table=advisory_findings
+php artisan tenant:null-audit --output=reports/tenant_null_audit.json
+```
+
+Read-only. Never mutates records. Exit code 0 = all clean; 1 = nulls found.
+See Phase 3 of `docs/security/TENANT_NULL_MIGRATION_PLAN.md` for backfill guidance.
 
 ---
 
@@ -94,8 +123,8 @@ All three exceptions map to **HTTP 403 Forbidden** via the global exception hand
 
 | Exception | When thrown |
 |---|---|
-| `TenantContextMissingException` | Strict mode + `requireTenantContext=true` + no header |
-| `TenantSpoofAttemptException` | User claims a tenant they are not a member of |
+| `TenantContextMissingException` | Strict mode + `requireTenantContext=true` + no header, or strict mode + `requireExplicitScope=true` (admin, store) + no header |
+| `TenantSpoofAttemptException` | User claims a tenant they are not a member of, or non-admin uses `_global` sentinel |
 | `TenantBoundaryViolationException` | Validated tenant_id mismatches the record's tenant_id |
 
 These are distinct so that monitoring and error logs can differentiate:

@@ -32,17 +32,21 @@ use Illuminate\Support\Str;
  * │ STRICT MODE (XDR_TENANT_STRICT_MODE=true)                           │
  * │ • No header + requireTenantContext=true  → TenantContextMissing     │
  * │ • No header + requireTenantContext=false → null (listing routes OK) │
- * │ • Admin          → header accepted, membership bypassed (bypass)    │
+ * │ • Admin + no header + requireExplicitScope=true  → TenantContextMissing │
+ * │ • Admin + X-Tenant-ID: _global           → null (explicit global)   │
+ * │ • Admin + valid tenant header            → header returned (scoped) │
  * │ • Zero members   → TenantSpoofAttemptException (no passthrough)     │
  * │ • Has members    → header must match a membership                   │
  * └─────────────────────────────────────────────────────────────────────┘
  *
  * Bypass priority order (both modes):
- *   1. Admin role (ADMIN_ROLE) — always bypasses membership checks
+ *   1. Admin role (ADMIN_ROLE) — membership checks bypassed; still subject to
+ *      requireExplicitScope on store routes (BACKLOG-023)
  *   2. System context (resolveSystemContext) — no User involved
  *
- * requireTenantContext=true is used by object-scoped routes (show, review).
- * Listing and write routes that create new scoped resources use the default false.
+ * requireTenantContext=true  — object-scoped routes (show, review, index).
+ * requireExplicitScope=true  — store/create routes; prevents accidental null
+ *                              tenant_id; admin must use _global or a header.
  *
  * See docs/security/TENANT_STRICT_MODE.md
  *     docs/security/TENANT_NULL_MIGRATION_PLAN.md
@@ -60,31 +64,63 @@ class TenantContextAuthority
     public const STRICT_MODE_DEFAULT = false;
 
     /**
+     * Reserved X-Tenant-ID sentinel value that signals explicit global/unscoped
+     * creation intent (admin-only). Prevents accidental null tenant_id on store
+     * routes when requireExplicitScope=true is set (BACKLOG-023).
+     *
+     * Usage: send `X-Tenant-ID: _global` to create a record with tenant_id=NULL.
+     * Non-admin users who send this header receive TenantSpoofAttemptException.
+     */
+    public const GLOBAL_SCOPE = '_global';
+
+    /**
      * Validate the X-Tenant-ID header against the user's authorised memberships.
      *
-     * @param  bool  $requireTenantContext  When true, strict mode will reject a missing header.
-     *                                      Pass true for object-scoped routes (show, review).
-     *                                      Pass false (default) for listing/create routes.
+     * @param  bool  $requireTenantContext  When true, strict mode rejects a missing header for
+     *                                      all non-admin users. Use on index/show/review routes.
      *
-     * @throws TenantContextMissingException  in strict mode when header is absent and required
-     * @throws TenantSpoofAttemptException    when user claims a tenant they are not a member of
-     * @return string|null validated tenant ID, or null if no header was supplied
+     * @param  bool  $requireExplicitScope  When true, strict mode additionally blocks admin users
+     *                                      from creating records with an implicit null tenant_id.
+     *                                      Admin must supply either a tenant header or the
+     *                                      GLOBAL_SCOPE sentinel ('_global') to signal intent.
+     *                                      Use only on store/create routes (BACKLOG-023).
+     *
+     * @throws TenantContextMissingException  strict mode: header absent and required
+     * @throws TenantSpoofAttemptException    user claims a tenant they are not a member of,
+     *                                        or a non-admin uses the GLOBAL_SCOPE sentinel
+     * @return string|null  validated tenant ID, or null for unscoped/global access
      */
     public function validateAndResolve(
         Request $request,
         User    $user,
         bool    $requireTenantContext = false,
+        bool    $requireExplicitScope = false,
     ): ?string {
         $requestedTenant = $request->header('X-Tenant-ID');
         $strictMode      = $this->isStrictMode();
 
-        // Admin and global-platform-admin bypass: skip all membership enforcement.
-        // Admins can operate without or with any tenant header in either mode.
-        if ($this->isAdminBypass($user)) {
-            return $requestedTenant; // null → no-scoping; non-null → returned as-is
+        // ── GLOBAL_SCOPE sentinel ────────────────────────────────────────────
+        // Must be evaluated before admin bypass so non-admins are rejected.
+        if ($requestedTenant === self::GLOBAL_SCOPE) {
+            if (!$this->isAdminBypass($user)) {
+                throw new TenantSpoofAttemptException($user->id, $requestedTenant, []);
+            }
+            // Admin explicitly requested global/unscoped creation → null tenant_id
+            return null;
         }
 
-        // No header
+        // ── Admin bypass ─────────────────────────────────────────────────────
+        // Admins skip membership checks. In strict mode, store routes additionally
+        // require an explicit scope declaration (requireExplicitScope=true).
+        if ($this->isAdminBypass($user)) {
+            if ($strictMode && $requireExplicitScope && $requestedTenant === null) {
+                // Admin must declare intent: supply X-Tenant-ID or use '_global'
+                throw new TenantContextMissingException($user->id);
+            }
+            return $requestedTenant; // null → unscoped read; non-null → tenant-scoped
+        }
+
+        // ── No header ────────────────────────────────────────────────────────
         if ($requestedTenant === null) {
             if ($strictMode && $requireTenantContext) {
                 throw new TenantContextMissingException($user->id);
@@ -92,16 +128,14 @@ class TenantContextAuthority
             return null;
         }
 
-        // Header present — validate against memberships
+        // ── Header present — validate against memberships ────────────────────
         $allowedTenants = $this->getUserTenants($user);
 
         if (empty($allowedTenants)) {
             if ($strictMode) {
-                // Strict: zero-membership users cannot claim any tenant header
                 throw new TenantSpoofAttemptException($user->id, $requestedTenant, []);
             }
-            // Legacy: backward-compatible pass-through (non-production only)
-            return $requestedTenant;
+            return $requestedTenant; // legacy pass-through
         }
 
         if (!in_array($requestedTenant, $allowedTenants, true)) {

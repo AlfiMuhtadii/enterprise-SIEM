@@ -52,7 +52,12 @@ class ShadowSoakController extends Controller
             'dry_run' => 'boolean',
         ]);
 
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
+        $tenantId = $this->tenantAuthority->validateAndResolve(
+            $request,
+            $request->user(),
+            requireTenantContext:  true,
+            requireExplicitScope:  true,
+        );
 
         $run = $this->service->startSoakRun(
             domain:      $request->input('domain'),

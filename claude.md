@@ -73,6 +73,62 @@ If validation fails → remain shadow OR rollback to legacy. Never force promoti
 
 ---
 
+## Test Execution Policy
+
+Use fast iteration by default.
+
+### During implementation
+
+- Do not run the full PHP test suite after every small edit.
+- Run the smallest relevant targeted test first.
+- Prefer `php artisan test --filter=<RelevantTestClassOrMethod>` for Laravel/PHP changes.
+- Prefer package/file-specific Python or Go tests for Python/Go changes.
+- Do not run live pipeline verification unless the change touches ingestion, normalizer, correlation, alert-writer, Redpanda topics, demo feed, or verifier logic.
+
+### At final verification
+
+- Run the full relevant suite once before a commit or milestone claim.
+- For PHP application changes: `php artisan test` (always prefix `migrate:fresh --force`).
+- For Python changes: run the relevant Python unittest discovery or specific test module.
+- For Go changes: run the relevant Go test package.
+- For docker-compose/env changes: `docker compose config`.
+- For rule registry/detection registry changes: `python scripts/xdr_rule_registry_validate.py`.
+- For live-pipeline changes: run the live validator and causal verifier only when relevant.
+
+### Documentation-only changes
+
+- Do not run `php artisan test` unless executable examples, commands, or behavior contracts changed.
+- Acceptable to report: **"No test run: documentation-only change."**
+
+### Reporting requirements
+
+- Always report exact commands executed.
+- Always report whether the run was targeted or full.
+- Never say "all tests pass" unless the full relevant suite was actually executed.
+- If only targeted tests were run, say: **"Targeted tests passed; full suite not run."**
+- If full tests were intentionally skipped for speed, state the reason.
+
+### Prohibited behavior
+
+- Do not delete or weaken tests just to pass.
+- Do not skip failing tests without explicit approval.
+- Do not change assertions merely to match broken behavior.
+- Do not run `php artisan test` repeatedly after every small edit unless explicitly requested.
+- Do not claim production readiness or full verification from targeted tests only.
+
+### Decision matrix
+
+| Change type | During implementation | Final verification |
+|---|---|---|
+| PHP service / controller / model / migration | `php artisan test --filter=<RelevantTest>` | `php artisan test` |
+| Tenant / auth / security / DLQ / promotion boundary | relevant targeted tests | full PHP suite + related Python/Go |
+| Python validator / bootstrap / service | specific Python test module | relevant Python unittest discovery |
+| Go worker | relevant Go package tests | Go tests + live verifier if pipeline behavior changed |
+| Docker-compose / env example | `docker compose config` | application tests only if behavior changed |
+| Docs-only | none required | none required — report documentation-only verification |
+
+---
+
 ## Memory Load Order
 Load context in this order — only what is needed for the session:
 1. Current Active Blocker ← start here
@@ -274,7 +330,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 
 # Standard Commands
 
-## Laravel Tests (primary gate — run after every change)
+## Laravel Tests (primary gate)
 
 ```powershell
 php artisan migrate:fresh --force && php artisan test
@@ -430,6 +486,13 @@ Do NOT:
 * add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)
 * mark response plan as `completed_documented` without analyst explicit action
 * delete or update records in append-only tables: `export_audit_logs`, `investigation_events`, `response_plan_approvals`, `security_hardening_events`, `entity_observations`, `endpoint_agent_heartbeats`, `endpoint_response_command_events`, `endpoint_behavioral_findings`, `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `cross_domain_correlations`, `attack_stage_timelines`, `correlation_evidence_links`, `response_execution_events`, `response_execution_rollbacks`, `response_execution_simulations`, `endpoint_stream_events`, `endpoint_stream_offsets`, `endpoint_stream_checkpoints`, `endpoint_stream_health`, `retention_audit_events`, `recovery_validations`, `dlq_replay_events`, `service_health_snapshots`, `queue_lag_metrics`, `stream_pressure_metrics`, `dns_events`, `proxy_events`, `firewall_events`, `network_behavioral_findings`, `investigation_collaborators`, `investigation_watchers`, `escalation_events`, `analyst_handoffs`, `watchlist_events`, `sla_events`, `sla_breaches`, `integration_sync_events`, `external_case_links`, `notification_events`, `notification_deliveries`, `saas_audit_events`, `identity_provider_events`, `baseline_observations`, `baseline_anomaly_scores`, `endpoint_agent_policy_assignments`, `endpoint_agent_enrollment_events`, `endpoint_tamper_events`, `endpoint_spool_snapshots`, `endpoint_script_executions`, `endpoint_privilege_escalations`, `endpoint_container_activities`, `detection_rule_versions`, `detection_replay_results`, `detection_false_positive_reports`, `detection_promotion_requests`, `investigation_graph_nodes`, `investigation_graph_edges`, `investigation_evidence_links`, `investigation_timeline_events`, `soar_playbook_versions`, `soar_execution_results`, `soar_approval_requests`, `soar_execution_audit`, `soar_simulation_results`, `stream_consumer_lag_snapshots`, `duplicate_event_reports`, `storage_pressure_snapshots`, `degraded_mode_events`, `recovery_validation_runs`, `evidence_integrity_runs`, `evidence_integrity_failures`, `audit_export_access_logs`, `tenant_isolation_validation_runs`, `pii_access_audit`, `governance_review_findings`, `telemetry_capacity_snapshots`, `replay_economics_runs`, `query_performance_snapshots`, `storage_capacity_snapshots`, `cardinality_pressure_reports`, `capacity_projection_runs`, `replay_amplification_reports`, `infrastructure_cost_estimates`, `release_manifests`, `deployment_readiness_runs`, `environment_drift_reports`, `rollback_validation_runs`, `release_approval_requests`, `release_audit_events`, `go_nogo_decisions`, `operational_runbook_versions`, `adversarial_validation_runs`, `chained_detection_graphs`, `evasion_resilience_reports`, `attack_chain_timelines`, `detection_confidence_reports`, `tactic_progression_snapshots`, `cross_host_correlation_runs`, `sensor_resource_snapshots`, `collector_health_events`, `telemetry_integrity_runs`, `telemetry_gap_reports`, `package_signature_validations`, `offline_recovery_runs`, `collector_restart_audit`, `telemetry_sequence_validations`, `endpoint_upgrade_validations`, `tenant_isolation_audits`, `tenant_context_propagation_runs`, `tenant_replay_validation_runs`, `tenant_graph_isolation_reports`, `tenant_export_validation_runs`, `tenant_namespace_validation_reports`, `tenant_boundary_violation_reports`, `tenant_replay_lineage`, `tenant_evidence_integrity_reports`, `soak_validation_runs`, `soak_validation_metrics`, `chaos_simulation_runs`, `chaos_failure_events`, `recovery_validation_artifacts`, `operational_drift_reports`, `replay_recovery_runs`, `telemetry_continuity_reports`, `pilot_onboarding_runs`, `pilot_health_validations`, `pilot_success_metrics`, `pilot_rollback_validations`, `telemetry_onboarding_pressure`, `operator_readiness_reviews`, `pilot_audit_events`, `onboarding_approval_requests`, `live_pilot_runs`, `pilot_endpoint_enrollments`, `pilot_health_checkpoints`, `pilot_operational_reviews`, `pilot_drift_reviews`, `pilot_rollback_audit`, `live_telemetry_validations`, `production_observation_checkpoints`, `pilot_execution_audit`, `operational_intelligence_snapshots`, `analyst_investigation_summaries`, `detection_confidence_history`, `false_positive_drift_reports`, `attack_progression_scores`, `replay_confidence_validations`, `suppression_effectiveness_reports`, `analyst_acknowledgment_patterns`, `analyst_workload_snapshots`, `alert_prioritization_scores`, `false_positive_tuning_reports`, `analyst_acknowledgment_audit`, `escalation_quality_reviews`, `alert_recurrence_reports`, `operational_fatigue_indicators`, `shift_handoff_validations`, `telemetry_scale_validation_runs`, `telemetry_scale_metrics`, `replay_scale_recovery_runs`, `analyst_load_stability_reports`, `infrastructure_pressure_runs`, `telemetry_growth_drift_reports`, `queue_recovery_validation_reports`, `scale_pilot_audit`, `operational_validation_windows`, `telemetry_trend_reports`, `analyst_behavior_trends`, `false_positive_evolution_reports`, `operational_drift_history`, `governance_reporting_runs`, `replay_durability_history`, `infrastructure_stability_reports`, `production_governance_audit`, `endpoint_file_hash_lineage`, `endpoint_module_loads`, `endpoint_registry_timelines`, `endpoint_socket_lifecycle`, `endpoint_process_ancestry_validation`, `endpoint_anti_evasion_indicators`, `endpoint_runtime_visibility`, `endpoint_lineage_confidence`, `endpoint_socket_anomalies`, `deployment_package_manifests`, `deployment_integrity_reports`, `rollout_validation_runs`, `deployment_upgrade_history`, `environment_validation_reports`, `deployment_drift_reports`, `deployment_observability_snapshots`, `rollout_checkpoint_history`, `enterprise_deployment_audit`, `operational_recovery_runs`, `service_lifecycle_audit`, `recovery_checkpoint_history`, `failover_validation_runs`, `bounded_automation_reports`, `recovery_dependency_graphs`, `operational_continuity_reports`, `recovery_simulation_runs`, `enterprise_operations_audit`, `tenant_onboarding_runs`, `commercial_release_history`, `support_bundle_exports`, `deployment_readiness_reports`, `onboarding_checkpoint_history`, `release_compatibility_reports`, `commercial_product_audit`, `cluster_topology_reports`, `ha_validation_runs`, `telemetry_distribution_reports`, `failover_coordination_history`, `distributed_replay_continuity`, `infrastructure_cost_reports`, `cluster_lifecycle_audit`, `scale_profile_validation_runs`, `enterprise_scale_operations_audit`, `xdr_readiness_certifications`, `production_acceptance_gates`, `operational_limitation_reports`, `executive_readiness_reports`, `technical_readiness_reports`, `production_risk_register`, `go_live_validation_runs`, `deployment_acceptance_audit`, `final_xdr_certification_audit`, `release_candidate_manifests`, `feature_freeze_audit`, `deployment_artifact_reports`, `pilot_deployment_preparation_runs`, `operational_validation_baselines`, `release_blocker_reports`, `deployment_reproducibility_reports`, `stabilization_validation_runs`, `release_candidate_audit`, `detection_quality_scorecards`, `false_positive_negative_reports`, `telemetry_quality_scorecards`, `analyst_triage_simulation_runs`, `performance_hotspot_reports`, `noisy_enterprise_simulations`, `xdr_maturity_scorecards`, `xdr_readiness_report_artifacts`, `demo_scenario_runs`, `demo_readiness_snapshots`, `platform_showcase_exports`
+* delete or update records in `advisory_finding_events` (append-only audit trail for analyst actions on shadow findings)
+* auto-create incidents from `advisory_findings` — shadow findings must never trigger incident-builder
+* promote shadow findings to `security_alerts` without a domain-specific 6h soak PASS
+* delete or update records in `dlq_normalization_events` (append-only audit trail for DLQ review actions)
+* delete records from `dlq_records` (mutable — UPDATE allowed for status/reviewed_by/replay fields; DELETE forbidden)
+* trigger DLQ replay from HTTP handlers — replay runs exclusively via `php artisan dlq:replay`
+* auto-create incidents from DLQ records — normalization failures must never trigger incident-builder without explicit review
 * delete records from mutable Commercial Readiness tables: `deployment_package_profiles` (update allowed — tracks active package profiles), `customer_operations_health` (update allowed — upserted per tenant; tracks current health state)
 * delete records from mutable XDR Maturity table: `synthetic_attack_fixtures` (update allowed — tracks fixture revisions; delete forbidden)
 * push firewall rules, block IPs/domains, or perform DPI inspection — DNS/proxy/firewall are shadow-only advisory analytics

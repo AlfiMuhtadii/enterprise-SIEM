@@ -365,22 +365,16 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => false]);
     }
 
-    public function test_strict_store_admin_no_header_creates_null_tenant(): void
+    public function test_strict_store_admin_no_header_returns_403(): void
     {
+        // BACKLOG-023: admin must explicitly declare scope on store routes (requireExplicitScope=true)
         config(['xdr.tenancy.strict_mode' => true]);
 
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->post('/shadow-soak', ['domain' => 'endpoint', 'hours' => 1, 'dry_run' => true])
-            ->assertRedirect();
-
-        // Admin bypass: no header → null tenant_id (intentional unscoped run)
-        $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
-            'tenant_id' => null,
-        ]);
+            ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
     }
