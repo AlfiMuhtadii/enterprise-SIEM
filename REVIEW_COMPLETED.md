@@ -6,21 +6,21 @@ This file tracks all completed and verified implementations for the tenancy, sec
 
 ## 1. Summary of Completed Tasks
 
-| Task ID | Description | Reference / Commit | Date Completed |
-|---|---|---|---|
-| **23.0.A** | Tenant Null Creation Guard (Strict Mode Boundary) | Controller & Middleware Protection | 2026-06-23 |
-| **23.0.B** | Tenant Null Audit Command & Table Validation | `TenantNullAuditCommand.php` / `194e9e6` | 2026-06-23 |
-| **23.0.C** | Test Coverage & Regression Testing | `TenantNullCreationGuardTest.php` | 2026-06-23 |
-| **ENV.1** | Align Environment Variables in `.env` | Env alignment | 2026-06-23 |
-| **ENV.3** | Hardening `.gitignore` for Reports and Logs | Gitignore rules | 2026-06-23 |
-| **T1 / #1** | Fix threat-hunting domain count mismatch (158 → 161) | Docs & Packaging Service / `194e9e6` | 2026-06-23 |
-| **T2** | Rename 8 test methods domain count (95/100/…→ `supported_domains_count`) | Test cleanup / `194e9e6` | 2026-06-23 |
-| **T3** | Extract 5 advisory-only constraint methods to Trait | Trait refactor (12 classes) / `194e9e6` | 2026-06-23 |
-| **BUG** | `SecretsValidationService` using `getenv()` for `putenv()` compatibility | Environment compatibility / `194e9e6` | 2026-06-23 |
-| **INFRA-1** | Restrict docker-compose datastore ports from `0.0.0.0` → `127.0.0.1` | `docker-compose.yml` | 2026-06-23 |
-| **INFRA-2** | Move ClickHouse/Grafana/OpenSearch hardcoded secrets to `${VAR:-default}` | `docker-compose.yml`, `.env.example` | 2026-06-23 |
-| **DB-2** | Add `tenant_id` index to `advisory_findings` + 9 `shadow_soak_*` tables | Migration `2026_06_24_0700001` | 2026-06-23 |
-| **DB-1** | Add `tenant_id` nullable column + index to `advisory_finding_events` and `dlq_normalization_events` | Migration `2026_06_24_0800001` + models + services | 2026-06-23 |
+| Task ID | Description | Reference / Commit | GH Issue | Date Completed |
+|---|---|---|---|---|
+| **23.0.A** | Tenant Null Creation Guard (Strict Mode Boundary) | `a0e0841` (pre-workflow) | — | 2026-06-23 |
+| **23.1 / 23.0.B** | Tenant Null Audit Command: `--table` validates against `ISOLATED_TABLES` | `194e9e6` | [#8](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/8) | 2026-06-23 |
+| **23.2 / 23.0.C** | Test coverage: `--table` rejection of non-isolated and non-existent tables | `194e9e6` | [#9](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/9) | 2026-06-23 |
+| **ENV.1** | Align environment variables in `.env` | (pre-workflow) | — | 2026-06-23 |
+| **ENV.3** | Harden `.gitignore` for reports and logs | (pre-workflow) | — | 2026-06-23 |
+| **T1** | Fix threat-hunting domain count mismatch (158 → 161) | `194e9e6` | [#4](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/4) | 2026-06-23 |
+| **T2** | Rename 8 stale domain-count test methods to `supported_domains_count` | `194e9e6` | [#5](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/5) | 2026-06-23 |
+| **T3** | Extract advisory-only constraint assertions into `AssertsAdvisoryOnlyConstraints` Trait (12 classes) | `194e9e6` | [#6](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/6) | 2026-06-23 |
+| **BUG** | `SecretsValidationService`: use `getenv()` for `putenv()` compatibility | `194e9e6` | [#7](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/7) | 2026-06-23 |
+| **INFRA-1** | Restrict docker-compose datastore ports from `0.0.0.0` → `127.0.0.1` | `2780f13` | [#10](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/10) | 2026-06-23 |
+| **INFRA-2** | Move ClickHouse/Grafana/OpenSearch secrets to `${VAR:-default}` | `2780f13` | [#11](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/11) | 2026-06-23 |
+| **DB-2** | Add `tenant_id` index to `advisory_findings` + 9 `shadow_soak_*` tables | `2780f13` | [#12](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/12) | 2026-06-23 |
+| **DB-1** | Add `tenant_id` nullable column + index to `advisory_finding_events` and `dlq_normalization_events` | `2780f13` | [#13](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/13) | 2026-06-23 |
 
 ---
 
