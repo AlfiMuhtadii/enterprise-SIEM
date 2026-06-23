@@ -38,6 +38,7 @@ class AlertPayload(BaseModel):
     score: Optional[float] = None
     evidence: Dict[str, Any] = Field(default_factory=dict)
     trace_id: Optional[str] = None
+    tenant_id: Optional[str] = None
 
 
 class BuildRequest(BaseModel):
@@ -123,6 +124,7 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
     entities = sorted(set(item for alert in group for item in alert_entities(alert)))
     mitre = sorted(set(item for alert in group for item in (alert.evidence.get("mitre_attack") or [])))
     trace_id = next((a.trace_id for a in group if a.trace_id), None)
+    tenant_id = next((a.tenant_id for a in group if a.tenant_id), None)
     timeline = []
     for alert in ordered:
         chain = alert.evidence.get("evidence_chain") or []
@@ -150,6 +152,7 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
         "xdr_domains": domains,
         "alert_ids": [a.alert_id for a in group],
         "trace_id": trace_id,
+        "tenant_id": tenant_id,
     }
 
 
@@ -164,8 +167,8 @@ def write_incidents(incidents: List[Dict[str, Any]]) -> int:
                     """
                     INSERT INTO security_incidents (
                         incident_id,title,status,severity,confidence,first_seen_at,last_seen_at,
-                        affected_entities,timeline,mitre_mapping,metadata,xdr_domains,trace_id,created_at,updated_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s,now(),now())
+                        affected_entities,timeline,mitre_mapping,metadata,xdr_domains,trace_id,tenant_id,created_at,updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s::jsonb,%s,%s,now(),now())
                     ON CONFLICT (incident_id) DO UPDATE SET
                         last_seen_at=excluded.last_seen_at,
                         severity=excluded.severity,
@@ -176,13 +179,14 @@ def write_incidents(incidents: List[Dict[str, Any]]) -> int:
                         metadata=excluded.metadata,
                         xdr_domains=excluded.xdr_domains,
                         trace_id=COALESCE(excluded.trace_id, security_incidents.trace_id),
+                        tenant_id=COALESCE(excluded.tenant_id, security_incidents.tenant_id),
                         updated_at=now()
                     """,
                     (
                         inc["incident_id"], inc["title"], inc["status"], inc["severity"], inc["confidence"],
                         inc["first_seen_at"], inc["last_seen_at"], json.dumps(inc["affected_entities"]),
                         json.dumps(inc["timeline"]), json.dumps(inc["mitre_mapping"]), json.dumps(inc["metadata"]),
-                        json.dumps(inc["xdr_domains"]), inc.get("trace_id"),
+                        json.dumps(inc["xdr_domains"]), inc.get("trace_id"), inc.get("tenant_id"),
                     ),
                 )
                 for alert_id in inc["alert_ids"]:

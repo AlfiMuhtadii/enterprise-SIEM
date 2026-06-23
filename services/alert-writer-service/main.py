@@ -42,6 +42,7 @@ class AlertPayload(BaseModel):
     detector_name: str = "xdr-correlation"
     detector_version: str = "go-shadow"
     trace_id: Optional[str] = None
+    tenant_id: Optional[str] = None
 
 
 class WriteRequest(BaseModel):
@@ -174,6 +175,7 @@ def write_postgres(alerts: List[AlertPayload], trace_id: Optional[str] = None) -
             json.dumps(alert.evidence),
             json.dumps(alert.raw_event),
             alert.trace_id or trace_id,
+            alert.tenant_id,
         ))
     with conn:
         with conn.cursor() as cur:
@@ -183,12 +185,13 @@ def write_postgres(alerts: List[AlertPayload], trace_id: Optional[str] = None) -
                     INSERT INTO security_alerts (
                         alert_id, detected_at, alert_type, detector_name, detector_version,
                         severity, ip, actor_key, score, alert_fingerprint, evidence, raw_event,
-                        trace_id, created_at, updated_at
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,now(),now())
+                        trace_id, tenant_id, created_at, updated_at
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,now(),now())
                     ON CONFLICT (alert_id) DO UPDATE SET
                         updated_at=now(), evidence=excluded.evidence,
                         raw_event=excluded.raw_event,
-                        trace_id=COALESCE(excluded.trace_id, security_alerts.trace_id)
+                        trace_id=COALESCE(excluded.trace_id, security_alerts.trace_id),
+                        tenant_id=COALESCE(excluded.tenant_id, security_alerts.tenant_id)
                     """,
                     row,
                 )

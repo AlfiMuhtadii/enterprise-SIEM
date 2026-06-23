@@ -532,6 +532,11 @@ func correlate(events []Event) []Alert {
 	for _, ev := range events {
 		ev.TelemetryType = strings.ToLower(ev.TelemetryType)
 		ev.EventType = strings.ToLower(ev.EventType)
+		if ev.TelemetryType == "identity_provider" {
+			ev.TelemetryType = "identity"
+		} else if ev.TelemetryType == "saas_audit" {
+			ev.TelemetryType = "saas"
+		}
 		if ev.User != "" {
 			byUser[ev.User] = append(byUser[ev.User], ev)
 		}
@@ -608,6 +613,11 @@ func correlateIdentityCloud(events []Event) []Alert {
 	for _, ev := range events {
 		ev.TelemetryType = strings.ToLower(ev.TelemetryType)
 		ev.EventType = strings.ToLower(ev.EventType)
+		if ev.TelemetryType == "identity_provider" {
+			ev.TelemetryType = "identity"
+		} else if ev.TelemetryType == "saas_audit" {
+			ev.TelemetryType = "saas"
+		}
 		if ev.TelemetryType != "identity" && ev.TelemetryType != "cloud" && ev.TelemetryType != "saas" {
 			continue
 		}

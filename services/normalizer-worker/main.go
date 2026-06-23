@@ -691,6 +691,10 @@ func normalizeEndpoint(raw map[string]any) (map[string]any, error) {
 			"action": strings.ToLower(first(raw, "action")),
 			"result": strings.ToLower(first(raw, "result", "outcome")),
 		},
+		"tenant_id":       first(raw, "tenant_id"),
+		"demo_run_id":     first(raw, "demo_run_id"),
+		"source_event_id": first(raw, "source_event_id"),
+		"scenario_id":     first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -735,6 +739,10 @@ func normalizeSysmon(raw map[string]any) (map[string]any, error) {
 			"value": first(raw, "registry_value", "Details"),
 		},
 	}
+	out["tenant_id"]       = first(raw, "tenant_id")
+	out["demo_run_id"]     = first(raw, "demo_run_id")
+	out["source_event_id"] = first(raw, "source_event_id")
+	out["scenario_id"]     = first(raw, "scenario_id")
 	return out, nil
 }
 
@@ -766,6 +774,10 @@ func normalizePowerShell(raw map[string]any) (map[string]any, error) {
 			"script_source": first(raw, "script_source"),
 			"ps_event_id":   rawIntField(raw, "ps_event_id"),
 		},
+		"tenant_id":       first(raw, "tenant_id"),
+		"demo_run_id":     first(raw, "demo_run_id"),
+		"source_event_id": first(raw, "source_event_id"),
+		"scenario_id":     first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -800,6 +812,10 @@ func normalizeWindowsSecurityEvent(raw map[string]any) (map[string]any, error) {
 			"escalation_type": first(raw, "escalation_type"),
 			"persistence_type": first(raw, "persistence_type"),
 		},
+		"tenant_id":       first(raw, "tenant_id"),
+		"demo_run_id":     first(raw, "demo_run_id"),
+		"source_event_id": first(raw, "source_event_id"),
+		"scenario_id":     first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -938,6 +954,10 @@ func normalizeDns(raw map[string]any) (map[string]any, error) {
 		"resolved_ips":          raw["resolved_ips"],
 		"source_service":        first(raw, "source_service", "event_source", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -968,6 +988,10 @@ func normalizeProxy(raw map[string]any) (map[string]any, error) {
 		"bytes_in":              raw["bytes_in"],
 		"source_service":        first(raw, "source_service", "event_source", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -994,6 +1018,10 @@ func normalizeFirewall(raw map[string]any) (map[string]any, error) {
 		"user":                  first(raw, "user"),
 		"source_service":        first(raw, "source_service", "event_source", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -1030,6 +1058,10 @@ func normalizeIdentityProvider(raw map[string]any) (map[string]any, error) {
 		"trace_id":              first(raw, "trace_id"),
 		"advisory_only":         true,
 		"no_account_action":     true,
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -1058,6 +1090,10 @@ func normalizeSaasAudit(raw map[string]any) (map[string]any, error) {
 		"trace_id":              first(raw, "trace_id"),
 		"advisory_only":         true,
 		"no_account_action":     true,
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -1080,6 +1116,10 @@ func normalizeTicketSync(raw map[string]any) (map[string]any, error) {
 		"trace_id":              first(raw, "trace_id"),
 		"advisory_only":         true,
 		"no_auto_close":         true,
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
@@ -1102,6 +1142,10 @@ func normalizeNotificationEvent(raw map[string]any) (map[string]any, error) {
 		"trace_id":              first(raw, "trace_id"),
 		"advisory_only":         true,
 		"simulated":             true,
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
 	}, nil
 }
 
