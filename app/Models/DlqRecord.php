@@ -38,6 +38,17 @@ class DlqRecord extends Model
 
     const STATUSES = ['new', 'reviewed', 'ignored', 'replay_requested', 'replayed', 'replay_failed'];
 
+    // dlq:replay only sends these types to the normalizer /v1/normalize.
+    // Pipeline failure types (correlation_parse_error, correlation_publish_error,
+    // alert_write_failed) are NEVER forwarded to the normalizer — they were produced
+    // after normalization and routing them back would corrupt the pipeline.
+    const NORMALIZER_SAFE_EVENT_TYPES = [
+        'normalization_failure',
+        'publish_failure',
+        'malformed_record',
+        'invalid_json',
+    ];
+
     const EVENT_TYPES = [
         'poison_message_isolated',
         'malformed_record',

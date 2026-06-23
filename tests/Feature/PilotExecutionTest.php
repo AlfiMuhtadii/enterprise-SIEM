@@ -362,7 +362,7 @@ class PilotExecutionTest extends TestCase
     }
 
     // =========================================================================
-    // Rollback audit â€” no destructive action
+    // Rollback audit Ã¢â‚¬â€ no destructive action
     // =========================================================================
 
     public function test_rollback_audit_destructive_action_always_false(): void
@@ -577,7 +577,7 @@ class PilotExecutionTest extends TestCase
 
     public function test_threat_hunting_has_95_supported_domains(): void
     {
-        $this->assertCount(158, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_live_pilot_runs_domain_is_supported(): void
@@ -700,4 +700,5 @@ class PilotExecutionTest extends TestCase
         $this->assertEquals(1, PilotRollbackAudit::where('is_advisory', true)->count());
     }
 }
+
 

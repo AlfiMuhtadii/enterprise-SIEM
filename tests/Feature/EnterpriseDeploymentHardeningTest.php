@@ -488,7 +488,7 @@ class EnterpriseDeploymentHardeningTest extends TestCase
 
     public function test_threat_hunting_has_125_supported_domains(): void
     {
-        $this->assertCount(158, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_deployment_integrity_reports_domain_supported(): void
@@ -554,4 +554,5 @@ class EnterpriseDeploymentHardeningTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
+
 

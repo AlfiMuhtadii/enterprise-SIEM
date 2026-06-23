@@ -72,6 +72,8 @@ return [
             'advisory.review',
             'dlq.view',
             'dlq.review',
+            'shadow.soak.view',
+            'shadow.soak.run',
         ],
         'analyst' => [
             'dashboard.view',
@@ -101,6 +103,7 @@ return [
             'advisory.view',
             'advisory.review',
             'dlq.view',
+            'shadow.soak.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -115,6 +118,7 @@ return [
             'report.view',
             'advisory.view',
             'dlq.view',
+            'shadow.soak.view',
         ],
         'scenario_operator' => [
             'dashboard.view',
@@ -152,6 +156,8 @@ return [
             'advisory.review',
             'dlq.view',
             'dlq.review',
+            'shadow.soak.view',
+            'shadow.soak.run',
         ],
     ],
 ];

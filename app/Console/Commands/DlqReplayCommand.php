@@ -31,8 +31,15 @@ class DlqReplayCommand extends Command
         $dryRun        = $this->option('dry-run');
         $specificId    = $this->argument('record_id');
 
+        // Only normalization-safe event types can be replayed to the normalizer.
+        // Pipeline failure types (correlation_parse_error, correlation_publish_error,
+        // alert_write_failed) are explicitly excluded — they were produced after
+        // normalization and forwarding them to /v1/normalize is incorrect routing.
+        // The whereNotNull('raw_payload') guard already excludes current pipeline
+        // records, but this whereIn provides explicit defence-in-depth.
         $query = DlqRecord::where('status', 'replay_requested')
-            ->whereNotNull('raw_payload');
+            ->whereNotNull('raw_payload')
+            ->whereIn('dlq_event_type', DlqRecord::NORMALIZER_SAFE_EVENT_TYPES);
 
         if ($specificId) {
             $query->where('record_id', $specificId);

@@ -506,7 +506,7 @@ class AnalystOptimizationTest extends TestCase
 
     public function test_threat_hunting_has_105_supported_domains(): void
     {
-        $this->assertCount(158, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(161, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_analyst_workload_snapshots_domain_supported(): void
@@ -578,4 +578,5 @@ class AnalystOptimizationTest extends TestCase
             ->assertSee('advisory-only');
     }
 }
+
 

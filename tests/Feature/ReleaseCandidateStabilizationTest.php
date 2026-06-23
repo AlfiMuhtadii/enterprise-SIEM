@@ -29,7 +29,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // Hard constraint assertions — no forbidden operations
+    // Hard constraint assertions â€” no forbidden operations
     // =========================================================================
 
     public function test_service_constants_are_correct(): void
@@ -116,7 +116,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // RC manifest — generation and state
+    // RC manifest â€” generation and state
     // =========================================================================
 
     public function test_initiate_rc_creates_draft_manifest(): void
@@ -480,7 +480,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
 
     public function test_threat_hunting_service_has_correct_domain_count(): void
     {
-        $this->assertCount(158, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(161, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_release_stabilization_domains_registered(): void
@@ -494,7 +494,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // Routes — require auth
+    // Routes â€” require auth
     // =========================================================================
 
     public function test_release_stab_dashboard_requires_auth(): void
@@ -542,3 +542,4 @@ class ReleaseCandidateStabilizationTest extends TestCase
         $this->get('/release-stabilization/audit')->assertRedirect('/login');
     }
 }
+

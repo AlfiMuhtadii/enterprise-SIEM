@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Detection Engineering Lifecycle Phase 1 â€” Feature Tests.
+ * Detection Engineering Lifecycle Phase 1 Ã¢â‚¬â€ Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -48,7 +48,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
     }
 
     // =========================================================================
-    // Schema â€” new tables exist and are correctly structured
+    // Schema Ã¢â‚¬â€ new tables exist and are correctly structured
     // =========================================================================
 
     public function test_detection_rule_versions_table_exists(): void
@@ -121,7 +121,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
     }
 
     // =========================================================================
-    // Rule versioning â€” immutable snapshots
+    // Rule versioning Ã¢â‚¬â€ immutable snapshots
     // =========================================================================
 
     public function test_snapshot_rule_version_creates_immutable_record(): void
@@ -147,7 +147,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
         $rule  = $this->getFirstRule();
         $hash1 = DetectionRuleVersion::hashRule($rule);
         $hash2 = DetectionRuleVersion::hashRule($rule);
-        $this->assertEquals($hash1, $hash2, 'Rule hash must be deterministic â€” same inputs produce same hash');
+        $this->assertEquals($hash1, $hash2, 'Rule hash must be deterministic Ã¢â‚¬â€ same inputs produce same hash');
     }
 
     public function test_rule_hash_differs_for_different_rules(): void
@@ -341,7 +341,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
 
         $this->assertStringStartsWith('dsp-', $supp->suppression_id);
         $this->assertEquals(DetectionSuppression::STATE_PENDING, $supp->approval_state);
-        $this->assertFalse($supp->is_active, 'Suppression must start inactive â€” requires operator approval');
+        $this->assertFalse($supp->is_active, 'Suppression must start inactive Ã¢â‚¬â€ requires operator approval');
     }
 
     public function test_suppression_only_activates_after_approval(): void
@@ -439,7 +439,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
 
     public function test_attack_mapping_does_not_trigger_autonomous_promotion(): void
     {
-        // ATT&CK mappings are advisory metadata only â€” they must NOT automatically promote rules
+        // ATT&CK mappings are advisory metadata only Ã¢â‚¬â€ they must NOT automatically promote rules
         $this->assertFalse(
             method_exists(\App\Services\DetectionEngineeringService::class, 'autoPromoteBasedOnAttackCoverage'),
             'Autonomous promotion based on ATT&CK coverage must NOT exist'
@@ -595,7 +595,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
 
     public function test_hunt_domains_total_is_50(): void
     {
-        $this->assertCount(158, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(161, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_detection_rule_versions_domain_supports_field_queries(): void
@@ -729,14 +729,14 @@ class DetectionEngineeringLifecycleTest extends TestCase
 
     public function test_active_allowlist_is_empty(): void
     {
-        // ACTIVE_ALLOWLIST must remain empty â€” defined in xdr_rule_registry_validate.py
+        // ACTIVE_ALLOWLIST must remain empty Ã¢â‚¬â€ defined in xdr_rule_registry_validate.py
         $validatorPath = base_path('scripts/xdr_rule_registry_validate.py');
         if (!file_exists($validatorPath)) {
             $this->markTestSkipped('Registry validator not found');
         }
         $content = file_get_contents($validatorPath);
         $this->assertStringContainsString('ACTIVE_ALLOWLIST', $content, 'Validator must define ACTIVE_ALLOWLIST');
-        // The ACTIVE_ALLOWLIST must be empty â€” extract and verify
+        // The ACTIVE_ALLOWLIST must be empty Ã¢â‚¬â€ extract and verify
         preg_match('/ACTIVE_ALLOWLIST\s*=\s*\[(.*?)\]/s', $content, $m);
         $listContent = trim($m[1] ?? '');
         $this->assertEmpty($listContent, 'ACTIVE_ALLOWLIST must remain empty');
@@ -750,7 +750,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
         $originalHash = $version->rule_hash;
         $originalId   = $version->version_id;
 
-        // Attempt to re-query â€” should be identical
+        // Attempt to re-query Ã¢â‚¬â€ should be identical
         $reloaded = DetectionRuleVersion::where('version_id', $version->version_id)->first();
         $this->assertEquals($originalHash, $reloaded->rule_hash, 'Rule hash must be immutable after creation');
         $this->assertEquals($originalId, $reloaded->version_id, 'Version ID must be immutable after creation');
@@ -782,4 +782,5 @@ class DetectionEngineeringLifecycleTest extends TestCase
         return app(ThreatHuntingService::class);
     }
 }
+
 

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Advanced Threat Hunting & Investigation Phase 1 â€” Feature Tests.
+ * Advanced Threat Hunting & Investigation Phase 1 Ã¢â‚¬â€ Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -50,7 +50,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Schema â€” new tables exist
+    // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
 
     public function test_investigation_graph_nodes_table_exists(): void
@@ -143,7 +143,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph nodes â€” append-safe
+    // Graph nodes Ã¢â‚¬â€ append-safe
     // =========================================================================
 
     public function test_add_node_creates_investigation_graph_node(): void
@@ -196,7 +196,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph edges â€” append-safe
+    // Graph edges Ã¢â‚¬â€ append-safe
     // =========================================================================
 
     public function test_add_edge_creates_investigation_graph_edge(): void
@@ -265,7 +265,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Timeline events â€” append-only
+    // Timeline events Ã¢â‚¬â€ append-only
     // =========================================================================
 
     public function test_add_timeline_event_creates_record(): void
@@ -378,7 +378,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Evidence linking â€” append-only
+    // Evidence linking Ã¢â‚¬â€ append-only
     // =========================================================================
 
     public function test_link_evidence_creates_append_only_record(): void
@@ -425,7 +425,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Bookmarks â€” mutable
+    // Bookmarks Ã¢â‚¬â€ mutable
     // =========================================================================
 
     public function test_add_bookmark_creates_record(): void
@@ -473,7 +473,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     public function test_threat_hunting_supports_50_domains(): void
     {
         $domains = $this->hunting->supportedDomains();
-        $this->assertCount(158, $domains);
+        $this->assertCount(161, $domains);
     }
 
     public function test_hunt_investigation_graph_nodes_domain(): void
@@ -560,7 +560,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Entity risk scoring â€” ATHI factors
+    // Entity risk scoring Ã¢â‚¬â€ ATHI factors
     // =========================================================================
 
     public function test_entity_risk_scoring_service_has_athi_weights(): void
@@ -662,7 +662,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Safety invariants â€” no autonomous enforcement methods exist
+    // Safety invariants Ã¢â‚¬â€ no autonomous enforcement methods exist
     // =========================================================================
 
     public function test_investigation_graph_service_has_no_isolate_host(): void
@@ -734,4 +734,5 @@ class AdvancedHuntingInvestigationTest extends TestCase
         $this->assertTrue($query->is_advisory);
     }
 }
+
 

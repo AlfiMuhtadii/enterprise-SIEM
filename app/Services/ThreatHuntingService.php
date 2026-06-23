@@ -234,6 +234,10 @@ class ThreatHuntingService
         'demo_scenario_runs',
         'demo_readiness_snapshots',
         'platform_showcase_exports',
+        // Shadow Domain Soak Harness — BACKLOG-PROMOTION-018
+        'shadow_soak_runs',
+        'shadow_soak_gate_checks',
+        'shadow_soak_evidence_snapshots',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1351,6 +1355,26 @@ class ThreatHuntingService
             'is_advisory'     => ['='],
             'is_fabricated'   => ['='],
         ],
+        // Shadow Domain Soak Harness — BACKLOG-PROMOTION-018
+        'shadow_soak_runs' => [
+            'domain'        => ['='],
+            'status'        => ['='],
+            'evidence_pass' => ['='],
+            'window_hours'  => ['=', '>=', '<='],
+        ],
+        'shadow_soak_gate_checks' => [
+            'domain'     => ['='],
+            'gate_name'  => ['='],
+            'result'     => ['='],
+            'run_id'     => ['='],
+        ],
+        'shadow_soak_evidence_snapshots' => [
+            'domain'                => ['='],
+            'high_confidence_rate'  => ['>=', '<='],
+            'suppression_rate'      => ['>=', '<='],
+            'total_findings'        => ['>=', '<='],
+            'run_id'                => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -1541,6 +1565,10 @@ class ThreatHuntingService
         'demo_scenario_runs'        => \App\Models\DemoScenarioRun::class,
         'demo_readiness_snapshots'  => \App\Models\DemoReadinessSnapshot::class,
         'platform_showcase_exports' => \App\Models\PlatformShowcaseExport::class,
+        // Shadow Domain Soak Harness — BACKLOG-PROMOTION-018
+        'shadow_soak_runs'               => \App\Models\ShadowSoakRun::class,
+        'shadow_soak_gate_checks'        => \App\Models\ShadowSoakGateCheck::class,
+        'shadow_soak_evidence_snapshots' => \App\Models\ShadowSoakEvidenceSnapshot::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [
@@ -1731,6 +1759,10 @@ class ThreatHuntingService
         'demo_scenario_runs'        => 'created_at',
         'demo_readiness_snapshots'  => 'created_at',
         'platform_showcase_exports' => 'created_at',
+        // Shadow Domain Soak Harness — BACKLOG-PROMOTION-018
+        'shadow_soak_runs'               => 'started_at',
+        'shadow_soak_gate_checks'        => 'created_at',
+        'shadow_soak_evidence_snapshots' => 'created_at',
     ];
 
     // -----------------------------------------------------------------------

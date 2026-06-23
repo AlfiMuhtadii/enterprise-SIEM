@@ -83,6 +83,7 @@ use App\Http\Controllers\Operations\SoakChaosController;
 use App\Http\Controllers\Pilot\PilotReadinessController;
 use App\Http\Controllers\Advisory\AdvisoryFindingsController;
 use App\Http\Controllers\Dlq\DlqController;
+use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1119,6 +1120,15 @@ Route::middleware(['auth', 'soc:dlq.view'])->prefix('dlq')->group(function () {
 });
 Route::middleware(['auth', 'soc:dlq.review'])->prefix('dlq')->group(function () {
     Route::post('/records/{recordId}/review', [DlqController::class, 'review'])->name('dlq.records.review');
+});
+
+// Shadow Domain Soak Harness — advisory promotion evidence, no cutover triggered
+Route::middleware(['auth', 'soc:shadow.soak.view'])->prefix('shadow-soak')->name('shadow-soak.')->group(function () {
+    Route::get('/',          [ShadowSoakController::class, 'index'])->name('index');
+    Route::get('/{runId}',   [ShadowSoakController::class, 'show'])->name('show');
+});
+Route::middleware(['auth', 'soc:shadow.soak.run'])->prefix('shadow-soak')->name('shadow-soak.')->group(function () {
+    Route::post('/', [ShadowSoakController::class, 'store'])->name('store');
 });
 
 require __DIR__.'/auth.php';

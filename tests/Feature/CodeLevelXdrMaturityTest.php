@@ -487,7 +487,7 @@ class CodeLevelXdrMaturityTest extends TestCase
 
     public function test_threat_hunting_service_has_155_domains(): void
     {
-        $this->assertCount(158, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(161, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_xdr_maturity_domains_are_registered(): void
@@ -525,7 +525,7 @@ class CodeLevelXdrMaturityTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
-    // Append-only integrity — records cannot be deleted
+    // Append-only integrity â€” records cannot be deleted
     // -----------------------------------------------------------------------
 
     public function test_detection_scorecards_are_append_only(): void
@@ -542,3 +542,4 @@ class CodeLevelXdrMaturityTest extends TestCase
         $this->assertEquals(2, NoisyEnterpriseSimulation::count());
     }
 }
+
