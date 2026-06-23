@@ -110,8 +110,9 @@ Catat `demo_run_id` (e.g. `demo-20260622-abc123`). Ini ID kausal unik yang Anda 
 php artisan security:alerts-report --minutes=5 --demo-run=demo-20260622-abc123
 # → 0 alerts (bukti baseline)
 
-# 3. Feed events ke pipeline
-python scripts/ingest_security_events.py --file storage/logs/demo-20260622-abc123_tagged.jsonl
+# 3. Feed events ke pipeline via ingestion-gateway (bukan ingest_security_events.py)
+python scripts/demo_feed.py --input storage/logs/demo-20260622-abc123_tagged.jsonl \
+    --mode pipeline --ingest-url http://localhost:8091/v1/ingest
 
 # 4. Tunggu 30-60 detik untuk pipeline processing
 
@@ -182,7 +183,7 @@ php artisan db:seed --class=DemoScenarioSeeder
 ```powershell
 # 1. Semua test harus hijau
 php artisan migrate:fresh --force && php artisan test
-# → 3077 passed, 0 failures
+# → 3119 passed, 0 failures
 
 # 2. Rule registry harus PASS
 python scripts/xdr_rule_registry_validate.py
@@ -191,6 +192,10 @@ python scripts/xdr_rule_registry_validate.py
 # 3. Python agent tests
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 # → 186 passed
+
+# 4. Python xdr_topic_bootstrap tests (includes shadow consumer)
+python -m unittest discover -s tests/xdr_topic_bootstrap -p "test_*.py" -v
+# → 110 passed
 
 # 4. Docker config valid
 docker compose config --quiet

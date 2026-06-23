@@ -334,6 +334,10 @@ services:
       XDR_ALERT_WRITER_GROUP: alert-writer-v1
       XDR_EVENT_LOOP_ENABLED: "true"
       XDR_ALERT_WRITER_AUTO_OFFSET_RESET: ${XDR_ALERT_WRITER_AUTO_OFFSET_RESET:-earliest}
+      # Shadow consumer — advisory findings only; does NOT produce alerts.created
+      XDR_SHADOW_CONSUMER_ENABLED: ${XDR_SHADOW_CONSUMER_ENABLED:-false}
+      XDR_SHADOW_ENDPOINT_TOPIC: ${XDR_SHADOW_ENDPOINT_TOPIC:-xdr.alerts.shadow.endpoint}
+      XDR_SHADOW_NETWORK_TOPIC: ${XDR_SHADOW_NETWORK_TOPIC:-xdr.alerts.shadow.network}
     ports:
       - "8095:8095"
     depends_on:

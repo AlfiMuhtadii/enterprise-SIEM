@@ -67,10 +67,25 @@ METRICS: Dict[str, Any] = {
     "events_published": 0,
     "contract_validation_failures": 0,
     "operational_events_stored": 0,
+    # Shadow consumer metrics (separate counters — never mixed with active path)
+    "shadow_polls": 0,
+    "shadow_findings_seen": 0,
+    "shadow_findings_written": 0,
+    "shadow_findings_upserted": 0,
+    "shadow_consumer_errors": 0,
 }
 SEEN: set[str] = set()
 DLQ: List[Dict[str, Any]] = []
 STOP = threading.Event()
+
+# ---------------------------------------------------------------------------
+# Shadow consumer constants
+# ---------------------------------------------------------------------------
+_SHADOW_PROMOTION_CONFIDENCE_THRESHOLD = 0.75
+_SHADOW_TOPIC_TO_DOMAIN = {
+    "xdr.alerts.shadow.endpoint": "endpoint",
+    "xdr.alerts.shadow.network":  "network",
+}
 
 
 def now_iso() -> str:
@@ -480,12 +495,16 @@ def event_loop() -> None:
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    shadow_enabled = os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     return {
         "status": "ok",
         "service": "alert-writer",
         "mode": "event-driven",
         "consumes": os.getenv("XDR_ALERTS_TOPIC", "xdr.alerts"),
         "produces": os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created"),
+        "shadow_consumer_enabled": shadow_enabled,
+        "shadow_endpoint_topic": os.getenv("XDR_SHADOW_ENDPOINT_TOPIC", "xdr.alerts.shadow.endpoint"),
+        "shadow_network_topic":  os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network"),
     }
 
 
@@ -557,6 +576,198 @@ def process(request: WriteRequest) -> Dict[str, Any]:
     return process_alerts(request.alerts, request.trace_id, request.source_topic)
 
 
+# ---------------------------------------------------------------------------
+# Shadow alert consumer — advisory findings path
+# Does NOT publish to alerts.created. Does NOT create incidents.
+# Writes to advisory_findings table only (separate from security_alerts).
+# ---------------------------------------------------------------------------
+
+def shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]) -> str:
+    material = "|".join([rule_id, actor or "unknown", ",".join(sorted(str(e) for e in evidence_ids))])
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -> List[Dict[str, Any]]:
+    """Parse EndpointAlert batch payloads from shadow topics into advisory finding dicts."""
+    domain = _SHADOW_TOPIC_TO_DOMAIN.get(source_topic, "unknown")
+    findings: List[Dict[str, Any]] = []
+    for record in records:
+        value = record.get("value") or {}
+        if not isinstance(value, dict):
+            continue
+        batch_trace_id = value.get("trace_id", "")
+        alerts = value.get("alerts") or []
+        if not isinstance(alerts, list):
+            continue
+        for alert in alerts:
+            if not isinstance(alert, dict):
+                continue
+            rule_id      = alert.get("rule_id") or alert.get("alert_type") or "unknown"
+            actor        = alert.get("host") or alert.get("user") or alert.get("actor") or ""
+            evidence_ids = alert.get("evidence_ids") or []
+            confidence   = float(alert.get("confidence") or 0.0)
+            fp           = shadow_fingerprint(rule_id, actor, evidence_ids)
+            findings.append({
+                "finding_id":       "adv-" + fp[:36],
+                "rule_id":          rule_id,
+                "domain":           domain,
+                "source_topic":     source_topic,
+                "alert_type":       alert.get("event_type") or rule_id,
+                "severity":         (alert.get("severity") or "medium").lower(),
+                "confidence":       confidence,
+                "actor_key":        actor or None,
+                "tenant_id":        alert.get("tenant_id") or None,
+                "evidence":         json.dumps(alert.get("evidence") or {}),
+                "source_event_ids": json.dumps(evidence_ids),
+                "promotion_candidate": confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
+                "promotion_blocker":   _shadow_promotion_blocker(domain, confidence),
+                "fingerprint":     fp,
+                "trace_id":        alert.get("trace_id") or batch_trace_id,
+            })
+    return findings
+
+
+def _shadow_promotion_blocker(domain: str, confidence: float) -> str:
+    reasons = [f"domain_soak_required: no 6h soak PASS for domain={domain}"]
+    if confidence < _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD:
+        reasons.append(f"low_confidence: {confidence:.2f} < {_SHADOW_PROMOTION_CONFIDENCE_THRESHOLD}")
+    return "; ".join(reasons)
+
+
+def write_advisory_finding(finding: Dict[str, Any]) -> str:
+    """Upsert an advisory finding. Returns 'inserted' or 'updated'."""
+    conn = connect_pg()
+    if conn is None:
+        return "no_db"
+    now = datetime.now(timezone.utc).isoformat()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO advisory_findings (
+                    finding_id, rule_id, domain, source_topic, alert_type, severity,
+                    confidence, actor_key, tenant_id, evidence, source_event_ids,
+                    promotion_candidate, promotion_blocker, status, fingerprint,
+                    occurrence_count, first_seen_at, last_seen_at, created_at, updated_at
+                ) VALUES (
+                    %s,%s,%s,%s,%s,%s,
+                    %s,%s,%s,%s::jsonb,%s::jsonb,
+                    %s,%s,'new',%s,
+                    1,%s,%s,now(),now()
+                )
+                ON CONFLICT (fingerprint) DO UPDATE SET
+                    occurrence_count = advisory_findings.occurrence_count + 1,
+                    last_seen_at     = excluded.last_seen_at,
+                    promotion_candidate = CASE
+                        WHEN advisory_findings.promotion_candidate THEN true
+                        ELSE excluded.promotion_candidate
+                    END,
+                    updated_at = now()
+                RETURNING (xmax = 0) AS inserted
+                """,
+                (
+                    finding["finding_id"],
+                    finding["rule_id"],
+                    finding["domain"],
+                    finding["source_topic"],
+                    finding["alert_type"],
+                    finding["severity"],
+                    finding["confidence"],
+                    finding["actor_key"],
+                    finding["tenant_id"],
+                    finding["evidence"],
+                    finding["source_event_ids"],
+                    finding["promotion_candidate"],
+                    finding["promotion_blocker"],
+                    finding["fingerprint"],
+                    now, now,
+                ),
+            )
+            row = cur.fetchone()
+    return "inserted" if (row and row[0]) else "updated"
+
+
+def shadow_event_loop(source_topic: str) -> None:
+    """Consumer loop for one shadow topic. Runs in a daemon thread.
+
+    Writes to advisory_findings only. Never publishes to alerts.created.
+    Uses the same offset-recovery pattern as event_loop().
+    """
+    offset_reset = "earliest"
+    _MAX_ERRORS = 3
+
+    def _new_ids() -> tuple[str, str]:
+        ts  = int(time.time() * 1000)
+        safe = source_topic.replace(".", "-").replace(":", "-")
+        g   = f"shadow-consumer-{safe}-{ts}"
+        n   = f"shadow-{safe}-{ts}"
+        return g, n
+
+    group, name = _new_ids()
+    base_uri: Optional[str] = None
+    consecutive_errors = 0
+
+    def _setup(g: str, n: str) -> str:
+        uri = consumer_create(g, n, offset_reset=offset_reset)
+        consumer_subscribe(uri, source_topic)
+        print(f"[shadow-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        return uri
+
+    try:
+        base_uri = _setup(group, name)
+    except Exception as exc:
+        METRICS["shadow_consumer_errors"] += 1
+        DLQ.append({"ts": now_iso(), "target": source_topic, "error": f"shadow_start_failed: {exc}"})
+        METRICS["dlq_count"] = len(DLQ)
+        return
+
+    while not STOP.is_set():
+        try:
+            records = consumer_poll(base_uri)
+            METRICS["shadow_polls"] += 1
+            consecutive_errors = 0
+            findings = normalize_shadow_records(records, source_topic)
+            METRICS["shadow_findings_seen"] += len(findings)
+            for f in findings:
+                outcome = write_advisory_finding(f)
+                METRICS["shadow_findings_written"] += 1
+                if outcome == "updated":
+                    METRICS["shadow_findings_upserted"] += 1
+            if findings:
+                print(
+                    f"[shadow-consumer] {len(findings)} findings  topic={source_topic}",
+                    flush=True,
+                )
+        except Exception as exc:
+            METRICS["shadow_consumer_errors"] += 1
+            consecutive_errors += 1
+            is_offset_err = _is_offset_range_error(exc)
+            DLQ.append({
+                "ts": now_iso(), "target": source_topic,
+                "error": str(exc), "consecutive_errors": consecutive_errors,
+            })
+            METRICS["dlq_count"] = len(DLQ)
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
+            if should_recreate:
+                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
+                print(
+                    f"[shadow-consumer] WARN: consumer recovery ({reason}) topic={source_topic}",
+                    flush=True,
+                )
+                if base_uri:
+                    consumer_delete(base_uri)
+                group, name = _new_ids()
+                consecutive_errors = 0
+                try:
+                    base_uri = _setup(group, name)
+                except Exception as se:
+                    METRICS["shadow_consumer_errors"] += 1
+                    print(f"[shadow-consumer] ERROR: recreate failed: {se}", flush=True)
+                    time.sleep(5)
+            else:
+                time.sleep(2)
+
+
 def validate_startup_secrets() -> None:
     issues = []
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
@@ -583,6 +794,12 @@ def startup() -> None:
     validate_startup_secrets()
     if os.getenv("XDR_EVENT_LOOP_ENABLED", "false").lower() in {"1", "true", "yes"}:
         threading.Thread(target=event_loop, daemon=True).start()
+    if os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
+        endpoint_topic = os.getenv("XDR_SHADOW_ENDPOINT_TOPIC", "xdr.alerts.shadow.endpoint")
+        network_topic  = os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network")
+        threading.Thread(target=shadow_event_loop, args=(endpoint_topic,), daemon=True).start()
+        threading.Thread(target=shadow_event_loop, args=(network_topic,),  daemon=True).start()
+        print(f"[shadow-consumer] started  endpoint_topic={endpoint_topic}  network_topic={network_topic}", flush=True)
 
 
 @app.on_event("shutdown")

@@ -81,6 +81,7 @@ use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
 use App\Http\Controllers\Pilot\PilotReadinessController;
+use App\Http\Controllers\Advisory\AdvisoryFindingsController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1099,6 +1100,15 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('xdr-certification')->grou
     Route::get('/technical',    [\App\Http\Controllers\FinalXdrCertificationController::class, 'technicalReports'])->name('xdr-cert.technical');
     Route::get('/go-live',      [\App\Http\Controllers\FinalXdrCertificationController::class, 'goLiveValidations'])->name('xdr-cert.go-live');
     Route::get('/audit',        [\App\Http\Controllers\FinalXdrCertificationController::class, 'auditTimeline'])->name('xdr-cert.audit');
+});
+
+// Advisory Findings — shadow alert consumer output, separate from active security_alerts
+Route::middleware(['auth', 'soc:advisory.view'])->prefix('advisory')->group(function () {
+    Route::get('/findings',                    [AdvisoryFindingsController::class, 'index'])->name('advisory.findings.index');
+    Route::get('/findings/{findingId}',        [AdvisoryFindingsController::class, 'show'])->name('advisory.findings.show');
+});
+Route::middleware(['auth', 'soc:advisory.review'])->prefix('advisory')->group(function () {
+    Route::post('/findings/{findingId}/review', [AdvisoryFindingsController::class, 'review'])->name('advisory.findings.review');
 });
 
 require __DIR__.'/auth.php';
