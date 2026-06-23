@@ -138,24 +138,38 @@ Five tracking files at repo root + GitHub Issues. Full workflow: `GITHUB_PROJECT
 | `REVIEW_ALL.md` | Master list of all findings from all reviews (Gemini/Antigravity output) |
 | `REVIEW_BACKLOG.md` | Proposed tasks from Gemini — NOT yet validated by Claude |
 | `REVIEW_APPROVED.md` | Tasks validated and approved; each has a GitHub Issue number |
-| `REVIEW_REJECTED.md` | Tasks rejected with reason (not relevant, breaks system, wrong direction) |
+| `REVIEW_REJECTED.md` | Tasks not immediately implemented — split into Rejected / Deferred / Accepted Risk |
 | `REVIEW_COMPLETED.md` | Tasks done and verified (commit hash + GitHub Issue closed) |
 
 **Sync script:** `python scripts/sync_backlog.py` (requires `GITHUB_TOKEN` in `.env`)
 
-**Workflow — one task per session step:**
+### Finding Classification Rules
+
+When a task is NOT approved for immediate implementation, classify it into one of three buckets:
+
+| Classification | When to use |
+|---|---|
+| **Rejected** | False positive, not applicable, or implementation would introduce regression risk with zero functional or security benefit. Do NOT implement. |
+| **Deferred** | Valid finding, but not in scope for the current phase. Must be revisited before production/pilot deployment. |
+| **Accepted Risk** | Valid finding intentionally tolerated for local/demo operational posture. Document the condition under which it must be re-evaluated. |
+
+**Critical rule:** Enterprise-relevant reliability or production-hardening findings (concurrency, socket exhaustion, multi-tenant fairness, resource limits) must NEVER be classified as Rejected merely because academic/demo RPS is currently low. Those are Deferred.
+
+### Workflow — one task per session step
 
 1. **Read `REVIEW_BACKLOG.md`** — identify proposed tasks from Gemini.
 2. **Validate each task** — is it relevant? safe? architecturally correct? won't break system?
 3. **If approved:**
-   - Add row to `REVIEW_APPROVED.md` table (Task ID, description, file, priority).
+   - Add row to `REVIEW_APPROVED.md` table (Task ID, description, file, priority, GH Issue).
    - Create GitHub Issue: `python scripts/sync_backlog.py --create "[BACKLOG-XXX] <title>" "<body>" "agent:claude,<labels>"`.
    - Implement code, run targeted tests, then full suite.
    - Close GitHub Issue: `python scripts/sync_backlog.py --close <issue_number> --comment "Implemented. Tests passed."`.
-   - Move task to `REVIEW_COMPLETED.md` with commit hash.
+   - Move task to `REVIEW_COMPLETED.md` with commit hash + GH Issue number.
    - Pull fresh backlog: `python scripts/sync_backlog.py --pull`.
-4. **If rejected:**
-   - Move task from `REVIEW_BACKLOG.md` to `REVIEW_REJECTED.md` with clear reason.
+4. **If not approved — classify:**
+   - **Rejected**: Move to `REVIEW_REJECTED.md` Section 1 with reason why it is a false positive or harmful.
+   - **Deferred**: Move to `REVIEW_REJECTED.md` Section 2 with the production gate condition for re-evaluation.
+   - **Accepted Risk**: Move to `REVIEW_REJECTED.md` Section 3 with the explicit risk and the condition under which it must be fixed.
 5. **If a review task adds tests:** run targeted `--filter=` first, then full suite before commit.
 
 ---

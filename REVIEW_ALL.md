@@ -44,14 +44,14 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Files:** `database/seeders/UserSeeder.php`, `database/seeders/DemoSocSeeder.php`
 - **Issue:** Demo users created by seeders have no entries in `user_tenant_memberships`. In strict mode, these users cannot access any scoped endpoint.
 - **Fix:** Add default tenant + membership rows to seeders.
-- **Task:** DB-3 (REJECTED — see REVIEW_REJECTED.md)
+- **Task:** DB-3 (ACCEPTED RISK — strict mode off by default; demo-scoped seeders intentionally global; must fix if strict mode enabled in production pilot, see REVIEW_REJECTED.md §3)
 
 ### Finding DB-4 — Unscoped demo alerts/incidents (`tenant_id = NULL`) in DemoSocSeeder
 - **Severity:** Operational Bug (strict mode only)
 - **Files:** `database/seeders/DemoSocSeeder.php`
 - **Issue:** Demo `security_alerts` and `security_incidents` created with `tenant_id = NULL`. Hidden from scoped queries in strict mode; causes `tenant:null-audit` to report `HAS_NULL`.
 - **Fix:** Seed with a known demo tenant_id.
-- **Task:** DB-4 (REJECTED — see REVIEW_REJECTED.md)
+- **Task:** DB-4 (ACCEPTED RISK — demo data intentionally global-scope for full-dashboard showcase; HAS_NULL audit output is expected and documented; must scope if production pilot enables strict mode, see REVIEW_REJECTED.md §3)
 
 ---
 
@@ -78,7 +78,7 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Files:** `app/Http/Controllers/`
 - **Issue:** Mixed pluralization: `AdvisoryFindingsController` vs `DlqController`, `ThreatHuntController`.
 - **Fix:** Not a bug; refactoring would break routes with no safety benefit.
-- **Task:** ENV-3 (REJECTED — see REVIEW_REJECTED.md)
+- **Task:** ENV-3 (REJECTED — renaming breaks routes with zero security/functional benefit; do not implement, see REVIEW_REJECTED.md §1)
 
 ---
 
@@ -99,12 +99,12 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Task:** INFRA-2
 
 ### Finding INFRA-3 — No memory/CPU limits on intensive containers
-- **Severity:** Low (Operational)
-- **Task:** INFRA-3 (REJECTED — low priority for academic scope, see REVIEW_REJECTED.md)
+- **Severity:** Low–Medium (scale-dependent)
+- **Task:** INFRA-3 (DEFERRED — enterprise reliability finding; not in scope for local dev compose; must address before production pilot, see REVIEW_REJECTED.md §2)
 
 ### Finding INFRA-4 — Grafana provisioning mounts not read-only
 - **Severity:** Low
-- **Task:** INFRA-4 (REJECTED — low priority for academic scope, see REVIEW_REJECTED.md)
+- **Task:** INFRA-4 (ACCEPTED RISK — valid in production; intentionally writable in local dev for dashboard authoring; port already localhost-only via INFRA-1, see REVIEW_REJECTED.md §3)
 
 ---
 
@@ -115,7 +115,7 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Files:** `database/seeders/DemoSocSeeder.php`
 - **Issue:** Seeders don't populate `soc_knowledge_base`. RAG pipeline returns zero results on fresh deploy; falls back to parametric outputs.
 - **Note:** `AiGuardrails` already handles this with post-processing warnings. Design posture for academic demo.
-- **Task:** RAG-1 (REJECTED — see REVIEW_REJECTED.md)
+- **Task:** RAG-1 (ACCEPTED RISK — AiGuardrails handles empty retrieval; seeding belongs to runtime ingest, not migrations; fallback sufficient for academic demo, see REVIEW_REJECTED.md §3)
 
 ---
 
@@ -124,17 +124,17 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 ### Finding IG-1 — Synchronous normalizer metrics polling in request path
 - **Severity:** Medium (Conditional Risk — high RPS only)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-1 (REJECTED — conditional risk; academic RPS well below threshold, see REVIEW_REJECTED.md)
+- **Task:** IG-1 (DEFERRED — enterprise reliability anti-pattern; not observable at academic RPS but must be async before production scale, see REVIEW_REJECTED.md §2)
 
 ### Finding IG-2 — Global rate limiter token starvation
 - **Severity:** Medium (Conditional Risk — multi-tenant abuse only)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-2 (REJECTED — conditional risk; single-tenant academic scope, see REVIEW_REJECTED.md)
+- **Task:** IG-2 (DEFERRED — enterprise multi-tenant fairness requirement; not applicable to single-tenant academic scope; required before multi-tenant pilot, see REVIEW_REJECTED.md §2)
 
 ### Finding IG-3 — 15-second publish retry timeout causing socket exhaustion
 - **Severity:** Medium (Conditional Risk — high traffic + Redpanda outage)
 - **Files:** `services/ingestion-gateway/main.go`
-- **Task:** IG-3 (REJECTED — conditional risk; existing backpressure + rate limit adequate for academic scope, see REVIEW_REJECTED.md)
+- **Task:** IG-3 (DEFERRED — enterprise reliability risk under sustained outage + high concurrency; existing controls adequate for academic scale; bounded retry + circuit breaker required before production load test, see REVIEW_REJECTED.md §2)
 
 ---
 

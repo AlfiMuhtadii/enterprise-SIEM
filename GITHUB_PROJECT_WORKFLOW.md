@@ -157,15 +157,30 @@ Validation:
 | `REVIEW_REPORTS.md` | Gemini | Detailed audit report (source of REVIEW_ALL.md entries) |
 | `REVIEW_BACKLOG.md` | Gemini → Claude | Proposed tasks awaiting Claude's validation (synced from GitHub open issues via `sync_backlog.py --pull`) |
 | `REVIEW_APPROVED.md` | Claude | Tasks validated and approved; each row has a GitHub Issue number |
-| `REVIEW_REJECTED.md` | Claude | Tasks rejected; each row has a clear reason |
+| `REVIEW_REJECTED.md` | Claude | Tasks not immediately implemented — split into **Rejected / Deferred / Accepted Risk** with explicit reasons |
 | `REVIEW_COMPLETED.md` | Claude | Tasks done: commit hash + GitHub Issue closed |
 
 ---
 
-## 6. Transition Rules
+## 6. Finding Classification Rules
+
+When a task is NOT approved for immediate implementation, Claude must classify it into one of three sections in `REVIEW_REJECTED.md`:
+
+| Section | Classification | When to use |
+|---|---|---|
+| 1 | **Rejected** | False positive, not applicable, or implementation would introduce regression risk with zero functional or security benefit. Do NOT implement. |
+| 2 | **Deferred** | Valid finding, but not in scope for the current phase. Document the production gate condition under which it must be revisited. |
+| 3 | **Accepted Risk** | Valid finding intentionally tolerated for local/demo operational posture. Document the explicit risk and the condition under which it must be fixed. |
+
+**Critical rule:** Enterprise-relevant reliability or production-hardening findings (concurrency, socket exhaustion, multi-tenant fairness, container resource limits) must **NEVER** be classified as Rejected merely because academic/demo RPS is currently low. Classify as Deferred with a production gate condition.
+
+---
+
+## 7. Transition Rules
 * **Gemini Suggestion ≠ Backlog yet**: Audit findings are only suggestions. Gemini writes them to `REVIEW_BACKLOG.md` as `## Proposed Task:` entries. Claude must validate before anything is approved.
-* **Claude Validation = GitHub Issue or Rejection**: Claude is the gatekeeper. Only validated-and-approved tasks get a GitHub Issue. Rejections go to `REVIEW_REJECTED.md` with reasons.
+* **Claude Validation = GitHub Issue or Classification**: Claude is the gatekeeper. Only validated-and-approved tasks get a GitHub Issue. Non-approved tasks are classified as Rejected / Deferred / Accepted Risk in `REVIEW_REJECTED.md`.
 * **Approved ≠ In Progress**: Approval and GitHub Issue creation happen first; implementation starts after.
 * **Done = Commit + Tests + No Boundary Violation + Issue Closed**: An issue is marked closed on GitHub and moved to `REVIEW_COMPLETED.md` only when: code changes are committed, all relevant tests pass, and no architectural boundaries are violated.
 * **One task per session step**: Do not batch-implement multiple tasks without running targeted tests after each.
+* **Deferred ≠ Forgotten**: Before any production pilot, re-read all Deferred findings and evaluate which must be promoted to Backlog tasks.
 
