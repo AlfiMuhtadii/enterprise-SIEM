@@ -23,6 +23,13 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 
 ---
 
+| **NW-1** | Propagate `tenant_id` and demo lineage metadata in all normalizer type-specific helpers | `services/normalizer-worker/main.go` | High | [#14](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/14) |
+| **CORR-1** | Align telemetry type checks for `identity_provider`/`saas_audit` in correlation worker | `services/correlation-worker/main.go` | High | [#15](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/15) |
+| **DB-5** | Populate `tenant_id` in `security_alerts` and `security_incidents` write paths | `alert-writer-service/main.py`, `incident-builder-service/main.py` | High | [#16](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/16) |
+| **PROD-024** | Production Runtime Profile & Safety Gates posture checker | `scripts/xdr_posture_check.py`, `docs/operations/PRODUCTION_RUNTIME_PROFILE.md` | High | [#17](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/17) |
+| **INGESTION-025** | Ingestion-gateway backpressure & multi-tenant fairness hardening (IG-1/IG-2/IG-3) | `services/ingestion-gateway/main.go` | Medium | [#18](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/18) |
+| **SCALE-026** | Controlled load and soak validation script | `scripts/xdr_scale_soak_validate.py` | Medium | [#19](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/19) |
+
 ## Notes
 
 - Tasks T1–BUG are from the **TEST-SUITE-AUDIT** and **SECRETS-BUG** categories (REVIEW_ALL.md §1–§2).

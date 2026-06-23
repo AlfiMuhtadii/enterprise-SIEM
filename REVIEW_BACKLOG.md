@@ -5,4 +5,154 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ---
 
-## *No open tasks currently.* All issues are closed or completed!
+## Task #19: [SCALE-026] Controlled load and soak validation script [Labels: area:ingestion, agent:claude, risk:low, type:implementation]
+* **Target**: GitHub Issue [#19](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/19)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: User task BACKLOG-SCALE-026.
+
+> Approved scope: scripts/xdr_scale_soak_validate.py (new), tests/xdr_topic_bootstrap/test_xdr_scale_soak_validate.py (new).
+
+> Forbidden: No ACTIVE_ALLOWLIST changes, no shadow promotion, no changes to production services, no live Redpanda/PostgreSQL mutations in unit tests.
+
+> Acceptance criteria:
+> - Tiered load profiles (small: 50 eps, medium: 200 eps, large: 500 eps)
+> - Validates throughput, latency p95, replay amplification bounds, and alert count delta per tier
+> - MAX_REPLAY_AMP=3.0 guard applied
+> - --profile flag selects tier
+> - --dry-run mode for offline validation (no live infra required)
+> - Exit 0=PASS, 1=FAIL, 2=ERROR
+> - JSON report output
+> - Unit tests cover dry-run path, tier configuration validation, bounds checking
+
+> Validation:
+> - python scripts/xdr_scale_soak_validate.py --dry-run
+> - Full Python suite
+
+---
+
+## Task #18: [INGESTION-025] Ingestion-gateway backpressure and multi-tenant fairness hardening (IG-1/IG-2/IG-3) [Labels: area:ingestion, risk:medium, agent:claude, type:implementation]
+* **Target**: GitHub Issue [#18](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/18)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: Deferred findings IG-1, IG-2, IG-3 in REVIEW_REJECTED.md Section 2.
+
+> Approved scope: services/ingestion-gateway/main.go only.
+
+> Forbidden: No ACTIVE_ALLOWLIST changes, no shadow promotion, no changes to ingestion API contract (/v1/ingest), no new topics.
+
+> Acceptance criteria:
+> IG-1: Metrics polling moved to background goroutine (not in HTTP request handler)
+> IG-2: Per-tenant rate limiter map (map[tenantID]*rate.Limiter) replacing global single limiter
+> IG-3: Bounded retry with exponential backoff + circuit breaker on Kafka producer path (max retries configurable via env)
+> - No behavioral regression on ingest endpoint
+> - Existing resilience tests pass
+
+> Validation:
+> - docker compose config --quiet
+> - python scripts/xdr_event_flow_resilience_validate.py
+
+---
+
+## Task #17: [PROD-024] Production Runtime Profile and Safety Gates posture checker [Labels: agent:claude, type:security, area:infra, risk:high]
+* **Target**: GitHub Issue [#17](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/17)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: User task BACKLOG-PROD-024.
+
+> Approved scope:
+> - scripts/xdr_posture_check.py (new, read-only)
+> - docs/operations/PRODUCTION_RUNTIME_PROFILE.md (new)
+> - .env.production.example (update missing security keys)
+> - .env.staging.example (update missing security keys)
+> - tests/xdr_topic_bootstrap/test_xdr_posture_check.py (new)
+
+> Forbidden: No detection behavior changes, no rules, no ACTIVE_ALLOWLIST mutations, no shadow/active boundary changes. Script is read-only (no env mutations).
+
+> Acceptance criteria:
+> - --profile=local: issues WARN for unsafe security posture, never FAIL
+> - --profile=staging: FAIL for placeholder secrets and missing tokens; WARN for posture gaps
+> - --profile=production: FAIL for XDR_TENANT_STRICT_MODE!=true, XDR_ENFORCE_INTERNAL_AUTH!=true, placeholder/default secrets, APP_DEBUG=true, SESSION_SECURE_COOKIE=false, APP_FORCE_HTTPS=false, XDR_SHADOW_CONSUMER_ENABLED=true
+> - Deferred production risks (IG-1/IG-2/IG-3, INFRA-3) surfaced as WARN in all profiles
+> - Accepted risks (DB-3/DB-4/INFRA-4/RAG-1) surfaced as INFO
+> - Exit 0=PASS, 1=FAIL, 2=ERROR
+> - JSON report output
+
+> Validation:
+> - python -m unittest discover -s tests/xdr_topic_bootstrap -p test_xdr_posture_check.py
+> - Full Python suite
+
+---
+
+## Task #16: [DB-5] Populate tenant_id in security_alerts and security_incidents write paths [Labels: agent:claude, area:tenant, risk:high, type:implementation]
+* **Target**: GitHub Issue [#16](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/16)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: REVIEW_REPORTS.md Finding DB-5 / Gemini backlog proposal.
+
+> Approved scope: services/alert-writer-service/main.py, services/incident-builder-service/main.py only.
+
+> Forbidden: No schema changes (tenant_id column already exists on both tables via earlier migration), no ACTIVE_ALLOWLIST changes, no shadow promotion.
+
+> Acceptance criteria:
+> - AlertPayload in alert-writer-service extracts tenant_id from normalized event and writes it to security_alerts
+> - incident-builder-service resolves tenant_id from alert and writes it to security_incidents
+> - Alerts and incidents created with correct non-null tenant_id when telemetry carries tenant_id
+> - Strict mode scoped queries return correctly scoped alerts/incidents
+> - Relevant Python tests pass
+
+> Validation:
+> - python -m unittest discover -s tests/xdr_topic_bootstrap -p test_*.py (targeted)
+> - Full Python suite
+
+---
+
+## Task #15: [CORR-1] Align telemetry type checks for identity_provider and saas_audit in correlation worker [Labels: area:ingestion, risk:medium, agent:claude, type:implementation]
+* **Target**: GitHub Issue [#15](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/15)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: REVIEW_REPORTS.md Finding CORR-1 / Gemini backlog proposal.
+
+> Approved scope: services/correlation-worker/main.go only.
+
+> Forbidden: No ACTIVE_ALLOWLIST changes, no shadow→active promotion, no new rules added.
+
+> Acceptance criteria:
+> - Correlation rule filters accept both 'identity'/'identity_provider' and 'saas'/'saas_audit' string forms
+> - OR normalizer is updated (in NW-1) to output canonical 'identity'/'saas' and correlation checks are not duplicated
+> - Correlation worker correctly processes normalized events from identity and SaaS sources
+> - Existing contract tests pass
+
+> Validation:
+> - python scripts/xdr_contract_validate.py
+> - Full Python suite
+
+---
+
+## Task #14: [NW-1] Propagate tenant_id and demo lineage metadata in all normalizer type-specific helpers [Labels: area:ingestion, risk:medium, agent:claude, type:implementation]
+* **Target**: GitHub Issue [#14](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/14)
+* **Goal**: Grounded implementation based on issue definition.
+
+### Goal & Requirements:
+> Source: REVIEW_REPORTS.md Finding NW-1 / Gemini backlog proposal.
+
+> Approved scope: services/normalizer-worker/main.go only.
+
+> Forbidden: No schema changes, no topic changes, no ACTIVE_ALLOWLIST changes, no shadow promotion.
+
+> Acceptance criteria:
+> - normalizeEndpoint, normalizeDns, normalizeProxy, normalizeFirewall, normalizeSaas, normalizeIdentityProvider all map tenant_id, demo_run_id, source_event_id, scenario_id from raw input fields
+> - Normalized events contain these fields when present in raw input
+> - Normalizer starts up correctly
+> - Existing tests continue to pass
+
+> Validation:
+> - python -m unittest discover -s tests/endpoint_agent -p test_*.py (targeted)
+> - Full relevant Python suite
+
+---

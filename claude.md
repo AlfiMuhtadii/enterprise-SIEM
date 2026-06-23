@@ -50,6 +50,7 @@ After every change:
 | Secret validation        | `php artisan security:validate-secrets`           |
 | Fleet simulation         | `python scripts/xdr_fleet_simulation_validate.py` |
 | Full soak                | `run_xdr_correlation_soak_6h.ps1`                 |
+| Runtime posture          | `python scripts/xdr_posture_check.py --profile=production` |
 
 ### Pass Criteria
 
