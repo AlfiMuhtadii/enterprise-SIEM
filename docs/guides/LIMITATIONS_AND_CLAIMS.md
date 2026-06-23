@@ -219,7 +219,7 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 | External integrations (Okta/Jira/Slack) | Real pipeline code | Simulated delivery by default |
 | DNS/proxy/firewall analytics | Real analysis logic + shadow correlation | Network data is seeded/synthetic |
 | DLQ (telemetry.normalization_failed) | Real — normalizer isolates poison messages and writes to DLQ topic; alert-writer has DLQ topic | No consumer reads DLQ; records accumulate unprocessed |
-| Internal auth hardening (normalizer) | Real enforcement mode available (`XDR_ENFORCE_INTERNAL_AUTH=true`) | Default is permissive (demo-safe); validator WARNs when unset |
+| Internal auth hardening (all 4 services) | Real enforcement mode available (`XDR_ENFORCE_INTERNAL_AUTH=true`) | Default is permissive (demo-safe); validator WARNs per-service when unset (checks 16–19) |
 
 ---
 
@@ -261,6 +261,9 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 | 14 | Redpanda | Topic high watermarks — events have flowed through each topic | No (advisory) |
 | 15 | Pandaproxy | Pandaproxy exposure — WARN if reachable without auth | No (WARN) |
 | 16 | normalizer-worker | Internal auth posture (`XDR_ENFORCE_INTERNAL_AUTH`) | No (WARN) |
+| 17 | alert-writer | Internal auth posture (`XDR_ALERT_WRITER_INTERNAL_TOKEN`) | No (WARN) |
+| 18 | incident-builder | Internal auth posture (`XDR_INCIDENT_BUILDER_INTERNAL_TOKEN`) | No (WARN) |
+| 19 | correlation-worker | Internal auth posture (`XDR_CORRELATION_INTERNAL_TOKEN`) | No (WARN) |
 
 **Checks 8 and 9 are two independent flags for two separate services.** Both must be enabled for the full alert pipeline to function end-to-end.
 
@@ -442,22 +445,26 @@ True Kafka consumer group lag = `committed_offset − high_watermark`, read from
 ### Internal Auth Hardening
 
 **What is implemented:**
-- normalizer-worker exposes `internal_auth_mode` in `/metrics` (`"permissive"` or `"enforced"`)
-- `XDR_ENFORCE_INTERNAL_AUTH=true` + `XDR_NORMALIZER_INTERNAL_TOKEN=<secret>`: normalizer rejects all `/v1/normalize` requests without a valid `X-Internal-Service-Token` header; startup fails fast if token not configured
-- `XDR_ENFORCE_INTERNAL_AUTH=false` (default): validator WARNs but demo works without a token
-- Pandaproxy port is bound to `127.0.0.1:8082` (loopback-only) in `docker-compose.yml`
-- Validator check 15 WARNs if Pandaproxy is reachable without auth; check 16 WARNs if permissive mode
+- All four microservices expose `internal_auth_mode` in `/metrics` (`"permissive"` or `"enforced"`)
+- Shared flag `XDR_ENFORCE_INTERNAL_AUTH=true` enables enforcement across all services
+- Per-service tokens: `XDR_NORMALIZER_INTERNAL_TOKEN`, `XDR_ALERT_WRITER_INTERNAL_TOKEN`, `XDR_INCIDENT_BUILDER_INTERNAL_TOKEN`, `XDR_CORRELATION_INTERNAL_TOKEN`
+- **normalizer-worker** (`/v1/normalize`): enforces `X-Internal-Service-Token`; startup `log.Fatalf` if token not set when enforced
+- **alert-writer-service** (`/v1/write`, `/v1/process`): enforces token via FastAPI `Header`; startup `sys.exit(1)` if token not set when enforced
+- **incident-builder-service** (`/v1/build`, `/v1/process`): same as alert-writer
+- **correlation-worker** (`/v1/correlate`, `/v1/correlate-endpoint-shadow`): enforces token; startup `log.Fatalf` if not set when enforced
+- `XDR_ENFORCE_INTERNAL_AUTH=false` (default): validator WARNs but all services remain usable for local demo without tokens
+- Pandaproxy port bound to `127.0.0.1:8082` (loopback-only)
+- Validator checks 15–19: check 15 WARNs on Pandaproxy exposure; checks 16–19 WARN per-service when permissive
 - `WARN` status never blocks `LIVE_PIPELINE_READY`
 
 **What is NOT implemented:**
-- Mutual TLS between Go services
-- Token enforcement on correlation-worker or alert-writer internal endpoints
+- Mutual TLS between services
 - Network policy or firewall rules enforced by docker-compose (Pandaproxy loopback binding is a port-level hint, not a hard firewall rule)
 
 **Correct claim:**
-> "Internal auth enforcement is available for the normalizer-worker via `XDR_ENFORCE_INTERNAL_AUTH=true`. Default is permissive for local demo compatibility. The validator WARNs when running in permissive mode. This hardening covers one internal endpoint; other services do not yet enforce token-based internal auth."
+> "Internal auth enforcement is available for all four microservice internal HTTP endpoints via `XDR_ENFORCE_INTERNAL_AUTH=true`. Default is permissive for local demo compatibility. Each service fails fast at startup if its token is missing when enforcement is enabled. The validator WARNs (advisory, non-blocking) for each service when running in permissive mode."
 
-**Evidence:** `services/normalizer-worker/main.go` (`validateNormalizerSecrets`, `verifyInternalToken`, `metrics`), `docker-compose.yml` (Pandaproxy port binding), `scripts/validate_live_xdr_pipeline.py` (checks 15–16)
+**Evidence:** `services/*/main.{go,py}` (`validateCorrelationSecrets`/`validateNormalizerSecrets`/`validate_startup_secrets`, `verifyInternalToken`/`verify_internal_token`, `metrics`), `docker-compose.yml` (per-service token env vars), `scripts/validate_live_xdr_pipeline.py` (checks 15–19)
 
 ---
 

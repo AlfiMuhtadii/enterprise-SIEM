@@ -18,17 +18,29 @@ from unittest.mock import MagicMock, patch
 _SERVICES = Path(__file__).parent.parent.parent / "services" / "alert-writer-service"
 sys.path.insert(0, str(_SERVICES))
 
+class _FakeHTTPException(Exception):
+    def __init__(self, status_code: int = 200, detail: object = None) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
+
+
 for _mod in ("fastapi", "pydantic", "xdr_event_contracts"):
     if _mod not in sys.modules:
         _stub = types.ModuleType(_mod)
-        _stub.FastAPI = MagicMock(return_value=MagicMock())  # type: ignore[attr-defined]
-        _stub.BaseModel = object  # type: ignore[attr-defined]
-        _stub.Field = lambda *a, **kw: None  # type: ignore[attr-defined]
-        _stub.envelope = lambda **kw: {}  # type: ignore[attr-defined]
-        _stub.is_envelope = lambda v: False  # type: ignore[attr-defined]
-        _stub.unwrap_payload = lambda v, t: v  # type: ignore[attr-defined]
-        _stub.validate_envelope = lambda ev, t: []  # type: ignore[attr-defined]
         sys.modules[_mod] = _stub
+    else:
+        _stub = sys.modules[_mod]
+    _stub.FastAPI = MagicMock(return_value=MagicMock())  # type: ignore[attr-defined]
+    _stub.Depends = lambda f: None  # type: ignore[attr-defined]
+    _stub.Header = lambda **kw: None  # type: ignore[attr-defined]
+    _stub.HTTPException = _FakeHTTPException  # type: ignore[attr-defined]
+    _stub.BaseModel = object  # type: ignore[attr-defined]
+    _stub.Field = lambda *a, **kw: None  # type: ignore[attr-defined]
+    _stub.envelope = lambda **kw: {}  # type: ignore[attr-defined]
+    _stub.is_envelope = lambda v: False  # type: ignore[attr-defined]
+    _stub.unwrap_payload = lambda v, t: v  # type: ignore[attr-defined]
+    _stub.validate_envelope = lambda ev, t: []  # type: ignore[attr-defined]
 
 sys.modules.pop("main", None)
 import main as aw  # noqa: E402

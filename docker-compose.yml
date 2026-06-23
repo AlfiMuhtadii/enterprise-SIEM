@@ -296,6 +296,10 @@ services:
       XDR_CORRELATION_GROUP: ${XDR_CORRELATION_GROUP:-correlation-worker-v1}
       XDR_CORRELATION_SCOPE: ${XDR_CORRELATION_SCOPE:-identity-cloud}
       XDR_CORRELATION_EVENT_LOOP_ENABLED: "true"
+      # Internal auth enforcement — same flag shared across all services.
+      # Default false keeps local demo usable without tokens.
+      XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
+      XDR_CORRELATION_INTERNAL_TOKEN: ${XDR_CORRELATION_INTERNAL_TOKEN:-}
     ports:
       - "8093:8093"
     depends_on:
@@ -341,6 +345,9 @@ services:
       # DLQ consumer — normalization failures only; does NOT create incidents
       XDR_DLQ_CONSUMER_ENABLED: ${XDR_DLQ_CONSUMER_ENABLED:-false}
       XDR_DLQ_TOPIC: ${XDR_DLQ_TOPIC:-telemetry.normalization_failed}
+      # Internal auth enforcement
+      XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
+      XDR_ALERT_WRITER_INTERNAL_TOKEN: ${XDR_ALERT_WRITER_INTERNAL_TOKEN:-}
     ports:
       - "8095:8095"
     depends_on:
@@ -368,6 +375,9 @@ services:
       XDR_INCIDENT_BUILDER_GROUP: incident-builder-v1
       XDR_EVENT_LOOP_ENABLED: "true"
       XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET: ${XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET:-earliest}
+      # Internal auth enforcement
+      XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
+      XDR_INCIDENT_BUILDER_INTERNAL_TOKEN: ${XDR_INCIDENT_BUILDER_INTERNAL_TOKEN:-}
     ports:
       - "8096:8096"
     depends_on:

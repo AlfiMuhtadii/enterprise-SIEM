@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 import requests
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 
@@ -79,6 +80,7 @@ METRICS: Dict[str, Any] = {
     "dlq_consumer_records_written": 0,
     "dlq_consumer_records_upserted": 0,
     "dlq_consumer_errors": 0,
+    "internal_auth_mode": "permissive",
 }
 SEEN: set[str] = set()
 DLQ: List[Dict[str, Any]] = []
@@ -499,10 +501,15 @@ def event_loop() -> None:
                 time.sleep(2)
 
 
+def _auth_mode() -> str:
+    return "enforced" if os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"} else "permissive"
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     shadow_enabled = os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     dlq_enabled    = os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    auth_mode = _auth_mode()
     return {
         "status": "ok",
         "service": "alert-writer",
@@ -514,12 +521,14 @@ def health() -> Dict[str, Any]:
         "shadow_network_topic":  os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network"),
         "dlq_consumer_enabled":  dlq_enabled,
         "dlq_topic":             os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
+        "internal_auth_mode":    auth_mode,
     }
 
 
 @app.get("/metrics")
 def metrics() -> Dict[str, Any]:
     METRICS["idempotency_cache_size"] = len(SEEN)
+    METRICS["internal_auth_mode"] = _auth_mode()
     return METRICS
 
 
@@ -529,7 +538,12 @@ def dlq() -> Dict[str, Any]:
 
 
 @app.post("/v1/write")
-def write(request: WriteRequest) -> Dict[str, Any]:
+def write(
+    request: WriteRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
     started = time.perf_counter()
     METRICS["batches"] += 1
     METRICS["alerts_seen"] += len(request.alerts)
@@ -581,7 +595,12 @@ def write(request: WriteRequest) -> Dict[str, Any]:
 
 
 @app.post("/v1/process")
-def process(request: WriteRequest) -> Dict[str, Any]:
+def process(
+    request: WriteRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
     return process_alerts(request.alerts, request.trace_id, request.source_topic)
 
 
@@ -984,21 +1003,31 @@ def dlq_consumer_event_loop() -> None:
 
 
 def validate_startup_secrets() -> None:
-    issues = []
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
+    token_set = bool(os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN", "").strip())
+    if enforce:
+        if not token_set:
+            print("[SECURITY-FATAL] alert-writer-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_ALERT_WRITER_INTERNAL_TOKEN is not set — refusing to start", flush=True)
+            sys.exit(1)
+        print("[SECURITY] alert-writer-service: internal auth enforced — /v1/write and /v1/process require X-Internal-Service-Token", flush=True)
+    else:
+        if not token_set:
+            print("[SECURITY-WARN] alert-writer-service: XDR_ALERT_WRITER_INTERNAL_TOKEN not set — /v1/write internal auth is permissive", flush=True)
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
-        issues.append("XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
-    if not os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN"):
-        issues.append("XDR_ALERT_WRITER_INTERNAL_TOKEN not set — /v1/write internal auth is permissive")
+        print("[SECURITY-WARN] alert-writer-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback", flush=True)
     ingest_secret = os.getenv("XDR_INGEST_SECRET", "")
     if ingest_secret == "dev-secret-change-me":
-        issues.append("XDR_INGEST_SECRET is using dev default — replace in production")
-    for issue in issues:
-        print(f"[SECURITY-WARN] alert-writer-service: {issue}", flush=True)
+        print("[SECURITY-WARN] alert-writer-service: XDR_INGEST_SECRET is using dev default — replace in production", flush=True)
 
 
 def verify_internal_token(token: str) -> bool:
-    """Verify X-Internal-Service-Token header. Permissive when env var is not set."""
+    """Verify X-Internal-Service-Token. Permissive unless XDR_ENFORCE_INTERNAL_AUTH=true."""
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
     expected = os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN", "")
+    if enforce:
+        if not expected:
+            return False  # enforced but not configured — startup should have caught this
+        return token == expected
     if not expected:
         return True  # permissive: not configured
     return token == expected

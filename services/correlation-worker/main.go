@@ -97,9 +97,54 @@ type Worker struct {
 	shadowAlertsPublished atomic.Int64
 }
 
+func validateCorrelationSecrets() {
+	enforced := envBool("XDR_ENFORCE_INTERNAL_AUTH", false)
+	token := env("XDR_CORRELATION_INTERNAL_TOKEN", "")
+	if enforced {
+		if token == "" {
+			log.Fatalf("[SECURITY-FATAL] XDR_ENFORCE_INTERNAL_AUTH=true but XDR_CORRELATION_INTERNAL_TOKEN is not set — refusing to start")
+		}
+		log.Printf("[SECURITY] correlation-worker: internal auth enforced — /v1/correlate requires X-Internal-Service-Token")
+	} else {
+		if token == "" {
+			log.Printf("[SECURITY-WARN] XDR_ENFORCE_INTERNAL_AUTH not set — /v1/correlate has no token enforcement (unsafe for non-local deployments)")
+		} else {
+			log.Printf("[SECURITY-INFO] XDR_CORRELATION_INTERNAL_TOKEN set (permissive mode — set XDR_ENFORCE_INTERNAL_AUTH=true to enforce)")
+		}
+	}
+}
+
+func verifyCorrelationToken(token string) error {
+	enforced := envBool("XDR_ENFORCE_INTERNAL_AUTH", false)
+	expected := env("XDR_CORRELATION_INTERNAL_TOKEN", "")
+	if enforced {
+		if expected == "" {
+			return fmt.Errorf("internal_auth_enforced_no_token_configured")
+		}
+		if token == "" {
+			return fmt.Errorf("missing_token")
+		}
+		if token != expected {
+			return fmt.Errorf("invalid_token")
+		}
+		return nil
+	}
+	if expected == "" {
+		return nil
+	}
+	if token == "" {
+		return fmt.Errorf("missing_token")
+	}
+	if token != expected {
+		return fmt.Errorf("invalid_token")
+	}
+	return nil
+}
+
 func main() {
 	addr := flag.String("addr", env("XDR_CORRELATION_ADDR", ":8093"), "listen address")
 	flag.Parse()
+	validateCorrelationSecrets()
 	debug.SetGCPercent(envInt("XDR_CORRELATION_GOGC", 300))
 	w := &Worker{
 		redpandaREST:      env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
@@ -173,6 +218,10 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"output_topic":   w.outputTopic,
 		"goroutines":    runtime.NumGoroutine(),
 		"heap_alloc_mb": float64(mem.HeapAlloc) / 1024.0 / 1024.0,
+		"internal_auth_mode": func() string {
+			if envBool("XDR_ENFORCE_INTERNAL_AUTH", false) { return "enforced" }
+			return "permissive"
+		}(),
 	})
 }
 
@@ -395,6 +444,10 @@ func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {
 	started := time.Now()
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := verifyCorrelationToken(r.Header.Get("X-Internal-Service-Token")); err != nil {
+		http.Error(rw, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 32*1024*1024))
@@ -2171,6 +2224,10 @@ func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Req
 	started := time.Now()
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := verifyCorrelationToken(r.Header.Get("X-Internal-Service-Token")); err != nil {
+		http.Error(rw, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 32*1024*1024))

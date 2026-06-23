@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from collections import defaultdict
@@ -14,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 import requests
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 
@@ -61,6 +62,7 @@ METRICS: Dict[str, Any] = {
     "events_published": 0,
     "contract_validation_failures": 0,
     "operational_events_stored": 0,
+    "internal_auth_mode": "permissive",
 }
 DLQ: List[Dict[str, Any]] = []
 STOP = threading.Event()
@@ -477,19 +479,26 @@ def event_loop() -> None:
                 time.sleep(2)
 
 
+def _auth_mode() -> str:
+    return "enforced" if os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"} else "permissive"
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    auth_mode = _auth_mode()
     return {
         "status": "ok",
         "service": "incident-builder",
         "mode": "event-driven",
         "consumes": os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created"),
         "produces": os.getenv("XDR_INCIDENTS_TOPIC", "incidents.updated"),
+        "internal_auth_mode": auth_mode,
     }
 
 
 @app.get("/metrics")
 def metrics() -> Dict[str, Any]:
+    METRICS["internal_auth_mode"] = _auth_mode()
     return METRICS
 
 
@@ -499,7 +508,12 @@ def dlq() -> Dict[str, Any]:
 
 
 @app.post("/v1/build")
-def build(request: BuildRequest) -> Dict[str, Any]:
+def build(
+    request: BuildRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
     started = time.perf_counter()
     METRICS["batches"] += 1
     METRICS["alerts_seen"] += len(request.alerts)
@@ -534,23 +548,38 @@ def build(request: BuildRequest) -> Dict[str, Any]:
 
 
 @app.post("/v1/process")
-def process(request: BuildRequest) -> Dict[str, Any]:
+def process(
+    request: BuildRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
     return process_alerts(request.alerts, request.trace_id, request.source_topic)
 
 
 def validate_startup_secrets() -> None:
-    issues = []
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
+    token_set = bool(os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", "").strip())
+    if enforce:
+        if not token_set:
+            print("[SECURITY-FATAL] incident-builder-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_INCIDENT_BUILDER_INTERNAL_TOKEN is not set — refusing to start", flush=True)
+            sys.exit(1)
+        print("[SECURITY] incident-builder-service: internal auth enforced — /v1/build and /v1/process require X-Internal-Service-Token", flush=True)
+    else:
+        if not token_set:
+            print("[SECURITY-WARN] incident-builder-service: XDR_INCIDENT_BUILDER_INTERNAL_TOKEN not set — /v1/build internal auth is permissive", flush=True)
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
-        issues.append("XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
-    if not os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN"):
-        issues.append("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN not set — /v1/build internal auth is permissive")
-    for issue in issues:
-        print(f"[SECURITY-WARN] incident-builder-service: {issue}", flush=True)
+        print("[SECURITY-WARN] incident-builder-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback", flush=True)
 
 
 def verify_internal_token(token: str) -> bool:
-    """Verify X-Internal-Service-Token header. Permissive when env var is not set."""
+    """Verify X-Internal-Service-Token. Permissive unless XDR_ENFORCE_INTERNAL_AUTH=true."""
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
     expected = os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", "")
+    if enforce:
+        if not expected:
+            return False  # enforced but not configured — startup should have caught this
+        return token == expected
     if not expected:
         return True  # permissive: not configured
     return token == expected

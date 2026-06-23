@@ -565,6 +565,59 @@ def check_internal_auth_posture(
     }
 
 
+def check_internal_auth_posture_service(
+    component: str,
+    service_url: str,
+    token_env_var: str,
+    env_vars: dict,
+    timeout: int,
+) -> CheckResult:
+    """Advisory: internal auth posture for a given microservice.
+
+    PASS if XDR_ENFORCE_INTERNAL_AUTH=true and the service token is configured.
+    WARN otherwise — permissive posture acceptable for local demo only.
+    """
+    check_name = f"internal auth posture ({component})"
+    TRUE_FLAGS = {"1", "true", "yes"}
+    enforce_flag = env_vars.get("XDR_ENFORCE_INTERNAL_AUTH", "").strip().lower() in TRUE_FLAGS
+    token_set    = bool(env_vars.get(token_env_var, "").strip())
+
+    murl = service_url.rstrip("/") + "/metrics"
+    code, body = http_get(murl, timeout)
+    live_mode = "unknown"
+    if code == 200:
+        try:
+            live_mode = json.loads(body).get("internal_auth_mode", "unknown")
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    if enforce_flag and token_set:
+        return {
+            "component": component,
+            "check": check_name,
+            "status": PASS,
+            "evidence": f"internal_auth_mode={live_mode}, XDR_ENFORCE_INTERNAL_AUTH=true, token=configured",
+            "required": False,
+        }
+
+    reasons: list[str] = []
+    if not enforce_flag:
+        reasons.append("XDR_ENFORCE_INTERNAL_AUTH not set")
+    if not token_set:
+        reasons.append(f"{token_env_var} not set")
+
+    return {
+        "component": component,
+        "check": check_name,
+        "status": WARN,
+        "evidence": (
+            f"internal_auth_mode={live_mode} — {', '.join(reasons)}"
+            "; unauthenticated (local demo only)"
+        ),
+        "required": False,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Table rendering
 # ---------------------------------------------------------------------------
@@ -703,6 +756,12 @@ def main() -> int:
         check_pandaproxy_exposure(redpanda_url, timeout),
         # 16: internal auth posture — advisory security posture (XDR_ENFORCE_INTERNAL_AUTH)
         check_internal_auth_posture(normalizer_url, env_vars, timeout),
+        # 17: alert-writer internal auth posture
+        check_internal_auth_posture_service("alert-writer", alert_writer_url, "XDR_ALERT_WRITER_INTERNAL_TOKEN", env_vars, timeout),
+        # 18: incident-builder internal auth posture
+        check_internal_auth_posture_service("incident-builder", incident_url, "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", env_vars, timeout),
+        # 19: correlation-worker internal auth posture
+        check_internal_auth_posture_service("correlation-worker", correlation_url, "XDR_CORRELATION_INTERNAL_TOKEN", env_vars, timeout),
     ]
 
     print()
