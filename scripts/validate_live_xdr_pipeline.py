@@ -687,7 +687,10 @@ def main() -> int:
     correlation_url= normalise_addr(correlation_url)
 
     alert_topic   = env_vars.get("XDR_ALERTS_TOPIC", "xdr.alerts")
-    required_topics = ["telemetry.raw", "telemetry.normalized", alert_topic]
+    corr_failed_topic  = env_vars.get("XDR_CORRELATION_FAILED_TOPIC", "xdr.correlation_failed")
+    write_failed_topic = env_vars.get("XDR_ALERT_WRITE_FAILED_TOPIC", "xdr.alert_write_failed")
+    required_topics = ["telemetry.raw", "telemetry.normalized", alert_topic,
+                       corr_failed_topic, write_failed_topic]
 
     TRUE_FLAGS = {"1", "true", "yes"}
 
@@ -762,6 +765,12 @@ def main() -> int:
         check_internal_auth_posture_service("incident-builder", incident_url, "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", env_vars, timeout),
         # 19: correlation-worker internal auth posture
         check_internal_auth_posture_service("correlation-worker", correlation_url, "XDR_CORRELATION_INTERNAL_TOKEN", env_vars, timeout),
+        # 20: structured failure topic watermarks — advisory visibility (topics exist once bootstrap runs)
+        check_topic_watermarks(
+            "http://127.0.0.1:9644",
+            [corr_failed_topic, write_failed_topic],
+            timeout,
+        ),
     ]
 
     print()

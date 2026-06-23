@@ -34,6 +34,8 @@ REQUIRED_TOPICS: list[str] = [
     "xdr.alerts",
     "alerts.created",
     "telemetry.normalization_failed",
+    "xdr.correlation_failed",
+    "xdr.alert_write_failed",
 ]
 
 PASS    = "PASS"

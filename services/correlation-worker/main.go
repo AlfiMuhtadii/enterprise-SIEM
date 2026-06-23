@@ -78,6 +78,7 @@ type Worker struct {
 	inputTopic        string
 	outputTopic       string
 	dlqTopic          string
+	correlationFailedTopic   string
 	shadowAlertsTopic        string
 	networkShadowAlertsTopic string
 	iocLookupURL             string
@@ -95,6 +96,8 @@ type Worker struct {
 	consumerRecreateCount atomic.Int64
 	retryCount            atomic.Int64
 	shadowAlertsPublished atomic.Int64
+	dlqWritten            atomic.Int64
+	dlqWriteErrors        atomic.Int64
 }
 
 func validateCorrelationSecrets() {
@@ -151,6 +154,7 @@ func main() {
 		inputTopic:        env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
 		outputTopic:       env("XDR_ALERTS_TOPIC", "xdr.alerts"),
 		dlqTopic:          env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
+		correlationFailedTopic:   env("XDR_CORRELATION_FAILED_TOPIC", "xdr.correlation_failed"),
 		shadowAlertsTopic:        env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
 		networkShadowAlertsTopic: env("XDR_NETWORK_SHADOW_TOPIC",   "xdr.alerts.shadow.network"),
 		iocLookupURL:      env("XDR_IOC_LOOKUP_URL", ""),
@@ -214,8 +218,11 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
 		"ioc_lookup_total":        iocLookupTotal.Load(),
 		"ioc_match_total":         iocMatchTotal.Load(),
+		"dlq_written":             w.dlqWritten.Load(),
+		"dlq_write_errors":        w.dlqWriteErrors.Load(),
 		"input_topic":             w.inputTopic,
-		"output_topic":   w.outputTopic,
+		"output_topic":            w.outputTopic,
+		"correlation_failed_topic": w.correlationFailedTopic,
 		"goroutines":    runtime.NumGoroutine(),
 		"heap_alloc_mb": float64(mem.HeapAlloc) / 1024.0 / 1024.0,
 		"internal_auth_mode": func() string {
@@ -223,6 +230,16 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 			return "permissive"
 		}(),
 	})
+}
+
+func (w *Worker) writeDLQRecord(record map[string]any) error {
+	if err := w.publish(w.correlationFailedTopic, []map[string]any{record}); err != nil {
+		w.dlqWriteErrors.Add(1)
+		log.Printf("correlation dlq write failed topic=%s err=%v", w.correlationFailedTopic, err)
+		return err
+	}
+	w.dlqWritten.Add(1)
+	return nil
 }
 
 func (w *Worker) consumeLoop() {
@@ -271,7 +288,26 @@ func (w *Worker) consumeOnce() {
 			var event Event
 			if err := json.Unmarshal(body, &event); err != nil {
 				w.publishErrors.Add(1)
-				_ = w.publish(w.dlqTopic, []map[string]any{{"error": "invalid_normalized_event", "record": record}})
+				partition := int64(0)
+				offset := int64(0)
+				if p, ok := record["partition"].(float64); ok {
+					partition = int64(p)
+				}
+				if o, ok := record["offset"].(float64); ok {
+					offset = int64(o)
+				}
+				dlqRec := map[string]any{
+					"dlq_event_type":   "correlation_parse_error",
+					"source_topic":     w.inputTopic,
+					"source_partition": partition,
+					"source_offset":    offset,
+					"error_message":    err.Error(),
+					"reason":           "invalid_json",
+					"ts":               time.Now().UTC().Format(time.RFC3339Nano),
+				}
+				if writeErr := w.writeDLQRecord(dlqRec); writeErr != nil {
+					return
+				}
 				continue
 			}
 			events = append(events, event)
@@ -338,7 +374,17 @@ func (w *Worker) consumeOnce() {
 		if err := w.publish(w.outputTopic, []map[string]any{payload}); err != nil {
 			w.publishErrors.Add(1)
 			w.retryCount.Add(1)
-			_ = w.publish(w.dlqTopic, []map[string]any{{"error": err.Error(), "alert_count": len(alerts)}})
+			dlqRec := map[string]any{
+				"dlq_event_type": "correlation_publish_error",
+				"source_topic":   w.inputTopic,
+				"error_message":  err.Error(),
+				"reason":         "alert_publish_failed",
+				"alert_count":    len(alerts),
+				"ts":             time.Now().UTC().Format(time.RFC3339Nano),
+			}
+			if writeErr := w.writeDLQRecord(dlqRec); writeErr != nil {
+				return
+			}
 			continue
 		}
 		w.published.Add(int64(len(alerts)))

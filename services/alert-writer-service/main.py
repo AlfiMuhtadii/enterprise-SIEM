@@ -81,6 +81,8 @@ METRICS: Dict[str, Any] = {
     "dlq_consumer_records_upserted": 0,
     "dlq_consumer_errors": 0,
     "internal_auth_mode": "permissive",
+    "alert_write_dlq_written": 0,
+    "alert_write_dlq_errors": 0,
 }
 SEEN: set[str] = set()
 DLQ: List[Dict[str, Any]] = []
@@ -285,6 +287,40 @@ def produce(topic: str, events: List[Dict[str, Any]]) -> int:
     return len(events)
 
 
+def write_alert_failure(
+    reason: str,
+    error_message: str,
+    source_topic: str,
+    trace_id: Optional[str] = None,
+    alert_count: int = 0,
+) -> bool:
+    """Write structured alert write failure to xdr.alert_write_failed. Returns True on success.
+
+    Failure topics preserve source coordinates so operators can triage write errors
+    without losing context. If this write itself fails, the error is logged in-memory
+    only (DLQ write failure must not cascade into another DLQ write).
+    """
+    dlq_topic = os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed"
+    record: Dict[str, Any] = {
+        "dlq_event_type": "alert_write_failed",
+        "source_topic": source_topic,
+        "error_message": error_message,
+        "reason": reason,
+        "alert_count": alert_count,
+        "ts": now_iso(),
+    }
+    if trace_id:
+        record["trace_id"] = trace_id
+    try:
+        produce(dlq_topic, [record])
+        METRICS["alert_write_dlq_written"] += 1
+        return True
+    except Exception as exc:
+        METRICS["alert_write_dlq_errors"] += 1
+        print(f"[alert-writer] WARN: dlq write failed topic={dlq_topic}: {exc}", flush=True)
+        return False
+
+
 # Signals that identify an offset-out-of-range response from Pandaproxy.
 _OFFSET_RANGE_SIGNALS = frozenset([
     "offset_out_of_range",
@@ -467,6 +503,7 @@ def event_loop() -> None:
             METRICS["consumer_errors"] += 1
             consecutive_errors += 1
             is_offset_err = _is_offset_range_error(exc)
+            dlq_ok = write_alert_failure("event_loop_error", str(exc), topic)
             DLQ.append({
                 "ts": now_iso(),
                 "target": topic,
@@ -476,7 +513,7 @@ def event_loop() -> None:
             })
             METRICS["dlq_count"] = len(DLQ)
 
-            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
                 print(
@@ -519,9 +556,10 @@ def health() -> Dict[str, Any]:
         "shadow_consumer_enabled": shadow_enabled,
         "shadow_endpoint_topic": os.getenv("XDR_SHADOW_ENDPOINT_TOPIC", "xdr.alerts.shadow.endpoint"),
         "shadow_network_topic":  os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network"),
-        "dlq_consumer_enabled":  dlq_enabled,
-        "dlq_topic":             os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
-        "internal_auth_mode":    auth_mode,
+        "dlq_consumer_enabled":       dlq_enabled,
+        "dlq_topic":                  os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
+        "alert_write_failed_topic":   os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed",
+        "internal_auth_mode":         auth_mode,
     }
 
 
@@ -567,12 +605,14 @@ def write(
         METRICS["retry_count"] += 1
         DLQ.append({"ts": now_iso(), "trace_id": request.trace_id, "error": str(exc), "alerts": [a.model_dump() for a in unique[:20]]})
         METRICS["dlq_count"] = len(DLQ)
+        write_alert_failure("postgres_write_failed", str(exc), request.source_topic, request.trace_id, len(unique))
     try:
         written_os = write_opensearch(unique)
     except Exception as exc:
         METRICS["opensearch_failures"] += len(unique)
         DLQ.append({"ts": now_iso(), "trace_id": request.trace_id, "error": str(exc), "target": "opensearch"})
         METRICS["dlq_count"] = len(DLQ)
+        write_alert_failure("opensearch_write_failed", str(exc), request.source_topic, request.trace_id, len(unique))
 
     dry_run = not postgres_configured() and not os.getenv("XDR_OPENSEARCH_URL")
     METRICS["alerts_written"] += max(written_pg, written_os, len(unique) if dry_run else 0)

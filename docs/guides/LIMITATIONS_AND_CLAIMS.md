@@ -218,7 +218,7 @@ The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `
 | Multi-tenant isolation | Real audit/governance records | No DB-level RLS enforcement |
 | External integrations (Okta/Jira/Slack) | Real pipeline code | Simulated delivery by default |
 | DNS/proxy/firewall analytics | Real analysis logic + shadow correlation | Network data is seeded/synthetic |
-| DLQ (telemetry.normalization_failed) | Real — normalizer isolates poison messages and writes to DLQ topic; alert-writer has DLQ topic | No consumer reads DLQ; records accumulate unprocessed |
+| DLQ (telemetry.normalization_failed, xdr.correlation_failed, xdr.alert_write_failed) | Real — normalizer, correlation-worker, and alert-writer each write structured failure records to dedicated DLQ topics with source coordinates, error reason, and timestamp | No consumer reads these DLQ topics; records accumulate and require manual inspection |
 | Internal auth hardening (all 4 services) | Real enforcement mode available (`XDR_ENFORCE_INTERNAL_AUTH=true`) | Default is permissive (demo-safe); validator WARNs per-service when unset (checks 16–19) |
 
 ---
@@ -431,16 +431,18 @@ True Kafka consumer group lag = `committed_offset − high_watermark`, read from
 
 **What is implemented:**
 - normalizer-worker (Go): when a message cannot be parsed or normalised after retries, it writes the raw bytes and error metadata to `telemetry.normalization_failed` topic, commits the offset, and continues polling. Poison messages do not block the consumer.
-- alert-writer-service (Python): `xdr.alerts.dlq` topic reference in configuration.
-- Validator check 12/13 surfaces `poison_skipped` and `dlq_written` counts from worker `/metrics`.
+- correlation-worker (Go): on parse or publish failure, writes a **structured** failure record to `xdr.correlation_failed` (`XDR_CORRELATION_FAILED_TOPIC`) preserving `dlq_event_type`, `source_topic`, `source_partition`, `source_offset`, `error_message`, `reason`, and `ts`. DLQ write happens before next poll (effective offset-commit safety). If DLQ write itself fails, the consumer reconnects (triggering replay). `dlq_written` / `dlq_write_errors` counters exposed in `/metrics`.
+- alert-writer-service (Python): on postgres write failure, opensearch write failure, or event-loop consumer error, writes a **structured** failure record to `xdr.alert_write_failed` (`XDR_ALERT_WRITE_FAILED_TOPIC`) with `dlq_event_type`, `source_topic`, `error_message`, `reason`, `alert_count`, and `ts`. If DLQ write fails, consumer recreation is triggered (no offset commit for the failed batch). `alert_write_dlq_written` / `alert_write_dlq_errors` counters exposed in `/metrics`. In-memory DLQ list is also retained as a secondary fallback.
+- Validator check 7 requires both `xdr.correlation_failed` and `xdr.alert_write_failed` topics to exist; check 20 reports watermarks for both failure topics (advisory, always PASS).
+- `xdr_topic_bootstrap.py` creates both topics automatically.
 
 **What is NOT implemented:**
-- No service consumes `telemetry.normalization_failed` or `xdr.alerts.dlq`. Records accumulate on the topics and are not reprocessed, alerted on, or expired automatically.
-- There is no DLQ replay UI in the SOC dashboard.
-- There is no dead-letter-specific alert or incident lifecycle.
+- No service consumes `xdr.correlation_failed` or `xdr.alert_write_failed`. Records accumulate and require manual `rpk` inspection or operator tooling.
+- There is no DLQ replay UI in the SOC dashboard for the structured failure topics.
+- Source partition/offset is not available for the correlation publish-error case (batch-level failure).
 
 **Correct claim:**
-> "The normalizer isolates unparseable messages into a DLQ topic rather than blocking the pipeline. The DLQ topic exists and accumulates records. There is currently no consumer, replay mechanism, or SOC workflow for DLQ records — they require manual `rpk` inspection."
+> "Correlation and alert-write failures are durably recorded to structured Redpanda DLQ topics (`xdr.correlation_failed`, `xdr.alert_write_failed`) preserving source coordinates, error reason, and timestamp. If the DLQ write itself fails, the consumer reconnects to ensure the record is not silently dropped. No automated replay or alert lifecycle is attached to these topics."
 
 ### Internal Auth Hardening
 
@@ -454,7 +456,7 @@ True Kafka consumer group lag = `committed_offset − high_watermark`, read from
 - **correlation-worker** (`/v1/correlate`, `/v1/correlate-endpoint-shadow`): enforces token; startup `log.Fatalf` if not set when enforced
 - `XDR_ENFORCE_INTERNAL_AUTH=false` (default): validator WARNs but all services remain usable for local demo without tokens
 - Pandaproxy port bound to `127.0.0.1:8082` (loopback-only)
-- Validator checks 15–19: check 15 WARNs on Pandaproxy exposure; checks 16–19 WARN per-service when permissive
+- Validator checks 15–20: check 15 WARNs on Pandaproxy exposure; checks 16–19 WARN per-service when permissive; check 20 reports watermarks for structured failure topics (`xdr.correlation_failed`, `xdr.alert_write_failed`) — advisory, always PASS
 - `WARN` status never blocks `LIVE_PIPELINE_READY`
 
 **What is NOT implemented:**
