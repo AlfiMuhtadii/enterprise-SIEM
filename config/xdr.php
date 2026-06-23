@@ -105,6 +105,15 @@ return [
             'duplicate_rate_max' => (float) env('XDR_CORRELATION_DUPLICATE_RATE_MAX', 0),
         ],
     ],
+    'tenancy' => [
+        // Strict mode: true = production posture.
+        // false (default) = legacy / migration mode.
+        // See docs/security/TENANT_STRICT_MODE.md before enabling in production.
+        'strict_mode' => (bool) env('XDR_TENANT_STRICT_MODE', false),
+
+        // Documentary: strict mode MUST be enabled before multi-tenant production go-live.
+        'strict_mode_production_required' => true,
+    ],
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],
         'incidents_workflow_rbac' => ['driver' => 'postgresql', 'retention_days' => 365],

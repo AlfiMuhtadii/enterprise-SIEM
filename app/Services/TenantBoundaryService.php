@@ -29,6 +29,7 @@ class TenantBoundaryService
     public const RLS_ENABLED = false;
     public const USER_MODEL_HAS_TENANT_ID = false;
     public const USER_TENANT_MEMBERSHIPS_SUPPORTED = true;
+    public const STRICT_MODE_DEFAULT = false;
 
     // Tables with tenant_id column — isolation is possible for these
     public const ISOLATED_TABLES = [

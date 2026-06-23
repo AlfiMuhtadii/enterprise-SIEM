@@ -36,7 +36,7 @@ class AdvisoryFindingsController extends Controller
 
     public function show(Request $request, string $findingId)
     {
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);
@@ -55,7 +55,7 @@ class AdvisoryFindingsController extends Controller
             'note'   => 'nullable|string|max:1000',
         ]);
 
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);

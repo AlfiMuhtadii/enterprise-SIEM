@@ -34,7 +34,7 @@ class DlqController extends Controller
 
     public function show(Request $request, string $recordId)
     {
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $record   = DlqRecord::where('record_id', $recordId)->firstOrFail();
 
         $this->tenantBoundary->assertAccess($record->tenant_id, $tenantId);
@@ -51,7 +51,7 @@ class DlqController extends Controller
             'note'   => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $record   = DlqRecord::where('record_id', $recordId)->firstOrFail();
         $analyst  = $request->user();
         $note     = $request->input('note');

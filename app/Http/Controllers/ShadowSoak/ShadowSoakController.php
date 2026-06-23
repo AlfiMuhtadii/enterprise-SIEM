@@ -28,7 +28,7 @@ class ShadowSoakController extends Controller
 
     public function show(Request $request, string $runId)
     {
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
         $detail   = $this->service->getRunDetail($runId);
 
         $this->tenantBoundary->assertAccess($detail['run']->tenant_id ?? null, $tenantId);

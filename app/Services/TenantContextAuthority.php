@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\TenantContextMissingException;
 use App\Exceptions\TenantSpoofAttemptException;
 use App\Models\TenantMembershipAuditEvent;
 use App\Models\User;
@@ -10,28 +11,41 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Tenant Context Authority — BACKLOG-TENANCY-020
+ * Tenant Context Authority — BACKLOG-TENANCY-020 / 021
  *
  * X-Tenant-ID is a SELECTOR, not an authority.
  *
- * The header names which tenant the user wants to operate in. This service
- * validates that the authenticated user is actually a member of that tenant
- * before the header value is used for any query scoping or record access.
+ * Two operating modes controlled by XDR_TENANT_STRICT_MODE:
  *
- * Posture rules (in priority order):
- * 1. No X-Tenant-ID header → null (no scoping; backward compatible).
- * 2. Admin role → bypass membership check; header is accepted as-is.
- * 3. User with zero memberships → header is accepted as-is (backward compat,
- *    single-tenant / legacy mode). No enforcement until memberships are granted.
- * 4. User with ≥1 active memberships → header MUST match one of them, or
- *    TenantSpoofAttemptException is thrown (→ HTTP 403).
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │ LEGACY MODE (XDR_TENANT_STRICT_MODE=false, default)                 │
+ * │ • No header      → null (no scoping)                                │
+ * │ • Admin          → header accepted, membership bypassed             │
+ * │ • Zero members   → header accepted as-is (backward compat)          │
+ * │ • Has members    → header must match a membership                   │
+ * │                                                                     │
+ * │ NOT PRODUCTION-SAFE. Use only during the migration period.          │
+ * │ See docs/security/TENANT_STRICT_MODE.md.                            │
+ * └─────────────────────────────────────────────────────────────────────┘
  *
- * System / Artisan context:
- * resolveSystemContext() returns a context record with SOURCE_SYSTEM, bypassing
- * all user-membership checks. Use this in Artisan commands and Go/Python services
- * that do not have an authenticated Laravel User.
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │ STRICT MODE (XDR_TENANT_STRICT_MODE=true)                           │
+ * │ • No header + requireTenantContext=true  → TenantContextMissing     │
+ * │ • No header + requireTenantContext=false → null (listing routes OK) │
+ * │ • Admin          → header accepted, membership bypassed (bypass)    │
+ * │ • Zero members   → TenantSpoofAttemptException (no passthrough)     │
+ * │ • Has members    → header must match a membership                   │
+ * └─────────────────────────────────────────────────────────────────────┘
  *
- * See docs/security/TENANT_NULL_MIGRATION_PLAN.md and
+ * Bypass priority order (both modes):
+ *   1. Admin role (ADMIN_ROLE) — always bypasses membership checks
+ *   2. System context (resolveSystemContext) — no User involved
+ *
+ * requireTenantContext=true is used by object-scoped routes (show, review).
+ * Listing and write routes that create new scoped resources use the default false.
+ *
+ * See docs/security/TENANT_STRICT_MODE.md
+ *     docs/security/TENANT_NULL_MIGRATION_PLAN.md
  *     docs/security/TENANT_ISOLATION_POSTURE.md
  */
 class TenantContextAuthority
@@ -39,37 +53,57 @@ class TenantContextAuthority
     public const SOURCE_USER   = 'user';
     public const SOURCE_SYSTEM = 'system';
 
-    // Role that bypasses membership enforcement entirely.
+    /** Role that bypasses membership enforcement entirely (both modes). */
     public const ADMIN_ROLE = 'admin';
+
+    /** Default mode when XDR_TENANT_STRICT_MODE is not set. */
+    public const STRICT_MODE_DEFAULT = false;
 
     /**
      * Validate the X-Tenant-ID header against the user's authorised memberships.
      *
-     * @throws TenantSpoofAttemptException when the user claims a tenant they are not a member of
+     * @param  bool  $requireTenantContext  When true, strict mode will reject a missing header.
+     *                                      Pass true for object-scoped routes (show, review).
+     *                                      Pass false (default) for listing/create routes.
+     *
+     * @throws TenantContextMissingException  in strict mode when header is absent and required
+     * @throws TenantSpoofAttemptException    when user claims a tenant they are not a member of
      * @return string|null validated tenant ID, or null if no header was supplied
      */
-    public function validateAndResolve(Request $request, User $user): ?string
-    {
+    public function validateAndResolve(
+        Request $request,
+        User    $user,
+        bool    $requireTenantContext = false,
+    ): ?string {
         $requestedTenant = $request->header('X-Tenant-ID');
+        $strictMode      = $this->isStrictMode();
 
-        // Rule 1: no header → no scoping
+        // Admin and global-platform-admin bypass: skip all membership enforcement.
+        // Admins can operate without or with any tenant header in either mode.
+        if ($this->isAdminBypass($user)) {
+            return $requestedTenant; // null → no-scoping; non-null → returned as-is
+        }
+
+        // No header
         if ($requestedTenant === null) {
+            if ($strictMode && $requireTenantContext) {
+                throw new TenantContextMissingException($user->id);
+            }
             return null;
         }
 
-        // Rule 2: admin bypass
-        if ($this->isAdminBypass($user)) {
-            return $requestedTenant;
-        }
-
+        // Header present — validate against memberships
         $allowedTenants = $this->getUserTenants($user);
 
-        // Rule 3: no memberships → backward-compatible pass-through
         if (empty($allowedTenants)) {
+            if ($strictMode) {
+                // Strict: zero-membership users cannot claim any tenant header
+                throw new TenantSpoofAttemptException($user->id, $requestedTenant, []);
+            }
+            // Legacy: backward-compatible pass-through (non-production only)
             return $requestedTenant;
         }
 
-        // Rule 4: membership check
         if (!in_array($requestedTenant, $allowedTenants, true)) {
             throw new TenantSpoofAttemptException($user->id, $requestedTenant, $allowedTenants);
         }
@@ -78,8 +112,17 @@ class TenantContextAuthority
     }
 
     /**
+     * Returns true when strict mode is active.
+     * Reads XDR_TENANT_STRICT_MODE from config/xdr.php.
+     */
+    public function isStrictMode(): bool
+    {
+        return (bool) config('xdr.tenancy.strict_mode', self::STRICT_MODE_DEFAULT);
+    }
+
+    /**
      * Return a context record for internal / system callers (Artisan, Go services).
-     * No user-membership check is performed.
+     * Strict mode does not apply — no User is involved.
      */
     public function resolveSystemContext(?string $tenantId): array
     {
@@ -131,16 +174,16 @@ class TenantContextAuthority
             ->first();
 
         if ($existing && $existing->is_active) {
-            return $existing; // idempotent
+            return $existing;
         }
 
         if ($existing && !$existing->is_active) {
             $existing->update([
-                'is_active'   => true,
-                'granted_by'  => $grantedBy,
-                'granted_at'  => now(),
-                'revoked_by'  => null,
-                'revoked_at'  => null,
+                'is_active'  => true,
+                'granted_by' => $grantedBy,
+                'granted_at' => now(),
+                'revoked_by' => null,
+                'revoked_at' => null,
             ]);
             $this->appendAuditEvent($existing->membership_id, $userId, $tenantId, 're_granted', $grantedBy);
             return $existing->fresh();
