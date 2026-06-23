@@ -7,6 +7,10 @@ use Throwable;
 
 class Handler extends ExceptionHandler
 {
+    protected $dontReport = [
+        TenantBoundaryViolationException::class,
+    ];
+
     /**
      * The list of the inputs that are never flashed to the session on validation exceptions.
      *
@@ -25,6 +29,13 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             //
+        });
+
+        $this->renderable(function (TenantBoundaryViolationException $e) {
+            if (request()->expectsJson()) {
+                return response()->json(['error' => 'Forbidden', 'message' => $e->getMessage()], 403);
+            }
+            abort(403, $e->getMessage());
         });
     }
 }

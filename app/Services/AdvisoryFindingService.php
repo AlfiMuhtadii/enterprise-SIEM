@@ -125,18 +125,23 @@ class AdvisoryFindingService
         return $finding;
     }
 
-    public function getSummary(): array
+    public function getSummary(?string $tenantId = null): array
     {
+        $base = AdvisoryFinding::query();
+        if ($tenantId !== null) {
+            $base->where('tenant_id', $tenantId);
+        }
+
         return [
-            'total'               => AdvisoryFinding::count(),
-            'new'                 => AdvisoryFinding::where('status', 'new')->count(),
-            'reviewed'            => AdvisoryFinding::where('status', 'reviewed')->count(),
-            'dismissed'           => AdvisoryFinding::where('status', 'dismissed')->count(),
-            'nominated'           => AdvisoryFinding::where('status', 'nominated')->count(),
-            'promotion_candidates' => AdvisoryFinding::where('promotion_candidate', true)->count(),
-            'by_domain'           => AdvisoryFinding::selectRaw('domain, count(*) as cnt')
+            'total'               => (clone $base)->count(),
+            'new'                 => (clone $base)->where('status', 'new')->count(),
+            'reviewed'            => (clone $base)->where('status', 'reviewed')->count(),
+            'dismissed'           => (clone $base)->where('status', 'dismissed')->count(),
+            'nominated'           => (clone $base)->where('status', 'nominated')->count(),
+            'promotion_candidates' => (clone $base)->where('promotion_candidate', true)->count(),
+            'by_domain'           => (clone $base)->selectRaw('domain, count(*) as cnt')
                 ->groupBy('domain')->pluck('cnt', 'domain')->toArray(),
-            'by_severity'         => AdvisoryFinding::selectRaw('severity, count(*) as cnt')
+            'by_severity'         => (clone $base)->selectRaw('severity, count(*) as cnt')
                 ->groupBy('severity')->pluck('cnt', 'severity')->toArray(),
         ];
     }
@@ -145,6 +150,9 @@ class AdvisoryFindingService
     {
         $q = AdvisoryFinding::query()->orderByDesc('last_seen_at');
 
+        if (!empty($filters['tenant_id'])) {
+            $q->where('tenant_id', $filters['tenant_id']);
+        }
         if (!empty($filters['status'])) {
             $q->where('status', $filters['status']);
         }

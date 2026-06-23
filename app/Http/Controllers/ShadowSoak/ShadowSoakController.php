@@ -5,11 +5,15 @@ namespace App\Http\Controllers\ShadowSoak;
 use App\Http\Controllers\Controller;
 use App\Models\ShadowSoakRun;
 use App\Services\DomainSoakHarnessService;
+use App\Services\TenantBoundaryService;
 use Illuminate\Http\Request;
 
 class ShadowSoakController extends Controller
 {
-    public function __construct(private readonly DomainSoakHarnessService $service) {}
+    public function __construct(
+        private readonly DomainSoakHarnessService $service,
+        private readonly TenantBoundaryService $tenantBoundary,
+    ) {}
 
     public function index(Request $request)
     {
@@ -20,9 +24,12 @@ class ShadowSoakController extends Controller
         return view('shadow-soak.index', compact('runs', 'summary', 'filters'));
     }
 
-    public function show(string $runId)
+    public function show(Request $request, string $runId)
     {
-        $detail = $this->service->getRunDetail($runId);
+        $tenantId = $request->header('X-Tenant-ID');
+        $detail   = $this->service->getRunDetail($runId);
+
+        $this->tenantBoundary->assertAccess($detail['run']->tenant_id ?? null, $tenantId);
 
         return view('shadow-soak.show', $detail);
     }
@@ -37,12 +44,14 @@ class ShadowSoakController extends Controller
             'dry_run' => 'boolean',
         ]);
 
+        $tenantId = $request->header('X-Tenant-ID');
+
         $run = $this->service->startSoakRun(
-            domain:    $request->input('domain'),
+            domain:      $request->input('domain'),
             windowHours: (int) $request->input('hours'),
-            dryRun:    (bool) $request->input('dry_run', false),
-            actor:     (string) auth()->id(),
-            tenantId:  null
+            dryRun:      (bool) $request->input('dry_run', false),
+            actor:       (string) auth()->id(),
+            tenantId:    $tenantId,
         );
 
         if ($run->dry_run) {

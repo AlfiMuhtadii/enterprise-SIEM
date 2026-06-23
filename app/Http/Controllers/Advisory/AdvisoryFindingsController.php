@@ -2,29 +2,44 @@
 
 namespace App\Http\Controllers\Advisory;
 
+use App\Exceptions\TenantBoundaryViolationException;
 use App\Http\Controllers\Controller;
 use App\Models\AdvisoryFinding;
 use App\Services\AdvisoryFindingService;
+use App\Services\TenantBoundaryService;
 use Illuminate\Http\Request;
 
 class AdvisoryFindingsController extends Controller
 {
-    public function __construct(private readonly AdvisoryFindingService $service) {}
+    public function __construct(
+        private readonly AdvisoryFindingService $service,
+        private readonly TenantBoundaryService $tenantBoundary,
+    ) {}
 
     public function index(Request $request)
     {
-        $filters = $request->only(['status', 'domain', 'severity', 'rule_id', 'promotion_candidate']);
+        $tenantId = $request->header('X-Tenant-ID');
+        $filters  = $request->only(['status', 'domain', 'severity', 'rule_id', 'promotion_candidate']);
+
+        if ($tenantId !== null) {
+            $filters['tenant_id'] = $tenantId;
+        }
+
         $findings = $this->service->getFindings($filters);
-        $summary  = $this->service->getSummary();
+        $summary  = $this->service->getSummary($tenantId);
         $domains  = AdvisoryFinding::distinct()->pluck('domain')->sort()->values();
 
         return view('advisory.findings.index', compact('findings', 'summary', 'filters', 'domains'));
     }
 
-    public function show(string $findingId)
+    public function show(Request $request, string $findingId)
     {
-        $finding = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
-        $events  = $finding->events()->orderByDesc('created_at')->get();
+        $tenantId = $request->header('X-Tenant-ID');
+        $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
+
+        $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);
+
+        $events = $finding->events()->orderByDesc('created_at')->get();
 
         return view('advisory.findings.show', compact('finding', 'events'));
     }
@@ -38,7 +53,11 @@ class AdvisoryFindingsController extends Controller
             'note'   => 'nullable|string|max:1000',
         ]);
 
+        $tenantId = $request->header('X-Tenant-ID');
         $finding  = AdvisoryFinding::where('finding_id', $findingId)->firstOrFail();
+
+        $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);
+
         $analystId = auth()->id();
         $note      = $request->input('note', '');
 

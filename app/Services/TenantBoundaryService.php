@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Services;
+
+use App\Exceptions\TenantBoundaryViolationException;
+use Illuminate\Database\Eloquent\Builder;
+
+/**
+ * Tenant Boundary Service — BACKLOG-TENANCY-019
+ *
+ * Provides object-level tenant authorization and query scoping.
+ *
+ * Current posture (2026-06-23):
+ * - PostgreSQL Row-Level Security (RLS) is NOT enabled. This service is the
+ *   primary enforcement layer until RLS is activated.
+ * - User model does NOT carry tenant_id. The tenant context is derived from
+ *   the X-Tenant-ID request header. See TENANT_ISOLATION_POSTURE.md.
+ * - null tenant_id on a record = legacy single-tenant mode (no isolation);
+ *   such records are accessible regardless of the request's tenant context.
+ * - null tenant_id in the request context = no scoping (backward compatible).
+ *
+ * See docs/security/TENANT_ISOLATION_POSTURE.md for the full gap register
+ * and roadmap to RLS enforcement.
+ */
+class TenantBoundaryService
+{
+    public const RLS_ENABLED = false;
+    public const USER_MODEL_HAS_TENANT_ID = false;
+
+    // Tables with tenant_id column — isolation is possible for these
+    public const ISOLATED_TABLES = [
+        'advisory_findings',
+        'advisory_finding_events',
+        'dlq_records',
+        'dlq_normalization_events',
+        'shadow_soak_runs',
+        'shadow_soak_evidence_snapshots',
+        'shadow_soak_gate_checks',
+        'shadow_soak_domain_assessments',
+        'shadow_soak_finding_summaries',
+        'shadow_soak_confidence_bands',
+        'shadow_soak_suppression_stats',
+        'shadow_soak_coverage_stats',
+        'shadow_soak_audit_events',
+        'security_alerts',
+        'security_incidents',
+    ];
+
+    // Tables that still lack tenant_id — documented isolation gap
+    public const UNISOLATED_TABLES = [
+        'users',
+        'security_audit_trails',
+        'telemetry_events',
+        'endpoint_agents',
+        'endpoint_agent_heartbeats',
+    ];
+
+    /**
+     * Assert that the requesting tenant context may access a record.
+     *
+     * Throws TenantBoundaryViolationException if:
+     * - the record has a non-null tenant_id
+     * - AND the request has a non-null tenant context
+     * - AND they do NOT match
+     *
+     * If either tenant_id is null, access is permitted (backward-compatible).
+     */
+    public function assertAccess(?string $recordTenantId, ?string $requestTenantId): void
+    {
+        if ($recordTenantId === null || $requestTenantId === null) {
+            return;
+        }
+
+        if ($recordTenantId !== $requestTenantId) {
+            throw new TenantBoundaryViolationException($recordTenantId, $requestTenantId);
+        }
+    }
+
+    /**
+     * Returns true if the tenant context may access the record.
+     * Non-throwing variant of assertAccess().
+     */
+    public function canAccess(?string $recordTenantId, ?string $requestTenantId): bool
+    {
+        try {
+            $this->assertAccess($recordTenantId, $requestTenantId);
+            return true;
+        } catch (TenantBoundaryViolationException) {
+            return false;
+        }
+    }
+
+    /**
+     * Scope an Eloquent query to a tenant.
+     *
+     * If tenantId is null, the query is returned unchanged (no scoping).
+     * If tenantId is non-null, adds a WHERE tenant_id = ? clause.
+     *
+     * NULL-stored records are excluded from tenant-scoped queries to prevent
+     * leaking unscoped legacy data into tenant contexts. Use scopeOrLegacy()
+     * if null-tenant records should remain visible.
+     */
+    public function scopeQuery(Builder $query, ?string $tenantId): Builder
+    {
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Scope a query to a tenant, also including records with null tenant_id
+     * (legacy single-tenant records visible to all tenant contexts).
+     */
+    public function scopeOrLegacy(Builder $query, ?string $tenantId): Builder
+    {
+        if ($tenantId !== null) {
+            $query->where(function ($q) use ($tenantId) {
+                $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id');
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Returns whether a given table has a tenant_id column (schema-level isolation).
+     */
+    public function tableHasIsolation(string $table): bool
+    {
+        return in_array($table, self::ISOLATED_TABLES, true);
+    }
+
+    /**
+     * Returns the list of tables that are known to be missing tenant_id.
+     */
+    public function getUnisolatedTables(): array
+    {
+        return self::UNISOLATED_TABLES;
+    }
+
+    /**
+     * Returns the isolation posture summary.
+     */
+    public function getPostureSummary(): array
+    {
+        return [
+            'rls_enabled'                  => self::RLS_ENABLED,
+            'user_model_has_tenant_id'     => self::USER_MODEL_HAS_TENANT_ID,
+            'tenant_context_source'        => 'X-Tenant-ID request header',
+            'isolated_tables_count'        => count(self::ISOLATED_TABLES),
+            'unisolated_tables_count'      => count(self::UNISOLATED_TABLES),
+            'enforcement_layer'            => 'application',
+            'rls_roadmap'                  => 'see docs/security/TENANT_ISOLATION_POSTURE.md',
+        ];
+    }
+}

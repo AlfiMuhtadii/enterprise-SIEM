@@ -188,22 +188,29 @@ class DlqReviewService
         return $query->paginate($perPage);
     }
 
-    public function getSummary(): array
+    public function getSummary(?string $tenantId = null): array
     {
-        $counts = DlqRecord::selectRaw('status, count(*) as cnt')
+        $base = DlqRecord::query();
+        if ($tenantId !== null) {
+            $base->where('tenant_id', $tenantId);
+        }
+
+        $counts = (clone $base)->selectRaw('status, count(*) as cnt')
             ->groupBy('status')
             ->pluck('cnt', 'status')
             ->toArray();
 
-        $byType = DlqRecord::selectRaw('dlq_event_type, count(*) as cnt')
+        $byType = (clone $base)->selectRaw('dlq_event_type, count(*) as cnt')
             ->groupBy('dlq_event_type')
             ->pluck('cnt', 'dlq_event_type')
             ->toArray();
 
-        $bySourceTopic = DlqRecord::selectRaw('source_topic, count(*) as cnt')
+        $bySourceTopic = (clone $base)->selectRaw('source_topic, count(*) as cnt')
             ->groupBy('source_topic')
             ->pluck('cnt', 'source_topic')
             ->toArray();
+
+        $replayableBase = (clone $base)->where('replayable', true);
 
         return [
             'total'                => array_sum($counts),
@@ -213,11 +220,11 @@ class DlqReviewService
             'replay_requested'     => $counts['replay_requested'] ?? 0,
             'replayed'             => $counts['replayed'] ?? 0,
             'replay_failed'        => $counts['replay_failed'] ?? 0,
-            'replayable'           => DlqRecord::where('replayable', true)
+            'replayable'           => (clone $replayableBase)
                                          ->whereNotNull('raw_payload')
                                          ->whereNotIn('status', ['ignored', 'replayed'])
                                          ->count(),
-            'replayable_classified' => DlqRecord::where('replayable', true)->count(),
+            'replayable_classified' => (clone $replayableBase)->count(),
             'by_type'              => $byType,
             'by_source_topic'      => $bySourceTopic,
         ];
