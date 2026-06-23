@@ -129,6 +129,24 @@ Use fast iteration by default.
 
 ---
 
+## Review Task Management
+
+Code review findings and tasks are tracked in three files at the repo root:
+
+| File | Purpose |
+|---|---|
+| `REVIEW_ALL.md` | Master list of all findings from all reviews |
+| `REVIEW_BACKLOG.md` | Tasks not yet done (todo) |
+| `REVIEW_COMPLETED.md` | Tasks done and verified (with commit) |
+
+**Rules:**
+- Before starting a task: add it to `REVIEW_BACKLOG.md` if not already there.
+- After completing and verifying a task: move it from `REVIEW_BACKLOG.md` to `REVIEW_COMPLETED.md`.
+- Work tasks one by one (`1 task per session step`) — do not batch-apply without targeted test verification.
+- If a review task adds tests: run targeted `--filter=` first, then full suite before commit.
+
+---
+
 ## Memory Load Order
 Load context in this order — only what is needed for the session:
 1. Current Active Blocker ← start here
