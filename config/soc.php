@@ -70,6 +70,8 @@ return [
             'security.view',
             'advisory.view',
             'advisory.review',
+            'dlq.view',
+            'dlq.review',
         ],
         'analyst' => [
             'dashboard.view',
@@ -98,6 +100,7 @@ return [
             'report.export',
             'advisory.view',
             'advisory.review',
+            'dlq.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -111,6 +114,7 @@ return [
             'response.view',
             'report.view',
             'advisory.view',
+            'dlq.view',
         ],
         'scenario_operator' => [
             'dashboard.view',
@@ -146,6 +150,8 @@ return [
             'report.export',
             'advisory.view',
             'advisory.review',
+            'dlq.view',
+            'dlq.review',
         ],
     ],
 ];

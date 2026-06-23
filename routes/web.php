@@ -82,6 +82,7 @@ use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
 use App\Http\Controllers\Pilot\PilotReadinessController;
 use App\Http\Controllers\Advisory\AdvisoryFindingsController;
+use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1109,6 +1110,15 @@ Route::middleware(['auth', 'soc:advisory.view'])->prefix('advisory')->group(func
 });
 Route::middleware(['auth', 'soc:advisory.review'])->prefix('advisory')->group(function () {
     Route::post('/findings/{findingId}/review', [AdvisoryFindingsController::class, 'review'])->name('advisory.findings.review');
+});
+
+// DLQ Review — normalization failure review, replay-request, and audit trail
+Route::middleware(['auth', 'soc:dlq.view'])->prefix('dlq')->group(function () {
+    Route::get('/records',               [DlqController::class, 'index'])->name('dlq.records.index');
+    Route::get('/records/{recordId}',    [DlqController::class, 'show'])->name('dlq.records.show');
+});
+Route::middleware(['auth', 'soc:dlq.review'])->prefix('dlq')->group(function () {
+    Route::post('/records/{recordId}/review', [DlqController::class, 'review'])->name('dlq.records.review');
 });
 
 require __DIR__.'/auth.php';

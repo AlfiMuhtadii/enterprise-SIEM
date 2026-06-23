@@ -73,6 +73,12 @@ METRICS: Dict[str, Any] = {
     "shadow_findings_written": 0,
     "shadow_findings_upserted": 0,
     "shadow_consumer_errors": 0,
+    # DLQ consumer metrics (normalization_failed topic — separate from active path)
+    "dlq_consumer_polls": 0,
+    "dlq_consumer_records_seen": 0,
+    "dlq_consumer_records_written": 0,
+    "dlq_consumer_records_upserted": 0,
+    "dlq_consumer_errors": 0,
 }
 SEEN: set[str] = set()
 DLQ: List[Dict[str, Any]] = []
@@ -496,6 +502,7 @@ def event_loop() -> None:
 @app.get("/health")
 def health() -> Dict[str, Any]:
     shadow_enabled = os.getenv("XDR_SHADOW_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    dlq_enabled    = os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     return {
         "status": "ok",
         "service": "alert-writer",
@@ -505,6 +512,8 @@ def health() -> Dict[str, Any]:
         "shadow_consumer_enabled": shadow_enabled,
         "shadow_endpoint_topic": os.getenv("XDR_SHADOW_ENDPOINT_TOPIC", "xdr.alerts.shadow.endpoint"),
         "shadow_network_topic":  os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network"),
+        "dlq_consumer_enabled":  dlq_enabled,
+        "dlq_topic":             os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
     }
 
 
@@ -768,6 +777,212 @@ def shadow_event_loop(source_topic: str) -> None:
                 time.sleep(2)
 
 
+# ---------------------------------------------------------------------------
+# DLQ normalization consumer — telemetry.normalization_failed
+# Persists DLQ records to dlq_records table for SOC review.
+# Does NOT publish to alerts.created. Does NOT create incidents.
+# Replay is handled exclusively by Artisan dlq:replay command.
+# ---------------------------------------------------------------------------
+
+def dlq_consumer_fingerprint(
+    dlq_event_type: str,
+    source_topic: str,
+    source_partition: Optional[int],
+    source_offset: Optional[int],
+    error_message: str,
+) -> str:
+    if dlq_event_type == "poison_message_isolated" and source_partition is not None and source_offset is not None:
+        material = f"poison|{source_topic}|{source_partition}|{source_offset}"
+    else:
+        material = f"{dlq_event_type}|{(error_message or '')[:200]}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def normalize_dlq_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Parse DLQ records from telemetry.normalization_failed into structured dicts."""
+    results: List[Dict[str, Any]] = []
+    for record in records:
+        value = record.get("value") or {}
+        if not isinstance(value, dict):
+            continue
+
+        dlq_event_type = value.get("dlq_event_type") or "unknown"
+        error_code     = value.get("error_code")
+        error_message  = str(value.get("error_message") or value.get("error") or "")
+        source_topic   = value.get("source_topic") or "unknown"
+        source_part    = value.get("source_partition")
+        source_off     = value.get("source_offset")
+        consumer_group = value.get("consumer_group")
+        isolated_at    = value.get("isolated_at")
+        tenant_id: Optional[str] = None
+
+        # Attempt to extract tenant_id and raw_payload depending on record type
+        raw_payload: Optional[Dict[str, Any]] = None
+        if dlq_event_type == "poison_message_isolated":
+            # Pandaproxy serialization failure — raw bytes not recoverable
+            raw_payload = None
+        elif "event" in value and isinstance(value["event"], dict):
+            raw_payload = value["event"]
+            tenant_id = raw_payload.get("tenant_id")
+        elif "record" in value and isinstance(value["record"], dict):
+            # malformed record value wrapper
+            raw_payload = value["record"]
+        elif "raw" in value and isinstance(value["raw"], str):
+            # invalid_json from file processing
+            raw_payload = {"raw_text": value["raw"]}
+
+        # Determine descriptive dlq_event_type from error field if not structured
+        if dlq_event_type == "unknown" and error_message:
+            if "invalid_json" in error_message:
+                dlq_event_type = "invalid_json"
+            elif "invalid_record_value" in error_message:
+                dlq_event_type = "malformed_record"
+            elif "missing_required_fields" in error_message or "normalization" in error_message.lower():
+                dlq_event_type = "normalization_failure"
+            elif "publish" in error_message.lower():
+                dlq_event_type = "publish_failure"
+
+        fp = dlq_consumer_fingerprint(dlq_event_type, source_topic, source_part, source_off, error_message)
+
+        results.append({
+            "dlq_event_type":   dlq_event_type,
+            "source_topic":     source_topic,
+            "source_partition": source_part,
+            "source_offset":    source_off,
+            "consumer_group":   consumer_group,
+            "error_code":       int(error_code) if error_code is not None else None,
+            "error_message":    error_message or None,
+            "raw_payload":      json.dumps(raw_payload) if raw_payload is not None else None,
+            "isolated_at":      isolated_at,
+            "tenant_id":        tenant_id,
+            "fingerprint":      fp,
+        })
+    return results
+
+
+def write_dlq_record(record: Dict[str, Any]) -> str:
+    """Upsert a DLQ normalization record. Returns 'inserted' or 'updated'."""
+    conn = connect_pg()
+    if conn is None:
+        return "no_db"
+    now = datetime.now(timezone.utc).isoformat()
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO dlq_records (
+                    record_id, dlq_event_type, source_topic, source_partition, source_offset,
+                    consumer_group, error_code, error_message, raw_payload, isolated_at,
+                    tenant_id, status, fingerprint, occurrence_count,
+                    first_seen_at, last_seen_at, created_at, updated_at
+                ) VALUES (
+                    %s,%s,%s,%s,%s,
+                    %s,%s,%s,%s::jsonb,%s,
+                    %s,'new',%s,1,
+                    %s,%s,now(),now()
+                )
+                ON CONFLICT (fingerprint) DO UPDATE SET
+                    occurrence_count = dlq_records.occurrence_count + 1,
+                    last_seen_at     = excluded.last_seen_at,
+                    updated_at       = now()
+                RETURNING (xmax = 0) AS inserted
+                """,
+                (
+                    "dlq-" + hashlib.sha256((record["fingerprint"] + now).encode()).hexdigest()[:32],
+                    record["dlq_event_type"],
+                    record["source_topic"],
+                    record["source_partition"],
+                    record["source_offset"],
+                    record["consumer_group"],
+                    record["error_code"],
+                    record["error_message"],
+                    record["raw_payload"],
+                    record["isolated_at"],
+                    record["tenant_id"],
+                    record["fingerprint"],
+                    now, now,
+                ),
+            )
+            row = cur.fetchone()
+    return "inserted" if (row and row[0]) else "updated"
+
+
+def dlq_consumer_event_loop() -> None:
+    """Consumer loop for telemetry.normalization_failed. Runs in a daemon thread.
+
+    Persists DLQ records to dlq_records table only.
+    Never publishes to alerts.created. Never creates incidents.
+    Replay runs exclusively via Artisan dlq:replay command.
+    """
+    source_topic = os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed")
+    offset_reset = "earliest"
+    _MAX_ERRORS  = 3
+
+    def _new_ids() -> tuple[str, str]:
+        ts = int(time.time() * 1000)
+        g  = f"dlq-consumer-v1-{ts}"
+        n  = f"dlq-consumer-{ts}"
+        return g, n
+
+    group, name = _new_ids()
+    base_uri: Optional[str] = None
+    consecutive_errors = 0
+
+    def _setup(g: str, n: str) -> str:
+        uri = consumer_create(g, n, offset_reset=offset_reset)
+        consumer_subscribe(uri, source_topic)
+        print(f"[dlq-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        return uri
+
+    try:
+        base_uri = _setup(group, name)
+    except Exception as exc:
+        METRICS["dlq_consumer_errors"] += 1
+        DLQ.append({"ts": now_iso(), "target": source_topic, "error": f"dlq_consumer_start_failed: {exc}"})
+        METRICS["dlq_count"] = len(DLQ)
+        return
+
+    while not STOP.is_set():
+        try:
+            records = consumer_poll(base_uri)
+            METRICS["dlq_consumer_polls"] += 1
+            consecutive_errors = 0
+            parsed = normalize_dlq_records(records)
+            METRICS["dlq_consumer_records_seen"] += len(parsed)
+            for r in parsed:
+                outcome = write_dlq_record(r)
+                METRICS["dlq_consumer_records_written"] += 1
+                if outcome == "updated":
+                    METRICS["dlq_consumer_records_upserted"] += 1
+            if parsed:
+                print(f"[dlq-consumer] {len(parsed)} records  topic={source_topic}", flush=True)
+        except Exception as exc:
+            METRICS["dlq_consumer_errors"] += 1
+            consecutive_errors += 1
+            is_offset_err = _is_offset_range_error(exc)
+            DLQ.append({
+                "ts": now_iso(), "target": source_topic,
+                "error": str(exc), "consecutive_errors": consecutive_errors,
+            })
+            METRICS["dlq_count"] = len(DLQ)
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
+            if should_recreate:
+                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
+                print(f"[dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}", flush=True)
+                if base_uri:
+                    consumer_delete(base_uri)
+                group, name = _new_ids()
+                consecutive_errors = 0
+                try:
+                    base_uri = _setup(group, name)
+                except Exception as se:
+                    METRICS["dlq_consumer_errors"] += 1
+                    print(f"[dlq-consumer] ERROR: recreate failed: {se}", flush=True)
+                    time.sleep(5)
+            else:
+                time.sleep(2)
+
+
 def validate_startup_secrets() -> None:
     issues = []
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
@@ -800,6 +1015,10 @@ def startup() -> None:
         threading.Thread(target=shadow_event_loop, args=(endpoint_topic,), daemon=True).start()
         threading.Thread(target=shadow_event_loop, args=(network_topic,),  daemon=True).start()
         print(f"[shadow-consumer] started  endpoint_topic={endpoint_topic}  network_topic={network_topic}", flush=True)
+    if os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
+        dlq_topic = os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed")
+        threading.Thread(target=dlq_consumer_event_loop, daemon=True).start()
+        print(f"[dlq-consumer] started  topic={dlq_topic}", flush=True)
 
 
 @app.on_event("shutdown")

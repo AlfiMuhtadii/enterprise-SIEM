@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
+// Operations hardening replay job audit events (dlq_replay_events table).
+// See DlqNormalizationEvent for the normalization DLQ review audit trail.
 class DlqReplayEvent extends Model
 {
     public const UPDATED_AT = null; // append-only

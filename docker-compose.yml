@@ -338,6 +338,9 @@ services:
       XDR_SHADOW_CONSUMER_ENABLED: ${XDR_SHADOW_CONSUMER_ENABLED:-false}
       XDR_SHADOW_ENDPOINT_TOPIC: ${XDR_SHADOW_ENDPOINT_TOPIC:-xdr.alerts.shadow.endpoint}
       XDR_SHADOW_NETWORK_TOPIC: ${XDR_SHADOW_NETWORK_TOPIC:-xdr.alerts.shadow.network}
+      # DLQ consumer — normalization failures only; does NOT create incidents
+      XDR_DLQ_CONSUMER_ENABLED: ${XDR_DLQ_CONSUMER_ENABLED:-false}
+      XDR_DLQ_TOPIC: ${XDR_DLQ_TOPIC:-telemetry.normalization_failed}
     ports:
       - "8095:8095"
     depends_on:
