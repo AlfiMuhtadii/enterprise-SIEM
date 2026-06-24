@@ -84,6 +84,7 @@ use App\Http\Controllers\Pilot\PilotReadinessController;
 use App\Http\Controllers\Advisory\AdvisoryFindingsController;
 use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Controllers\ShadowSoak\ShadowSoakController;
+use App\Http\Controllers\EasmController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1129,6 +1130,17 @@ Route::middleware(['auth', 'soc:shadow.soak.view'])->prefix('shadow-soak')->name
 });
 Route::middleware(['auth', 'soc:shadow.soak.run'])->prefix('shadow-soak')->name('shadow-soak.')->group(function () {
     Route::post('/', [ShadowSoakController::class, 'store'])->name('store');
+});
+
+// EASM Passive Posture Monitoring — advisory-only, no active scanning, no containment
+Route::middleware(['auth', 'soc:easm.view'])->group(function () {
+    Route::get('/soc/easm',                                    [EasmController::class, 'index'])->name('soc.easm.index');
+    Route::get('/soc/easm/assets/{assetId}',                   [EasmController::class, 'show'])->name('soc.easm.show');
+    Route::get('/soc/easm/assets/{assetId}/findings',          [EasmController::class, 'findings'])->name('soc.easm.findings');
+});
+Route::middleware(['auth', 'soc:easm.scan'])->group(function () {
+    Route::post('/soc/easm/assets',                            [EasmController::class, 'store'])->name('soc.easm.assets.store');
+    Route::post('/soc/easm/assets/{assetId}/scan',             [EasmController::class, 'scan'])->name('soc.easm.assets.scan');
 });
 
 require __DIR__.'/auth.php';
