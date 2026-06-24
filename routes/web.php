@@ -1135,8 +1135,11 @@ Route::middleware(['auth', 'soc:shadow.soak.run'])->prefix('shadow-soak')->name(
 // EASM Passive Posture Monitoring — advisory-only, no active scanning, no containment
 Route::middleware(['auth', 'soc:easm.view'])->group(function () {
     Route::get('/soc/easm',                                    [EasmController::class, 'index'])->name('soc.easm.index');
+    Route::get('/soc/easm/summary',                            [EasmController::class, 'summary'])->name('soc.easm.summary');
     Route::get('/soc/easm/assets/{assetId}',                   [EasmController::class, 'show'])->name('soc.easm.show');
     Route::get('/soc/easm/assets/{assetId}/findings',          [EasmController::class, 'findings'])->name('soc.easm.findings');
+    Route::get('/soc/easm/assets/{assetId}/history',           [EasmController::class, 'history'])->name('soc.easm.history');
+    Route::get('/soc/easm/assets/{assetId}/report',            [EasmController::class, 'report'])->name('soc.easm.report');
 });
 Route::middleware(['auth', 'soc:easm.scan'])->group(function () {
     Route::post('/soc/easm/assets',                            [EasmController::class, 'store'])->name('soc.easm.assets.store');

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\WebsiteAsset;
-use App\Models\EasmScanRun;
+use App\Models\EasmAssetRiskScore;
 use App\Models\EasmFinding;
+use App\Models\EasmPostureSnapshot;
+use App\Models\EasmScanRun;
+use App\Models\WebsiteAsset;
 use App\Services\EasmPassiveScanService;
+use App\Services\EasmPostureHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,7 +22,10 @@ use Illuminate\View\View;
  */
 class EasmController extends Controller
 {
-    public function __construct(private readonly EasmPassiveScanService $service) {}
+    public function __construct(
+        private readonly EasmPassiveScanService      $service,
+        private readonly EasmPostureHistoryService   $historyService,
+    ) {}
 
     // =========================================================================
     // Index — list website_assets for authenticated tenant (soc:easm.view)
@@ -138,6 +144,70 @@ class EasmController extends Controller
             ->paginate(50);
 
         return response()->json($findings);
+    }
+
+    // =========================================================================
+    // History — posture trend for asset (soc:easm.view)
+    // =========================================================================
+
+    public function history(Request $request, int $assetId): View|JsonResponse
+    {
+        $tenantId = $this->resolveTenantId($request);
+
+        try {
+            $asset = $this->service->validateOwnership($assetId, $tenantId);
+        } catch (\RuntimeException $e) {
+            abort(404, $e->getMessage());
+        }
+
+        $report     = $this->historyService->generateTrendReport($asset);
+        $riskScore  = EasmAssetRiskScore::where('asset_id', $assetId)
+            ->where('tenant_id', $tenantId)
+            ->first();
+
+        $snapshots  = EasmPostureSnapshot::where('asset_id', $assetId)
+            ->where('tenant_id', $tenantId)
+            ->orderByDesc('snapshot_at')
+            ->limit(10)
+            ->get();
+
+        return view('easm.history', compact('asset', 'report', 'riskScore', 'snapshots', 'tenantId'));
+    }
+
+    // =========================================================================
+    // Summary — tenant-level EASM summary (soc:easm.view)
+    // =========================================================================
+
+    public function summary(Request $request): View|JsonResponse
+    {
+        $tenantId = $this->resolveTenantId($request);
+        $summary  = $this->historyService->getTenantEasmSummary($tenantId);
+
+        $riskScores = EasmAssetRiskScore::where('tenant_id', $tenantId)
+            ->orderBy('risk_score')
+            ->with('asset')
+            ->get();
+
+        return view('easm.summary', compact('summary', 'riskScores', 'tenantId'));
+    }
+
+    // =========================================================================
+    // Report — JSON posture trend report (soc:easm.view)
+    // =========================================================================
+
+    public function report(Request $request, int $assetId): JsonResponse
+    {
+        $tenantId = $this->resolveTenantId($request);
+
+        try {
+            $asset = $this->service->validateOwnership($assetId, $tenantId);
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 404);
+        }
+
+        $report = $this->historyService->generateTrendReport($asset);
+
+        return response()->json($report);
     }
 
     // =========================================================================

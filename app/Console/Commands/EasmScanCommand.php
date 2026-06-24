@@ -2,8 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\EasmAssetRiskScore;
+use App\Models\EasmFinding;
 use App\Models\WebsiteAsset;
 use App\Services\EasmPassiveScanService;
+use App\Services\EasmPostureHistoryService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -34,8 +37,10 @@ class EasmScanCommand extends Command
      */
     public ?\Closure $scannerFn = null;
 
-    public function __construct(private readonly EasmPassiveScanService $service)
-    {
+    public function __construct(
+        private readonly EasmPassiveScanService      $service,
+        private readonly EasmPostureHistoryService   $historyService,
+    ) {
         parent::__construct();
     }
 
@@ -139,34 +144,62 @@ class EasmScanCommand extends Command
             return self::FAILURE;
         }
 
-        // ---- Normalise + persist findings -----------------------------------
-        $rawChecks   = $scanResult['checks'] ?? [];
-        $normalised  = $this->service->normalizeCheckResults($rawChecks, $asset);
-        $upserted    = [];
+        // ---- Normalise findings + capture previous state for posture diff ----
+        $rawChecks  = $scanResult['checks'] ?? [];
+        $normalised = $this->service->normalizeCheckResults($rawChecks, $asset);
 
+        // Fetch previous open findings BEFORE upserting (required for accurate diff)
+        $previousFindingsForDiff = [];
+        if ($asset->id) {
+            $previousFindingsForDiff = EasmFinding::where('asset_id', $asset->id)
+                ->where('tenant_id', $tenantId)
+                ->where('status', 'open')
+                ->get()
+                ->map(fn ($f) => ['finding_key' => $f->finding_key, 'severity' => $f->severity])
+                ->toArray();
+        }
+
+        // ---- Upsert findings ------------------------------------------------
+        $upserted = [];
         foreach ($normalised as $nf) {
             if ($asset->id) {
                 $upserted[] = $this->service->upsertFinding($nf);
             }
         }
 
-        // ---- Create scan run (append-only) -----------------------------------
+        // ---- Create scan run (append-only) ----------------------------------
         $run = null;
         if ($asset->id) {
             $run = $this->service->createScanRun([
-                'tenant_id'     => $tenantId,
-                'asset_id'      => $asset->id,
-                'scan_policy'   => 'passive',
+                'tenant_id'       => $tenantId,
+                'asset_id'        => $asset->id,
+                'scan_policy'     => 'passive',
                 'target_hostname' => $asset->hostname,
-                'target_url'    => $url,
-                'status'        => isset($scanResult['error']) ? 'failed' : 'completed',
-                'started_at'    => $scanResult['started_at'] ?? now()->format('Y-m-d H:i:sP'),
-                'finished_at'   => $scanResult['finished_at'] ?? now()->format('Y-m-d H:i:sP'),
-                'finding_count' => count($upserted),
-                'checks_run'    => array_column($rawChecks, 'check'),
-                'error_summary' => $scanResult['error'] ?? null,
-                'is_dry_run'    => false,
+                'target_url'      => $url,
+                'status'          => isset($scanResult['error']) ? 'failed' : 'completed',
+                'started_at'      => $scanResult['started_at'] ?? now()->format('Y-m-d H:i:sP'),
+                'finished_at'     => $scanResult['finished_at'] ?? now()->format('Y-m-d H:i:sP'),
+                'finding_count'   => count($upserted),
+                'checks_run'      => array_column($rawChecks, 'check'),
+                'error_summary'   => $scanResult['error'] ?? null,
+                'is_dry_run'      => false,
             ]);
+        }
+
+        // ---- Posture history update ------------------------------------------
+        if ($run !== null && $asset->id) {
+            try {
+                $score = $this->historyService->computePostureScore($normalised);
+                $diffs = $this->historyService->diffFindings($previousFindingsForDiff, $normalised);
+                $this->historyService->createPostureSnapshot($run, $asset, $normalised, $score, $diffs);
+                $this->historyService->recordFindingChanges($run, $asset, $diffs);
+                $prevScoreRecord = EasmAssetRiskScore::where('asset_id', $asset->id)
+                    ->where('tenant_id', $tenantId)
+                    ->first();
+                $this->historyService->upsertAssetRiskScore($asset, $score, $prevScoreRecord?->risk_score);
+            } catch (\Throwable $e) {
+                $this->warn('Posture history update failed: ' . $e->getMessage());
+            }
         }
 
         // ---- Report ----------------------------------------------------------
