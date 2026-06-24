@@ -30,6 +30,7 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **DR-027** | Backup/restore/recovery readiness — BACKUP_RESTORE_RECOVERY.md runbook + xdr_recovery_validate.py (8 checks + 4 advisory RPO/RTO); 50 Python tests; local PASS 8/0/0 | `cae4eea` | — | 2026-06-24 |
 | **LIVE-028** | Full live regression & evidence freeze — xdr_live_regression_validate.py (5 stages: posture/recovery/lineage/remapping/registry); LIVE_028_EVIDENCE_FREEZE.md; 71 Python tests; all PASS | `880a8d5` | — | 2026-06-24 |
 | **EASM-030** | Website Exposure & Passive Posture Monitoring — 3 migrations, EasmPassiveScanService, EasmScanCommand, EasmController, xdr_easm_passive_scan.py; 58 PHP + 62 Python tests; advisory-only, ownership-guarded, no active scanning | `9304185` | — | 2026-06-24 |
+| **EASM-031** | Website Posture History & Risk Trend — 3 new tables (easm_posture_snapshots/finding_changes append-only; easm_asset_risk_scores mutable), EasmPostureHistoryService (score/tier/trend/diff/snapshot/upsert), updated EasmScanCommand+EasmController, 3 routes, 2 blade views, xdr_easm_posture_history.py; 60 PHP + 45 Python tests; advisory-only | `59b6d75` | — | 2026-06-24 |
 
 ---
 

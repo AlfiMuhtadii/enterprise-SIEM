@@ -1,0 +1,362 @@
+{
+  "__inputs": [],
+  "__requires": [{ "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" }],
+  "annotations": { "list": [] },
+  "description": "XDR Runtime Observability & SLO Readiness — ingestion, normalizer, correlation, alert-writer, incident-builder, DLQ, EASM posture (advisory). No autonomous response.",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Ingestion Rate (accepted / rejected / rate-limited)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, 'accepted' AS metric, accepted AS value FROM telemetry_scale_metrics WHERE $__timeFilter(created_at) UNION ALL SELECT created_at, 'rejected', rejected FROM telemetry_scale_metrics WHERE $__timeFilter(created_at) ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Ingestion p95 Latency (ms) — SLO: local <200ms, staging <100ms, prod <50ms",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT MAX(p95_latency_ms) AS p95_ms FROM telemetry_scale_metrics WHERE created_at > NOW() - INTERVAL '5 minutes'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Ingestion p99 Latency (ms)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT MAX(p99_latency_ms) AS p99_ms FROM telemetry_scale_metrics WHERE created_at > NOW() - INTERVAL '5 minutes'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Circuit Breaker Opens — SLO: prod FAIL>0, staging FAIL>2, local FAIL>5",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT SUM(circuit_open_count) AS cb_opens FROM telemetry_scale_metrics WHERE created_at > NOW() - INTERVAL '1 hour'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Ingestion Rejection Rate (%)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT ROUND(100.0 * SUM(rejected) / NULLIF(SUM(accepted) + SUM(rejected), 0), 2) AS rejection_pct FROM telemetry_scale_metrics WHERE created_at > NOW() - INTERVAL '1 hour'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "DLQ Writes by Source",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, source AS metric, COUNT(*) AS value FROM dlq_records WHERE $__timeFilter(created_at) GROUP BY created_at, source ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "DLQ Pending Records — SLO: prod <10 warn, <100 fail",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS pending FROM dlq_records WHERE status = 'pending'",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "DLQ Error Rate (%)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT ROUND(100.0 * COUNT(CASE WHEN status = 'failed' THEN 1 END) / NULLIF(COUNT(*), 0), 2) AS error_pct FROM dlq_records",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "DLQ Replayable vs Non-Replayable",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT replayable::text AS metric, COUNT(*) AS value FROM dlq_records GROUP BY replayable",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 10,
+      "title": "Alert Generation Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, COUNT(*) AS alerts FROM security_alerts WHERE $__timeFilter(created_at) GROUP BY created_at ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 11,
+      "title": "Incident Creation Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, COUNT(*) AS incidents FROM security_incidents WHERE $__timeFilter(created_at) GROUP BY created_at ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 12,
+      "title": "Publish Errors by Service",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT created_at AS time, service_name AS metric, value FROM telemetry_scale_metrics WHERE metric_name = 'publish_errors' AND $__timeFilter(created_at) ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "EASM Asset Posture Scores (Advisory) — SLO: prod warn<80, fail<60",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 22, "w": 12, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT s.snapshot_at AS time, a.hostname AS metric, s.posture_score AS value FROM easm_posture_snapshots s JOIN website_assets a ON a.id = s.asset_id WHERE $__timeFilter(s.snapshot_at) ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "EASM Open Findings by Severity (Advisory)",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 22, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT severity AS metric, COUNT(*) AS value FROM easm_findings WHERE status = 'open' GROUP BY severity ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "EASM Risk Score Trend by Asset (Advisory)",
+      "type": "table",
+      "gridPos": { "x": 18, "y": 22, "w": 6, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT a.hostname, r.risk_score, r.risk_tier, r.trend_direction, r.total_scans FROM easm_asset_risk_scores r JOIN website_assets a ON a.id = r.asset_id ORDER BY r.risk_score ASC LIMIT 10",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 16,
+      "title": "EASM Finding Change Distribution (Advisory)",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 26, "w": 6, "h": 4 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT change_type AS metric, COUNT(*) AS value FROM easm_finding_changes WHERE changed_at > NOW() - INTERVAL '7 days' GROUP BY change_type",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 17,
+      "title": "SLO Validation Results — Last Run",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT check_id, check_name, status, detail FROM operational_validation_windows WHERE category = 'slo' ORDER BY status DESC, check_id LIMIT 50",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "status" },
+          "properties": [{
+            "id": "custom.displayMode",
+            "value": "color-background"
+          }, {
+            "id": "thresholds",
+            "value": {
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0 },
+                { "color": "green", "value": 0 }
+              ]
+            }
+          }]
+        }]
+      }
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["xdr", "observability", "slo", "pipeline", "easm", "advisory"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Runtime Observability & SLO Readiness",
+  "uid": "xdr-obs-slo-029",
+  "version": 1
+}
