@@ -2,7 +2,7 @@
 
 Covers:
 - All 10 security checks (C-01 through C-10) across all three profiles
-- Deferred risk visibility (D-01 through D-04) always surfaced as WARN
+- Deferred risk visibility (D-01/D-02/D-03 IMPLEMENTED→INFO, D-04 still WARN)
 - Accepted risk visibility (A-01 through A-04) always surfaced as INFO
 - Profile-based severity escalation (local=WARN, staging/production=FAIL)
 - Placeholder detection
@@ -299,14 +299,14 @@ class TestCheckDlqConsumers(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestDeferredRisks(unittest.TestCase):
-    def test_ig1_is_warn(self):
-        self.assertEqual(pc.deferred_ig1()["status"], pc.WARN)
+    def test_ig1_is_info(self):
+        self.assertEqual(pc.deferred_ig1()["status"], pc.INFO)
 
-    def test_ig2_is_warn(self):
-        self.assertEqual(pc.deferred_ig2()["status"], pc.WARN)
+    def test_ig2_is_info(self):
+        self.assertEqual(pc.deferred_ig2()["status"], pc.INFO)
 
-    def test_ig3_is_warn(self):
-        self.assertEqual(pc.deferred_ig3()["status"], pc.WARN)
+    def test_ig3_is_info(self):
+        self.assertEqual(pc.deferred_ig3()["status"], pc.INFO)
 
     def test_infra3_is_warn(self):
         self.assertEqual(pc.deferred_infra3()["status"], pc.WARN)

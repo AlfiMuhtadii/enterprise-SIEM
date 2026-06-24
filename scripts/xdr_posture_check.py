@@ -25,9 +25,9 @@ Checks:
   C-08  Per-service internal tokens not placeholder / not empty
   C-09  XDR_SHADOW_CONSUMER_ENABLED=false (production advisory-only posture)
   C-10  DLQ consumer flags off (advisory-only by default)
-  D-01  DEFERRED — IG-1: synchronous metrics in request path
-  D-02  DEFERRED — IG-2: global rate limiter token starvation
-  D-03  DEFERRED — IG-3: 15-second retry timeout / socket exhaustion
+  D-01  IMPLEMENTED — IG-1: async metrics poller, admissionAllowed reads cached atomic
+  D-02  IMPLEMENTED — IG-2: per-tenant token-bucket map, isolated per X-Tenant-ID
+  D-03  IMPLEMENTED — IG-3: bounded retry + circuit breaker, context.WithTimeout per attempt
   D-04  DEFERRED — INFRA-3: no container CPU/memory limits
   A-01  ACCEPTED RISK — DB-3: seeder users locked out in strict mode
   A-02  ACCEPTED RISK — DB-4: NULL tenant_id in demo alerts/incidents
@@ -261,49 +261,46 @@ def check_dlq_consumers(env: dict, profile: str) -> dict:
 def deferred_ig1() -> dict:
     return {
         "check_id": "D-01",
-        "name": "DEFERRED: IG-1 synchronous metrics polling in request path",
-        "status": WARN,
+        "name": "IMPLEMENTED: IG-1 async normalizer metrics polling (BACKLOG-INGESTION-025)",
+        "status": INFO,
         "detail": (
-            "ingestion-gateway polls normalizer metrics synchronously inside the HTTP "
-            "request handler. Under high RPS this adds latency and risks goroutine blocking."
+            "admissionAllowed() reads a cached atomic (normalizerQueueDepth). "
+            "startMetricsPoller() runs as a background goroutine polling at "
+            "XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS (default 5s). "
+            "No synchronous HTTP call inside the request handler."
         ),
-        "remediation": (
-            "Move metrics poll to a background goroutine before production load test. "
-            "See REVIEW_REJECTED.md §2 / BACKLOG-INGESTION-025."
-        ),
+        "remediation": "No action required. Implemented in commit 3027e08.",
     }
 
 
 def deferred_ig2() -> dict:
     return {
         "check_id": "D-02",
-        "name": "DEFERRED: IG-2 global rate limiter token starvation",
-        "status": WARN,
+        "name": "IMPLEMENTED: IG-2 per-tenant rate limiter (BACKLOG-INGESTION-025)",
+        "status": INFO,
         "detail": (
-            "ingestion-gateway uses a single global token bucket. In multi-tenant "
-            "deployment one high-volume tenant can exhaust the bucket and starve others."
+            "ingestion-gateway now uses a per-tenant token-bucket map (sync.Map). "
+            "Each tenant is identified by the X-Tenant-ID header; buckets are isolated "
+            "so one high-volume tenant cannot starve others. "
+            "XDR_INGEST_PER_TENANT_RPS configures per-tenant bucket size."
         ),
-        "remediation": (
-            "Implement per-tenant rate limiter map before multi-tenant pilot onboarding. "
-            "See REVIEW_REJECTED.md §2 / BACKLOG-INGESTION-025."
-        ),
+        "remediation": "No action required. Implemented in commit 3027e08.",
     }
 
 
 def deferred_ig3() -> dict:
     return {
         "check_id": "D-03",
-        "name": "DEFERRED: IG-3 15-second retry timeout / socket exhaustion",
-        "status": WARN,
+        "name": "IMPLEMENTED: IG-3 bounded retry + circuit breaker (BACKLOG-INGESTION-025)",
+        "status": INFO,
         "detail": (
-            "Kafka producer retries in ingestion-gateway use a 15-second timeout. "
-            "Under sustained Redpanda outage + high concurrency, goroutines accumulate "
-            "and sockets are not released."
+            "publish() now uses context.WithTimeout per attempt "
+            "(XDR_PUBLISH_TIMEOUT_SECONDS, default 5s), exponential backoff "
+            "(100ms/200ms/400ms, capped at 1s), and a circuit breaker "
+            "(XDR_PUBLISH_CB_FAILURES=5, XDR_PUBLISH_CB_OPEN_SECONDS=30). "
+            "Circuit open returns immediately without network I/O."
         ),
-        "remediation": (
-            "Add bounded retry with exponential backoff + circuit breaker on producer path. "
-            "See REVIEW_REJECTED.md §2 / BACKLOG-INGESTION-025."
-        ),
+        "remediation": "No action required. Implemented in commit 3027e08.",
     }
 
 
