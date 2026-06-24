@@ -27,6 +27,7 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **PROD-024** | Production runtime posture checker — 3 profiles (local/staging/production), 18 checks, 58 tests | `a7c5fa5` | — | 2026-06-24 |
 | **INGESTION-025** | Ingestion-gateway backpressure hardening — async metrics poller (IG-1), per-tenant rate limiter (IG-2), bounded retry + circuit breaker (IG-3); 14 Go tests; D-01/D-02/D-03 resolved to INFO | `3027e08`, `e88c103`, `7fcdd41` | — | 2026-06-24 |
 | **SCALE-026** | Ingestion hardening controlled load & soak validation — 6 scenarios (S-01–S-06), 10 metrics captured, 5 bounds checks; 65 Python tests; report PASS (11/11) | `204e152` | — | 2026-06-24 |
+| **DR-027** | Backup/restore/recovery readiness — BACKUP_RESTORE_RECOVERY.md runbook + xdr_recovery_validate.py (8 checks + 4 advisory RPO/RTO); 50 Python tests; local PASS 8/0/0 | `cae4eea` | — | 2026-06-24 |
 
 ---
 
