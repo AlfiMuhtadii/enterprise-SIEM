@@ -1,0 +1,146 @@
+{
+  "__inputs": [],
+  "__requires": [{ "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" }],
+  "annotations": { "list": [] },
+  "description": "PILOT-034 Enterprise Pilot Readiness Matrix — advisory-only, no autonomous promotion. Tracks matrix runs, gate evaluations, required gate status, and dimension breakdown.",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Matrix Run Status — All Runs",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 0, "w": 14, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT matrix_run_id, tenant_id, status, ROUND(matrix_score * 100, 1) AS score_pct, gates_passed, gates_warned, gates_failed, required_gates_pass, finalized_at FROM pilot_readiness_matrix_runs ORDER BY created_at DESC LIMIT 20",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "overrides": [{
+          "matcher": { "id": "byName", "options": "status" },
+          "properties": [{
+            "id": "custom.displayMode",
+            "value": "color-background"
+          }, {
+            "id": "mappings",
+            "value": [
+              { "type": "value", "options": { "passed": { "color": "green", "index": 0 } } },
+              { "type": "value", "options": { "failed": { "color": "red", "index": 1 } } },
+              { "type": "value", "options": { "initiated": { "color": "yellow", "index": 2 } } }
+            ]
+          }]
+        }]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Matrix Score Distribution",
+      "type": "histogram",
+      "gridPos": { "x": 14, "y": 0, "w": 10, "h": 8 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT ROUND(matrix_score * 100, 0) AS score_bucket FROM pilot_readiness_matrix_runs WHERE status IN ('passed', 'failed') ORDER BY created_at DESC LIMIT 100",
+        "format": "table"
+      }],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Required Gate Pass Rate",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT required_gates_pass::text AS metric, COUNT(*) AS value FROM pilot_readiness_matrix_runs GROUP BY required_gates_pass",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 4,
+      "title": "Gate Evaluations by Dimension",
+      "type": "bargauge",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT dimension AS metric, COUNT(*) AS value FROM pilot_readiness_gate_evaluations WHERE $__timeFilter(evaluated_at) GROUP BY dimension ORDER BY value DESC",
+        "format": "table"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 5,
+      "title": "Gate Status Breakdown",
+      "type": "piechart",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT status AS metric, COUNT(*) AS value FROM pilot_readiness_gate_evaluations WHERE $__timeFilter(evaluated_at) GROUP BY status",
+        "format": "table"
+      }]
+    },
+    {
+      "id": 6,
+      "title": "Required Gate Failure Events",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT e.evaluated_at AS time, e.gate_id AS metric, 1 AS value FROM pilot_readiness_gate_evaluations e WHERE e.gate_id IN ('soak_validation','replay_verification','tenant_isolation','rollback_readiness') AND e.status = 'fail' AND $__timeFilter(e.evaluated_at) ORDER BY time",
+        "format": "time_series"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Evidence Links — Source Types",
+      "type": "bargauge",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 6 },
+      "datasource": "PostgreSQL",
+      "targets": [{
+        "rawSql": "SELECT source_type AS metric, COUNT(*) AS value FROM pilot_readiness_evidence_links WHERE $__timeFilter(linked_at) GROUP BY source_type ORDER BY value DESC LIMIT 10",
+        "format": "table"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 8,
+      "title": "Advisory Notice",
+      "type": "text",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 3 },
+      "options": {
+        "content": "**Advisory Only — PILOT-034** | All matrix assessments are informational. No autonomous promotion is triggered. SELF_APPROVE_BLOCKED enforced. Operator review required for all go/no-go decisions.",
+        "mode": "markdown"
+      }
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": ["xdr", "pilot", "readiness", "matrix", "advisory"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "XDR Pilot Readiness Matrix — PILOT-034",
+  "uid": "xdr-pilot-readiness-034",
+  "version": 1
+}

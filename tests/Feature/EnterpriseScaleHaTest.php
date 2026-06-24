@@ -549,7 +549,7 @@ class EnterpriseScaleHaTest extends TestCase
     public function test_total_hunt_domains_is_140(): void
     {
         $svc = app(ThreatHuntingService::class);
-        $this->assertCount(161, $svc->supportedDomains());
+        $this->assertCount(164, $svc->supportedDomains());
     }
 
     public function test_hunt_cluster_topology_reports(): void

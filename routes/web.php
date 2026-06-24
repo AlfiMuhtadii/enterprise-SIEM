@@ -85,6 +85,7 @@ use App\Http\Controllers\Advisory\AdvisoryFindingsController;
 use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
+use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1144,6 +1145,12 @@ Route::middleware(['auth', 'soc:easm.view'])->group(function () {
 Route::middleware(['auth', 'soc:easm.scan'])->group(function () {
     Route::post('/soc/easm/assets',                            [EasmController::class, 'store'])->name('soc.easm.assets.store');
     Route::post('/soc/easm/assets/{assetId}/scan',             [EasmController::class, 'scan'])->name('soc.easm.assets.scan');
+});
+
+Route::middleware(['auth', 'soc:pilot.readiness.view'])->group(function () {
+    Route::get('/soc/pilot/readiness-matrix',                        [PilotReadinessMatrixController::class, 'index'])->name('soc.pilot.readiness_matrix.index');
+    Route::get('/soc/pilot/readiness-matrix/{runId}',                [PilotReadinessMatrixController::class, 'show'])->name('soc.pilot.readiness_matrix.show');
+    Route::get('/soc/pilot/readiness-matrix/{runId}/report',         [PilotReadinessMatrixController::class, 'report'])->name('soc.pilot.readiness_matrix.report');
 });
 
 require __DIR__.'/auth.php';

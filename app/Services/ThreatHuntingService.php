@@ -238,6 +238,10 @@ class ThreatHuntingService
         'shadow_soak_runs',
         'shadow_soak_gate_checks',
         'shadow_soak_evidence_snapshots',
+        // Enterprise Pilot Readiness Matrix — PILOT-034
+        'pilot_readiness_matrix_runs',
+        'pilot_readiness_gate_evaluations',
+        'pilot_readiness_evidence_links',
     ];
 
     private const DOMAIN_FIELDS = [

@@ -492,7 +492,7 @@ class CommercialReadinessTest extends TestCase
     public function test_total_hunt_domains_is_135(): void
     {
         $svc = app(ThreatHuntingService::class);
-        $this->assertCount(161, $svc->supportedDomains());
+        $this->assertCount(164, $svc->supportedDomains());
     }
 
     public function test_hunt_tenant_onboarding_runs(): void
