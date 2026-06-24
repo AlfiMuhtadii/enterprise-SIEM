@@ -1,0 +1,118 @@
+# docker-compose.prod.yml — Production-pilot hardening overlay
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile=strangler up -d
+#
+# Purpose:
+#   Hardens the dev-friendly docker-compose.yml for controlled production-pilot
+#   deployment.  Does NOT claim full HA, multi-region, or commercial readiness.
+#   See docs/operations/PRODUCTION_DEPLOYMENT_PROFILE.md for posture and scope.
+#
+# Port security posture:
+#   PostgreSQL, ClickHouse, OpenSearch, Qdrant — no external port exposure
+#   Grafana                                    — localhost-only (127.0.0.1:3000)
+#   Redpanda Pandaproxy                        — localhost-only (127.0.0.1:8082)
+#   Redpanda console                           — localhost-only (127.0.0.1:8080)
+#   Redpanda Kafka OUTSIDE (19092)             — removed in production
+#   app / ingestion-gateway                    — public (required for browser/agents)
+#   Pipeline services (8092-8096)              — no external exposure
+#
+# Requires Docker Compose v2.24+ for !reset YAML tag support.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Message broker: remove Kafka external port; Pandaproxy stays localhost-only
+  # ---------------------------------------------------------------------------
+  redpanda:
+    ports: !reset
+      # Pandaproxy REST API — localhost-only; pipeline services reach it internally
+      - "127.0.0.1:8082:8082"
+      # Kafka OUTSIDE port 19092 removed — no direct Kafka client access in production
+      # Redpanda admin port 9644 removed — accessed via docker exec or SSH tunnel only
+    restart: always
+
+  redpanda-console:
+    ports: !reset
+      # Console UI — localhost-only; access via SSH tunnel (ssh -L 8080:localhost:8080)
+      - "127.0.0.1:8080:8080"
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Data stores: no external port exposure — access via docker exec or bastion
+  # ---------------------------------------------------------------------------
+  postgres:
+    ports: !reset []
+    restart: always
+
+  clickhouse:
+    ports: !reset []
+    restart: always
+
+  opensearch:
+    ports: !reset []
+    restart: always
+
+  qdrant:
+    ports: !reset []
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Grafana: localhost-only + read-only provisioning mounts
+  # ---------------------------------------------------------------------------
+  grafana:
+    ports: !reset
+      # Grafana UI — localhost-only; access via SSH tunnel (ssh -L 3000:localhost:3000)
+      - "127.0.0.1:3000:3000"
+    volumes:
+      # Production: provisioning and dashboards are read-only to prevent drift
+      - ./infra/analytics/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/analytics/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Laravel SOC application: restart always; port 8000 public (browser access)
+  # ---------------------------------------------------------------------------
+  app:
+    restart: always
+
+  queue:
+    restart: always
+
+  scheduler:
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Pipeline services: enforce internal auth; advisory-only consumer posture
+  # ---------------------------------------------------------------------------
+  ingestion-gateway:
+    environment:
+      # Internal auth must be enforced in production — fail fast if token missing
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
+    restart: always
+
+  normalizer-worker:
+    environment:
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
+    restart: always
+
+  correlation-worker:
+    environment:
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
+    restart: always
+
+  alert-writer-service:
+    environment:
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
+      # Shadow and DLQ consumers disabled in production — advisory-only, operator-triggered
+      XDR_SHADOW_CONSUMER_ENABLED: "false"
+      XDR_DLQ_CONSUMER_ENABLED: "false"
+      XDR_CORRELATION_DLQ_CONSUMER_ENABLED: "false"
+      XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED: "false"
+    restart: always
+
+  incident-builder-service:
+    environment:
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
+    restart: always
