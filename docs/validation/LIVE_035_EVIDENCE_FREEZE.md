@@ -1,9 +1,10 @@
 # PILOT-LIVE-035 Evidence Freeze
 
-**Generated:** 2026-06-24 09:05:05 UTC  
-**Overall:** `PASS`  
-**Run ID:** `pilot035-20260624-090505-37cc3a`  
-**Live mode:** `False`
+Generated: 2026-06-24 09:19:23 UTC
+Overall: `PASS`
+Run ID: `pilot035-20260624-091923-10b036`
+Live mode: `True`
+JSON report: `reports/xdr_pilot_live_035_2026-06-24-091923.json`
 
 ## Pilot Evidence Stages
 
@@ -17,19 +18,26 @@
 | E | EASM posture readiness (offline) | `PASS` |
 | O | OBS/SLO readiness (offline, local profile) | `PASS` |
 | PM | Pilot readiness matrix validator (offline) | `PASS` |
+| C | Causal live proof (end-to-end) | `PASS` |
 
-## Causal Proof Reference
+## Current Live Causal Proof
 
-| Field | Value |
-|---|---|
-| Commit | `3329c4` |
-| Date | 2026-06-23 |
-| Task | Topic Bootstrap Phase 1 |
-| Result | `LIVE_CAUSAL_PROOF=PASS` |
+| Field                  | Value                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| Result                 | `LIVE_CAUSAL_PROOF=PASS`                                  |
+| Run ID                 | `pilot035-20260624-091923-10b036`                         |
+| Live mode              | `True`                                                    |
+| Demo run ID            | `demo-20260624-a716e7`                                    |
+| Events accepted        | `5/5`                                                     |
+| Field match            | `FIELD_MATCH=PASS`                                        |
+| Alerts matched         | `2 alert(s) via demo_run_id`                              |
+| Rules fired            | `CLOUD_NEW_ACCESS_KEY`, `CLOUD_SECURITY_SETTING_MODIFIED` |
+| Demo lineage           | `demo_lineage_present=true`                               |
+| Causal JSON report     | `reports/demo-causal-demo-20260624-a716e7.json`           |
+| Causal Markdown report | `reports/demo-causal-demo-20260624-a716e7.md`             |
+| Pilot live report      | `reports/xdr_pilot_live_035_2026-06-24-091923.json`       |
 
-> Causal stage (C) is WARN when services are not running (infrastructure constraint,
-> not a code regression). The prior `LIVE_CAUSAL_PROOF=PASS` above is the authoritative
-> evidence for end-to-end pipeline correctness.
+The current live pilot evidence run passed end-to-end. Stage C is now `PASS`, so the previous advisory reference to the older `3329c4` causal proof is retained only as historical evidence, not as the authoritative current proof.
 
 ## Stage Details
 
@@ -121,6 +129,21 @@
 
 **Status:** `PASS`  
 **Detail:** exit_code=0  
+
+### Stage C: Causal live proof (end-to-end)
+
+**Status:** `PASS`  
+**Detail:** Current live causal proof completed successfully.
+
+| Evidence | Value |
+|---|---|
+| Demo run ID | `demo-20260624-a716e7` |
+| Events accepted | `5` |
+| Alerts matched | `2` |
+| Field match | `PASS` |
+| Rules fired | `CLOUD_NEW_ACCESS_KEY`, `CLOUD_SECURITY_SETTING_MODIFIED` |
+| Lineage present | `true` |
+| Final verdict | `LIVE_CAUSAL_PROOF=PASS` |
 
 ## Pilot Readiness Matrix Evidence Run
 
