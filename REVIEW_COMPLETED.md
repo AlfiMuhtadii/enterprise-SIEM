@@ -26,7 +26,7 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **DB-5** | Propagate `tenant_id` in `security_alerts` + `security_incidents` write paths; 13 new Python tests | `4d1d1d7` | [#16](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/16) | 2026-06-24 |
 | **PROD-024** | Production runtime posture checker — 3 profiles (local/staging/production), 18 checks, 58 tests | `a7c5fa5` | — | 2026-06-24 |
 | **INGESTION-025** | Ingestion-gateway backpressure hardening — async metrics poller (IG-1), per-tenant rate limiter (IG-2), bounded retry + circuit breaker (IG-3); 14 Go tests; D-01/D-02/D-03 resolved to INFO | `3027e08`, `e88c103`, `7fcdd41` | — | 2026-06-24 |
-| **SCALE-026** | Ingestion hardening controlled load & soak validation — 6 scenarios (S-01–S-06), 10 metrics captured, 5 bounds checks; 65 Python tests; report PASS (11/11) | TBD | — | 2026-06-24 |
+| **SCALE-026** | Ingestion hardening controlled load & soak validation — 6 scenarios (S-01–S-06), 10 metrics captured, 5 bounds checks; 65 Python tests; report PASS (11/11) | `204e152` | — | 2026-06-24 |
 
 ---
 
