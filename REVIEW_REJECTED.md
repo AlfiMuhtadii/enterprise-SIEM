@@ -53,7 +53,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Performance / Reliability
 - **Severity**: Medium (high RPS only)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-1--synchronous-normalizer-metrics-polling-in-request-path)
-- **Status**: **IMPLEMENTED** — `admissionAllowed()` now reads a cached `normalizerQueueDepth` atomic. A background goroutine (`startMetricsPoller`) polls at configurable interval (`XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS`, default 5s). BACKLOG-INGESTION-025 / commit to follow.
+- **Status**: **IMPLEMENTED** — `admissionAllowed()` now reads a cached `normalizerQueueDepth` atomic. A background goroutine (`startMetricsPoller`) polls at configurable interval (`XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS`, default 5s). BACKLOG-INGESTION-025 / commits 3027e08 + e88c103.
 
 ---
 
@@ -62,7 +62,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Reliability / Multi-Tenant Fairness
 - **Severity**: Medium (multi-tenant abuse scenario)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-2--global-rate-limiter-token-starvation)
-- **Status**: **IMPLEMENTED** — Per-tenant token bucket map (`tenantLimiters sync.Map`). Each tenant identified via `X-Tenant-ID` header gets its own bucket (`XDR_INGEST_PER_TENANT_RPS`, default = global RPS). Background goroutine refills all buckets every second. Global hard-cap middleware still in place. BACKLOG-INGESTION-025 / commit to follow.
+- **Status**: **IMPLEMENTED** — Per-tenant token bucket map (`tenantLimiters sync.Map`). Each tenant identified via `X-Tenant-ID` header gets its own bucket (`XDR_INGEST_PER_TENANT_RPS`, default = global RPS). Background goroutine refills all buckets every second. Global hard-cap middleware still in place. BACKLOG-INGESTION-025 / commits 3027e08 + e88c103.
 
 ---
 
@@ -71,7 +71,7 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Category**: Enterprise Reliability / Backpressure
 - **Severity**: Medium (sustained Redpanda outage scenario)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-3--15-second-publish-retry-timeout-causing-socket-exhaustion)
-- **Status**: **IMPLEMENTED** — `publish()` now uses `context.WithTimeout` per attempt (`XDR_PUBLISH_TIMEOUT_SECONDS`, default 5s), exponential backoff (100ms/200ms/400ms, capped at 1s), and circuit breaker (`XDR_PUBLISH_CB_FAILURES`=5, `XDR_PUBLISH_CB_OPEN_SECONDS`=30). Circuit open = immediate fast-fail, no goroutine accumulation. BACKLOG-INGESTION-025 / commit to follow.
+- **Status**: **IMPLEMENTED** — `publish()` now uses `context.WithTimeout` per attempt (`XDR_PUBLISH_TIMEOUT_SECONDS`, default 5s), exponential backoff (100ms/200ms/400ms, capped at 1s), and circuit breaker (`XDR_PUBLISH_CB_FAILURES`=5, `XDR_PUBLISH_CB_OPEN_SECONDS`=30). Circuit open = immediate fast-fail, no goroutine accumulation. BACKLOG-INGESTION-025 / commits 3027e08 + e88c103.
 
 ---
 
