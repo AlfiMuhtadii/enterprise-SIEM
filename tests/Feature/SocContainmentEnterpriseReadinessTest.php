@@ -13,7 +13,8 @@ class SocContainmentEnterpriseReadinessTest extends TestCase
 
     public function test_containment_response_is_approval_gated_and_simulated(): void
     {
-        $analyst = User::factory()->create(['role' => 'analyst']);
+        $analyst  = User::factory()->create(['role' => 'analyst']);
+        $approver = User::factory()->create(['role' => 'analyst']);
 
         $this->actingAs($analyst)->post('/soc/responses', [
             'source_type' => 'incident',
@@ -28,14 +29,15 @@ class SocContainmentEnterpriseReadinessTest extends TestCase
         $this->assertNotNull($response);
         $this->assertSame('pending_approval', $response->status);
 
-        $this->actingAs($analyst)->post('/soc/responses/'.$response->response_id.'/decision', [
+        // Use a different user to approve — self-approval is blocked
+        $this->actingAs($approver)->post('/soc/responses/'.$response->response_id.'/decision', [
             'decision' => 'approve',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('soc_response_workflows', [
             'response_id' => $response->response_id,
             'status' => 'approved_simulated',
-            'approved_by' => $analyst->email,
+            'approved_by' => $approver->email,
         ]);
         $this->assertDatabaseHas('containment_simulations', [
             'response_id' => $response->response_id,
@@ -45,7 +47,7 @@ class SocContainmentEnterpriseReadinessTest extends TestCase
             'status' => 'approved_simulated',
         ]);
         $this->assertDatabaseHas('security_audit_trails', [
-            'actor' => $analyst->email,
+            'actor' => $approver->email,
             'action' => 'response.approve_containment_simulation',
             'target_type' => 'response',
             'target_id' => $response->response_id,

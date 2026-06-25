@@ -25,6 +25,11 @@ class EndpointResponseCommandTest extends TestCase
         return User::factory()->create(['role' => 'admin']);
     }
 
+    private function approverUser(): User
+    {
+        return User::factory()->create(['role' => 'admin']);
+    }
+
     private function makeAgent(): EndpointAgent
     {
         return EndpointAgent::factory()->create();
@@ -150,14 +155,15 @@ class EndpointResponseCommandTest extends TestCase
 
     public function test_approve_sets_approved_by_and_timestamp(): void
     {
-        $user    = $this->adminUser();
-        $agent   = $this->makeAgent();
-        $command = $this->svc()->createCommand($agent, 'noop', [], $user->id);
-        $command = $this->svc()->submitForApproval($command, $user->id);
-        $command = $this->svc()->approve($command, $user->id, 'looks good');
+        $user     = $this->adminUser();
+        $approver = $this->approverUser();
+        $agent    = $this->makeAgent();
+        $command  = $this->svc()->createCommand($agent, 'noop', [], $user->id);
+        $command  = $this->svc()->submitForApproval($command, $user->id);
+        $command  = $this->svc()->approve($command, $approver->id, 'looks good');
 
         $this->assertEquals(EndpointResponseCommand::STATUS_APPROVED, $command->status);
-        $this->assertEquals($user->id, $command->approved_by);
+        $this->assertEquals($approver->id, $command->approved_by);
         $this->assertNotNull($command->approved_at);
     }
 
@@ -182,12 +188,13 @@ class EndpointResponseCommandTest extends TestCase
 
     public function test_full_lifecycle_draft_to_completed(): void
     {
-        $user    = $this->adminUser();
-        $agent   = $this->makeAgent();
-        $command = $this->svc()->createCommand($agent, 'noop', [], $user->id);
-        $command = $this->svc()->submitForApproval($command, $user->id);
-        $command = $this->svc()->approve($command, $user->id);
-        $command = $this->svc()->dispatch($command, $user->id);
+        $user     = $this->adminUser();
+        $approver = $this->approverUser();
+        $agent    = $this->makeAgent();
+        $command  = $this->svc()->createCommand($agent, 'noop', [], $user->id);
+        $command  = $this->svc()->submitForApproval($command, $user->id);
+        $command  = $this->svc()->approve($command, $approver->id);
+        $command  = $this->svc()->dispatch($command, $approver->id);
 
         // Ack from agent (no real signature in unit test — verifyAgentSignature returns false
         // for empty token; that's expected and hardening event is logged)
@@ -233,12 +240,13 @@ class EndpointResponseCommandTest extends TestCase
 
     public function test_all_transitions_are_audited(): void
     {
-        $user    = $this->adminUser();
-        $agent   = $this->makeAgent();
-        $command = $this->svc()->createCommand($agent, 'collect_diagnostics', [], $user->id);
-        $command = $this->svc()->submitForApproval($command, $user->id);
-        $command = $this->svc()->approve($command, $user->id);
-        $command = $this->svc()->dispatch($command, $user->id);
+        $user     = $this->adminUser();
+        $approver = $this->approverUser();
+        $agent    = $this->makeAgent();
+        $command  = $this->svc()->createCommand($agent, 'collect_diagnostics', [], $user->id);
+        $command  = $this->svc()->submitForApproval($command, $user->id);
+        $command  = $this->svc()->approve($command, $approver->id);
+        $command  = $this->svc()->dispatch($command, $approver->id);
 
         $events = EndpointResponseCommandEvent::where('command_id', $command->id)
             ->orderBy('occurred_at')
@@ -262,12 +270,13 @@ class EndpointResponseCommandTest extends TestCase
 
     public function test_agent_can_poll_dispatched_commands(): void
     {
-        $user    = $this->adminUser();
-        $agent   = $this->makeAgent();
-        $command = $this->svc()->createCommand($agent, 'noop', [], $user->id);
+        $user     = $this->adminUser();
+        $approver = $this->approverUser();
+        $agent    = $this->makeAgent();
+        $command  = $this->svc()->createCommand($agent, 'noop', [], $user->id);
         $this->svc()->submitForApproval($command, $user->id);
-        $this->svc()->approve($command, $user->id);
-        $this->svc()->dispatch($command, $user->id);
+        $this->svc()->approve($command->fresh(), $approver->id);
+        $this->svc()->dispatch($command->fresh(), $approver->id);
 
         $response = $this->getJson("/api/agents/{$agent->agent_id}/commands");
         $response->assertStatus(200);
@@ -296,12 +305,13 @@ class EndpointResponseCommandTest extends TestCase
 
     public function test_acknowledge_with_invalid_signature_logs_hardening_event(): void
     {
-        $user    = $this->adminUser();
-        $agent   = $this->makeAgent();
-        $command = $this->svc()->createCommand($agent, 'noop', [], $user->id);
+        $user     = $this->adminUser();
+        $approver = $this->approverUser();
+        $agent    = $this->makeAgent();
+        $command  = $this->svc()->createCommand($agent, 'noop', [], $user->id);
         $this->svc()->submitForApproval($command, $user->id);
-        $this->svc()->approve($command, $user->id);
-        $this->svc()->dispatch($command, $user->id);
+        $this->svc()->approve($command->fresh(), $approver->id);
+        $this->svc()->dispatch($command->fresh(), $approver->id);
 
         // Post ack with a bad signature
         $payload = json_encode(['agent_id' => $agent->agent_id, 'command_id' => $command->command_id]);

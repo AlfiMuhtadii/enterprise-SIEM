@@ -80,6 +80,12 @@ class EndpointResponseCommandService
 
     public function approve(EndpointResponseCommand $command, int $approverId, ?string $note = null): EndpointResponseCommand
     {
+        if ($command->created_by !== null && $command->created_by === $approverId) {
+            throw new \InvalidArgumentException(
+                'Self-approval is blocked: the command creator cannot be the approver.'
+            );
+        }
+
         $this->assertValidTransition($command, EndpointResponseCommand::STATUS_APPROVED);
 
         $from = $command->status;

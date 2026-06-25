@@ -14,7 +14,8 @@ class SocResponseWorkflowTest extends TestCase
 
     public function test_response_recommendation_can_be_approved_into_agent_command(): void
     {
-        $analyst = User::factory()->create(['role' => 'analyst']);
+        $analyst  = User::factory()->create(['role' => 'analyst']);
+        $approver = User::factory()->create(['role' => 'analyst']);
         DB::table('endpoint_agents')->insert([
             'agent_id' => 'agent-response-1',
             'host_fingerprint' => 'fp-response',
@@ -39,14 +40,15 @@ class SocResponseWorkflowTest extends TestCase
         $response = DB::table('soc_response_workflows')->where('source_id', 'INC-1')->first();
         $this->assertNotNull($response);
 
-        $this->actingAs($analyst)->post('/soc/responses/'.$response->response_id.'/decision', [
+        // Use a different user to approve — self-approval is blocked
+        $this->actingAs($approver)->post('/soc/responses/'.$response->response_id.'/decision', [
             'decision' => 'approve',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('soc_response_workflows', [
             'response_id' => $response->response_id,
             'status' => 'approved_queued',
-            'approved_by' => $analyst->email,
+            'approved_by' => $approver->email,
         ]);
         $this->assertDatabaseHas('agent_commands', [
             'agent_id' => 'agent-response-1',

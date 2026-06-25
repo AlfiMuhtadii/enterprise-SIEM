@@ -52,6 +52,10 @@ class SocResponseController extends Controller
         $before = DB::table('soc_response_workflows')->where('response_id', $responseId)->first();
         abort_if(!$before, 404);
 
+        if ($data['decision'] === 'approve' && $before->recommended_by === $request->user()->email) {
+            return back()->withErrors(['decision' => 'Self-approval is blocked: you cannot approve your own response recommendation.']);
+        }
+
         if ($data['decision'] === 'reject') {
             DB::table('soc_response_workflows')->where('response_id', $responseId)->update([
                 'status' => 'rejected',
