@@ -183,7 +183,9 @@ _STAGE_DEFS: list[dict[str, Any]] = [
         "script": "scripts/xdr_restore_drill.py",
         "report_path": "reports/enterprise_043_exe05_restore_dryrun.json",
         "extra_flags": ["--output", "reports/enterprise_043_exe05_restore_dryrun.json"],
-        "execute_flag": "readonly",   # dry-run enabled by --execute-readonly-validators
+        # dry-run runs with --execute-readonly-validators OR when --execute-restore-drill
+        # is provided (dry-run must precede execute mode)
+        "execute_flag": "readonly_or_restore",
         "required": True,
     },
     {
@@ -204,7 +206,9 @@ _STAGE_DEFS: list[dict[str, Any]] = [
         "script": "scripts/xdr_live_soak_validate.py",
         "report_path": "reports/enterprise_043_exe07_soak_dryrun.json",
         "extra_flags": ["--output", "reports/enterprise_043_exe07_soak_dryrun.json"],
-        "execute_flag": "readonly",
+        # dry-run runs with --execute-readonly-validators OR when --execute-live-soak
+        # is provided (dry-run/preflight must precede execute mode)
+        "execute_flag": "readonly_or_soak",
         "required": True,
     },
     {
@@ -223,8 +227,9 @@ _STAGE_DEFS: list[dict[str, Any]] = [
         "id": "EXE-09",
         "name": "Final live causal proof",
         "script": "scripts/demo_causal_verify.py",
-        "report_path": "reports/enterprise_043_exe09_causal_proof.json",
-        "extra_flags": ["--output", "reports/enterprise_043_exe09_causal_proof.json"],
+        "report_path": "reports/demo-causal-demo-latest.json",
+        # demo_causal_verify writes its own timestamped report; no --output flag
+        "extra_flags": [],
         "execute_flag": "causal",     # enabled by --execute-live-causal-proof
         "required": False,
     },
@@ -310,6 +315,9 @@ def _stage_result(
     command: list[str],
     detail: str,
     exit_code: int | None = None,
+    kind: str = "",
+    stdout_snippet: str = "",
+    stderr_snippet: str = "",
 ) -> dict:
     return {
         "id": stage_def["id"],
@@ -321,6 +329,9 @@ def _stage_result(
         "report_path": stage_def["report_path"] or "",
         "detail": detail,
         "exit_code": exit_code,
+        "kind": kind or ("EXECUTED" if executed else "PLAN"),
+        "stdout_snippet": stdout_snippet[:200],
+        "stderr_snippet": stderr_snippet[:200],
     }
 
 
@@ -372,16 +383,19 @@ def _execute_stage(
     if eflag == "static":
         return _stage_result(
             stage_def, PASS, False, [],
-            "Safety boundaries declared: no detection rule change, no ACTIVE_ALLOWLIST mutation, "
-            "no shadow-to-active auto-promotion, no active scanning, no autonomous containment, "
-            "restore target isolated, live soak bounded, synthetic telemetry only",
+            "[STATIC] Safety boundaries declared: no detection rule change, "
+            "no ACTIVE_ALLOWLIST mutation, no shadow-to-active auto-promotion, "
+            "no active scanning, no autonomous containment, restore target isolated, "
+            "live soak bounded, synthetic telemetry only",
+            kind="STATIC",
         )
 
     # EXE-11 — synthesised summary; computed after all other stages complete
     if eflag == "summary":
         return _stage_result(
             stage_def, PASS, False, [],
-            "Final evidence freeze summary stage — status computed from preceding stages",
+            "[SUMMARY] Final evidence freeze summary stage — status computed from preceding stages",
+            kind="SUMMARY",
         )
 
     # Check script exists
@@ -390,12 +404,15 @@ def _execute_stage(
         sev = _fail_sev(profile) if stage_def["required"] else WARN
         return _stage_result(
             stage_def, sev, False, [],
-            f"Script {stage_def['script']} not found",
+            f"[PLAN_ERROR] Script not found: {stage_def['script']}",
+            kind="PLAN_ERROR",
         )
 
     # Determine whether this stage should execute
     should_execute = (
         (eflag == "readonly" and execute_readonly)
+        or (eflag == "readonly_or_restore" and (execute_readonly or execute_restore))
+        or (eflag == "readonly_or_soak" and (execute_readonly or execute_soak))
         or (eflag == "restore" and execute_restore)
         or (eflag == "soak" and execute_soak)
         or (eflag == "causal" and execute_causal)
@@ -405,17 +422,19 @@ def _execute_stage(
     cmd = _build_cmd(stage_def, profile, root, duration_minutes)
 
     if not should_execute:
-        # Dry-run plan entry
         flag_name = {
-            "readonly": "--execute-readonly-validators",
-            "restore":  "--execute-restore-drill",
-            "soak":     "--execute-live-soak",
-            "causal":   "--execute-live-causal-proof",
+            "readonly":           "--execute-readonly-validators",
+            "readonly_or_restore": "--execute-readonly-validators or --execute-restore-drill",
+            "readonly_or_soak":   "--execute-readonly-validators or --execute-live-soak",
+            "restore":            "--execute-restore-drill",
+            "soak":               "--execute-live-soak",
+            "causal":             "--execute-live-causal-proof",
         }.get(eflag, eflag)
         status = SKIPPED if not stage_def["required"] else INFO
         return _stage_result(
             stage_def, status, False, cmd,
-            f"Planned — run with {flag_name} to execute",
+            f"[SKIPPED] Planned — run with {flag_name} to execute",
+            kind="SKIPPED",
         )
 
     # Restore isolation guard
@@ -424,43 +443,59 @@ def _execute_stage(
         if not isolated:
             return _stage_result(
                 stage_def, FAIL, False, cmd,
-                "Restore target DB isolation guard failed: "
-                "XDR_RESTORE_TARGET_DB must be set and differ from DB_DATABASE",
+                "[PLAN_ERROR] Restore target DB isolation guard failed: "
+                "XDR_RESTORE_TARGET_DB must be set in .env and differ from DB_DATABASE. "
+                "Add XDR_RESTORE_TARGET_DB=<different_db_name> to .env before running "
+                "--execute-restore-drill.",
+                kind="PLAN_ERROR",
             )
 
     # Execute
-    if _run_fn is None:
-        return _stage_result(
-            stage_def, ERROR, False, cmd,
-            "Execute requested but no _run_fn provided",
-        )
-
     try:
         exit_code, stdout, stderr = _run_fn(cmd)
     except Exception as exc:
         return _stage_result(
             stage_def, ERROR, True, cmd,
-            f"Subprocess raised: {exc}",
+            f"[EXECUTION_ERROR] Subprocess raised: {exc}",
+            kind="EXECUTION_ERROR",
         )
+
+    stdout_s = stdout.strip()[:200] if stdout else ""
+    stderr_s = stderr.strip()[:200] if stderr else ""
 
     if exit_code == 0:
         return _stage_result(
             stage_def, PASS, True, cmd,
-            f"Executed successfully (exit={exit_code})",
-            exit_code=exit_code,
+            f"[EXECUTED_PASS] Executed successfully (exit=0)",
+            exit_code=0,
+            kind="EXECUTED_PASS",
+            stdout_snippet=stdout_s,
+            stderr_snippet=stderr_s,
         )
     if exit_code == 1:
         sev = _fail_sev(profile) if stage_def["required"] else WARN
+        detail = f"[EXECUTED_FAIL] Validator reported WARN or FAIL (exit=1)"
+        if stderr_s:
+            detail += f": {stderr_s[:120]}"
         return _stage_result(
             stage_def, sev, True, cmd,
-            f"Validator reported WARN or FAIL (exit={exit_code}): {stderr.strip()[:120]}",
-            exit_code=exit_code,
+            detail,
+            exit_code=1,
+            kind="EXECUTED_FAIL",
+            stdout_snippet=stdout_s,
+            stderr_snippet=stderr_s,
         )
     # exit code 2 or other
+    detail = f"[EXECUTION_ERROR] Validator returned exit code {exit_code}"
+    if stderr_s:
+        detail += f": {stderr_s[:120]}"
     return _stage_result(
         stage_def, ERROR, True, cmd,
-        f"Validator returned error exit code {exit_code}: {stderr.strip()[:120]}",
+        detail,
         exit_code=exit_code,
+        kind="EXECUTION_ERROR",
+        stdout_snippet=stdout_s,
+        stderr_snippet=stderr_s,
     )
 
 
@@ -504,6 +539,25 @@ def run_all(
 
     any_execute = execute_readonly or execute_restore or execute_soak or execute_causal
     mode = "execute" if any_execute else "dry-run"
+
+    # Create a real subprocess runner when none is injected and execution is requested.
+    # Tests inject _run_fn=_should_not_run to verify no subprocess in dry-run mode;
+    # in the real CLI path _run_fn stays None and we wire up subprocess here.
+    if _run_fn is None and any_execute:
+        import subprocess as _sub
+
+        def _default_run(cmd: list[str]) -> tuple[int, str, str]:
+            try:
+                r = _sub.run(cmd, capture_output=True, text=True, timeout=600)
+                return r.returncode, r.stdout, r.stderr
+            except _sub.TimeoutExpired:
+                return 2, "", "command timed out after 600s"
+            except FileNotFoundError as exc:
+                return 2, "", f"command not found: {exc}"
+            except Exception as exc:
+                return 2, "", f"subprocess error: {exc}"
+
+        _run_fn = _default_run
 
     stages: list[dict] = []
     for sd in _STAGE_DEFS:
@@ -580,7 +634,7 @@ def run_all(
 # Markdown generator
 # ---------------------------------------------------------------------------
 
-_STATUS_ICON = {PASS: "✓", WARN: "!", FAIL: "✗", ERROR: "E", SKIPPED: "–", INFO: "·"}
+_STATUS_ICON = {PASS: "+", WARN: "!", FAIL: "X", ERROR: "E", SKIPPED: "-", INFO: "."}
 
 
 def generate_markdown(report: dict) -> str:
@@ -756,7 +810,7 @@ def _parse_args() -> argparse.Namespace:
 def _print_report(report: dict, quiet: bool) -> None:
     if quiet:
         return
-    print(f"\nENTERPRISE-043 Execute Evidence Runs — {report['overall_status']}")
+    print(f"\nENTERPRISE-043 Execute Evidence Runs - {report['overall_status']}")
     print(f"Profile : {report['profile']}")
     print(f"Mode    : {report['mode']}")
     s = report["summary"]

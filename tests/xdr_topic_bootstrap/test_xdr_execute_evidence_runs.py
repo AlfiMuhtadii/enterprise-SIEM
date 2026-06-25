@@ -912,5 +912,304 @@ class TestExitCodeError(unittest.TestCase):
         self.assertIn("schema_version", report)
 
 
+# ---------------------------------------------------------------------------
+# ENTERPRISE-043.1 Correctness Patch Tests
+# ---------------------------------------------------------------------------
+
+class TestCorrectnessPatch(unittest.TestCase):
+    """20 additional tests covering ENTERPRISE-043.1 requirements."""
+
+    # 1. execute-readonly validators produce executed commands (count > 0)
+    def test_readonly_validators_produce_executed_commands(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        self.assertGreater(report["summary"]["executed"], 0,
+                           "execute_readonly should produce executed stages > 0")
+
+    # 2. execute-readonly invokes injectable runner
+    def test_readonly_invokes_injectable_runner(self):
+        calls: list[list[str]] = []
+
+        def capturing_run(cmd):
+            calls.append(cmd)
+            return 0, "", ""
+
+        er.run_all(ROOT, "local",
+                   execute_readonly=True,
+                   _read_fn=_all_scripts_read_fn(),
+                   _run_fn=capturing_run,
+                   _commit="test")
+        self.assertGreater(len(calls), 0, "Injectable runner must be called for readonly stages")
+
+    # 3. correct tenant isolation script path is used
+    def test_tenant_isolation_script_path_correct(self):
+        calls: list[list[str]] = []
+
+        def capturing_run(cmd):
+            calls.append(cmd)
+            return 0, "", ""
+
+        er.run_all(ROOT, "local",
+                   execute_readonly=True,
+                   _read_fn=_all_scripts_read_fn(),
+                   _run_fn=capturing_run,
+                   _commit="test")
+        tenant_calls = [c for c in calls if "xdr_tenant_isolation_posture" in " ".join(c)]
+        self.assertGreater(len(tenant_calls), 0,
+                           "xdr_tenant_isolation_posture.py must be called")
+        self.assertNotIn("poess_check", " ".join(tenant_calls[0]))
+
+    # 4. operator readiness script is included
+    def test_operator_readiness_script_included(self):
+        calls: list[list[str]] = []
+
+        def capturing_run(cmd):
+            calls.append(cmd)
+            return 0, "", ""
+
+        er.run_all(ROOT, "local",
+                   execute_readonly=True,
+                   _read_fn=_all_scripts_read_fn(),
+                   _run_fn=capturing_run,
+                   _commit="test")
+        orc_calls = [c for c in calls if "xdr_operator_readiness_check" in " ".join(c)]
+        self.assertGreater(len(orc_calls), 0,
+                           "xdr_operator_readiness_check.py must be called in readonly mode")
+
+    # 5. restore execute does not run without explicit flag (already in TestRestoreNotDefault —
+    #    included here for patch completeness)
+    def test_exe06_not_executed_without_restore_flag(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            execute_restore=False,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe06 = next(s for s in report["stages"] if s["id"] == "EXE-06")
+        self.assertFalse(exe06.get("executed"),
+                         "EXE-06 must not execute without --execute-restore-drill")
+
+    # 6. restore execute runs dry-run first (EXE-05 executes when restore flag is set)
+    def test_restore_execute_runs_dry_run_first(self):
+        report = er.run_all(ROOT, "local",
+                            execute_restore=True,
+                            _read_fn=_all_scripts_read_fn(_ENV_ISOLATED),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe05 = next(s for s in report["stages"] if s["id"] == "EXE-05")
+        self.assertTrue(exe05.get("executed"),
+                        "EXE-05 (restore dry-run) must execute when --execute-restore-drill is set")
+
+    # 7. restore execute reports clear failure when target DB missing
+    def test_restore_execute_clear_fail_when_target_missing(self):
+        m = {s: "# stub" for s in _ALL_SCRIPTS}
+        m[".env"] = _ENV_NO_ISOLATION
+        fn = _make_read_fn(m)
+        report = er.run_all(ROOT, "local",
+                            execute_restore=True,
+                            _read_fn=fn,
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe06 = next(s for s in report["stages"] if s["id"] == "EXE-06")
+        self.assertEqual(exe06["status"], er.FAIL)
+        self.assertIn("XDR_RESTORE_TARGET_DB", exe06["detail"])
+        self.assertIn("PLAN_ERROR", exe06["detail"])
+
+    # 8. live soak execute does not run without explicit flag
+    def test_exe08_not_executed_without_soak_flag(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            execute_soak=False,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe08 = next(s for s in report["stages"] if s["id"] == "EXE-08")
+        self.assertFalse(exe08.get("executed"))
+
+    # 9. live soak execute uses --live-soak-duration-minutes
+    def test_live_soak_duration_in_command(self):
+        calls: list[list[str]] = []
+
+        def capturing_run(cmd):
+            calls.append(cmd)
+            return 0, "", ""
+
+        er.run_all(ROOT, "local",
+                   execute_soak=True,
+                   duration_minutes=15,
+                   _read_fn=_all_scripts_read_fn(),
+                   _run_fn=capturing_run,
+                   _commit="test")
+        soak_execute_calls = [c for c in calls
+                               if "xdr_live_soak_validate" in " ".join(c)
+                               and "--execute" in c]
+        self.assertGreater(len(soak_execute_calls), 0)
+        self.assertTrue(
+            any("15" in " ".join(c) for c in soak_execute_calls),
+            f"Expected duration 15 in soak execute command: {soak_execute_calls}",
+        )
+
+    # 10. live causal proof execute does not run without explicit flag
+    def test_exe09_not_executed_without_causal_flag(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            execute_causal=False,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe09 = next(s for s in report["stages"] if s["id"] == "EXE-09")
+        self.assertFalse(exe09.get("executed"))
+
+    # 11. executed command count is correct for different modes
+    def test_executed_count_dry_run_is_zero(self):
+        report = er.run_all(ROOT, "local",
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_should_not_run,
+                            _commit="test")
+        self.assertEqual(report["summary"]["executed"], 0)
+
+    def test_executed_count_readonly_greater_than_zero(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        self.assertGreater(report["summary"]["executed"], 0)
+
+    def test_executed_count_restore_includes_dryrun(self):
+        report = er.run_all(ROOT, "local",
+                            execute_restore=True,
+                            _read_fn=_all_scripts_read_fn(_ENV_ISOLATED),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        # EXE-05 (dryrun) + EXE-06 (execute) should both run
+        exe05 = next(s for s in report["stages"] if s["id"] == "EXE-05")
+        exe06 = next(s for s in report["stages"] if s["id"] == "EXE-06")
+        self.assertTrue(exe05.get("executed"))
+        self.assertTrue(exe06.get("executed"))
+
+    # 12. subprocess return code 0 maps to PASS with EXECUTED_PASS kind
+    def test_exit0_maps_to_executed_pass_kind(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        executed = [s for s in report["stages"] if s.get("executed")]
+        for s in executed:
+            self.assertEqual(s["kind"], "EXECUTED_PASS",
+                             f"{s['id']} kind should be EXECUTED_PASS")
+
+    # 13. subprocess non-zero maps to FAIL with EXECUTED_FAIL in detail
+    def test_exit1_detail_contains_executed_fail(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_fail_run,
+                            _commit="test")
+        executed = [s for s in report["stages"] if s.get("executed")]
+        for s in executed:
+            self.assertIn("EXECUTED_FAIL", s["detail"],
+                          f"{s['id']} detail should contain EXECUTED_FAIL")
+
+    # 14. subprocess exception maps to ERROR with EXECUTION_ERROR in detail
+    def test_exception_detail_contains_execution_error(self):
+        def raising_run(cmd):
+            raise OSError("connection refused")
+
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=raising_run,
+                            _commit="test")
+        executed = [s for s in report["stages"] if s.get("executed")]
+        for s in executed:
+            self.assertIn("EXECUTION_ERROR", s["detail"],
+                          f"{s['id']} detail should contain EXECUTION_ERROR")
+
+    # 15. EXE-11 summary does not fail on skipped optional stages
+    def test_exe11_pass_when_optional_skipped_in_readonly_mode(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            execute_restore=False,
+                            execute_soak=False,
+                            execute_causal=False,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        exe11 = next(s for s in report["stages"] if s["id"] == "EXE-11")
+        self.assertEqual(exe11["status"], er.PASS,
+                         "EXE-11 should PASS when optional stages are skipped")
+
+    def test_exe11_not_fail_in_dry_run_mode(self):
+        report = er.run_all(ROOT, "local",
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_should_not_run,
+                            _commit="test")
+        exe11 = next(s for s in report["stages"] if s["id"] == "EXE-11")
+        self.assertNotEqual(exe11["status"], er.FAIL,
+                            "EXE-11 must not FAIL in dry-run mode")
+
+    # 16. JSON report includes command, executed flag, return code, and detail
+    def test_stage_has_kind_and_exit_code_fields(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        executed = [s for s in report["stages"] if s.get("executed")]
+        for s in executed:
+            self.assertIn("kind", s, f"{s['id']} missing 'kind' field")
+            self.assertIn("exit_code", s, f"{s['id']} missing 'exit_code' field")
+            self.assertIsNotNone(s["exit_code"],
+                                 f"{s['id']} exit_code should not be None when executed")
+            self.assertNotEqual(s["command"], "",
+                                f"{s['id']} command should not be empty when executed")
+            self.assertNotEqual(s["detail"], "",
+                                f"{s['id']} detail should not be empty")
+
+    # 17. markdown report includes executed commands and failure details
+    def test_markdown_includes_failure_detail(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_fail_run,
+                            _commit="test")
+        md = er.generate_markdown(report)
+        # Markdown should mention at least one command was executed
+        self.assertNotIn("_No commands executed", md)
+
+    def test_markdown_commands_section_populated_after_execute(self):
+        report = er.run_all(ROOT, "local",
+                            execute_readonly=True,
+                            _read_fn=_all_scripts_read_fn(),
+                            _run_fn=_noop_run,
+                            _commit="test")
+        md = er.generate_markdown(report)
+        # The commands executed section should not say dry-run when commands ran
+        self.assertNotIn("_No commands executed (dry-run mode)._", md)
+
+    # 18. no ACTIVE_ALLOWLIST mutation/reference (confirmatory)
+    def test_patch_no_active_allowlist_mutation(self):
+        src = (_SCRIPTS / "xdr_execute_evidence_runs.py").read_text(encoding="utf-8")
+        self.assertNotIn("ACTIVE_ALLOWLIST.append", src)
+        self.assertNotIn("ACTIVE_ALLOWLIST +=", src)
+
+    # 19. no detection rule mutation
+    def test_patch_no_detection_rule_mutation(self):
+        src = (_SCRIPTS / "xdr_execute_evidence_runs.py").read_text(encoding="utf-8")
+        self.assertNotIn("registry.v1.json", src)
+
+    # 20. no shadow/active boundary mutation
+    def test_patch_no_shadow_to_active_promotion(self):
+        report = er.run_all(ROOT, "local",
+                            _read_fn=_all_scripts_read_fn(),
+                            _commit="test")
+        self.assertTrue(report["safety_boundaries"]["no_shadow_to_active_auto_promotion"])
+
+
 if __name__ == "__main__":
     unittest.main()
