@@ -80,6 +80,7 @@ use App\Http\Controllers\Release\ReleaseGovernanceController;
 use App\Http\Controllers\Detection\AdvancedDetectionController;
 use App\Http\Controllers\Detection\DetectionPromotionReadinessController;
 use App\Http\Controllers\Detection\ShadowPromotionDecisionController;
+use App\Http\Controllers\Detection\EndpointSoakPlanController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
@@ -312,6 +313,8 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
     Route::get('/detection/promotion-readiness', [DetectionPromotionReadinessController::class, 'index'])->name('detection.promotion-readiness');
     // ENTERPRISE-047: shadow_ready promotion decisions BEFORE {ruleId} catch-all
     Route::get('/detection/shadow-promotion-decisions', [ShadowPromotionDecisionController::class, 'index'])->name('detection.shadow-promotion-decisions');
+    // ENTERPRISE-048: endpoint shadow domain soak plan BEFORE {ruleId} catch-all
+    Route::get('/detection/endpoint-soak-plan', [EndpointSoakPlanController::class, 'index'])->name('detection.endpoint-soak-plan');
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
     Route::post('/detection/{ruleId}/promote', [DetectionRuleController::class, 'promote'])->name('detection.promote');
     Route::post('/detection/{ruleId}/notes', [DetectionRuleController::class, 'storeNote'])->name('detection.notes.store');
