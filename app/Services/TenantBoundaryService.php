@@ -52,6 +52,36 @@ class TenantBoundaryService
         'tenant_membership_audit_events',
     ];
 
+    // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
+    // Phase 3 backfill: security_alerts and security_incidents are mutable.
+    // dlq_records is mutable (UPDATE allowed per operational policy — status/reviewed_by/replay/tenant_id).
+    // All other ISOLATED_TABLES are append-only and MUST NOT be updated.
+    public const MUTABLE_TABLES = [
+        'security_alerts',
+        'security_incidents',
+        'dlq_records',
+    ];
+
+    // Append-only ISOLATED tables — tenant_id backfill is FORBIDDEN on these.
+    // Null tenant_id on these rows is an accepted risk documented in
+    // docs/security/TENANT_NULL_MIGRATION_PLAN.md (Phase 3 exclusions).
+    public const APPEND_ONLY_ISOLATED_TABLES = [
+        'advisory_findings',
+        'advisory_finding_events',
+        'dlq_normalization_events',
+        'shadow_soak_runs',
+        'shadow_soak_evidence_snapshots',
+        'shadow_soak_gate_checks',
+        'shadow_soak_domain_assessments',
+        'shadow_soak_finding_summaries',
+        'shadow_soak_confidence_bands',
+        'shadow_soak_suppression_stats',
+        'shadow_soak_coverage_stats',
+        'shadow_soak_audit_events',
+        'user_tenant_memberships',
+        'tenant_membership_audit_events',
+    ];
+
     // Tables that still lack tenant_id — documented isolation gap
     public const UNISOLATED_TABLES = [
         'users',
