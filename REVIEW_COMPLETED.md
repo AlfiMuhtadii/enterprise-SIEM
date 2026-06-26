@@ -38,6 +38,9 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **ATTR-001** | MITRE ATT&CK TTP tagging on security_alerts — migration (3 nullable columns), AlertMitreService (16 alert types: 12 staged_active + 4 cross-domain), TagAlertMitreTtpCommand (dry-run safe), SecurityAlertController + alerts.blade.php updated; 18 tests; 3636 PHP green | `57fe592` | [#20](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/20) | 2026-06-26 |
 | **ATTR-002** | Alert attribution context — alert_attribution_context migration (append-only), AlertAttributionService (offline-first, idempotent), EnrichAlertAttributionCommand, controller + route + view, xdr_attribution_validate.py (10/10 PASS); 28 tests; 3664 PHP green | `4f8b008` | [#21](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/21) | 2026-06-26 |
 | **ATTR-003** | GeoIP/ASN offline lookup — GeoAsnLookupService (CIDR matching, IPv4+IPv6), geo_asn_fixtures.json (RFC1918/5737 + 4 demo ASNs); bundled with ATTR-002; 3664 PHP green | `4f8b008` | [#22](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/22) | 2026-06-26 |
+| **RBAC-1** | Add missing EASM + Pilot Readiness Matrix permissions to all roles in config/soc.php; fixes locked-out routes | `8e7ba02` | [#23](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/23) | 2026-06-26 |
+| **EASM-1** | Enforce TenantContextAuthority in EasmController; cross-tenant spoof blocked via TCA::validateAndResolve | `8e7ba02` | [#24](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/24) | 2026-06-26 |
+| **PILOT-1** | Scope PilotReadinessMatrixController by validated tenant context; cross-tenant run_id returns 404 | `8e7ba02` | [#25](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/25) | 2026-06-26 |
 
 ---
 
