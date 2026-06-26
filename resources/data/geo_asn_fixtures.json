@@ -1,0 +1,151 @@
+{
+  "_comment": "Offline GeoIP/ASN fixture data for demo/academic use only. No real user IP data. ATTR-003.",
+  "_format": "Each entry: cidr, country_code, country_name, asn, asn_org, ip_type",
+  "ranges": [
+    {
+      "cidr": "10.0.0.0/8",
+      "country_code": "PRIVATE",
+      "country_name": "Private Network",
+      "asn": "AS0",
+      "asn_org": "RFC1918 Private",
+      "ip_type": "private"
+    },
+    {
+      "cidr": "172.16.0.0/12",
+      "country_code": "PRIVATE",
+      "country_name": "Private Network",
+      "asn": "AS0",
+      "asn_org": "RFC1918 Private",
+      "ip_type": "private"
+    },
+    {
+      "cidr": "192.168.0.0/16",
+      "country_code": "PRIVATE",
+      "country_name": "Private Network",
+      "asn": "AS0",
+      "asn_org": "RFC1918 Private",
+      "ip_type": "private"
+    },
+    {
+      "cidr": "127.0.0.0/8",
+      "country_code": "LOOPBACK",
+      "country_name": "Loopback",
+      "asn": "AS0",
+      "asn_org": "Loopback",
+      "ip_type": "loopback"
+    },
+    {
+      "cidr": "::1/128",
+      "country_code": "LOOPBACK",
+      "country_name": "Loopback (IPv6)",
+      "asn": "AS0",
+      "asn_org": "Loopback",
+      "ip_type": "loopback"
+    },
+    {
+      "cidr": "192.0.2.0/24",
+      "country_code": "DOCUMENTATION",
+      "country_name": "Documentation (RFC5737)",
+      "asn": "AS0",
+      "asn_org": "RFC5737 Documentation",
+      "ip_type": "documentation"
+    },
+    {
+      "cidr": "198.51.100.0/24",
+      "country_code": "DOCUMENTATION",
+      "country_name": "Documentation (RFC5737)",
+      "asn": "AS0",
+      "asn_org": "RFC5737 Documentation",
+      "ip_type": "documentation"
+    },
+    {
+      "cidr": "203.0.113.0/24",
+      "country_code": "DOCUMENTATION",
+      "country_name": "Documentation (RFC5737)",
+      "asn": "AS0",
+      "asn_org": "RFC5737 Documentation",
+      "ip_type": "documentation"
+    },
+    {
+      "cidr": "100.64.0.0/10",
+      "country_code": "SHARED",
+      "country_name": "Shared Address Space (RFC6598)",
+      "asn": "AS0",
+      "asn_org": "RFC6598 Shared",
+      "ip_type": "shared"
+    },
+    {
+      "cidr": "169.254.0.0/16",
+      "country_code": "LINKLOCAL",
+      "country_name": "Link-Local",
+      "asn": "AS0",
+      "asn_org": "Link-Local",
+      "ip_type": "link_local"
+    },
+    {
+      "cidr": "198.18.0.0/15",
+      "country_code": "BENCHMARK",
+      "country_name": "Benchmark Testing (RFC2544)",
+      "asn": "AS0",
+      "asn_org": "RFC2544 Benchmark",
+      "ip_type": "benchmark"
+    },
+    {
+      "cidr": "0.0.0.0/8",
+      "country_code": "UNSPECIFIED",
+      "country_name": "Unspecified",
+      "asn": "AS0",
+      "asn_org": "Unspecified",
+      "ip_type": "unspecified"
+    },
+    {
+      "cidr": "240.0.0.0/4",
+      "country_code": "RESERVED",
+      "country_name": "Reserved (Class E)",
+      "asn": "AS0",
+      "asn_org": "Reserved",
+      "ip_type": "reserved"
+    },
+    {
+      "cidr": "255.255.255.255/32",
+      "country_code": "BROADCAST",
+      "country_name": "Broadcast",
+      "asn": "AS0",
+      "asn_org": "Broadcast",
+      "ip_type": "broadcast"
+    }
+  ],
+  "demo_asns": [
+    {
+      "asn": "AS64496",
+      "asn_org": "Demo-CloudProvider-1 (IANA documentation)",
+      "country_code": "US",
+      "country_name": "United States"
+    },
+    {
+      "asn": "AS64497",
+      "asn_org": "Demo-CloudProvider-2 (IANA documentation)",
+      "country_code": "IE",
+      "country_name": "Ireland"
+    },
+    {
+      "asn": "AS64498",
+      "asn_org": "Demo-Hosting-1 (IANA documentation)",
+      "country_code": "DE",
+      "country_name": "Germany"
+    },
+    {
+      "asn": "AS64499",
+      "asn_org": "Demo-ISP-1 (IANA documentation)",
+      "country_code": "SG",
+      "country_name": "Singapore"
+    }
+  ],
+  "demo_reputation_hints": {
+    "10.0.0.1": "internal_scanner",
+    "10.0.0.2": "internal_proxy",
+    "192.168.1.1": "gateway",
+    "192.0.2.1": "documentation_test_ip",
+    "198.51.100.1": "documentation_test_ip"
+  }
+}

@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BasicPageController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OpsHealthController;
+use App\Http\Controllers\AlertAttributionController;
 use App\Http\Controllers\SecurityAlertController;
 use App\Http\Controllers\SocApiController;
 use App\Http\Controllers\SocAgentController;
@@ -121,6 +122,10 @@ Route::get('/admin', [BasicPageController::class, 'admin'])->middleware(['auth',
 Route::get('/security/alerts', [SecurityAlertController::class, 'index'])
     ->middleware(['auth', 'admin'])
     ->name('security.alerts');
+
+Route::get('/security/alerts/attribution', [AlertAttributionController::class, 'index'])
+    ->middleware(['auth', 'admin'])
+    ->name('security.attribution');
 
 Route::middleware(['auth', 'soc:dashboard.view'])->group(function () {
     Route::get('/soc', SocDashboardController::class)->name('soc.dashboard');
