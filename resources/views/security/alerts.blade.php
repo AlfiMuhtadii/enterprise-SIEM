@@ -104,6 +104,7 @@
                         <th class="px-4 py-3">IP</th>
                         <th class="px-4 py-3">Score</th>
                         <th class="px-4 py-3">Model</th>
+                        <th class="px-4 py-3">ATT&amp;CK</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-cyan-100/10">
@@ -115,10 +116,21 @@
                             <td class="px-4 py-3 mono-ui text-cyan-100/85">{{ $alert->ip ?: '-' }}</td>
                             <td class="px-4 py-3 mono-ui text-cyan-100/85">{{ number_format((float) $alert->score, 4) }}</td>
                             <td class="px-4 py-3 text-cyan-100/75">{{ $alert->model_label ?: '-' }}</td>
+                            <td class="px-4 py-3 text-xs">
+                                @if ($alert->mitre_technique_id)
+                                    <span class="mono-ui text-cyan-300">{{ $alert->mitre_technique_id }}</span>
+                                    <span class="block text-cyan-100/60 mt-0.5">{{ $alert->mitre_tactic }}</span>
+                                @elseif (isset($mitreMap[$alert->alert_type]))
+                                    <span class="mono-ui text-cyan-300">{{ $mitreMap[$alert->alert_type]['technique_id'] }}</span>
+                                    <span class="block text-cyan-100/60 mt-0.5">{{ $mitreMap[$alert->alert_type]['tactic'] }}</span>
+                                @else
+                                    <span class="text-cyan-100/30">—</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td class="px-4 py-5 text-muted-ui" colspan="6">No alerts in this window.</td>
+                            <td class="px-4 py-5 text-muted-ui" colspan="7">No alerts in this window.</td>
                         </tr>
                     @endforelse
                 </tbody>

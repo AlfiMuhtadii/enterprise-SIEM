@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AlertMitreService;
 use App\Support\SecurityResponsePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -9,7 +10,7 @@ use Illuminate\View\View;
 
 class SecurityAlertController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, AlertMitreService $mitre): View
     {
         $minutes = max(1, min(1440, (int) $request->query('minutes', 60)));
         $since = now()->subMinutes($minutes);
@@ -38,7 +39,7 @@ class SecurityAlertController extends Controller
             ->get();
 
         $alerts = DB::table('security_alerts')
-            ->select('detected_at', 'alert_type', 'severity', 'ip', 'score', 'model_label', 'evidence')
+            ->select('detected_at', 'alert_type', 'severity', 'ip', 'score', 'model_label', 'evidence', 'mitre_tactic', 'mitre_technique_id', 'mitre_technique_name')
             ->where('detected_at', '>=', $since)
             ->orderByDesc('detected_at')
             ->limit(80)
@@ -52,6 +53,9 @@ class SecurityAlertController extends Controller
             ->get();
 
         return view('security.alerts', [
+            'mitreMap' => collect($mitre->mappedAlertTypes())
+                ->mapWithKeys(fn ($t) => [$t => $mitre->lookup($t)])
+                ->all(),
             'minutes' => $minutes,
             'summary' => $summary,
             'severity' => $severity,

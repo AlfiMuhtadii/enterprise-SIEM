@@ -29,6 +29,9 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **PROD-024** | Production Runtime Profile & Safety Gates posture checker | `scripts/xdr_posture_check.py`, `docs/operations/PRODUCTION_RUNTIME_PROFILE.md` | High | [#17](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/17) |
 | **INGESTION-025** | Ingestion-gateway backpressure & multi-tenant fairness hardening (IG-1/IG-2/IG-3) | `services/ingestion-gateway/main.go` | Medium | [#18](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/18) |
 | **SCALE-026** | Controlled load and soak validation script | `scripts/xdr_scale_soak_validate.py` | Medium | [#19](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/19) |
+| **ATTR-001** | MITRE ATT&CK TTP tagging on security_alerts (AlertMitreService, 3 nullable columns, SOC views) | `security_alerts` migration, `AlertMitreService.php`, SOC views | Medium | [#20](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/20) |
+| **ATTR-002** | Alert attribution context table — advisory OSINT enrichment (append-only, offline-first) | `alert_attribution_context` migration, `AlertAttributionService.php`, views, `xdr_attribution_validate.py` | Medium | [#21](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/21) |
+| **ATTR-003** | GeoIP/ASN offline enrichment lookup service using bundled fixture | `GeoAsnLookupService.php`, `geo_asn_fixtures.json` | Low | [#22](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/22) |
 
 ## Notes
 
