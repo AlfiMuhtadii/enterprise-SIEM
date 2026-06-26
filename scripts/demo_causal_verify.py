@@ -413,65 +413,69 @@ def main(
     _sleep_fn=None,
 ) -> int:
     """Orchestrate the causal live demo proof. Returns exit code 0/1/2."""
+    _quiet = getattr(args, "quiet", False)
+    _p = (lambda *a, **kw: None) if _quiet else print
     started_at = _now_iso()
     w = 70
-    print(f"\n{'=' * w}")
-    print("  XDR CAUSAL LIVE DEMO VERIFIER")
-    print(f"  input    : {args.input}")
-    print(f"  ingest   : {args.ingest_url}")
-    print(f"  timeout  : {args.timeout_seconds}s  poll: {args.poll_interval_seconds}s")
-    print(f"{'=' * w}\n")
+    _p(f"\n{'=' * w}")
+    _p("  XDR CAUSAL LIVE DEMO VERIFIER")
+    _p(f"  input    : {args.input}")
+    _p(f"  ingest   : {args.ingest_url}")
+    _p(f"  timeout  : {args.timeout_seconds}s  poll: {args.poll_interval_seconds}s")
+    _p(f"{'=' * w}\n")
 
     # ── Step 1: Pipeline readiness ───────────────────────────────────────────
-    print("[1/3] Running pipeline readiness validator...")
+    _p("[1/3] Running pipeline readiness validator...")
     validator_passed, validator_output, validator_summary = run_validator(
         args, _run_fn=_run_validator_fn
     )
     if args.verbose:
-        print(validator_output)
+        _p(validator_output)
     if not validator_passed:
-        print(f"  FAIL: pipeline not ready.")
+        _p(f"  FAIL: pipeline not ready.")
         if not args.verbose:
             for line in validator_output.splitlines()[-8:]:
-                print(f"  {line}")
+                _p(f"  {line}")
         ended_at = _now_iso()
         if not args.no_report_write:
             write_reports(
                 "", args, "FAIL", "FAIL", 0, 0, [], [], {},
                 validator_summary, validator_output, started_at, ended_at,
             )
-        print_proof_table(False, "", 0, {}, "FAIL", 0, [], [], "FAIL")
-        print("  LIVE_CAUSAL_PROOF=FAIL\n")
+        if not _quiet:
+            print_proof_table(False, "", 0, {}, "FAIL", 0, [], [], "FAIL")
+        _p("  LIVE_CAUSAL_PROOF=FAIL\n")
         return 2
 
-    print("  OK: pipeline ready.")
+    _p("  OK: pipeline ready.")
 
     # ── Step 2: Demo feed ────────────────────────────────────────────────────
-    print("[2/3] Sending demo events through pipeline...")
+    _p("[2/3] Sending demo events through pipeline...")
     feed_success, demo_run_id, accepted, feed_output, manifest = run_demo_feed(
         args, _run_fn=_run_demo_feed_fn
     )
     if args.verbose:
-        print(feed_output)
+        _p(feed_output)
     if not feed_success:
-        print("  FAIL: demo_feed did not succeed.")
+        _p("  FAIL: demo_feed did not succeed.")
         if not args.verbose:
             for line in feed_output.splitlines()[-8:]:
-                print(f"  {line}")
+                _p(f"  {line}")
         ended_at = _now_iso()
         if not args.no_report_write:
             write_reports(
                 demo_run_id, args, "FAIL", "FAIL", 0, 0, [], [], {},
                 validator_summary, feed_output, started_at, ended_at,
             )
-        print_proof_table(True, demo_run_id, accepted, manifest, "FAIL", 0, [], [], "FAIL")
-        print("  LIVE_CAUSAL_PROOF=FAIL\n")
+        if not _quiet:
+            print_proof_table(True, demo_run_id, accepted, manifest, "FAIL", 0, [], [], "FAIL")
+        _p("  LIVE_CAUSAL_PROOF=FAIL\n")
         return 2
 
-    print(f"  OK: demo_run_id={demo_run_id}  accepted={accepted}")
+    _p(f"  OK: demo_run_id={demo_run_id}  accepted={accepted}")
 
     # ── Step 3: Poll for field-level proof ───────────────────────────────────
-    print(
+    _p(
         f"[3/3] Polling alerts report (timeout={args.timeout_seconds}s, "
         f"interval={args.poll_interval_seconds}s)..."
     )
@@ -479,21 +483,22 @@ def main(
         demo_run_id, args, _run_fn=_run_artisan_fn, _sleep_fn=_sleep_fn
     )
     if args.verbose:
-        print(alerts_output)
+        _p(alerts_output)
 
     # ── Determine verdict ────────────────────────────────────────────────────
     verdict = {"PASS": "PASS", "WARN": "WARN"}.get(field_match, "FAIL")
     ended_at = _now_iso()
 
     # ── Print proof table ────────────────────────────────────────────────────
-    print_proof_table(
-        validator_passed, demo_run_id, accepted, manifest,
-        field_match, alert_count, rule_ids, trace_ids, verdict,
-    )
+    if not _quiet:
+        print_proof_table(
+            validator_passed, demo_run_id, accepted, manifest,
+            field_match, alert_count, rule_ids, trace_ids, verdict,
+        )
 
     # ── Consumer hint when ingestion passed but no alerts found ─────────────
     if verdict == "FAIL" and accepted > 0:
-        print(
+        _p(
             "  HINT: Events were accepted by ingestion-gateway but no alerts were found.\n"
             "        Check alert-writer Redpanda consumer offset state:\n"
             "          docker compose --profile strangler logs --tail=50 alert-writer-service\n"
@@ -501,7 +506,7 @@ def main(
             "        If repeated, ensure XDR_ALERT_WRITER_AUTO_OFFSET_RESET=earliest in .env\n"
             "        and restart: docker compose --profile strangler up --build -d alert-writer-service"
         )
-        print()
+        _p("")
 
     # ── Write reports ────────────────────────────────────────────────────────
     if not args.no_report_write:
@@ -510,11 +515,11 @@ def main(
             alert_count, rule_ids, trace_ids, manifest,
             validator_summary, alerts_output, started_at, ended_at,
         )
-        print(f"  Reports written:")
-        print(f"    JSON : {json_path}")
-        print(f"    MD   : {md_path}\n")
+        _p(f"  Reports written:")
+        _p(f"    JSON : {json_path}")
+        _p(f"    MD   : {md_path}\n")
 
-    print(f"  LIVE_CAUSAL_PROOF={verdict}\n")
+    _p(f"  LIVE_CAUSAL_PROOF={verdict}\n")
     return {"PASS": 0, "WARN": 1, "FAIL": 2}[verdict]
 
 
@@ -569,6 +574,11 @@ Exit codes:
         "--verbose",
         action="store_true",
         help="Print full subprocess output at each step",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress all console output (exit code still set correctly).",
     )
     return parser.parse_args(argv)
 

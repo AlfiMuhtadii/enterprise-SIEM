@@ -165,6 +165,54 @@ def _http_post(url: str, headers: dict[str, str], body: bytes,
         return 0, str(exc)
 
 
+def _make_persistent_post_fn(url: str, timeout: int):
+    """Return a (conn, post_fn) pair using a reused HTTP/1.1 connection.
+
+    Eliminates per-batch TCP handshake overhead. The caller must close conn
+    when done.  post_fn honours the same (url, headers, body, timeout)
+    signature as _http_post so it is drop-in compatible.
+    """
+    import http.client
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 80
+    path = parsed.path or "/"
+
+    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+
+    def _fn(url_: str, hdrs: dict[str, str], data: bytes, _t: int) -> tuple[int, str]:
+        for attempt in range(2):
+            try:
+                conn.request("POST", path, body=data, headers=hdrs)
+                resp = conn.getresponse()
+                status = resp.status
+                body_text = resp.read(512).decode("utf-8", errors="replace")
+                return status, body_text
+            except http.client.HTTPException as exc:
+                if attempt == 0:
+                    try:
+                        conn.close()
+                        conn.connect()
+                    except Exception:
+                        pass
+                    continue
+                return 0, str(exc)
+            except OSError as exc:
+                if attempt == 0:
+                    try:
+                        conn.close()
+                        conn.connect()
+                    except Exception:
+                        pass
+                    continue
+                return 0, str(exc)
+        return 0, "persistent connection failed after retry"
+
+    return conn, _fn
+
+
 # ---------------------------------------------------------------------------
 # Prometheus gauge parser (reused from validate_live_xdr_pipeline.py pattern)
 # ---------------------------------------------------------------------------
@@ -703,7 +751,21 @@ def run_validate(
     all_topics = _SOAK_TOPICS + _DLQ_TOPICS
     watermarks_before = collect_watermarks(admin_url, all_topics, timeout, _get_fn)
 
-    raw = run_soak_loop(plan, secret, timeout, _post_fn, _sleep_fn)
+    # Use a persistent connection in execute mode to eliminate per-batch TCP
+    # handshake overhead (significant on Docker Desktop / WSL2 on Windows).
+    # Tests always inject _post_fn so this path is never taken in tests.
+    _conn = None
+    if _post_fn is None:
+        _conn, _post_fn = _make_persistent_post_fn(ingest_url, timeout)
+
+    try:
+        raw = run_soak_loop(plan, secret, timeout, _post_fn, _sleep_fn)
+    finally:
+        if _conn is not None:
+            try:
+                _conn.close()
+            except Exception:
+                pass
 
     watermarks_after = collect_watermarks(admin_url, all_topics, timeout, _get_fn)
 

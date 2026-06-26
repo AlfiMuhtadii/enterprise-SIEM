@@ -261,7 +261,7 @@ def run_restore(env: dict[str, str], target_db: str, dump_path: Path,
     # pg_restore exits non-zero on warnings (e.g. missing roles) — treat exit ≤ 1 as pass
     passed = rc <= 1
     return _result(
-        "RESTORE", f"pg_restore → {target_db}",
+        "RESTORE", f"pg_restore -> {target_db}",
         PASS if passed else FAIL,
         f"exit={rc}" + (f"  warnings={stderr[:200]}" if stderr else ""),
         "Check that all roles referenced in the dump exist in the target cluster.",
