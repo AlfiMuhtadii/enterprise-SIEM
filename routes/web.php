@@ -78,6 +78,7 @@ use App\Http\Controllers\Governance\ComplianceGovernanceController;
 use App\Http\Controllers\Capacity\CapacityGovernanceController;
 use App\Http\Controllers\Release\ReleaseGovernanceController;
 use App\Http\Controllers\Detection\AdvancedDetectionController;
+use App\Http\Controllers\Detection\DetectionPromotionReadinessController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
@@ -306,6 +307,8 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
         Route::get('/promotions',       [DetectionLifecycleController::class, 'promotions'])->name('detection.lifecycle.promotions');
         Route::get('/quality',          [DetectionLifecycleController::class, 'qualityDashboard'])->name('detection.lifecycle.quality');
     });
+    // ENTERPRISE-045: promotion readiness BEFORE {ruleId} catch-all
+    Route::get('/detection/promotion-readiness', [DetectionPromotionReadinessController::class, 'index'])->name('detection.promotion-readiness');
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
     Route::post('/detection/{ruleId}/promote', [DetectionRuleController::class, 'promote'])->name('detection.promote');
     Route::post('/detection/{ruleId}/notes', [DetectionRuleController::class, 'storeNote'])->name('detection.notes.store');
