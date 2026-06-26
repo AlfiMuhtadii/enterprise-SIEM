@@ -4,19 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Models\PilotReadinessMatrixRun;
 use App\Services\EnterprisePilotReadinessMatrixService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class PilotReadinessMatrixController extends Controller
 {
     public function __construct(
         private readonly EnterprisePilotReadinessMatrixService $service,
+        private readonly TenantContextAuthority                $tenantAuthority,
     ) {}
 
     public function index(Request $request): View|JsonResponse
     {
-        $runs = PilotReadinessMatrixRun::orderByDesc('created_at')->paginate(20);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, Auth::user());
+
+        $runs = PilotReadinessMatrixRun::where('tenant_id', $tenantId)
+            ->orderByDesc('created_at')
+            ->paginate(20);
 
         if ($request->expectsJson()) {
             return response()->json(['runs' => $runs]);
@@ -27,7 +34,12 @@ class PilotReadinessMatrixController extends Controller
 
     public function show(Request $request, string $runId): View|JsonResponse
     {
-        $run = PilotReadinessMatrixRun::where('matrix_run_id', $runId)->firstOrFail();
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, Auth::user());
+
+        $run = PilotReadinessMatrixRun::where('matrix_run_id', $runId)
+            ->where('tenant_id', $tenantId)
+            ->firstOrFail();
+
         $report = $this->service->generateMatrixReport($run);
 
         if ($request->expectsJson()) {
@@ -39,7 +51,12 @@ class PilotReadinessMatrixController extends Controller
 
     public function report(Request $request, string $runId): JsonResponse
     {
-        $run = PilotReadinessMatrixRun::where('matrix_run_id', $runId)->firstOrFail();
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, Auth::user());
+
+        $run = PilotReadinessMatrixRun::where('matrix_run_id', $runId)
+            ->where('tenant_id', $tenantId)
+            ->firstOrFail();
+
         $report = $this->service->generateMatrixReport($run);
 
         return response()->json($report);

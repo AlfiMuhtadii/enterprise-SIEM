@@ -74,6 +74,9 @@ return [
             'dlq.review',
             'shadow.soak.view',
             'shadow.soak.run',
+            'easm.view',
+            'easm.scan',
+            'pilot.readiness.view',
         ],
         'analyst' => [
             'dashboard.view',
@@ -104,6 +107,8 @@ return [
             'advisory.review',
             'dlq.view',
             'shadow.soak.view',
+            'easm.view',
+            'pilot.readiness.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -119,6 +124,8 @@ return [
             'advisory.view',
             'dlq.view',
             'shadow.soak.view',
+            'easm.view',
+            'pilot.readiness.view',
         ],
         'scenario_operator' => [
             'dashboard.view',

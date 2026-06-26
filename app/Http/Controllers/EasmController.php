@@ -9,6 +9,7 @@ use App\Models\EasmScanRun;
 use App\Models\WebsiteAsset;
 use App\Services\EasmPassiveScanService;
 use App\Services\EasmPostureHistoryService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -25,6 +26,7 @@ class EasmController extends Controller
     public function __construct(
         private readonly EasmPassiveScanService      $service,
         private readonly EasmPostureHistoryService   $historyService,
+        private readonly TenantContextAuthority      $tenantAuthority,
     ) {}
 
     // =========================================================================
@@ -216,8 +218,6 @@ class EasmController extends Controller
 
     private function resolveTenantId(Request $request): string
     {
-        return $request->header('X-Tenant-Id')
-            ?? $request->input('tenant_id')
-            ?? 'default';
+        return $this->tenantAuthority->validateAndResolve($request, Auth::user()) ?? 'default';
     }
 }

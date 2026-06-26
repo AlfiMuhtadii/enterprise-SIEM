@@ -32,6 +32,9 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **ATTR-001** | MITRE ATT&CK TTP tagging on security_alerts (AlertMitreService, 3 nullable columns, SOC views) | `security_alerts` migration, `AlertMitreService.php`, SOC views | Medium | [#20](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/20) |
 | **ATTR-002** | Alert attribution context table — advisory OSINT enrichment (append-only, offline-first) | `alert_attribution_context` migration, `AlertAttributionService.php`, views, `xdr_attribution_validate.py` | Medium | [#21](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/21) |
 | **ATTR-003** | GeoIP/ASN offline enrichment lookup service using bundled fixture | `GeoAsnLookupService.php`, `geo_asn_fixtures.json` | Low | [#22](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/22) |
+| **RBAC-1** | Add easm.view/easm.scan/pilot.readiness.view to admin + analyst roles in config/soc.php | `config/soc.php` | High | [#23](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/23) |
+| **EASM-1** | Enforce TenantContextAuthority in EasmController (replace raw header trust) | `EasmController.php` | High | [#24](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/24) |
+| **PILOT-1** | Scope PilotReadinessMatrixController index/show/report by validated tenant context | `PilotReadinessMatrixController.php` | High | [#25](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/25) |
 
 ## Notes
 
