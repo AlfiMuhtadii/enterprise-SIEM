@@ -83,6 +83,10 @@ use App\Http\Controllers\Detection\ShadowPromotionDecisionController;
 use App\Http\Controllers\Detection\EndpointSoakPlanController;
 use App\Http\Controllers\Detection\StabilityFreezeV2Controller;
 use App\Http\Controllers\Detection\StabilityFreezeV3Controller;
+use App\Http\Controllers\Detection\StabilityFreezeV4Controller;
+use App\Http\Controllers\Detection\DetectionFixturesController;
+use App\Http\Controllers\Detection\DomainSoakSimulationController;
+use App\Http\Controllers\Detection\ConfidenceSourceRefreshController;
 use App\Http\Controllers\Detection\RuleEvidenceGovernanceController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
@@ -322,6 +326,14 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
     Route::get('/detection/stability-freeze-v2', [StabilityFreezeV2Controller::class, 'index'])->name('detection.stability-freeze-v2');
     // ENTERPRISE-055: stability evidence freeze v3 BEFORE {ruleId} catch-all
     Route::get('/detection/stability-freeze-v3', [StabilityFreezeV3Controller::class, 'index'])->name('detection.stability-freeze-v3');
+    // ENTERPRISE-056: detection replay fixtures
+    Route::get('/detection/fixture-batches', [DetectionFixturesController::class, 'index'])->name('detection.fixture-batches');
+    // ENTERPRISE-057: domain soak simulations
+    Route::get('/detection/domain-soak-simulations', [DomainSoakSimulationController::class, 'index'])->name('detection.domain-soak-simulations');
+    // ENTERPRISE-058: confidence source refresh
+    Route::get('/detection/confidence-source-refresh', [ConfidenceSourceRefreshController::class, 'index'])->name('detection.confidence-source-refresh');
+    // ENTERPRISE-059: stability evidence freeze v4
+    Route::get('/detection/stability-freeze-v4', [StabilityFreezeV4Controller::class, 'index'])->name('detection.stability-freeze-v4');
     // ENTERPRISE-050: rule evidence governance BEFORE {ruleId} catch-all
     Route::get('/detection/rule-evidence-governance', [RuleEvidenceGovernanceController::class, 'index'])->name('detection.rule-evidence-governance');
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');

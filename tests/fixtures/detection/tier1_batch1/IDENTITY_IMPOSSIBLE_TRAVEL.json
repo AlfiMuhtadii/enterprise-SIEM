@@ -1,0 +1,4 @@
+[
+  {"schema_version":1,"normalization_version":"identity-v1","normalized_event_id":"fix-travel-001","raw_event_id":"fix-travel-001","ts":"2026-06-26T08:00:00Z","telemetry_type":"identity","event_type":"login_success","host":null,"user":"dave@corp.test","source_ip":"1.1.1.1","risk_score":0.3,"event_source":"okta-v1","trace_id":"fix-trace-travel-004","auth":{"action":"login","result":"success","reason":null,"mfa_type":null},"process":null,"network":null,"dns":null,"file":null},
+  {"schema_version":1,"normalization_version":"identity-v1","normalized_event_id":"fix-travel-002","raw_event_id":"fix-travel-002","ts":"2026-06-26T08:45:00Z","telemetry_type":"identity","event_type":"login_success","host":null,"user":"dave@corp.test","source_ip":"203.0.113.200","risk_score":0.9,"event_source":"okta-v1","trace_id":"fix-trace-travel-004","auth":{"action":"login","result":"success","reason":null,"mfa_type":null},"process":null,"network":null,"dns":null,"file":null}
+]

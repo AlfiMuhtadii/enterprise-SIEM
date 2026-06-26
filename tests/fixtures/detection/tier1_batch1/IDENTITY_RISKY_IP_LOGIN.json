@@ -1,0 +1,3 @@
+[
+  {"schema_version":1,"normalization_version":"identity-v1","normalized_event_id":"fix-risky-ip-001","raw_event_id":"fix-risky-ip-001","ts":"2026-06-26T09:10:00Z","telemetry_type":"identity","event_type":"login_success","host":null,"user":"carol@corp.test","source_ip":"45.134.212.100","risk_score":0.85,"event_source":"okta-v1","trace_id":"fix-trace-risky-003","auth":{"action":"login","result":"success","reason":null,"mfa_type":"totp"},"process":null,"network":null,"dns":null,"file":null}
+]

@@ -1,0 +1,3 @@
+[
+  {"schema_version":1,"normalization_version":"o365-v1","normalized_event_id":"fix-saas-admin-001","raw_event_id":"fix-saas-admin-001","ts":"2026-06-26T10:15:00Z","telemetry_type":"saas","event_type":"admin_action","host":null,"user":"grace@corp.test","source_ip":"77.88.55.70","risk_score":0.8,"event_source":"o365-v1","trace_id":"fix-trace-saas-012","auth":{"action":"admin_action","result":"success","reason":null,"mfa_type":null},"process":null,"network":null,"dns":null,"file":null}
+]

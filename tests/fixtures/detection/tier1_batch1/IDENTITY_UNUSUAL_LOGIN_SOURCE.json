@@ -1,0 +1,3 @@
+[
+  {"schema_version":1,"normalization_version":"identity-v1","normalized_event_id":"fix-unusual-src-001","raw_event_id":"fix-unusual-src-001","ts":"2026-06-26T11:00:00Z","telemetry_type":"identity","event_type":"login_success","host":null,"user":"frank@corp.test","source_ip":"91.108.4.100","risk_score":0.72,"event_source":"okta-v1","trace_id":"fix-trace-unusual-006","auth":{"action":"login","result":"success","reason":null,"mfa_type":null},"process":null,"network":null,"dns":null,"file":null}
+]

@@ -1,0 +1,3 @@
+[
+  {"schema_version":1,"normalization_version":"cloudtrail-v1","normalized_event_id":"fix-mass-dl-001","raw_event_id":"fix-mass-dl-001","ts":"2026-06-26T09:40:00Z","telemetry_type":"cloud","event_type":"GetObject","host":null,"user":"arn:aws:iam::123456789012:user/data-exfil","source_ip":"104.20.1.100","risk_score":0.88,"event_source":"cloudtrail-v1","trace_id":"fix-trace-massdl-009","auth":{"action":"download","result":"success","reason":null,"mfa_type":null},"process":null,"network":null,"dns":null,"file":null}
+]
