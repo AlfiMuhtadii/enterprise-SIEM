@@ -1,11 +1,11 @@
 
-# ENTERPRISE-043 Execute Evidence Runs
+# ENTERPRISE-044 Live Environment Evidence Execution
 
 > **Generated:** 2026-06-26T01:40:51.150353+00:00
 > **Profile:** production
 > **Mode:** execute
 > **Overall status:** PASS
-> **Commit:** None
+> **Commit:** 851e956
 
 ## 1. Executive Summary
 
@@ -149,10 +149,10 @@ Detail: [EXECUTED_PASS] Executed successfully (exit=0)
 
 ## 14. Next Recommended Steps
 
-1. Run Phase 3 tenant backfill: php artisan tenant:backfill-nulls
-1. Run domain-specific 6h soak for endpoint behavioral analytics
-1. Enable XDR_TENANT_STRICT_MODE=true in staging after backfill
-1. Execute full restore drill: python scripts/xdr_restore_drill.py --execute
-1. Execute live soak: python scripts/xdr_live_soak_validate.py --execute
-1. Review EASM findings; notify asset owners of any high-severity findings
-1. Run xdr_operator_readiness_check.py --profile=production before each pilot session
+1. Run Phase 3 tenant backfill: `php artisan tenant:backfill-nulls`
+2. Run domain-specific 6h soak for endpoint behavioral analytics
+3. Enable `XDR_TENANT_STRICT_MODE=true` in staging after backfill
+4. ~~Execute full restore drill~~ — **DONE in ENTERPRISE-044** (EXE-06 PASS)
+5. ~~Execute live soak~~ — **DONE in ENTERPRISE-044** (EXE-08 PASS, p95=494ms)
+6. Review EASM findings; notify asset owners of any high-severity findings
+7. Run `xdr_operator_readiness_check.py --profile=production` before each pilot session

@@ -590,7 +590,7 @@ def run_all(
     overall = _agg(top_statuses)
 
     commit = _commit
-    if commit is None and _run_fn is None:
+    if commit is None:
         try:
             import subprocess as _sp
             r = _sp.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
