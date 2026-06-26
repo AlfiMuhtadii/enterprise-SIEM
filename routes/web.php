@@ -82,6 +82,7 @@ use App\Http\Controllers\Detection\DetectionPromotionReadinessController;
 use App\Http\Controllers\Detection\ShadowPromotionDecisionController;
 use App\Http\Controllers\Detection\EndpointSoakPlanController;
 use App\Http\Controllers\Detection\StabilityFreezeV2Controller;
+use App\Http\Controllers\Detection\RuleEvidenceGovernanceController;
 use App\Http\Controllers\Endpoint\SensorHardeningController;
 use App\Http\Controllers\MultiTenant\MultiTenantIsolationController;
 use App\Http\Controllers\Operations\SoakChaosController;
@@ -318,6 +319,8 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
     Route::get('/detection/endpoint-soak-plan', [EndpointSoakPlanController::class, 'index'])->name('detection.endpoint-soak-plan');
     // ENTERPRISE-049: stability evidence freeze v2 BEFORE {ruleId} catch-all
     Route::get('/detection/stability-freeze-v2', [StabilityFreezeV2Controller::class, 'index'])->name('detection.stability-freeze-v2');
+    // ENTERPRISE-050: rule evidence governance BEFORE {ruleId} catch-all
+    Route::get('/detection/rule-evidence-governance', [RuleEvidenceGovernanceController::class, 'index'])->name('detection.rule-evidence-governance');
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
     Route::post('/detection/{ruleId}/promote', [DetectionRuleController::class, 'promote'])->name('detection.promote');
     Route::post('/detection/{ruleId}/notes', [DetectionRuleController::class, 'storeNote'])->name('detection.notes.store');
@@ -911,6 +914,17 @@ Route::middleware(['auth', 'soc:audit.view'])->prefix('multi-tenant')->group(fun
     Route::get('/evidence-integrity',[MultiTenantIsolationController::class, 'evidenceIntegrity'])->name('multi-tenant.evidence-integrity');
     Route::get('/context-propagation',[MultiTenantIsolationController::class, 'contextPropagation'])->name('multi-tenant.context-propagation');
     Route::get('/governance',        [MultiTenantIsolationController::class, 'governanceDashboard'])->name('multi-tenant.governance-dashboard');
+});
+
+// ENTERPRISE-052: Real Pilot Tenant Onboarding
+Route::middleware(['auth', 'soc:audit.view'])->prefix('pilot-tenants')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Tenant\PilotTenantOnboardingController::class, 'index'])->name('pilot-tenants.index');
+    Route::get('/{tenantId}', [\App\Http\Controllers\Tenant\PilotTenantOnboardingController::class, 'show'])->name('pilot-tenants.show');
+});
+
+// ENTERPRISE-053: Real Endpoint Telemetry Enrollment
+Route::middleware(['auth', 'soc:audit.view'])->prefix('endpoint-enrollments')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Endpoint\RealEndpointEnrollmentController::class, 'index'])->name('endpoint-enrollments.index');
 });
 
 // Long-Duration Production Soak & Chaos Validation Phase 1

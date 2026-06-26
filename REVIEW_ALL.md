@@ -199,3 +199,134 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Fix:** Update `AlertPayload` and PostgreSQL write statements in alert-writer and incident-builder to resolve and insert `tenant_id` dynamically.
 - **Task:** DB-5
 
+---
+
+## Review Batch 10 - DOC-DRIFT-AUDIT (2026-06-26)
+
+### Finding DOC-1 - Threat hunting domain count drift across docs
+- **Severity:** Low (Documentation Drift)
+- **Files:** `AGENTS.md`, `CLAUDE.md`, `docs/INTERVIEW_SHOWCASE_GUIDE.md`, `docs/portfolio/CAPABILITY_MATRIX.md`, `docs/RELEASE_NOTES.md`, `docs/architecture/plantuml/threat_hunting_flow.puml`
+- **Issue:** Runtime/test baseline and `README.md` use 164 supported threat-hunting domains, while reviewer/evaluator documents still mention older values (`161` in agent docs and `158` in portfolio/showcase/release docs).
+- **Fix:** Align reviewer/evaluator-facing documents to 164, or avoid hard-coded domain counts where possible.
+- **Task:** Not backlog; documentation-only cleanup.
+
+### Finding DOC-2 - Threat hunting permission map drift
+- **Severity:** Low (Documentation Drift / RBAC Context Risk)
+- **Files:** `AGENTS.md`, `docs/architecture/FEATURE_REGISTRY.md`, `routes/web.php`, `config/soc.php`
+- **Issue:** Actual threat-hunt read routes use `soc:investigation.view` and query/replay routes use `soc:investigation.create`, but docs list `/threat-hunts` as `soc:hunt.view` or `soc:dashboard.view`. `config/soc.php` does not define `hunt.view`.
+- **Fix:** Update module maps to reflect current route middleware, unless a future product decision creates a dedicated hunt permission split.
+- **Task:** Not backlog; documentation-only cleanup.
+
+---
+
+## Review Batch 11 - RBAC-TENANT-AUDIT (2026-06-26)
+
+### Finding RBAC-1 - EASM and Pilot Readiness Matrix route permissions are missing from RBAC config
+- **Severity:** High (Access Regression)
+- **Files:** `routes/web.php`, `config/soc.php`, `app/Http/Middleware/EnsureSocPermission.php`, `app/Support/Rbac.php`
+- **Issue:** Routes use `soc:easm.view`, `soc:easm.scan`, and `soc:pilot.readiness.view`, but no role in `config/soc.php` has `easm.view`, `easm.scan`, or `pilot.readiness.view`. Since `Rbac::can()` requires exact permission membership, these routes deny all users including admins.
+- **Fix:** Add the missing permissions to intended roles or retarget routes to existing permissions; add route-level feature tests for admin access.
+- **Task:** Proposed backlog item.
+
+### Finding EASM-1 - EASM controller trusts raw tenant input instead of TenantContextAuthority
+- **Severity:** High (Tenant Isolation Failure)
+- **Files:** `app/Http/Controllers/EasmController.php`, `app/Services/EasmPassiveScanService.php`, `app/Services/TenantContextAuthority.php`
+- **Issue:** `EasmController::resolveTenantId()` accepts `X-Tenant-Id`, input `tenant_id`, or `default` without membership validation. The service ownership guard checks against this untrusted tenant value, so a reachable EASM route can be spoofed into another tenant context.
+- **Fix:** Use `TenantContextAuthority::validateAndResolve()` for EASM read/store/scan paths and add cross-tenant spoof rejection tests.
+- **Task:** Proposed backlog item.
+
+### Finding PILOT-1 - Pilot Readiness Matrix routes are not tenant scoped
+- **Severity:** High (Tenant Isolation Failure)
+- **Files:** `app/Http/Controllers/PilotReadinessMatrixController.php`, `app/Models/PilotReadinessMatrixRun.php`, `app/Services/EnterprisePilotReadinessMatrixService.php`
+- **Issue:** `index()`, `show()`, and `report()` query `PilotReadinessMatrixRun` globally without tenant filtering or access assertion, even though matrix runs carry `tenant_id`.
+- **Fix:** Resolve tenant context with `TenantContextAuthority`, filter list routes, assert detail/report access, and add two-tenant route tests.
+- **Task:** Proposed backlog item.
+
+---
+
+## Review Batch 12 - AI-RAG-AUDIT-2 (2026-06-26)
+
+### Finding AI-1 - AI/RAG FastAPI service endpoints are unauthenticated
+- **Severity:** High (Service Trust Boundary Failure)
+- **Files:** `services/ai-rag-service/main.py`, `docker-compose.yml`, `docker-compose.prod.yml`
+- **Issue:** `/v1/analyze`, `/v1/retrieve`, and `/v1/embed` have no token/HMAC auth, while base compose publishes `8094:8094` and production compose does not reset that mapping for `ai-rag-service`.
+- **Fix:** Add internal service auth to AI/RAG endpoints and restrict/remove host exposure where not required.
+- **Task:** Proposed backlog item.
+
+### Finding AI-2 - AI generation and suggestion review are not tenant-scoped
+- **Severity:** High (Tenant Isolation Failure)
+- **Files:** `app/Http/Controllers/SocAiController.php`, `app/Support/AiAnalystManager.php`, `routes/web.php`
+- **Issue:** AI generation checks only incident existence by `incident_id`; AI suggestion review updates by `suggestion_id` globally. Neither path validates tenant context or target incident access.
+- **Fix:** Resolve tenant context, assert target incident access, and store/enforce tenant context for AI suggestions.
+- **Task:** Proposed backlog item.
+
+### Finding AI-3 - AI/RAG service receives unredacted alert evidence
+- **Severity:** High (Conditional Data Exposure Risk)
+- **Files:** `app/Support/AiRagServiceProvider.php`, `app/Support/AiAnalystManager.php`, `app/Support/TraceRedactor.php`
+- **Issue:** When standalone AI/RAG service mode is enabled, Laravel sends full alert-derived evidence to `/v1/analyze` without deep redaction or an allowlisted AI evidence projection.
+- **Fix:** Redact and minimize outbound evidence before AI/RAG service calls; add tests with synthetic secrets/emails.
+- **Task:** Proposed backlog item.
+
+### Finding RAG-2 - Retrieved citations are not supplied to remote LLM prompts
+- **Severity:** Medium (Grounding / Correctness Gap)
+- **Files:** `app/Support/AiAnalystManager.php`, `app/Support/SocKnowledgeRetriever.php`, `app/Support/RemoteLlmProvider.php`
+- **Issue:** Local citations are retrieved and stored, but `renderPrompt()` sends only compact context with citation count, not citation excerpts/content. Remote output can appear citation-backed without being grounded in retrieved knowledge.
+- **Fix:** Include bounded citation excerpts or explicit citation IDs in remote prompts and track whether citations were included.
+- **Task:** Proposed backlog item.
+
+### Finding KB-1 - SOC knowledge base is global and not tenant-scoped
+- **Severity:** Medium (Conditional Tenant Data Exposure Risk)
+- **Files:** `app/Http/Controllers/SocKnowledgeBaseController.php`, `app/Support/SocKnowledgeRetriever.php`, `database/migrations/2026_05_12_000008_create_ai_knowledge_maturity_tables.php`
+- **Issue:** `soc_knowledge_base` has no `tenant_id`; search and retrieval scan globally even for incident-linked notes.
+- **Fix:** Define global vs tenant-scoped knowledge policy and enforce it in create/search/retrieve paths.
+- **Task:** Proposed backlog item.
+
+---
+
+## Review Batch 13 - RESPONSE-SOAR-AUDIT-1 (2026-06-26)
+
+### Finding RESP-1 - Legacy agent command paths bypass the new endpoint response approval framework
+- **Severity:** High (Response Control Boundary Bypass)
+- **Files:** `app/Http/Controllers/SocAgentController.php`, `app/Http/Controllers/SocResponseController.php`, `app/Http/Controllers/AgentIngestionController.php`, `app/Models/EndpointResponseCommand.php`, `app/Services/EndpointResponseCommandService.php`, `services/endpoint-agent/agent.py`
+- **Issue:** Legacy controllers still write directly to `agent_commands` with dash-style command types (`collect-now`, `rotate-agent-secret`, etc.), bypassing `EndpointResponseCommandService`, the new safe allowlist, approval event model, and `CMD-YYYY-NNNNN` command convention. The current endpoint agent only supports the new underscore command types.
+- **Fix:** Deprecate direct `agent_commands` writes, route endpoint command creation through `EndpointResponseCommandService`, map only equivalent legacy commands, and reject unsupported legacy types.
+- **Task:** Proposed backlog item.
+
+### Finding AGENT-API-1 - Endpoint command poll/ack/result API does not enforce agent signatures
+- **Severity:** High (Agent API Authentication Failure)
+- **Files:** `routes/web.php`, `app/Http/Controllers/Api/EndpointAgentApiController.php`, `app/Services/EndpointResponseCommandService.php`, `tests/Feature/EndpointResponseCommandTest.php`, `services/endpoint-agent/agent.py`
+- **Issue:** `/api/agents/{agentId}/commands` returns dispatched commands without signature validation. Ack/result endpoints log invalid signatures but still mutate command state to acknowledged/completed/failed.
+- **Fix:** Require valid per-agent authentication before command disclosure or state mutation; return 401/403 on invalid signatures and add denial tests.
+- **Task:** Proposed backlog item.
+
+### Finding RESP-2 - Active response execute permission semantics need clarification
+- **Severity:** Low (Design Clarity / Authorization Semantics)
+- **Files:** `routes/web.php`, `app/Services/ActiveResponseExecutionService.php`, `app/Http/Controllers/Response/ActiveResponseController.php`, `tests/Feature/ActiveResponseExecutionTest.php`
+- **Issue:** Active response remains operator-recorded and does not autonomously mutate infrastructure, but final execute/rollback mutation routes are under `soc:response.create`, not a dedicated execute permission.
+- **Fix:** Document that `response.create` includes manual execution confirmation, or introduce a dedicated execute permission and add route tests.
+- **Task:** Not backlog until product authorization semantics are decided.
+
+---
+
+## Review Batch 14 - INTERNAL-AUTH-EDGE-AUDIT-1 (2026-06-26)
+
+### Finding INT-AUTH-1 - Production compose overlay does not reset pipeline service ports 8092-8096
+- **Severity:** High (Deployment Boundary / Exposure Drift)
+- **Files:** `docker-compose.yml`, `docker-compose.prod.yml`, `docs/guides/LIMITATIONS_AND_CLAIMS.md`, `scripts/xdr_production_profile_validate.py`
+- **Issue:** Base compose publishes normalizer, correlation, AI/RAG, alert-writer, and incident-builder ports to the host. Production overlay claims pipeline services have no external exposure, but does not reset those inherited port mappings.
+- **Fix:** Add `ports: !reset []` or localhost-only bindings for pipeline services in production overlay, and extend production validation to fail if 8092-8096 are publicly exposed.
+- **Task:** Proposed backlog item.
+
+### Finding INT-AUTH-2 - Alert writer and incident builder expose DLQ contents without internal auth
+- **Severity:** Medium (Internal Data Disclosure Risk)
+- **Files:** `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py`, `docker-compose.yml`, `docker-compose.prod.yml`
+- **Issue:** `/dlq` endpoints return recent in-memory failure payloads without `X-Internal-Service-Token`. These payloads can include alert/incident evidence, trace IDs, actor identifiers, tenant context, and operational errors.
+- **Fix:** Protect `/dlq` with the same internal auth as write/process/build routes or remove it from production; redact payloads before returning them.
+- **Task:** Proposed backlog item.
+
+### Finding INT-AUTH-3 - Internal auth scheme is split between Laravel HMAC tokens and static microservice tokens
+- **Severity:** Low (Design Drift / Operational Clarity)
+- **Files:** `app/Services/InternalAuthService.php`, `app/Http/Controllers/Security/SecurityHardeningController.php`, `services/*/main.*`, `.env.example`
+- **Issue:** Laravel `/api/internal/*` uses time-bounded HMAC tokens, while pipeline microservices compare static per-service tokens. This is documented in code but easy to misread as one shared internal auth mechanism.
+- **Fix:** Document the two schemes explicitly, or standardize microservices on the same time-bounded HMAC token format.
+- **Task:** Not backlog unless auth scheme standardization is desired.

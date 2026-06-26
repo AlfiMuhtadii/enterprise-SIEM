@@ -41,6 +41,11 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **RBAC-1** | Add missing EASM + Pilot Readiness Matrix permissions to all roles in config/soc.php; fixes locked-out routes | `8e7ba02` | [#23](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/23) | 2026-06-26 |
 | **EASM-1** | Enforce TenantContextAuthority in EasmController; cross-tenant spoof blocked via TCA::validateAndResolve | `8e7ba02` | [#24](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/24) | 2026-06-26 |
 | **PILOT-1** | Scope PilotReadinessMatrixController by validated tenant context; cross-tenant run_id returns 404 | `8e7ba02` | [#25](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/25) | 2026-06-26 |
+| **ENTERPRISE-045** | Detection Domain Promotion Readiness — DetectionPromotionReadinessService (5 categories, derived from registry), DetectionPromotionReadinessController, promotion_readiness blade view, xdr_promotion_readiness_validate.py (13/13 PASS); 24 tests; 3707 PHP green | `8524f3c` | — | 2026-06-26 |
+| **ENTERPRISE-046** | Tenant Strict Mode & Null Backfill Closure — MUTABLE_TABLES + APPEND_ONLY_ISOLATED_TABLES constants in TenantBoundaryService, TenantNullBackfillCommand (dry-run/idempotent/batched), xdr_tenant_backfill_validate.py (13/13 PASS); 18 tests; 3725 PHP green | `eaafe83` | — | 2026-06-26 |
+| **ENTERPRISE-047** | Shadow Ready Promotion Decision — ShadowReadyPromotionDecisionService (0.78/0.65 thresholds, DLQ-aware, advisory), EvaluateShadowPromotionCommand (--dry-run), shadow_promotion_decisions table (append-only), xdr_shadow_promotion_decision_validate.py (16/16 PASS); 35 tests; 3760 PHP green | `7704784` | — | 2026-06-26 |
+| **ENTERPRISE-048** | Endpoint Shadow Domain Soak Plan — EndpointSoakPlanService (tier_1_soak_ready conf>=0.72: 80 rules, tier_2_evidence_collection: 13 rules, 5 gates), 3 append-only tables, GenerateEndpointSoakPlanCommand (--dry-run), xdr_endpoint_soak_plan_validate.py (16/16 PASS); 32 tests; 3792 PHP green | `d4a3ef1` | — | 2026-06-26 |
+| **ENTERPRISE-049** | Stability Evidence Freeze v2 — StabilityEvidenceFreezeV2Service (12 gates EF-01–EF-12, 4 phase summaries E045–E048, STABLE_SCORE_THRESHOLD=0.80), 3 append-only tables, StabilityFreezeV2Command (--dry-run), xdr_stability_freeze_v2_validate.py (14/14 PASS); 25 tests; 3817 PHP green | `e7f73d3` | — | 2026-06-26 |
 
 ---
 

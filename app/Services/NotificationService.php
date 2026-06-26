@@ -110,6 +110,35 @@ class NotificationService
         return in_array($notificationType, ['escalation', 'sla_breach'], true);
     }
 
+    // ── ENTERPRISE-054: Real adapter dispatch ─────────────────────────────────
+    // Routes to real adapters only when env vars are configured.
+    // SIMULATED_BY_DEFAULT remains true; real dispatch is opt-in via env.
+
+    public function dispatchSlack(array $context): array
+    {
+        $payload = $this->buildSlackPayload($context);
+        $adapter = new \App\Services\Integrations\SlackRealAdapter();
+        return $adapter->dispatch($payload);
+    }
+
+    public function dispatchPagerDuty(array $context): array
+    {
+        $adapter = new \App\Services\Integrations\PagerDutyRealAdapter();
+        return $adapter->trigger($context);
+    }
+
+    public function dispatchJira(array $context): array
+    {
+        $adapter = new \App\Services\Integrations\JiraRealAdapter();
+        return $adapter->createIssue($context);
+    }
+
+    public function dispatchServiceNow(array $context): array
+    {
+        $adapter = new \App\Services\Integrations\ServiceNowRealAdapter();
+        return $adapter->createIncident($context);
+    }
+
     public function buildSlackPayload(array $context): array
     {
         return [

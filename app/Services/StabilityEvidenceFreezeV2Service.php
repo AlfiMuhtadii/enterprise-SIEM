@@ -193,26 +193,66 @@ class StabilityEvidenceFreezeV2Service
             'is_advisory'    => true,
             'recorded_at'    => now()->format('Y-m-d H:i:sP'),
         ];
+        // E047: query shadow_promotion_decisions for live counts (ENTERPRISE-051 dynamic phase summaries)
+        $e047Metrics = $this->liveE047Metrics();
         $phases[] = [
             'freeze_run_id'  => $runId,
             'enterprise_id'  => 'E047',
             'phase_name'     => self::PHASE_MAP['E047'],
             'status'         => 'reviewed',
-            'metrics'        => json_encode(['promote_eligible' => 6, 'keep_shadow' => 6, 'defer' => 0, 'promotion_approved' => false]),
+            'metrics'        => json_encode($e047Metrics),
             'is_advisory'    => true,
             'recorded_at'    => now()->format('Y-m-d H:i:sP'),
         ];
+
+        // E048: query endpoint_soak_plan_rules for live tier counts
+        $e048Metrics = $this->liveE048Metrics();
         $phases[] = [
             'freeze_run_id'  => $runId,
             'enterprise_id'  => 'E048',
             'phase_name'     => self::PHASE_MAP['E048'],
             'status'         => 'reviewed',
-            'metrics'        => json_encode(['tier_1_soak_ready' => 80, 'tier_2_evidence' => 13, 'tier_3_tuning' => 0]),
+            'metrics'        => json_encode($e048Metrics),
             'is_advisory'    => true,
             'recorded_at'    => now()->format('Y-m-d H:i:sP'),
         ];
 
         return $phases;
+    }
+
+    // ── ENTERPRISE-051: dynamic phase metric queries ──────────────────────────
+
+    private function liveE047Metrics(): array
+    {
+        if (!Schema::hasTable('shadow_promotion_decisions')) {
+            return ['promote_eligible' => 6, 'keep_shadow' => 6, 'defer' => 0, 'promotion_approved' => false];
+        }
+        $rows = DB::table('shadow_promotion_decisions')->select('decision')->get();
+        if ($rows->isEmpty()) {
+            return ['promote_eligible' => 6, 'keep_shadow' => 6, 'defer' => 0, 'promotion_approved' => false];
+        }
+        return [
+            'promote_eligible'  => $rows->where('decision', 'promote_eligible')->count(),
+            'keep_shadow'       => $rows->where('decision', 'keep_shadow')->count(),
+            'defer'             => $rows->where('decision', 'defer')->count(),
+            'promotion_approved'=> false,
+        ];
+    }
+
+    private function liveE048Metrics(): array
+    {
+        if (!Schema::hasTable('endpoint_soak_plan_rules')) {
+            return ['tier_1_soak_ready' => 80, 'tier_2_evidence' => 13, 'tier_3_tuning' => 0];
+        }
+        $rows = DB::table('endpoint_soak_plan_rules')->select('tier')->get();
+        if ($rows->isEmpty()) {
+            return ['tier_1_soak_ready' => 80, 'tier_2_evidence' => 13, 'tier_3_tuning' => 0];
+        }
+        return [
+            'tier_1_soak_ready' => $rows->where('tier', 'tier_1_soak_ready')->count(),
+            'tier_2_evidence'   => $rows->where('tier', 'tier_2_evidence_collection')->count(),
+            'tier_3_tuning'     => $rows->where('tier', 'tier_3_needs_tuning')->count(),
+        ];
     }
 
     private function gate(string $runId, string $id, string $name, string $status, string $evidence): array

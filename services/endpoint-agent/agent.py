@@ -3268,6 +3268,15 @@ def main() -> None:
         "--debug", action="store_true",
         help="Enable DEBUG log level",
     )
+    # ENTERPRISE-053: Real endpoint enrollment mode
+    parser.add_argument(
+        "--enroll", action="store_true",
+        help="Run enrollment snapshot (one-shot: collect + report enrollment data, then exit)",
+    )
+    parser.add_argument(
+        "--tenant-id", default="",
+        help="Tenant ID to associate with this enrollment",
+    )
     args = parser.parse_args()
 
     if args.debug:
@@ -3304,6 +3313,25 @@ def main() -> None:
         "Agent ready — agent_id=%s collection=%ds heartbeat=%ds max_buffer=%d disk_guard=%dMB",
         agent_id, collection_interval, heartbeat_interval, max_buf_size, disk_guard_mb,
     )
+
+    if args.enroll:
+        # ENTERPRISE-053: enrollment snapshot mode
+        # Collect one cycle, report enrollment data, exit safely
+        tenant_id = args.tenant_id or cfg.get("tenant_id", "")
+        log.info("Enrollment mode — hostname=%s platform=%s tenant_id=%s", HOSTNAME, platform.system(), tenant_id or "none")
+        count = run_collection_cycle(cfg, col_state, agent_id, gateway, hardened_buffer, quality)
+        enrollment_data = {
+            "hostname": HOSTNAME,
+            "os_platform": platform.system().lower(),
+            "os_version": platform.version(),
+            "agent_version": getattr(cfg, "get", lambda k, d=None: d)("agent_version", "1.0.0"),
+            "tenant_id": tenant_id,
+            "events_collected": count,
+            "is_real": True,
+            "is_advisory": True,
+        }
+        log.info("Enrollment snapshot complete: %s", json.dumps(enrollment_data))
+        return
 
     if args.once:
         count = run_collection_cycle(cfg, col_state, agent_id, gateway, hardened_buffer, quality)

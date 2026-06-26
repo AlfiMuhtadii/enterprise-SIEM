@@ -64,8 +64,8 @@ class ShadowReadyPromotionDecisionService
                 'dlq_errors_in_domain'    => $dlqErrors,
                 'advisory_findings_count' => $findingsCount,
                 'false_positive_risk'     => $fpRisk,
-                'promote_eligible_threshold' => self::PROMOTE_ELIGIBLE_THRESHOLD,
-                'keep_shadow_threshold'      => self::KEEP_SHADOW_THRESHOLD,
+                'promote_eligible_threshold' => $this->configPromoteEligibleThreshold(),
+                'keep_shadow_threshold'      => $this->configKeepShadowThreshold(),
                 'evaluation_note'         => $this->buildEvaluationNote($decision, $confidence, $dlqErrors),
             ];
 
@@ -133,13 +133,35 @@ class ShadowReadyPromotionDecisionService
 
     // ────────────────────────────────────────────────────────────────────────
 
+    // ── Config-aware threshold readers (ENTERPRISE-051) ──────────────────────
+    // Constants retain documented default values; config() allows env override.
+
+    private function configPromoteEligibleThreshold(): float
+    {
+        return (float) config('xdr_detection.promotion.promote_eligible_threshold', self::PROMOTE_ELIGIBLE_THRESHOLD);
+    }
+
+    private function configKeepShadowThreshold(): float
+    {
+        return (float) config('xdr_detection.promotion.keep_shadow_threshold', self::KEEP_SHADOW_THRESHOLD);
+    }
+
+    private function configMaxDlqForEligible(): int
+    {
+        return (int) config('xdr_detection.promotion.max_dlq_for_eligible', self::MAX_DLQ_FOR_ELIGIBLE);
+    }
+
     private function makeDecision(float $confidence, int $dlqErrors): string
     {
-        if ($confidence >= self::PROMOTE_ELIGIBLE_THRESHOLD && $dlqErrors <= self::MAX_DLQ_FOR_ELIGIBLE) {
+        $promoteThreshold = $this->configPromoteEligibleThreshold();
+        $keepThreshold    = $this->configKeepShadowThreshold();
+        $maxDlq           = $this->configMaxDlqForEligible();
+
+        if ($confidence >= $promoteThreshold && $dlqErrors <= $maxDlq) {
             return self::DECISION_PROMOTE_ELIGIBLE;
         }
 
-        if ($confidence >= self::KEEP_SHADOW_THRESHOLD) {
+        if ($confidence >= $keepThreshold) {
             return self::DECISION_KEEP_SHADOW;
         }
 
@@ -148,10 +170,13 @@ class ShadowReadyPromotionDecisionService
 
     private function classifyFalsePositiveRisk(float $confidence): string
     {
-        if ($confidence >= self::PROMOTE_ELIGIBLE_THRESHOLD) {
+        $promoteThreshold = $this->configPromoteEligibleThreshold();
+        $keepThreshold    = $this->configKeepShadowThreshold();
+
+        if ($confidence >= $promoteThreshold) {
             return 'low';
         }
-        if ($confidence >= self::KEEP_SHADOW_THRESHOLD) {
+        if ($confidence >= $keepThreshold) {
             return 'medium';
         }
         return 'high';
@@ -159,15 +184,18 @@ class ShadowReadyPromotionDecisionService
 
     private function buildEvaluationNote(string $decision, float $confidence, int $dlqErrors): string
     {
+        $promoteT = $this->configPromoteEligibleThreshold();
+        $keepT    = $this->configKeepShadowThreshold();
+
         return match ($decision) {
             self::DECISION_PROMOTE_ELIGIBLE =>
-                "Confidence {$confidence} >= threshold " . self::PROMOTE_ELIGIBLE_THRESHOLD . " and DLQ errors = {$dlqErrors}. " .
+                "Confidence {$confidence} >= threshold {$promoteT} and DLQ errors = {$dlqErrors}. " .
                 "Advisory eligible for soak scheduling. Requires domain 6h soak PASS + ACTIVE_ALLOWLIST update by detection-engineering.",
             self::DECISION_KEEP_SHADOW =>
-                "Confidence {$confidence} is below promote_eligible threshold " . self::PROMOTE_ELIGIBLE_THRESHOLD .
-                " or DLQ errors ({$dlqErrors}) > 0. Keep in shadow; continue accumulating evidence.",
+                "Confidence {$confidence} is below promote_eligible threshold {$promoteT} " .
+                "or DLQ errors ({$dlqErrors}) > 0. Keep in shadow; continue accumulating evidence.",
             self::DECISION_DEFER =>
-                "Confidence {$confidence} < keep_shadow threshold " . self::KEEP_SHADOW_THRESHOLD . ". " .
+                "Confidence {$confidence} < keep_shadow threshold {$keepT}. " .
                 "Insufficient signal. Defer until rule is tuned and re-evaluated.",
             default => 'Unknown decision.',
         };

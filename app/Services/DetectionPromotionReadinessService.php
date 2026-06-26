@@ -16,18 +16,11 @@ class DetectionPromotionReadinessService
     public const ADVISORY_ONLY          = true;
     public const NO_AUTONOMOUS_PROMOTION = true;
 
-    // Domains whose soak passed (identity/cloud/SaaS 6h soak PASS 2026-05-14).
-    // Shadow rules in these domains are one soak run away from promotion eligibility.
-    private const SOAKED_DOMAINS   = ['identity', 'cloud', 'saas'];
-
-    // Domains blocked by an infrastructure prerequisite — cannot even schedule a soak yet.
-    // network: DNS/proxy/firewall tap not production-ready.
-    // threat-intel: requires live IOC feed.
-    // xdr: cross-domain correlation requires multiple active domains simultaneously.
-    private const DEFERRED_DOMAINS = ['network', 'threat-intel', 'xdr'];
-
-    // Domains where telemetry flows but no domain-specific soak has been scheduled.
-    private const SOAK_NEEDED_DOMAINS = ['endpoint'];
+    // Default domain lists — configurable via xdr_detection config (ENTERPRISE-051).
+    // Override with XDR_DETECTION_SOAKED_DOMAINS env var (comma-separated).
+    private const SOAKED_DOMAINS_DEFAULT   = ['identity', 'cloud', 'saas'];
+    private const DEFERRED_DOMAINS_DEFAULT = ['network', 'threat-intel', 'xdr'];
+    private const SOAK_NEEDED_DOMAINS_DEFAULT = ['endpoint'];
 
     public const READINESS_ACTIVE           = 'active';
     public const READINESS_SHADOW_READY     = 'shadow_ready';
@@ -62,11 +55,11 @@ class DetectionPromotionReadinessService
             return self::READINESS_ACTIVE;
         }
 
-        if (in_array($domain, self::DEFERRED_DOMAINS, true)) {
+        if (in_array($domain, $this->getDeferredDomains(), true)) {
             return self::READINESS_DEFERRED;
         }
 
-        if (in_array($domain, self::SOAKED_DOMAINS, true)) {
+        if (in_array($domain, $this->getSoakedDomains(), true)) {
             return self::READINESS_SHADOW_READY;
         }
 
@@ -106,6 +99,20 @@ class DetectionPromotionReadinessService
     public function getRulesForReadiness(string $readiness): Collection
     {
         return $this->classifyAll()->where('readiness', $readiness)->values();
+    }
+
+    // ── Config-aware domain list readers (ENTERPRISE-051) ────────────────────
+
+    private function getSoakedDomains(): array
+    {
+        $configured = config('xdr_detection.soaked_domains');
+        return (!empty($configured)) ? array_values($configured) : self::SOAKED_DOMAINS_DEFAULT;
+    }
+
+    private function getDeferredDomains(): array
+    {
+        $configured = config('xdr_detection.deferred_domains');
+        return (!empty($configured)) ? array_values($configured) : self::DEFERRED_DOMAINS_DEFAULT;
     }
 
     private function loadRules(): Collection

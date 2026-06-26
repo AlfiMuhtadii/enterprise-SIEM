@@ -61,15 +61,27 @@ class EndpointSoakPlanService
         return compact('summary', 'tiered', 'gates');
     }
 
+    // ── Config-aware threshold readers (ENTERPRISE-051) ──────────────────────
+
+    private function configTier1Threshold(): float
+    {
+        return (float) config('xdr_detection.soak.tier_1_threshold', self::TIER_1_THRESHOLD);
+    }
+
+    private function configTier2Threshold(): float
+    {
+        return (float) config('xdr_detection.soak.tier_2_threshold', self::TIER_2_THRESHOLD);
+    }
+
     public function classifyTier(array $rule): string
     {
         $confidence = (float) ($rule['confidence'] ?? 0.0);
 
-        if ($confidence >= self::TIER_1_THRESHOLD) {
+        if ($confidence >= $this->configTier1Threshold()) {
             return self::TIER_1_SOAK_READY;
         }
 
-        if ($confidence >= self::TIER_2_THRESHOLD) {
+        if ($confidence >= $this->configTier2Threshold()) {
             return self::TIER_2_EVIDENCE_COLLECTION;
         }
 
@@ -207,8 +219,8 @@ class EndpointSoakPlanService
             'tier_1_count'    => $t1,
             'tier_2_count'    => $t2,
             'tier_3_count'    => $t3,
-            'tier_1_threshold'=> self::TIER_1_THRESHOLD,
-            'tier_2_threshold'=> self::TIER_2_THRESHOLD,
+            'tier_1_threshold'=> $this->configTier1Threshold(),
+            'tier_2_threshold'=> $this->configTier2Threshold(),
             'plan_approved'   => false,
             'is_advisory'     => true,
             'generated_at'    => now()->format('Y-m-d H:i:sP'),
@@ -220,10 +232,10 @@ class EndpointSoakPlanService
         if ($confidence >= 0.78) {
             return 'low';
         }
-        if ($confidence >= self::TIER_1_THRESHOLD) {
+        if ($confidence >= $this->configTier1Threshold()) {
             return 'medium';
         }
-        if ($confidence >= self::TIER_2_THRESHOLD) {
+        if ($confidence >= $this->configTier2Threshold()) {
             return 'high';
         }
         return 'very_high';
@@ -231,16 +243,19 @@ class EndpointSoakPlanService
 
     private function buildRationale(string $tier, float $confidence): string
     {
+        $t1 = $this->configTier1Threshold();
+        $t2 = $this->configTier2Threshold();
+
         return match ($tier) {
             self::TIER_1_SOAK_READY =>
-                "confidence {$confidence} >= " . self::TIER_1_THRESHOLD . ". " .
+                "confidence {$confidence} >= {$t1}. " .
                 "Soak-ready: schedule in 6h endpoint soak window 1. " .
                 "Gate: agent enrollment PASS + advisory findings stable.",
             self::TIER_2_EVIDENCE_COLLECTION =>
-                "confidence {$confidence} in [" . self::TIER_2_THRESHOLD . ", " . self::TIER_1_THRESHOLD . "). " .
+                "confidence {$confidence} in [{$t2}, {$t1}). " .
                 "Accumulate advisory findings evidence for ≥14 days, then re-evaluate for tier upgrade.",
             self::TIER_3_NEEDS_TUNING =>
-                "confidence {$confidence} < " . self::TIER_2_THRESHOLD . ". " .
+                "confidence {$confidence} < {$t2}. " .
                 "Rule requires tuning (FP reduction, threshold adjustment) before soak scheduling.",
             default => 'Unknown tier.',
         };

@@ -36,6 +36,54 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 
 ---
 
+### GAP-001: Shadow rule domain promotion (6h soaks required)
+
+- **Category**: Detection Coverage / Operational Gate
+- **Severity**: High
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: 121 of 133 detection rules are shadow-only. Endpoint behavioral (40), network (9), UEBA (9), threat-intel (3), advanced detection (60) have never produced active alerts. Each domain requires a domain-specific 6h soak PASS before promotion is permitted per CLAUDE.md.
+- **Why deferred**: Not a code gap — code for `DomainSoakHarnessService` and shadow soak command already exists. This is an operational execution gate. Promotion is forbidden until soak evidence is collected per domain.
+- **Production gate**: Must run domain-specific 6h soak per domain before any shadow-to-active promotion. `ACTIVE_ALLOWLIST` must not be modified without soak PASS.
+- **Status**: **DEFERRED**
+
+---
+
+### GAP-002: PostgreSQL Row-Level Security (RLS) implementation
+
+- **Category**: Multi-Tenant Isolation / Security
+- **Severity**: High
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: Tenant isolation is application-layer only. PostgreSQL RLS is not enabled. Documented in `docs/security/RLS_DECISION_RECORD.md`. A privileged DB connection (e.g., via compromised service account) could read any tenant's data without app-layer filtering.
+- **Why deferred**: Requires GAP-003 (null tenant_id backfill) to complete first. RLS policies on tables with null `tenant_id` would silently hide pre-migration records.
+- **Production gate**: Must be addressed before any multi-tenant production pilot. Prerequisite: GAP-003 fully complete and verified.
+- **Status**: **DEFERRED**
+
+---
+
+### GAP-003: Null tenant_id backfill for pre-BACKLOG-019 records
+
+- **Category**: Multi-Tenant Isolation / Data Integrity
+- **Severity**: High
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: Records created before BACKLOG-019 (tenant context enforcement) have `tenant_id = NULL`. `XDR_TENANT_STRICT_MODE` remains `false` because strict mode rejects null-tenant records. Command `php artisan tenant:backfill-nulls` is scaffolded but not run against real data.
+- **Why deferred**: Backfill requires a data audit (`TenantNullAuditCommand`) to identify the scope of null records before any bulk update. Running blindly on production data risks assigning wrong tenant context.
+- **Production gate**: Must complete audit → backfill → verify before enabling `XDR_TENANT_STRICT_MODE=true` in staging/production.
+- **Status**: **DEFERRED**
+
+---
+
+### GAP-004: Redpanda single-node — no HA / partition replication
+
+- **Category**: Infrastructure Reliability
+- **Severity**: Medium
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: Redpanda runs as a single Docker container. No replication factor, no partition leadership failover. A single container crash halts the entire event pipeline (all topics go offline).
+- **Why deferred**: Single-node is acceptable for academic demo. Multi-node Redpanda cluster requires infrastructure reconfiguration beyond Docker Compose scope. HA belongs in Kubernetes/production deployment manifest.
+- **Production gate**: Must be addressed before any production pilot with real endpoint traffic. Minimum: 3-node Redpanda with replication factor ≥ 2.
+- **Status**: **DEFERRED**
+
+---
+
 ### INFRA-3: No memory/CPU limits on intensive containers
 
 - **Category**: Enterprise Reliability / Production Hardening
@@ -113,6 +161,42 @@ Valid findings where the risk is real but intentionally tolerated given the curr
 - **Finding**: Grafana provisioning volume mounts (`./infra/grafana/provisioning`) are not mounted `:ro`. A compromised Grafana container could write to provisioning files.
 - **Accepted risk rationale**: Local dev requires writable provisioning mounts to allow dashboard exports and live edits inside the container. The attack surface is localhost-only (Grafana port is already restricted to `127.0.0.1` via INFRA-1). Adding `:ro` in dev breaks the dashboard authoring workflow.
 - **Condition to re-evaluate**: Production deployment config must use `:ro` on all provisioning mounts.
+- **Status**: **ACCEPTED RISK**
+
+---
+
+### GAP-005: No kernel-level telemetry (non-goal by design)
+
+- **Category**: Telemetry Coverage / Scope Boundary
+- **Severity**: Informational
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: Endpoint agent does not collect kernel-level events (syscalls, eBPF hooks, kernel modules, memory forensics). System is not a full EDR.
+- **Accepted risk rationale**: Explicitly a non-goal. CLAUDE.md lists "kernel EDR" and "malware prevention" as non-goals. Academic scope is behavioral observability and correlation, not deep kernel instrumentation. Adding kernel telemetry would require privileged container capabilities and would introduce offensive tooling risk.
+- **Condition to re-evaluate**: Never — this is an architectural boundary, not a deferred feature.
+- **Status**: **ACCEPTED RISK**
+
+---
+
+### GAP-006: p95 ingest latency ~494ms (Docker Desktop / WSL2 overhead)
+
+- **Category**: Performance / Operational Baseline
+- **Severity**: Low
+- **Source**: Gap analysis 2026-06-26 / ENTERPRISE-044 EXE-08
+- **Finding**: p95 ingest latency is 494ms on Docker Desktop / WSL2 Windows, in the WARN range (300–499ms). The 300ms PASS threshold is not achievable under Docker Desktop networking overhead regardless of optimizations applied (persistent connection implemented in ENTERPRISE-044).
+- **Accepted risk rationale**: Overhead is Docker Desktop WSL2 networking artifact — not a code defect. Native Linux deployment or CI runner shows sub-100ms p95. Demo environment latency does not reflect production performance. EXE-08 PASS was achieved (no FAIL-level bounds exceeded).
+- **Condition to re-evaluate**: Verify p95 < 300ms on a native Linux environment before any production pilot SLA commitment.
+- **Status**: **ACCEPTED RISK**
+
+---
+
+### GAP-007: No live containment / active response (non-goal by design)
+
+- **Category**: Response Capability / Scope Boundary
+- **Severity**: Informational
+- **Source**: Gap analysis 2026-06-26
+- **Finding**: Response plan actions are `recommend_*` only. No `execute_*` actions. No process kill, IP block, account suspension, or autonomous containment.
+- **Accepted risk rationale**: Explicitly forbidden by CLAUDE.md. Academic positioning requires analyst-in-the-loop for all response actions. Autonomous remediation is a non-goal and a forbidden change. Implementing active response would compromise academic defensibility.
+- **Condition to re-evaluate**: Never for autonomous response. Controlled execution (human-approved, audit-logged) could be considered post-thesis as Phase 2 response framework.
 - **Status**: **ACCEPTED RISK**
 
 ---
