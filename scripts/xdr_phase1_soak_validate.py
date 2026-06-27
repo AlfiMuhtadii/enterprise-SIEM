@@ -176,6 +176,32 @@ def _():
     return ok, "correct path found" if ok else "path missing or wrong"
 
 
+@check("PSV-21", "DetectionReplayFixtureService::persist uses updateOrInsert (not just update)")
+def _():
+    c = _read("app/Services/DetectionReplayFixtureService.php")
+    has_upsert = "updateOrInsert" in c
+    has_plain_update_only = (
+        re.search(r"->where\('rule_id'.*\)->update\(", c) is not None
+        and "updateOrInsert" not in c
+    )
+    ok = has_upsert and not has_plain_update_only
+    return ok, f"updateOrInsert={has_upsert} plain-update-only={has_plain_update_only}"
+
+
+@check("PSV-22", "has_validation_evidence set to true in fixture upsert")
+def _():
+    c = _read("app/Services/DetectionReplayFixtureService.php")
+    ok = re.search(r"'has_validation_evidence'\s*=>\s*true", c) is not None
+    return ok, "evidence flag found in upsert" if ok else "evidence flag missing"
+
+
+@check("PSV-23", "SoakPhase1RunCommand has --warm-up option")
+def _():
+    c = _read("app/Console/Commands/SoakPhase1RunCommand.php")
+    ok = "warm-up" in c and "rule:run-fixtures" in c and "rule:refresh-confidence" in c
+    return ok, "warm-up wiring found" if ok else "warm-up wiring missing"
+
+
 def main():
     passed = 0
     for cid, name, fn in CHECKS:

@@ -173,16 +173,27 @@ class DetectionReplayFixtureService
             DB::table('detection_fixture_results')->insert($result);
         }
 
-        // Update rule_fixture_backlogs for valid fixtures (mutable table — upsert safe)
+        // Upsert rule_fixture_backlogs for valid fixtures.
+        // updateOrInsert creates rows on first run (empty table) and updates on subsequent runs.
+        // has_validation_evidence=true: a valid replay fixture that proves rule fires on a known-malicious
+        // pattern IS the empirical validation evidence. Derivation: fixture+evidence → 'empirical'.
         if (Schema::hasTable('rule_fixture_backlogs')) {
             foreach ($results as $result) {
                 if ($result['fixture_valid']) {
-                    DB::table('rule_fixture_backlogs')
-                        ->where('rule_id', $result['rule_id'])
-                        ->update([
-                            'has_replay_fixture' => true,
-                            'fixture_path'       => $result['fixture_path'],
-                        ]);
+                    DB::table('rule_fixture_backlogs')->updateOrInsert(
+                        ['rule_id' => $result['rule_id']],
+                        [
+                            'domain'                  => $result['domain'],
+                            'title'                   => $result['rule_id'],
+                            'status'                  => 'staged_active',
+                            'confidence'              => 0.90,
+                            'has_replay_fixture'      => true,
+                            'has_validation_evidence' => true,
+                            'fixture_path'            => $result['fixture_path'],
+                            'priority_tier'           => 'tier_1_immediate',
+                            'is_advisory'             => true,
+                        ]
+                    );
                 }
             }
         }
