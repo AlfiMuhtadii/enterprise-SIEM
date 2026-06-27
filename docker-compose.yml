@@ -243,7 +243,9 @@ services:
     container_name: detector-xdr-ingestion-gateway
     profiles: ["strangler"]
     environment:
-      XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
+      # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
+      # .env XDR_REDPANDA_REST_URL=http://127.0.0.1:8082 is for host-side scripts only.
+      XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_RAW_TOPIC: telemetry.raw
       XDR_INGEST_RPS: 100
@@ -262,7 +264,7 @@ services:
     container_name: detector-xdr-normalizer-worker
     profiles: ["strangler"]
     environment:
-      XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
+      XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_RAW_TOPIC: telemetry.raw
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalization_failed
@@ -287,9 +289,8 @@ services:
     container_name: detector-xdr-correlation-worker
     profiles: ["strangler"]
     environment:
-      XDR_CORRELATION_MODE: shadow
       XDR_CORRELATION_GOGC: "300"
-      XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
+      XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_ALERTS_TOPIC: xdr.alerts
       XDR_CORRELATION_DLQ_TOPIC: xdr.alerts.dlq
@@ -332,7 +333,7 @@ services:
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       XDR_OPENSEARCH_URL: ${XDR_OPENSEARCH_URL:-http://opensearch:9200}
-      XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
+      XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_ALERTS_TOPIC: xdr.alerts
       XDR_ALERTS_CREATED_TOPIC: alerts.created
       XDR_ALERTS_DLQ_TOPIC: xdr.alerts.dlq
@@ -374,7 +375,7 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
-      XDR_REDPANDA_REST_URL: ${XDR_REDPANDA_REST_URL:-http://redpanda:8082}
+      XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_ALERTS_CREATED_TOPIC: alerts.created
       XDR_INCIDENTS_TOPIC: incidents.updated
       XDR_INCIDENT_BUILDER_GROUP: incident-builder-v1
