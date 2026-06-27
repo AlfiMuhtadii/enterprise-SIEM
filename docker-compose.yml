@@ -30,7 +30,9 @@ services:
       # Exposed on 127.0.0.1 for local demo only. Remove or firewall in non-local deployments.
       - "127.0.0.1:8082:8082"
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health --brokers=127.0.0.1:9092 >/dev/null 2>&1"]
+      # Admin HTTP API (port 9644) is more reliable than rpk under consumer reconnect storms.
+      # rpk cluster health triggers a full metadata fetch which can timeout when Pandaproxy is busy.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9644/v1/brokers >/dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 5
