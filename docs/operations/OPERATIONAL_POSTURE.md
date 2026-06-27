@@ -1,7 +1,7 @@
 # Operational Posture
 
 Current correlation mode, domain status, and environment configuration.
-Last updated: 2026-05-18
+Last updated: 2026-06-27
 
 This is the authoritative source for current active/shadow domain decisions.
 
@@ -120,8 +120,9 @@ Endpoint detection is permanently shadow-only until:
 1. A domain-specific 6h soak PASS for the endpoint domain
 2. All cutover gates above pass for endpoint telemetry
 
-Current shadow rules: 22 endpoint behavioral, 3 threat-intel/IOC (25 shadow total).
-These are deployed and generating alerts on `xdr.alerts.shadow.endpoint` — they are NOT persisted.
+Current shadow rules: 121 total shadow (133 registry − 12 staged_active).
+Breakdown: 32 endpoint behavioral, 8 LLTET, 9 UEBA, 9 network, 3 threat-intel/IOC, 20 advanced detection Phase 1, 40 detection depth Phase 2.
+Shadow alerts go to `xdr.alerts.shadow.endpoint` — they are NOT persisted to `security_alerts`.
 
 ---
 
@@ -149,3 +150,33 @@ Expected health responses:
 {"status":"ok","service":"alert-writer"}
 {"status":"ok","service":"incident-builder"}
 ```
+
+---
+
+## Infrastructure Fixes (2026-06-27)
+
+### Pandaproxy URL — container vs host
+
+All strangler service definitions in `docker-compose.yml` use:
+```yaml
+XDR_REDPANDA_REST_URL: http://redpanda:8082
+```
+This is hardcoded (not `${XDR_REDPANDA_REST_URL:-...}`). The `:-` fallback only fires when the variable is unset; since `.env` has `XDR_REDPANDA_REST_URL=http://127.0.0.1:8082`, the old pattern caused all containers to use the host loopback, breaking container-to-container Pandaproxy access.
+
+`.env` `XDR_REDPANDA_REST_URL=http://127.0.0.1:8082` remains for host-side scripts only.
+
+### Redpanda healthcheck
+
+Changed from `rpk cluster health` (full Kafka metadata fetch, times out during consumer reconnect storms) to:
+```yaml
+test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9644/v1/brokers >/dev/null 2>&1"]
+```
+Admin HTTP API on port 9644 is unaffected by Pandaproxy state.
+
+### Consumer group corruption recovery
+
+Corrupt consumer groups with `65535 = 0xFFFF` sentinel in Redpanda metadata (from stale timestamp-suffixed group IDs) cause a `group.cc:3367 WARN` loop. To clear:
+```powershell
+docker exec detector-redpanda rpk group delete <corrupt-group-id> --brokers=127.0.0.1:9092
+```
+Clean group base names are in `.env`: `XDR_NORMALIZER_GROUP=normalizer-worker-v1`, `XDR_CORRELATION_GROUP=correlation-worker-v1`.

@@ -4,6 +4,52 @@ All notable changes to this project are documented here. This project follows a 
 
 ---
 
+## [1.0.0-rc2] — 2026-06-27
+
+### Fixed
+- Redpanda healthcheck: changed from `rpk cluster health` (times out during consumer reconnect storms) to `curl -fsS http://127.0.0.1:9644/v1/brokers` (admin HTTP API, unaffected by Pandaproxy state)
+- Pandaproxy URL bug in docker-compose: all strangler services now hardcode `http://redpanda:8082` instead of substituting from `.env` (which held the host loopback `http://127.0.0.1:8082`)
+- E063: `DetectionReplayFixtureService::persist()` used `->where('rule_id')->update()` — silent no-op on empty table after `migrate:fresh`; changed to `updateOrInsert()` + `has_validation_evidence=true` so fixture runs populate `rule_fixture_backlogs` on first run
+- E062: P1G-07/P1G-08 evidence sources wired from `reports/xdr_correlation_soak_6h.json`
+
+### Added
+- E063: `--warm-up` flag on `soak:phase1-run` — auto-seeds fixture confidence evidence before gate check
+- E063: `Phase1ConfidenceChainTest` — 19 tests covering full E2E fixture → confidence → P1G-04 chain
+- Phase 1 pre-soak Decision: **PASS** (all 8 gates green, 2026-06-27)
+
+---
+
+## [1.0.0-rc1-enterprise] — 2026-06-25
+
+### Added
+- ENTERPRISE-039: RBAC audit coverage — self-approval guards on `EndpointResponseCommandService` + `SocResponseController`; `RbacAuditCoverageTest` (26 tests); 3618 PHP green
+- ENTERPRISE-040: RLS decision record ADR + `xdr_tenant_isolation_posture.py` (14 checks + 2 advisory, offline); 61 Python tests
+- ENTERPRISE-041: `PILOT_OPERATOR_RUNBOOK.md` (17 procedures, 24-command index) + `xdr_operator_readiness_check.py` (16 checks + 2 advisory); 43 Python tests
+- ENTERPRISE-044: Live environment evidence execution and freeze document
+
+---
+
+## [1.0.0-rc1-e044-e063] — 2026-06-22 to 2026-06-27
+
+### Added
+- ATTR-001: MITRE ATT&CK TTP tagging on `security_alerts` (`ttp_tags`, `tactic`, `technique_id`, `technique_name`)
+- ATTR-002/003: Alert attribution context + offline GeoIP/ASN lookup (`source_country`, `source_asn`, `source_org`)
+- ENTERPRISE-045: Detection domain promotion readiness framework (`DetectionPromotionReadinessService`)
+- ENTERPRISE-046: Tenant strict mode + null backfill closure (`XDR_TENANT_STRICT_MODE`, `TenantContextMissingException`)
+- ENTERPRISE-047: `ShadowReadyPromotionDecisionService` (advisory only, promotion_recommended always false)
+- ENTERPRISE-048: Endpoint shadow domain soak plan (`EndpointSoakPlanService`)
+- ENTERPRISE-049: Stability Evidence Freeze v2 — aggregates E045–E048 evidence
+- ENTERPRISE-050–054: Rule evidence governance, pilot tenant onboarding, real endpoint enrollment, integration reality validation, detection config validation
+- ENTERPRISE-055: Stability Evidence Freeze v3 — consolidates E045–E054
+- ENTERPRISE-056: Detection replay fixtures — 12 tier-1 JSON fixtures (`tests/fixtures/detection/tier1_batch1/`), `DetectionReplayFixtureService`, `rule:run-fixtures`
+- ENTERPRISE-057: Domain soak simulation (`DomainSoakSimulationService`, `domain:soak-simulate`)
+- ENTERPRISE-058: Confidence source refresh (`ConfidenceSourceRefreshService`, `rule:refresh-confidence`)
+- ENTERPRISE-059: Stability Evidence Freeze v4 — covers E055–E058 delta
+- ENTERPRISE-060: Real domain soak execution plan (`RealDomainSoakPlanService`, `soak:plan-review`)
+- ENTERPRISE-061: Phase 1 soak execution framework (`Phase1SoakExecutionService`, `soak:phase1-run`, P1G-01..P1G-08)
+
+---
+
 ## [1.0.0-rc1] — 2026-05-24
 
 ### Added

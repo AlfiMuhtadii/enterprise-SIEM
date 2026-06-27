@@ -1,7 +1,7 @@
 # Feature Registry
 
 Canonical module and capability inventory for the XDR platform.
-Last updated: 2026-05-18
+Last updated: 2026-06-27
 
 For chronological history see `docs/architecture/ARCHITECTURE_CHANGELOG.md`.
 For current test/rule baselines see `docs/validation/VALIDATION_BASELINES.md`.
@@ -55,6 +55,48 @@ Route prefix        Module                          Permission gate
   /persistence        Persistence investigation
   /chains             Chain explorer
   /{huntId}           Hunt detail
+
+/security/alerts/attribution   Alert Attribution (MITRE TTP + GeoIP/ASN)   soc:dashboard.view
+
+/detection/promotion-readiness          Detection Domain Promotion Readiness     soc:rules.govern
+/detection/shadow-promotion-decisions   Shadow-Ready Promotion Decision          soc:rules.govern
+/detection/endpoint-soak-plan           Endpoint Shadow Domain Soak Plan         soc:rules.govern
+/detection/stability-freeze-v2          Stability Evidence Freeze v2             soc:rules.govern
+/detection/stability-freeze-v3          Stability Evidence Freeze v3             soc:rules.govern
+/detection/stability-freeze-v4          Stability Evidence Freeze v4             soc:rules.govern
+/detection/fixture-batches              Detection Replay Fixture Batches         soc:rules.govern
+/detection/domain-soak-simulations      Domain Soak Simulations                  soc:rules.govern
+/detection/confidence-source-refresh    Confidence Source Refresh                soc:rules.govern
+/detection/soak-execution-plan          Real Domain Soak Execution Plan          soc:rules.govern
+/detection/phase1-soak                  Phase 1 Soak Evidence (P1G-01..P1G-08)   soc:rules.govern
+/detection/rule-evidence-governance     Rule Evidence Governance                 soc:rules.govern
+
+/soak-chaos         Soak & Chaos Validation Dashboard   soc:audit.view
+  /chaos              Chaos explorer
+  /replay             Replay recovery
+  /telemetry          Telemetry continuity
+  /drift              Drift detection
+  /queue              Queue pressure
+  /worker             Worker restart
+  /recovery           Recovery timeline
+  /stability          Stability dashboard
+
+/pilot-tenants      Pilot Tenant Onboarding (index, /{id})   soc:audit.view
+/endpoint-enrollments  Real Endpoint Enrollment              soc:agents.manage
+
+/pilot-execution    Real Pilot Execution                soc:audit.view
+  /enrollment, /telemetry, /reviews, /rollback, /observation, /drift, /audit, /health
+
+/op-intel           Operational Intelligence Dashboard   soc:dashboard.view
+  /confidence, /false-positives, /analyst-optimization, /scale, /governance, /long-running
+
+/easm               EASM Passive Posture Monitoring     soc:security.view
+  /posture, /findings, /risk-trend, /history
+
+/enterprise-pilot   Enterprise Pilot Readiness Matrix   soc:audit.view
+/shadow-soak        Shadow Domain Soak Harness          soc:shadow.soak.view
+/dlq                DLQ Review & Replay                 soc:dlq.view
+/advisory           Shadow Alert Advisory Findings      soc:advisory.view
 ```
 
 ---
@@ -206,6 +248,44 @@ Supported query domains with allowlisted fields:
 Pivot types: `host`, `process`, `persistence`, `trace`, `entity`
 
 All hunts are append-only records (`threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`). No destructive operations.
+
+Supported domains: 164 total (see `ThreatHuntingService::supportedDomains()`)
+
+---
+
+## Artisan Commands — Detection Engineering
+
+| Command | Description |
+|---|---|
+| `rule:evidence-inventory` | Inventory 133 rules for replay fixture and evidence debt (E050) |
+| `rule:run-fixtures` | Run detection replay fixture batch — tier_1_immediate; advisory-only (E056) |
+| `rule:refresh-confidence` | Refresh `confidence_source` labels across all rules — empirical/fixture_tested/manual (E058) |
+| `domain:soak-simulate` | Run offline domain soak simulation; promotion_recommended=false always (E057) |
+| `stability:freeze-v2` | Stability Evidence Freeze v2 — aggregates E045–E048 evidence; advisory-only |
+| `stability:freeze-v3` | Stability Evidence Freeze v3 — consolidates E045–E054 |
+| `stability:freeze-v4` | Stability Evidence Freeze v4 — covers E055–E058 delta |
+| `soak:plan-review` | Display the real domain soak execution plan + evaluate pre-soak readiness gates (E060) |
+| `soak:phase1-run [--warm-up] [--dry-run] [--duration=30]` | Phase 1 pre-soak gate check P1G-01..P1G-08 (E061/E062/E063) |
+
+### soak:phase1-run flags
+
+| Flag | Effect |
+|---|---|
+| `--warm-up` | Calls `rule:run-fixtures` + `rule:refresh-confidence` before gate check (seeds P1G-04 empirical evidence) |
+| `--dry-run` | Gate check only — no persistence to `phase1_soak_runs` |
+| `--duration=N` | Planned soak duration (30–60 min) for planning metadata |
+
+---
+
+## Artisan Commands — Operations & Validation
+
+| Command | Description |
+|---|---|
+| `dlq:replay` | Safe DLQ replay — only sends `NORMALIZER_SAFE_EVENT_TYPES`; never triggers from HTTP |
+| `tenant:null-audit` | Read-only audit of tenant_id nulls across append-only tables; exit 0/1 |
+| `endpoint:verify-enrollment` | Verify real endpoint enrollment state |
+| `tenant:onboard-pilot` | Onboard a pilot tenant with bounded limits |
+| `security:validate-secrets` | Validate required secrets; `--record` persists a snapshot |
 
 ---
 

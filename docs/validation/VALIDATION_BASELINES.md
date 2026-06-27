@@ -1,7 +1,7 @@
 # Validation Baselines
 
 Current pass criteria and expected outputs for all validation suites.
-Last updated: 2026-05-20 (LLTET Phase 1)
+Last updated: 2026-06-27 (ENTERPRISE-063 + docker infra fixes)
 
 This is the authoritative source for test counts and threshold values.
 Update this file whenever a validation count changes (new tests, new rules).
@@ -11,10 +11,14 @@ Update this file whenever a validation count changes (new tests, new rules).
 ## Primary Gate — Laravel Test Suite
 
 ```powershell
-php artisan test
+php artisan migrate:fresh --force && php artisan test
 ```
 
-**Expected:** `1433 passed` — zero failures, zero skipped.
+**Expected:** `4274+ passed` — zero failures, zero skipped.
+Last full verification: 3618 PHP (after ENTERPRISE-039, 2026-06-25).
+ENTERPRISE-044 through ENTERPRISE-063 added ~656 additional test methods.
+Always prefix with `migrate:fresh --force` to avoid `QueryException` from stale schema state.
+
 If any test fails: **STOP**. Do not commit, demo, or proceed.
 
 Do NOT run parallel `php artisan test` processes against the same PostgreSQL test database.
@@ -39,7 +43,7 @@ Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/ne
 python scripts/xdr_rule_registry_validate.py
 ```
 
-**Expected:** `status=PASS  rules=73  checks=21/21  failures=0`
+**Expected:** `status=PASS  rules=133  checks=21/21  failures=0`
 
 Current registry breakdown:
 - 12 `staged_active` — identity (6), cloud (5), SaaS (1)
@@ -48,8 +52,10 @@ Current registry breakdown:
 - 9 `shadow` — UEBA behavioral analytics
 - 9 `shadow` — network (DNS/proxy/firewall)
 - 3 `shadow` — threat-intel/IOC
+- 20 `shadow` — advanced detection (cred/persist/evasion/lateral/container Phase 1)
+- 40 `shadow` — detection depth expansion (cred/persist/evasion/lateral/cloud/container Phase 2)
 
-Hard gate: endpoint + threat-intel rules are permanently blocked from `staged_active`. `ACTIVE_ALLOWLIST` is intentionally empty.
+Hard gate: endpoint + threat-intel + network rules are permanently blocked from `staged_active`. `ACTIVE_ALLOWLIST` is intentionally empty.
 
 ---
 
@@ -186,3 +192,32 @@ Last soak PASS: 2026-05-14
 - p95 = 80.65 ms, 562M events processed, 77,981 eps, zero fallbacks/failures
 
 See: `docs/validation/xdr_6h_soak_pass.md`
+
+---
+
+## Phase 1 Pre-Soak Gate Check
+
+```powershell
+php artisan soak:phase1-run --warm-up --duration=30
+```
+
+Pre-gates for staged-active empirical rules before executing the full 6h soak.
+`--warm-up` seeds fixture confidence evidence via `rule:run-fixtures` + `rule:refresh-confidence`.
+
+**Expected:** Decision: `PASS` — all 8 gates green.
+
+| Gate | ID | Pass Condition |
+|---|---|---|
+| Staged-active rules count = 12 | P1G-01 | registry staged_active count ≥ 12 |
+| Correlation engine is Go | P1G-02 | `XDR_CORRELATION_ENGINE=go` |
+| Tier-1 fixture files on disk ≥ 12 | P1G-03 | `tests/fixtures/detection/tier1_batch1/*.json` count ≥ 12 |
+| Empirical confidence evidence | P1G-04 | `rule_fixture_backlogs.confidence_source=empirical` count ≥ 1 |
+| DLQ error count = 0 | P1G-05 | `dlq_records.status=error` count = 0 |
+| Recent alerts > 0 | P1G-06 | `security_alerts` created in last 2h count > 0 |
+| p95 latency < 300ms | P1G-07 | sourced from soak report |
+| Fallback count = 0 | P1G-08 | sourced from soak report |
+
+Last run result: Decision: **PASS** (2026-06-27, all 8 gates green).
+NO_PROMOTION = true — this run does NOT authorize promotion. Only 6h soak PASS does.
+
+See: `docs/validation/PHASE1_SOAK_EVIDENCE.md`

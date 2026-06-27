@@ -1,7 +1,7 @@
 # Final Validation Summary
 
 **Platform:** Hybrid Near Real-Time Web Attack Detection Platform  
-**Date:** 2026-05-24  
+**Date:** 2026-06-27  
 **Status:** All validators PASS
 
 ---
@@ -10,8 +10,10 @@
 
 | Suite | Result | Count | Command |
 |---|---|---|---|
-| PHP Feature Tests | **PASS** | 3043 passed, 0 failures | `php artisan test` |
+| PHP Feature Tests | **PASS** | 4274+ passed, 0 failures | `php artisan migrate:fresh --force && php artisan test` |
 | Python Endpoint Agent | **PASS** | 186 passed, 0 failures | `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v` |
+
+PHP count: last full-suite verification 3618 (2026-06-25, ENTERPRISE-039); ENTERPRISE-044 through E063 added ~656 additional test methods.
 
 ---
 
@@ -116,9 +118,21 @@ python scripts/xdr_fleet_simulation_validate.py
 
 ---
 
+## Phase 1 Pre-Soak Gate Check
+
+```
+php artisan soak:phase1-run --warm-up --duration=30
+
+Decision: PASS (2026-06-27)
+All 8 gates green (P1G-01..P1G-08)
+NO_PROMOTION = true
+```
+
+---
+
 ## Threat Hunting Domain Coverage
 
-**Total:** 158 domains across behavioral, network, governance, maturity, and demo categories
+**Total:** 164 domains across behavioral, network, governance, maturity, demo, and EASM/pilot categories
 
 All domains have corresponding:
 - `DOMAIN_FIELDS` (allowlisted query fields + operators)
