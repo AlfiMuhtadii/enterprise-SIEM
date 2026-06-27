@@ -139,6 +139,43 @@ def _():
     return ok, "route found" if ok else "route missing"
 
 
+@check("PSV-16", "SOAK_REPORT_PATH public constant defined")
+def _():
+    c = _read("app/Services/Phase1SoakExecutionService.php")
+    ok = re.search(r"public const SOAK_REPORT_PATH", c) is not None
+    return ok, "constant found" if ok else "constant missing"
+
+
+@check("PSV-17", "setSoakReportOverride method exists (test override support)")
+def _():
+    c = _read("app/Services/Phase1SoakExecutionService.php")
+    ok = "setSoakReportOverride" in c
+    return ok, "method found" if ok else "method missing"
+
+
+@check("PSV-18", "P1G-04 checks confidence_source_audit_events as fallback source")
+def _():
+    c = _read("app/Services/Phase1SoakExecutionService.php")
+    ok = "confidence_source_audit_events" in c and "new_confidence_source" in c
+    return ok, "fallback source present" if ok else "fallback source missing"
+
+
+@check("PSV-19", "P1G-03 uses base_path (not storage_path) for fixture discovery")
+def _():
+    c = _read("app/Services/Phase1SoakExecutionService.php")
+    has_base   = re.search(r"base_path\(self::FIXTURE_DIR\)", c) is not None
+    has_wrong  = re.search(r"storage_path\(self::FIXTURE_DIR\)", c) is not None
+    ok = has_base and not has_wrong
+    return ok, f"base_path={has_base} storage_path(wrong)={has_wrong}"
+
+
+@check("PSV-20", "FIXTURE_DIR points to tier1_batch1")
+def _():
+    c = _read("app/Services/Phase1SoakExecutionService.php")
+    ok = re.search(r"FIXTURE_DIR\s*=\s*'tests/fixtures/detection/tier1_batch1'", c) is not None
+    return ok, "correct path found" if ok else "path missing or wrong"
+
+
 def main():
     passed = 0
     for cid, name, fn in CHECKS:

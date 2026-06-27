@@ -7,26 +7,34 @@ use Illuminate\Support\Str;
 
 class Phase1SoakExecutionService
 {
-    public const ADVISORY_ONLY  = true;
-    public const NO_PROMOTION   = true;
-    public const SCOPE          = 'staged_active_empirical';
-    public const DURATION_MIN   = 30;
-    public const DURATION_MAX   = 60;
-    public const GATES_TOTAL    = 8;
+    public const ADVISORY_ONLY    = true;
+    public const NO_PROMOTION     = true;
+    public const SCOPE            = 'staged_active_empirical';
+    public const DURATION_MIN     = 30;
+    public const DURATION_MAX     = 60;
+    public const GATES_TOTAL      = 8;
+    public const SOAK_REPORT_PATH = 'reports/xdr_correlation_soak_6h.json';
 
     private const GATES = [
         'P1G-01' => 'Staged-active rules count = 12',
         'P1G-02' => 'Correlation engine is Go (XDR_CORRELATION_ENGINE=go)',
-        'P1G-03' => 'Tier-1 fixture files on disk >= 12',
-        'P1G-04' => 'Empirical rules in backlog >= 1',
+        'P1G-03' => 'Tier-1 fixture files on disk >= 12 (tests/fixtures/detection/tier1_batch1)',
+        'P1G-04' => 'Empirical confidence evidence found (backlogs or audit events)',
         'P1G-05' => 'DLQ error count = 0',
         'P1G-06' => 'Recent alerts > 0 (pipeline active, last 2h)',
-        'P1G-07' => 'p95 latency < 300ms (advisory — measured via soak script)',
-        'P1G-08' => 'Fallback count = 0 (advisory — measured via soak script)',
+        'P1G-07' => 'p95 latency < 300ms (from soak report when available)',
+        'P1G-08' => 'Fallback count = 0 (from soak report; XDR_CORRELATION_FALLBACK_TO_LEGACY=0 required)',
     ];
 
     private const REGISTRY_PATH = 'docs/detection/rules/registry.v1.json';
-    private const FIXTURE_DIR   = 'detection/fixtures/tier_1';
+    private const FIXTURE_DIR   = 'tests/fixtures/detection/tier1_batch1';
+
+    private ?string $soakReportOverride = null;
+
+    public function setSoakReportOverride(string $path): void
+    {
+        $this->soakReportOverride = $path;
+    }
 
     public function buildRun(bool $dryRun = true, int $durationMinutes = 30): array
     {
@@ -41,18 +49,18 @@ class Phase1SoakExecutionService
         $failed = count(array_filter($gates, fn ($g) => $g['status'] === 'fail'));
 
         $plan = [
-            'soak_run_id'     => $runId,
-            'scope'           => self::SCOPE,
+            'soak_run_id'      => $runId,
+            'scope'            => self::SCOPE,
             'duration_minutes' => $durationMinutes,
-            'rules_in_scope'  => $this->countStagedActiveRules(),
-            'gates_total'     => count($gates),
-            'gates_passed'    => $passed,
-            'gates_warned'    => $warned,
-            'gates_failed'    => $failed,
-            'decision'        => $decision,
-            'no_promotion'    => self::NO_PROMOTION,
-            'is_advisory'     => self::ADVISORY_ONLY,
-            'is_dry_run'      => $dryRun,
+            'rules_in_scope'   => $this->countStagedActiveRules(),
+            'gates_total'      => count($gates),
+            'gates_passed'     => $passed,
+            'gates_warned'     => $warned,
+            'gates_failed'     => $failed,
+            'decision'         => $decision,
+            'no_promotion'     => self::NO_PROMOTION,
+            'is_advisory'      => self::ADVISORY_ONLY,
+            'is_dry_run'       => $dryRun,
         ];
 
         if (! $dryRun) {
@@ -71,8 +79,8 @@ class Phase1SoakExecutionService
             $this->gateP1G04($dryRun),
             $this->gateP1G05($dryRun),
             $this->gateP1G06($dryRun),
-            $this->gateP1G07($dryRun),
-            $this->gateP1G08($dryRun),
+            $this->gateP1G07(),
+            $this->gateP1G08(),
         ];
     }
 
@@ -166,7 +174,7 @@ class Phase1SoakExecutionService
 
     private function gateP1G03(): array
     {
-        $dir   = storage_path(self::FIXTURE_DIR);
+        $dir   = base_path(self::FIXTURE_DIR);
         $files = glob($dir . '/*.json') ?: [];
         $count  = count($files);
         $passed = $count >= 12;
@@ -175,7 +183,7 @@ class Phase1SoakExecutionService
             'gate_name'  => self::GATES['P1G-03'],
             'status'     => $passed ? 'pass' : 'warn',
             'passed'     => $passed,
-            'evidence'   => "tier_1 fixture files on disk={$count}",
+            'evidence'   => self::FIXTURE_DIR . " json files on disk={$count}",
             'is_advisory' => false,
         ];
     }
@@ -185,18 +193,46 @@ class Phase1SoakExecutionService
     private function gateP1G04(bool $dryRun): array
     {
         if ($dryRun) {
-            return $this->advisoryGate('P1G-04', 'dry-run: empirical backlog count not measured');
+            return $this->advisoryGate(
+                'P1G-04',
+                'dry-run: empirical confidence not checked. Run: php artisan rule:run-fixtures && php artisan rule:refresh-confidence'
+            );
         }
-        $count  = DB::table('rule_fixture_backlogs')->where('confidence_source', 'empirical')->count();
-        $passed = $count >= 1;
-        return [
-            'gate_id'    => 'P1G-04',
-            'gate_name'  => self::GATES['P1G-04'],
-            'status'     => $passed ? 'pass' : 'warn',
-            'passed'     => $passed,
-            'evidence'   => "rule_fixture_backlogs confidence_source=empirical count={$count}",
-            'is_advisory' => true,
-        ];
+
+        // Primary source: rule_fixture_backlogs (populated by rule:run-fixtures + rule:refresh-confidence)
+        $backlogCount = DB::table('rule_fixture_backlogs')
+            ->where('confidence_source', 'empirical')
+            ->count();
+        if ($backlogCount >= 1) {
+            return [
+                'gate_id'    => 'P1G-04',
+                'gate_name'  => self::GATES['P1G-04'],
+                'status'     => 'pass',
+                'passed'     => true,
+                'evidence'   => "rule_fixture_backlogs confidence_source=empirical count={$backlogCount}",
+                'is_advisory' => true,
+            ];
+        }
+
+        // Fallback source: confidence_source_audit_events (written by rule:refresh-confidence even if backlogs empty)
+        $auditCount = DB::table('confidence_source_audit_events')
+            ->where('new_confidence_source', 'empirical')
+            ->count();
+        if ($auditCount >= 1) {
+            return [
+                'gate_id'    => 'P1G-04',
+                'gate_name'  => self::GATES['P1G-04'],
+                'status'     => 'pass',
+                'passed'     => true,
+                'evidence'   => "confidence_source_audit_events empirical entries={$auditCount} (run rule:refresh-confidence to sync backlogs)",
+                'is_advisory' => true,
+            ];
+        }
+
+        return $this->advisoryGate(
+            'P1G-04',
+            'No empirical evidence found in backlogs or audit events. Run: php artisan rule:run-fixtures && php artisan rule:refresh-confidence'
+        );
     }
 
     private function gateP1G05(bool $dryRun): array
@@ -219,37 +255,70 @@ class Phase1SoakExecutionService
     private function gateP1G06(bool $dryRun): array
     {
         if ($dryRun) {
-            return $this->advisoryGate('P1G-06', 'dry-run: recent alerts not checked');
+            return $this->advisoryGate(
+                'P1G-06',
+                'dry-run: recent alerts not checked. To populate: run python services/demo_feed/demo_feed.py or python scripts/demo_causal_verify.py'
+            );
         }
-        $count  = DB::table('security_alerts')->where('created_at', '>=', now()->subHours(2))->count();
+        $count  = DB::table('security_alerts')->where('detected_at', '>=', now()->subHours(2))->count();
         $passed = $count > 0;
+        $evidence = $passed
+            ? "security_alerts (detected_at last 2h) count={$count}"
+            : 'security_alerts last 2h count=0 — start pipeline and run: python services/demo_feed/demo_feed.py';
         return [
             'gate_id'    => 'P1G-06',
             'gate_name'  => self::GATES['P1G-06'],
             'status'     => $passed ? 'pass' : 'warn',
             'passed'     => $passed,
-            'evidence'   => "security_alerts last 2h count={$count}",
+            'evidence'   => $evidence,
             'is_advisory' => true,
         ];
     }
 
-    // ── Always-advisory gates (require actual soak script output) ─────────────
+    // ── Soak-report gates (evaluate from report when available) ──────────────
 
-    private function gateP1G07(bool $dryRun): array
+    private function gateP1G07(): array
     {
-        $reason = $dryRun
-            ? 'dry-run: latency not measured'
-            : 'advisory: p95 latency measured via soak script output; instrument after first real soak';
-        return $this->advisoryGate('P1G-07', $reason);
+        $report = $this->parseSoakReport();
+        if ($report !== null) {
+            $p95    = (float) ($report['metrics']['p95_latency_ms'] ?? 9999.0);
+            $passed = $p95 < 300.0;
+            return [
+                'gate_id'    => 'P1G-07',
+                'gate_name'  => self::GATES['P1G-07'],
+                'status'     => $passed ? 'pass' : 'fail',
+                'passed'     => $passed,
+                'evidence'   => "p95_latency_ms={$p95}ms from " . self::SOAK_REPORT_PATH,
+                'is_advisory' => false,
+            ];
+        }
+        return $this->advisoryGate(
+            'P1G-07',
+            'No soak report at ' . self::SOAK_REPORT_PATH . ' — run .\scripts\run_xdr_correlation_soak_6h.ps1 first'
+        );
     }
 
-    private function gateP1G08(bool $dryRun): array
+    private function gateP1G08(): array
     {
-        $fallbackEnabled = env('XDR_CORRELATION_FALLBACK_TO_LEGACY', 'false');
-        $reason = $dryRun
-            ? 'dry-run: fallback count not measured'
-            : "advisory: fallback_count measured via soak script output; XDR_CORRELATION_FALLBACK_TO_LEGACY={$fallbackEnabled}";
-        return $this->advisoryGate('P1G-08', $reason);
+        $report = $this->parseSoakReport();
+        if ($report !== null) {
+            $fallbackCount = (int) ($report['metrics']['fallback_count'] ?? 0);
+            $passed        = $fallbackCount === 0;
+            return [
+                'gate_id'    => 'P1G-08',
+                'gate_name'  => self::GATES['P1G-08'],
+                'status'     => $passed ? 'pass' : 'fail',
+                'passed'     => $passed,
+                'evidence'   => "fallback_count={$fallbackCount} from " . self::SOAK_REPORT_PATH,
+                'is_advisory' => false,
+            ];
+        }
+        // No report: advisory, but explicitly report the env var state
+        $fallbackEnabled = env('XDR_CORRELATION_FALLBACK_TO_LEGACY', '');
+        return $this->advisoryGate(
+            'P1G-08',
+            'No soak report at ' . self::SOAK_REPORT_PATH . ' — XDR_CORRELATION_FALLBACK_TO_LEGACY=' . ($fallbackEnabled ?: '(not set)') . '. Run soak script to measure actual fallback_count'
+        );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -266,15 +335,31 @@ class Phase1SoakExecutionService
         ];
     }
 
+    private function parseSoakReport(): ?array
+    {
+        $path = $this->soakReportOverride ?? base_path(self::SOAK_REPORT_PATH);
+        if (! file_exists($path)) {
+            return null;
+        }
+        $raw  = file_get_contents($path);
+        $data = json_decode($raw, true);
+        if (! is_array($data) || ! isset($data['metrics'])) {
+            return null;
+        }
+        return $data;
+    }
+
     private function collectMetrics(bool $dryRun, int $durationMinutes): array
     {
+        $reportPresent = file_exists($this->soakReportOverride ?? base_path(self::SOAK_REPORT_PATH));
         return [
-            ['metric_key' => 'scope',           'metric_value' => self::SCOPE,                'unit' => null,      'within_bounds' => true,  'is_advisory' => false],
-            ['metric_key' => 'no_promotion',    'metric_value' => 'true',                     'unit' => null,      'within_bounds' => true,  'is_advisory' => false],
-            ['metric_key' => 'duration_min',    'metric_value' => (string) self::DURATION_MIN,'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
-            ['metric_key' => 'duration_max',    'metric_value' => (string) self::DURATION_MAX,'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
-            ['metric_key' => 'duration_target', 'metric_value' => (string) $durationMinutes,  'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
-            ['metric_key' => 'is_dry_run',      'metric_value' => $dryRun ? 'true' : 'false', 'unit' => null,      'within_bounds' => true,  'is_advisory' => true],
+            ['metric_key' => 'scope',           'metric_value' => self::SCOPE,                 'unit' => null,      'within_bounds' => true,  'is_advisory' => false],
+            ['metric_key' => 'no_promotion',    'metric_value' => 'true',                      'unit' => null,      'within_bounds' => true,  'is_advisory' => false],
+            ['metric_key' => 'duration_min',    'metric_value' => (string) self::DURATION_MIN, 'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
+            ['metric_key' => 'duration_max',    'metric_value' => (string) self::DURATION_MAX, 'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
+            ['metric_key' => 'duration_target', 'metric_value' => (string) $durationMinutes,   'unit' => 'minutes', 'within_bounds' => true,  'is_advisory' => false],
+            ['metric_key' => 'is_dry_run',      'metric_value' => $dryRun ? 'true' : 'false',  'unit' => null,      'within_bounds' => true,  'is_advisory' => true],
+            ['metric_key' => 'soak_report',     'metric_value' => $reportPresent ? 'present' : 'absent', 'unit' => null, 'within_bounds' => true, 'is_advisory' => false],
         ];
     }
 
