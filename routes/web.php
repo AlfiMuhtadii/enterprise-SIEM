@@ -85,6 +85,7 @@ use App\Http\Controllers\Detection\StabilityFreezeV2Controller;
 use App\Http\Controllers\Detection\StabilityFreezeV3Controller;
 use App\Http\Controllers\Detection\StabilityFreezeV4Controller;
 use App\Http\Controllers\Detection\SoakExecutionPlanController;
+use App\Http\Controllers\Detection\SoakPhase1Controller;
 use App\Http\Controllers\Detection\DetectionFixturesController;
 use App\Http\Controllers\Detection\DomainSoakSimulationController;
 use App\Http\Controllers\Detection\ConfidenceSourceRefreshController;
@@ -337,6 +338,8 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
     Route::get('/detection/stability-freeze-v4', [StabilityFreezeV4Controller::class, 'index'])->name('detection.stability-freeze-v4');
     // ENTERPRISE-060: real domain soak execution plan
     Route::get('/detection/soak-execution-plan', [SoakExecutionPlanController::class, 'index'])->name('detection.soak-execution-plan');
+    // ENTERPRISE-061: phase 1 soak evidence
+    Route::get('/detection/phase1-soak', [SoakPhase1Controller::class, 'index'])->name('detection.phase1-soak');
     // ENTERPRISE-050: rule evidence governance BEFORE {ruleId} catch-all
     Route::get('/detection/rule-evidence-governance', [RuleEvidenceGovernanceController::class, 'index'])->name('detection.rule-evidence-governance');
     Route::get('/detection/{ruleId}', [DetectionRuleController::class, 'show'])->name('detection.show');
