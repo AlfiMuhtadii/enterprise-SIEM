@@ -56,6 +56,9 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **INT-AUTH-2** | alert-writer-service + incident-builder-service: X-Internal-Service-Token validation on GET /dlq; field truncation to 120 chars | `bf5ca6e` | — | 2026-06-28 |
 | **TEST-1** | ExampleTest: PHP version minimum (8.1), login page 200, dashboard redirect; Unit ExampleTest: PHP_VERSION_ID >= 80100 | `bf5ca6e` | — | 2026-06-28 |
 | **TEST-2** | 13 Feature test files migrated to AssertsAdvisoryOnlyConstraints trait; 5 duplicated inline advisory methods removed per file | `bf5ca6e` | — | 2026-06-28 |
+| **ENTERPRISE-065** | Tenant Backfill + Strict Mode Readiness — TenantStrictModeReadinessService (7 gates, PASS_THRESHOLD=0.80, SELF_APPROVE_BLOCKED), 3 append-only tables, StrictModeReadinessCommand, 2 views, RBAC tenant.strict-mode.view/assess | `6688302` | — | 2026-06-28 |
+| **ENTERPRISE-066** | Redpanda Topic Bootstrap + Runtime Recovery Hardening — RedpandaRecoveryHardeningService (9 topics, 6 consumer groups, advisory-only), 3 append-only tables, 2 views, RBAC redpanda.health.view/check | `6688302` | — | 2026-06-28 |
+| **ENTERPRISE-067** | RAG Knowledge Base Seeding Runbook — AiKnowledgeSeedService (idempotent, 10 fixtures, 4 categories), rag_seed_fixtures (mutable) + 2 append-only tables, AiSeedKnowledgeCommand (--dry-run), view, RBAC ai.knowledge.view/seed | `6688302` | — | 2026-06-28 |
 
 ---
 

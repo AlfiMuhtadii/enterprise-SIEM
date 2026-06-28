@@ -61,3 +61,4 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 - Tasks DB-1/DB-2 are from the **DATABASE-AUDIT** category (REVIEW_ALL.md §3).
 - All batch 15 tasks are implemented and closed. See `REVIEW_COMPLETED.md` for commit references.
 - Batch 16 (10 tasks) implemented 2026-06-28; commit `bf5ca6e`; 4259 PHP tests green.
+- ENTERPRISE-065/066/067 implemented 2026-06-28; commit `6688302`; 4347 PHP + 47 Python tests green.
