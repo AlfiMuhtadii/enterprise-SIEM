@@ -330,3 +330,79 @@ Tracking status: lihat [REVIEW_BACKLOG.md](REVIEW_BACKLOG.md) dan [REVIEW_COMPLE
 - **Issue:** Laravel `/api/internal/*` uses time-bounded HMAC tokens, while pipeline microservices compare static per-service tokens. This is documented in code but easy to misread as one shared internal auth mechanism.
 - **Fix:** Document the two schemes explicitly, or standardize microservices on the same time-bounded HMAC token format.
 - **Task:** Not backlog unless auth scheme standardization is desired.
+
+---
+
+## Review Batch 15 - TEST-SUITE-RELEVANCE-AUDIT-1 (2026-06-26)
+
+### Scope Analyzed
+- **Areas:** PHP unit/feature tests, shared PHP test traits, Python endpoint-agent tests, Python XDR bootstrap/validation tests, documentation/evidence freeze tests.
+- **Representative files:** `tests/Unit/ExampleTest.php`, `tests/Feature/ExampleTest.php`, `tests/Traits/AssertsAdvisoryOnlyConstraints.php`, `tests/Feature/AdvancedDetectionCoverageTest.php`, `tests/Feature/DetectionEngineeringLifecycleTest.php`, `tests/Feature/EndpointLowLevelTelemetryTest.php`, `tests/Feature/DocumentationFreezeTest.php`, `tests/xdr_topic_bootstrap/test_internal_auth_coverage.py`, `tests/xdr_topic_bootstrap/test_xdr_pilot_readiness_matrix.py`, `tests/xdr_topic_bootstrap/test_xdr_pilot_live_validate.py`.
+
+### Finding TEST-1 - Default scaffold tests add no SOC coverage
+- **Severity:** Low (Unnecessary Test)
+- **Files:** `tests/Unit/ExampleTest.php`, `tests/Feature/ExampleTest.php`
+- **Issue:** One test only asserts `true`; the other only checks `/` returns HTTP 200. These are framework scaffold tests and do not validate SOC behavior or security controls.
+- **Fix:** Remove the unit scaffold test. Replace or remove the root-route smoke depending on whether `/` is a supported product surface.
+- **Task:** Proposed backlog cleanup item.
+
+### Finding TEST-2 - Python bytecode artifact is tracked under tests
+- **Severity:** Low (Irrelevant Artifact)
+- **Files:** `tests/endpoint_agent/__pycache__/test_agent.cpython-314.pyc`, `.gitignore`
+- **Issue:** A `.pyc` file is tracked in the test tree even though `.gitignore` already ignores `__pycache__/`.
+- **Fix:** Remove the tracked bytecode artifact from git; keep the existing ignore rule.
+- **Task:** Proposed backlog cleanup item.
+
+### Finding TEST-3 - Advisory-only invariant tests are duplicated across many feature tests
+- **Severity:** Medium (Duplicate Coverage / Maintainability)
+- **Files:** `tests/Traits/AssertsAdvisoryOnlyConstraints.php`, `tests/Feature/AdvancedDetectionCoverageTest.php`, `tests/Feature/DetectionEngineeringLifecycleTest.php`, `tests/Feature/EndpointLowLevelTelemetryTest.php`
+- **Issue:** Common forbidden-method and advisory-only checks are repeated broadly. `method_exists(` appears 228 times in `tests/Feature`, and advisory-only constant tests appear in at least 28 feature tests.
+- **Fix:** Keep the safety invariant coverage but consolidate common checks into a shared architecture guard, trait, or data provider. Preserve domain-specific forbidden method checks.
+- **Task:** Proposed backlog cleanup item.
+
+### Finding TEST-4 - Documentation/evidence-freeze tests are useful but not normal unit tests
+- **Severity:** Low (Test Taxonomy)
+- **Files:** `tests/Feature/DocumentationFreezeTest.php`, `tests/xdr_topic_bootstrap/test_xdr_pilot_live_validate.py`
+- **Issue:** These tests assert doc file existence, release counts (`3077`, `164`, `133`), task IDs, commit lineage, and freeze metadata. They are useful release/evidence gates but brittle as everyday unit/feature tests.
+- **Fix:** Classify or move them into a documentation/evidence validation suite; prefer manifest-based checks for hardcoded release metadata.
+- **Task:** Not backlog until suite taxonomy cleanup is planned.
+
+### Finding TEST-5 - Internal auth microservice tests duplicate the same matrix
+- **Severity:** Low (Duplicate Test Structure)
+- **Files:** `tests/xdr_topic_bootstrap/test_internal_auth_coverage.py`
+- **Issue:** Alert-writer and incident-builder auth tests repeat nearly identical static token, startup secret, and enforcement mode checks.
+- **Fix:** Parameterize the shared auth test matrix while preserving service-specific behavior checks.
+- **Task:** Optional cleanup under the broader test consolidation task.
+
+---
+
+## Review Batch 16 — PIPELINE-TESTS-AND-TENANCY (2026-06-28)
+
+### Finding TC-1 — Multi-Tenant Controller Authorization Bypass on Core SOC Modules
+- **Severity:** Critical (Direct Isolation Failure)
+- **Files:** `app/Http/Controllers/SocIncidentController.php`, `app/Http/Controllers/SecurityAlertController.php`, `app/Http/Controllers/SocDashboardController.php`, `app/Http/Controllers/SocApiController.php`
+- **Issue:** Core SOC controllers retrieve/update incidents, alerts, dashboard statistics, and agent lists using raw `DB::table(...)` queries directly without resolving tenant context or checking permissions via `TenantContextAuthority` or `TenantBoundaryService` scopes. In strict mode, any tenant user can read or modify another tenant's data.
+- **Fix:** Inject `TenantContextAuthority` and `TenantBoundaryService` into these controllers, apply query scoping filters on indexes, and assert tenant access on show/update/action operations.
+- **Task:** Proposed backlog item.
+
+### Finding PTS-1 — Incomplete fastapi/pydantic Mocking Causes Python Test Failures
+- **Severity:** Medium (Test Infrastructure Failure)
+- **Files:** `tests/alert_writer/test_alert_writer.py`, `tests/incident_builder/test_incident_builder.py`
+- **Issue:** The dynamically stubbed `fastapi` module mock does not define core classes/functions (`Depends`, `Header`, `HTTPException`, `status`) imported by the main python script, causing `ImportError` on test discovery. This went undetected because global validation only runs `tests/endpoint_agent`.
+- **Fix:** Expand the fastapi/pydantic dynamic stub mock inside the python test suites to define all required imports.
+- **Task:** Proposed backlog item.
+
+### Finding DB-5-DEFECT — Mismatch in tenant_id Serialization Field Location
+- **Severity:** High (Direct Isolation Failure)
+- **Files:** `services/alert-writer-service/main.py`
+- **Issue:** The Go `correlation-worker` does not output `tenant_id` at the top level of its `Alert` JSON (it only places it inside the `evidence` map). The python `alert-writer-service` unmarshals the JSON directly into `AlertPayload(**row)`. Because Pydantic looks for `tenant_id` at the top level, it instantiates it as `None` (written as `NULL` in the DB).
+- **Fix:** Update `normalize_records` in `services/alert-writer-service/main.py` to copy `evidence["tenant_id"]` to `row["tenant_id"]` prior to Pydantic instantiation.
+- **Task:** Proposed backlog item.
+
+### Finding IG-DOS — Ingestion Gateway sync.Map Denial of Service via fake Tenant-IDs
+- **Severity:** High (Denial of Service)
+- **Files:** `services/ingestion-gateway/main.go`
+- **Issue:** The per-tenant rate limiter lazy-initializes a new `tenantBucket` for every unique `X-Tenant-ID` header value inside a global `sync.Map` (`tenantLimiters`), refilled in a background goroutine loop. An attacker flooding the gateway with arbitrary fake tenant IDs will cause unbounded memory leaks and CPU exhaustion.
+- **Fix:** Implement an eviction/cleanup loop (e.g. using an LRU cache) to evict tenant buckets that remain inactive for a specified timeout.
+- **Task:** Proposed backlog item.
+

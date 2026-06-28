@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EndpointAgent;
+use App\Services\EndpointResponseCommandService;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +14,15 @@ class SocResponseController extends Controller
 {
     private const SAFE_ACTIONS = ['collect-now', 'refresh-policy', 'flush-local-queue', 'rotate-agent-secret', 'restart-agent-loop'];
     private const CONTAINMENT_SIMULATION_ACTIONS = ['isolate-host', 'block-ioc', 'policy-quarantine'];
+
+    // Same mapping as SocAgentController::LEGACY_TYPE_MAP.
+    private const LEGACY_TYPE_MAP = [
+        'collect-now'       => 'collect_diagnostics',
+        'flush-local-queue' => 'upload_health_snapshot',
+        'refresh-policy'    => 'refresh_config',
+    ];
+
+    public function __construct(private EndpointResponseCommandService $commandService) {}
 
     public function recommend(Request $request): RedirectResponse
     {
@@ -84,39 +95,48 @@ class SocResponseController extends Controller
             return back()->with('status', 'Containment simulation approved and recorded.');
         }
 
-        if (!$before->agent_id || !in_array($before->action_type, self::SAFE_ACTIONS, true)) {
+        $mapped = self::LEGACY_TYPE_MAP[$before->action_type] ?? null;
+        if (!$before->agent_id || $mapped === null) {
             DB::table('soc_response_workflows')->where('response_id', $responseId)->update([
                 'status' => 'failed',
-                'execution_result' => json_encode(['error' => 'missing agent or unsupported action']),
+                'execution_result' => json_encode(['error' => 'missing agent or unsupported action type']),
                 'updated_at' => now(),
             ]);
-            return back()->with('status', 'Response failed validation.');
+            return back()->with('status', 'Response failed: missing agent or action type not supported in response framework.');
         }
 
-        $commandId = 'cmd-'.Str::uuid()->toString();
-        DB::table('agent_commands')->insert([
-            'command_id' => $commandId,
-            'agent_id' => $before->agent_id,
-            'command_type' => $before->action_type,
-            'status' => 'queued',
-            'payload' => json_encode([]),
-            'queued_at' => now(),
-            'expires_at' => now()->addMinutes(15),
-            'created_by' => $request->user()->email,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $agent = EndpointAgent::where('agent_id', $before->agent_id)->first();
+        if (!$agent) {
+            DB::table('soc_response_workflows')->where('response_id', $responseId)->update([
+                'status' => 'failed',
+                'execution_result' => json_encode(['error' => 'agent_not_found']),
+                'updated_at' => now(),
+            ]);
+            return back()->with('status', 'Response failed: agent not found.');
+        }
+
+        $command = $this->commandService->createCommand(
+            $agent,
+            $mapped,
+            [],
+            $request->user()->id,
+        );
+
         DB::table('soc_response_workflows')->where('response_id', $responseId)->update([
             'status' => 'approved_queued',
             'approved_by' => $request->user()->email,
             'approved_at' => now(),
             'executed_at' => now(),
-            'execution_result' => json_encode(['agent_command_id' => $commandId]),
+            'execution_result' => json_encode(['endpoint_response_command_id' => $command->command_id]),
             'updated_at' => now(),
         ]);
-        AuditLogger::log($request->user()->email, 'response.approve_queue_command', 'response', $responseId, $before, ['command_id' => $commandId]);
+        AuditLogger::log($request->user()->email, 'response.approve_queue_command', 'response', $responseId, $before, [
+            'command_id'  => $command->command_id,
+            'legacy_type' => $before->action_type,
+            'mapped_type' => $mapped,
+        ]);
 
-        return back()->with('status', 'Response approved and command queued.');
+        return back()->with('status', 'Response approved and command queued via response framework.');
     }
 
     private function simulateContainment(object $response, string $actor): array

@@ -18,6 +18,7 @@ use Tests\TestCase;
 class AdvancedDetectionCoverageTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private AdvancedDetectionService $svc;
 
@@ -29,29 +30,14 @@ class AdvancedDetectionCoverageTest extends TestCase
 
     // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Hard constraints Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-    public function test_no_isolate_host(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'isolateHost'));
-    }
 
-    public function test_no_quarantine_host(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'quarantineHost'));
-    }
 
-    public function test_no_execute_shell(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'executeShell'));
-    }
 
-    public function test_no_kill_process(): void
-    {
-        $this->assertFalse(method_exists($this->svc, 'killProcess'));
-    }
 
-    public function test_no_auto_remediate(): void
+
+    protected function getAdvisoryServiceClass(): string
     {
-        $this->assertFalse(method_exists($this->svc, 'autoRemediate'));
+        return AdvancedDetectionService::class;
     }
 
     public function test_no_offensive_payload_execution(): void

@@ -36,6 +36,7 @@ use Tests\TestCase;
 class DetectionEngineeringLifecycleTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private DetectionEngineeringService $svc;
     private RuleRegistryService $registry;
@@ -50,6 +51,11 @@ class DetectionEngineeringLifecycleTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist and are correctly structured
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return DetectionEngineeringService::class;
+    }
 
     public function test_detection_rule_versions_table_exists(): void
     {

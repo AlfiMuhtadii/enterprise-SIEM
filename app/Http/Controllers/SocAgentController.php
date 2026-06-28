@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EndpointAgent;
+use App\Services\EndpointResponseCommandService;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,6 +13,17 @@ use Illuminate\View\View;
 
 class SocAgentController extends Controller
 {
+    // Maps legacy SOC command types to ALLOWED_TYPES in EndpointResponseCommandService.
+    // Unmapped types (rotate-agent-secret, restart-agent-loop) have no safe equivalent
+    // and must be rejected — do NOT add them to ALLOWED_TYPES.
+    private const LEGACY_TYPE_MAP = [
+        'collect-now'       => 'collect_diagnostics',
+        'flush-local-queue' => 'upload_health_snapshot',
+        'refresh-policy'    => 'refresh_config',
+    ];
+
+    public function __construct(private EndpointResponseCommandService $commandService) {}
+
     public function index(Request $request): View
     {
         $offlineAfter = (int) config('soc.agent_offline_after_seconds', 180);
@@ -101,28 +114,30 @@ class SocAgentController extends Controller
         $data = $request->validate([
             'command_type' => ['required', 'in:collect-now,flush-local-queue,rotate-agent-secret,refresh-policy,restart-agent-loop'],
         ]);
-        abort_unless(DB::table('endpoint_agents')->where('agent_id', $agentId)->exists(), 404);
-        $commandId = 'cmd-'.Str::uuid()->toString();
-        $payload = [];
-        if ($data['command_type'] === 'rotate-agent-secret') {
-            $payload['new_agent_secret'] = Str::random(48);
+
+        $mapped = self::LEGACY_TYPE_MAP[$data['command_type']] ?? null;
+        if ($mapped === null) {
+            return back()->withErrors([
+                'command_type' => "Command type '{$data['command_type']}' is not supported in the current response framework. Use the Endpoint Response panel for safe commands.",
+            ]);
         }
 
-        $row = [
-            'command_id' => $commandId,
-            'agent_id' => $agentId,
-            'command_type' => $data['command_type'],
-            'status' => 'queued',
-            'payload' => json_encode($payload),
-            'queued_at' => now(),
-            'expires_at' => now()->addMinutes(15),
-            'created_by' => $request->user()->email,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ];
-        DB::table('agent_commands')->insert($row);
-        AuditLogger::log($request->user()->email, 'agent.command.queue', 'agent', $agentId, null, $row);
+        $agent = EndpointAgent::where('agent_id', $agentId)->first();
+        abort_if(!$agent, 404);
 
-        return back()->with('status', 'Command queued.');
+        $command = $this->commandService->createCommand(
+            $agent,
+            $mapped,
+            [],
+            $request->user()->id,
+        );
+
+        AuditLogger::log($request->user()->email, 'agent.command.queue', 'agent', $agentId, null, [
+            'command_id'  => $command->command_id,
+            'legacy_type' => $data['command_type'],
+            'mapped_type' => $mapped,
+        ]);
+
+        return back()->with('status', 'Command queued via response framework.');
     }
 }

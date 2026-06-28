@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TenantContextAuthority;
 use App\Support\XdrOperationalMetrics;
 use App\Support\XdrSoakReport;
 use App\Support\XdrSeparatedServiceMetrics;
@@ -11,15 +12,21 @@ use Illuminate\View\View;
 
 class SocDashboardController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function __invoke(Request $request): View
     {
-        $minutes = max(15, min(10080, (int) $request->query('minutes', 1440)));
-        $q = trim((string) $request->query('q', ''));
-        $status = trim((string) $request->query('status', ''));
+        $minutes  = max(15, min(10080, (int) $request->query('minutes', 1440)));
+        $q        = trim((string) $request->query('q', ''));
+        $status   = trim((string) $request->query('status', ''));
         $severity = trim((string) $request->query('severity', ''));
-        $since = now()->subMinutes($minutes);
+        $since    = now()->subMinutes($minutes);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
 
-        $incidentsQuery = DB::table('security_incidents')->where('last_seen_at', '>=', $since);
+        $scopeIncidents = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
+        $scopeAlerts    = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
+
+        $incidentsQuery = $scopeIncidents(DB::table('security_incidents'))->where('last_seen_at', '>=', $since);
         if ($q !== '') {
             $incidentsQuery->where(function ($inner) use ($q) {
                 $inner->where('incident_id', 'ilike', "%{$q}%")
@@ -39,7 +46,7 @@ class SocDashboardController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        $recentAlerts = DB::table('security_alerts')
+        $recentAlerts = $scopeAlerts(DB::table('security_alerts'))
             ->select('alert_id', 'detected_at', 'alert_type', 'severity', 'ip', 'actor_key', 'incident_id', 'score', 'evidence')
             ->where('detected_at', '>=', $since)
             ->whereRaw('COALESCE(is_suppressed, false)=false')
@@ -47,14 +54,14 @@ class SocDashboardController extends Controller
             ->limit(80)
             ->get();
 
-        $severitySummary = DB::table('security_incidents')
+        $severitySummary = $scopeIncidents(DB::table('security_incidents'))
             ->select('severity', DB::raw('count(*) as total'))
             ->where('last_seen_at', '>=', $since)
             ->groupBy('severity')
             ->orderByDesc('total')
             ->get();
 
-        $statusSummary = DB::table('security_incidents')
+        $statusSummary = $scopeIncidents(DB::table('security_incidents'))
             ->select('status', DB::raw('count(*) as total'))
             ->where('last_seen_at', '>=', $since)
             ->groupBy('status')

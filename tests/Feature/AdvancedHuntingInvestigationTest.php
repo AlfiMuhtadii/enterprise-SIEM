@@ -36,6 +36,7 @@ use Tests\TestCase;
 class AdvancedHuntingInvestigationTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private InvestigationGraphService $svc;
     private ThreatHuntingService      $hunting;
@@ -52,6 +53,11 @@ class AdvancedHuntingInvestigationTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return InvestigationGraphService::class;
+    }
 
     public function test_investigation_graph_nodes_table_exists(): void
     {

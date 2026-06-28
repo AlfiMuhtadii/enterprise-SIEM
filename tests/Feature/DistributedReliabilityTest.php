@@ -33,6 +33,7 @@ use Tests\TestCase;
 class DistributedReliabilityTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private DistributedReliabilityService $svc;
     private ThreatHuntingService          $hunting;
@@ -49,6 +50,11 @@ class DistributedReliabilityTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return DistributedReliabilityService::class;
+    }
 
     public function test_system_worker_heartbeats_table_exists(): void
     {

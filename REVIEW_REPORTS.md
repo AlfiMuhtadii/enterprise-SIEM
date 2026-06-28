@@ -759,3 +759,81 @@ This file lists all the analysis results, security posture evaluations, and code
 
 #### Not Backlog
 * None from this audit batch.
+
+---
+
+## 17. Batch 10 — Tenancy, Ingest, and Testing Gaps (2026-06-28)
+
+### Finding TC-1: Multi-Tenant Controller Authorization Bypass on Core SOC Modules
+* **Category**: A. Direct Isolation Failure
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Http/Controllers/SocIncidentController.php](file:///D:/project/Detector/app/Http/Controllers/SocIncidentController.php), [app/Http/Controllers/SecurityAlertController.php](file:///D:/project/Detector/app/Http/Controllers/SecurityAlertController.php), [app/Http/Controllers/SocDashboardController.php](file:///D:/project/Detector/app/Http/Controllers/SocDashboardController.php), [app/Http/Controllers/SocApiController.php](file:///D:/project/Detector/app/Http/Controllers/SocApiController.php)
+  * **behavior observed**: The controllers retrieve and update incidents, alerts, dashboard statistics, and endpoint lists by calling DB queries directly via raw `DB::table(...)` statements without invoking `TenantContextAuthority` or applying `TenantBoundaryService` query scopes.
+* **Why it matters**: In strict tenancy mode, any authenticated user from any tenant context can view, edit, or compromise another tenant's security incidents and alerts merely by passing the ID parameters or querying the general endpoints, completely bypassing multi-tenant scoping.
+* **Conditions required for this to be a real risk**: Multi-tenant environment running with strict tenancy enforcement.
+* **Existing safeguards**: None.
+* **Recommended action**: Inject `TenantContextAuthority` and `TenantBoundaryService` into these controllers. Apply query scopes (e.g. `$tenantBoundary->scopeQuery()`) to list operations, and call `$tenantBoundary->assertAccess()` for detail and update operations.
+* **Should this become a backlog item?**: Yes
+* **Suggested backlog title**: `[CONTROLLERS-TENANCY] Enforce tenant context boundaries and query scoping in all core SOC controllers`
+* **Tests required if implemented**: Feature tests simulating multi-tenant requests and verifying that mismatched `X-Tenant-ID` headers return HTTP 403 Forbidden.
+
+---
+
+### Finding PTS-1: Incomplete fastapi/pydantic Mocking Causes Python Test Failures
+* **Category**: D. Code Smell / Test Infrastructure Failure
+* **Severity**: Medium
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [tests/alert_writer/test_alert_writer.py](file:///D:/project/Detector/tests/alert_writer/test_alert_writer.py) and [tests/incident_builder/test_incident_builder.py](file:///D:/project/Detector/tests/incident_builder/test_incident_builder.py)
+  * **behavior observed**: When discovering tests via `python -m unittest discover`, the mock modules stubbed dynamically do not define `Depends`, `Header`, `HTTPException`, or `status`, causing imports from `fastapi` inside `main.py` to fail with `ImportError`.
+* **Why it matters**: The python test suites for these services cannot be executed directly by developers, leaving important pipeline and DLQ recovery components untested in local and CI environments.
+* **Recommended action**: Align the dynamic mock stubs in the python test files to define all required fastapi imports (e.g. `Depends`, `Header`, `HTTPException`, `status`).
+* **Should this become a backlog item?**: Yes
+* **Suggested backlog title**: `[TESTS-PIPELINE] Resolve mock stubbing import errors in python test suites`
+* **Tests required if implemented**: Test execution must return exit 0.
+
+---
+
+### Finding DB-5-DEFECT: Mismatch in tenant_id Serialization Field Location
+* **Category**: A. Direct Isolation / Lineage Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [services/alert-writer-service/main.py](file:///D:/project/Detector/services/alert-writer-service/main.py) (normalize_records)
+  * **behavior observed**: `normalize_records` unmarshals rows from `xdr.alerts` topic directly into `AlertPayload(**row)`. However, the Go `correlation-worker`'s `Alert` struct does not have a top-level `tenant_id` field; it nests `tenant_id` inside the `evidence` map.
+* **Why it matters**: Pydantic instantiates `tenant_id` as `None` since it is missing at the top level of the JSON payload. All postgres writes for alerts and incidents are therefore written with `tenant_id = NULL` (bypassing strict multi-tenant RLS checks).
+* **Recommended action**: Update `normalize_records` in `alert-writer-service/main.py` to copy `evidence["tenant_id"]` to `row["tenant_id"]` before instantiating `AlertPayload(**row)`.
+* **Should this become a backlog item?**: Yes
+* **Suggested backlog title**: `[ALERT-WRITER] Copy nested tenant_id from evidence to top-level AlertPayload before instantiation`
+* **Tests required if implemented**: Integration tests asserting that alert database records have the correct non-null `tenant_id` mapped from the correlation worker.
+
+---
+
+### Finding IG-DOS: Unbounded memory allocation in per-tenant rate limiter map
+* **Category**: B. Conditional Risk / Denial of Service
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [services/ingestion-gateway/main.go](file:///D:/project/Detector/services/ingestion-gateway/main.go)
+  * **behavior observed**: Per-tenant rate limiting lazy-initializes a `newTenantBucket` on `g.tenantLimiters` `sync.Map` for every unique `X-Tenant-ID` header.
+* **Why it matters**: An attacker flooding the ingestion gateway with arbitrary or fake `X-Tenant-ID` values can grow the map boundlessly, leaking memory and exhausting CPU on each refiller tick. There is no eviction mechanism.
+* **Recommended action**: Implement an LRU cache or cleanup routine that evicts tenant buckets that have not received any requests for a certain duration (e.g. 5-10 minutes).
+* **Should this become a backlog item?**: Yes
+* **Suggested backlog title**: `[INGESTION-GATEWAY] Implement eviction mechanism for tenant bucket rate limiters to prevent OOM`
+* **Tests required if implemented**: Load tests verifying that sending thousands of unique client headers resolves with bucket eviction without leaking memory.
+
+---
+
+### Backlog & Triage Assessment
+
+#### Backlog Candidate List (Confirmed / High-Confidence Risks)
+* **[CONTROLLERS-TENANCY] Enforce tenant context boundaries and query scoping in all core SOC controllers** (TC-1)
+* **[TESTS-PIPELINE] Resolve mock stubbing import errors in python test suites** (PTS-1)
+* **[ALERT-WRITER] Copy nested tenant_id from evidence to top-level AlertPayload before instantiation** (DB-5-DEFECT)
+* **[INGESTION-GATEWAY] Implement eviction mechanism for tenant bucket rate limiters to prevent OOM** (IG-DOS)
+
+#### Not Backlog
+* None from this audit batch.
+

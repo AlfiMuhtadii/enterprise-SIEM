@@ -6,11 +6,8 @@ use PHPUnit\Framework\TestCase;
 
 class ExampleTest extends TestCase
 {
-    /**
-     * A basic test example.
-     */
-    public function test_that_true_is_true(): void
+    public function test_php_version_meets_minimum(): void
     {
-        $this->assertTrue(true);
+        $this->assertGreaterThanOrEqual(80100, PHP_VERSION_ID, 'PHP 8.1+ required');
     }
 }

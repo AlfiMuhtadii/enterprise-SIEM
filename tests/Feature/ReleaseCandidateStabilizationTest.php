@@ -19,6 +19,7 @@ use App\Services\ThreatHuntingService;
 class ReleaseCandidateStabilizationTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private ReleaseCandidateStabilizationService $service;
 
@@ -31,6 +32,11 @@ class ReleaseCandidateStabilizationTest extends TestCase
     // =========================================================================
     // Hard constraint assertions â€” no forbidden operations
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return ReleaseCandidateStabilizationService::class;
+    }
 
     public function test_service_constants_are_correct(): void
     {

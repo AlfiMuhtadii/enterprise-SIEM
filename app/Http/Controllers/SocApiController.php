@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,44 +10,66 @@ use Illuminate\Support\Facades\DB;
 
 class SocApiController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function stats(Request $request): JsonResponse
     {
-        $minutes = max(15, min(10080, (int) $request->query('minutes', 1440)));
-        $since = now()->subMinutes($minutes);
+        $minutes  = max(15, min(10080, (int) $request->query('minutes', 1440)));
+        $since    = now()->subMinutes($minutes);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+        $scopeI   = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
+        $scopeA   = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
 
         return response()->json([
-            'incidents_by_status' => DB::table('security_incidents')->select('status', DB::raw('count(*) as total'))->where('last_seen_at', '>=', $since)->groupBy('status')->get(),
-            'incidents_by_severity' => DB::table('security_incidents')->select('severity', DB::raw('count(*) as total'))->where('last_seen_at', '>=', $since)->groupBy('severity')->get(),
-            'alert_distribution' => DB::table('security_alerts')->select('alert_type', DB::raw('count(*) as total'))->where('detected_at', '>=', $since)->groupBy('alert_type')->orderByDesc('total')->limit(20)->get(),
-            'quality_history' => DB::table('detection_quality_history')->orderByDesc('measured_at')->limit(20)->get(),
+            'incidents_by_status'   => $scopeI(DB::table('security_incidents'))->select('status', DB::raw('count(*) as total'))->where('last_seen_at', '>=', $since)->groupBy('status')->get(),
+            'incidents_by_severity' => $scopeI(DB::table('security_incidents'))->select('severity', DB::raw('count(*) as total'))->where('last_seen_at', '>=', $since)->groupBy('severity')->get(),
+            'alert_distribution'    => $scopeA(DB::table('security_alerts'))->select('alert_type', DB::raw('count(*) as total'))->where('detected_at', '>=', $since)->groupBy('alert_type')->orderByDesc('total')->limit(20)->get(),
+            'quality_history'       => DB::table('detection_quality_history')->orderByDesc('measured_at')->limit(20)->get(),
         ]);
     }
 
     public function incidents(Request $request): JsonResponse
     {
-        $limit = max(1, min(200, (int) $request->query('limit', 50)));
-        $query = DB::table('security_incidents')->orderByDesc('last_seen_at')->limit($limit);
+        $limit    = max(1, min(200, (int) $request->query('limit', 50)));
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+        $query    = DB::table('security_incidents')->orderByDesc('last_seen_at')->limit($limit);
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
         if ($request->query('status')) {
             $query->where('status', $request->query('status'));
         }
         return response()->json($query->get());
     }
 
-    public function incident(string $incidentId): JsonResponse
+    public function incident(Request $request, string $incidentId): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+        $incident = DB::table('security_incidents')->where('incident_id', $incidentId)->first();
+        if (!$incident) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
+        if ($tenantId !== null && (string) ($incident->tenant_id ?? '') !== $tenantId) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
         return response()->json([
-            'incident' => DB::table('security_incidents')->where('incident_id', $incidentId)->first(),
-            'alerts' => DB::table('security_alerts')->where('incident_id', $incidentId)->orderByDesc('detected_at')->get(),
-            'notes' => DB::table('security_incident_notes')->where('incident_id', $incidentId)->orderByDesc('created_at')->get(),
+            'incident'   => $incident,
+            'alerts'     => DB::table('security_alerts')->where('incident_id', $incidentId)->orderByDesc('detected_at')->get(),
+            'notes'      => DB::table('security_incident_notes')->where('incident_id', $incidentId)->orderByDesc('created_at')->get(),
             'activities' => DB::table('security_incident_activities')->where('incident_id', $incidentId)->orderByDesc('created_at')->get(),
-            'audit' => DB::table('security_audit_trails')->where('target_type', 'incident')->where('target_id', $incidentId)->orderByDesc('occurred_at')->get(),
+            'audit'      => DB::table('security_audit_trails')->where('target_type', 'incident')->where('target_id', $incidentId)->orderByDesc('occurred_at')->get(),
         ]);
     }
 
     public function alerts(Request $request): JsonResponse
     {
-        $limit = max(1, min(500, (int) $request->query('limit', 100)));
-        return response()->json(DB::table('security_alerts')->whereRaw('COALESCE(is_suppressed, false)=false')->orderByDesc('detected_at')->limit($limit)->get());
+        $limit    = max(1, min(500, (int) $request->query('limit', 100)));
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+        $query    = DB::table('security_alerts')->whereRaw('COALESCE(is_suppressed, false)=false')->orderByDesc('detected_at')->limit($limit);
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+        return response()->json($query->get());
     }
 
     public function audit(Request $request): JsonResponse

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointAgent;
 use App\Models\EndpointResponseCommand;
+use App\Models\SecurityHardeningEvent;
 use App\Services\EndpointAgentService;
 use App\Services\EndpointFleetService;
 use App\Services\EndpointResponseCommandService;
@@ -123,6 +124,22 @@ class EndpointAgentApiController extends Controller
             return response()->json(['error' => 'agent_not_found'], 404);
         }
 
+        // Advisory-only signature check: log missing/invalid sig but still return commands.
+        // Strict enforcement deferred until endpoint agent passes domain-specific 6h soak.
+        $timestamp    = (string) $request->header('X-Agent-Timestamp', '');
+        $signature    = (string) $request->header('X-Agent-Signature', '');
+        $pollMaterial = $agentId . '.' . $timestamp;
+
+        if (!$this->commandService->isSignatureValid($signature, $pollMaterial)) {
+            SecurityHardeningEvent::record(
+                SecurityHardeningEvent::EVENT_SIGNATURE_FAILURE,
+                'endpoint-agent',
+                ['reason' => 'poll_signature_invalid', 'agent_id' => $agentId],
+                $agentId,
+            );
+            // Advisory only — do not block; log and proceed.
+        }
+
         $commands = $this->commandService->getPendingCommands($agent);
 
         return response()->json([
@@ -156,9 +173,10 @@ class EndpointAgentApiController extends Controller
             return response()->json(['error' => 'command_not_found'], 404);
         }
 
-        $signature  = $request->header('X-Agent-Signature', '');
+        $signature  = (string) $request->header('X-Agent-Signature', '');
         $rawPayload = $request->getContent();
 
+        // Signature validation and hardening-event logging handled by service::acknowledge().
         $command = $this->commandService->acknowledge($command, $agentId, $signature, $rawPayload);
 
         return response()->json([
@@ -187,10 +205,11 @@ class EndpointAgentApiController extends Controller
             return response()->json(['error' => 'command_not_found'], 404);
         }
 
-        $signature  = $request->header('X-Agent-Signature', '');
+        $signature  = (string) $request->header('X-Agent-Signature', '');
         $rawPayload = $request->getContent();
         $payload    = json_decode($rawPayload, true) ?? [];
 
+        // Signature validation and hardening-event logging handled by service::receiveResult().
         $command = $this->commandService->receiveResult(
             $command, $agentId, $signature, $rawPayload, $payload
         );

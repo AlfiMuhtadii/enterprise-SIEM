@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,10 +11,16 @@ use Illuminate\View\View;
 
 class SocIncidentController extends Controller
 {
-    public function show(string $incidentId): View
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
+    public function show(Request $request, string $incidentId): View
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
         $incident = DB::table('security_incidents')->where('incident_id', $incidentId)->first();
         abort_if(!$incident, 404);
+        if ($tenantId !== null && (string) ($incident->tenant_id ?? '') !== $tenantId) {
+            abort(404);
+        }
 
         return view('soc.incident', [
             'incident' => $incident,

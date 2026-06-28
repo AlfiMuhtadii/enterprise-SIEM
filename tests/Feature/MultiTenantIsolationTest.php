@@ -20,6 +20,7 @@ use Tests\TestCase;
 class MultiTenantIsolationTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private MultiTenantIsolationService $service;
     private string $tenantA = 'tenant-alpha';
@@ -35,29 +36,14 @@ class MultiTenantIsolationTest extends TestCase
     // Hard constraint Ã¢â‚¬â€ no forbidden operations
     // =========================================================================
 
-    public function test_no_isolate_host(): void
-    {
-        $this->assertFalse(method_exists($this->service, 'isolateHost'));
-    }
 
-    public function test_no_quarantine_host(): void
-    {
-        $this->assertFalse(method_exists($this->service, 'quarantineHost'));
-    }
 
-    public function test_no_execute_shell(): void
-    {
-        $this->assertFalse(method_exists($this->service, 'executeShell'));
-    }
 
-    public function test_no_kill_process(): void
-    {
-        $this->assertFalse(method_exists($this->service, 'killProcess'));
-    }
 
-    public function test_no_auto_remediate(): void
+
+    protected function getAdvisoryServiceClass(): string
     {
-        $this->assertFalse(method_exists($this->service, 'autoRemediate'));
+        return MultiTenantIsolationService::class;
     }
 
     public function test_no_cross_tenant_traversal(): void

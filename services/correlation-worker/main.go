@@ -71,6 +71,7 @@ type Alert struct {
 	Evidence    map[string]any `json:"evidence,omitempty"`
 	ShadowMode  bool           `json:"shadow_mode"`
 	TraceID     string         `json:"trace_id,omitempty"`
+	TenantID    string         `json:"tenant_id,omitempty"`
 }
 
 type Worker struct {
@@ -867,6 +868,11 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 			evidence["tenant_ids"] = tenantIDs
 		}
 	}
+	primaryTenantID := ""
+	if len(tenantIDs) > 0 {
+		primaryTenantID = tenantIDs[0]
+	}
+
 	return Alert{
 		AlertID:     hex.EncodeToString(sum[:])[:40],
 		AlertType:   alertType,
@@ -879,6 +885,7 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		Evidence:    evidence,
 		ShadowMode:  true,
 		TraceID:     traceID,
+		TenantID:    primaryTenantID,
 	}
 }
 

@@ -173,3 +173,33 @@ func TestMakeAlertNoEventsProducesEmptyEvidence(t *testing.T) {
 		t.Error("demo_lineage_present must not be set when no events provided")
 	}
 }
+
+// DB-5-DEFECT: tenant_id must appear at the top-level Alert.TenantID field,
+// not only inside evidence{}, so alert-writer can read it via Pydantic top-level field.
+func TestMakeAlertTenantIDPropagatedTopLevel(t *testing.T) {
+	events := []Event{
+		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice", TenantID: "tenant-abc"},
+		{EventID: "ev-002", TelemetryType: "cloud", EventType: "access_key_created", User: "alice", TenantID: "tenant-abc"},
+	}
+	alert := makeAlert("IDENTITY_MFA_THEN_KEY", "alice", events, 0.80)
+
+	if alert.TenantID != "tenant-abc" {
+		t.Errorf("expected Alert.TenantID=%q (top-level), got %q", "tenant-abc", alert.TenantID)
+	}
+	// For non-demo events, evidence["tenant_id"] is NOT set (only set inside demo lineage block).
+	// The top-level Alert.TenantID is the canonical field that alert-writer reads.
+	if _, ok := alert.Evidence["tenant_id"]; ok {
+		t.Error("evidence[tenant_id] should not be set for non-demo events")
+	}
+}
+
+func TestMakeAlertTenantIDEmptyWhenNoTenants(t *testing.T) {
+	events := []Event{
+		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice"},
+	}
+	alert := makeAlert("IDENTITY_MFA_FAILURE_BURST", "alice", events, 0.70)
+
+	if alert.TenantID != "" {
+		t.Errorf("expected Alert.TenantID to be empty for events without tenant_id, got %q", alert.TenantID)
+	}
+}

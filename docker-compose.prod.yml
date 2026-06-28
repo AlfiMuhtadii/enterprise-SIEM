@@ -93,16 +93,19 @@ services:
     restart: always
 
   normalizer-worker:
+    ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
     restart: always
 
   correlation-worker:
+    ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
     restart: always
 
   alert-writer-service:
+    ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       # Shadow and DLQ consumers disabled in production — advisory-only, operator-triggered
@@ -113,6 +116,11 @@ services:
     restart: always
 
   incident-builder-service:
+    ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+    restart: always
+
+  ai-rag-service:
+    ports: !reset []
     restart: always

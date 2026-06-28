@@ -34,6 +34,7 @@ use Tests\TestCase;
 class CapacityGovernanceTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private CapacityGovernanceService $svc;
     private ThreatHuntingService      $hunting;
@@ -50,6 +51,11 @@ class CapacityGovernanceTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return CapacityGovernanceService::class;
+    }
 
     public function test_telemetry_capacity_snapshots_table_exists(): void
     {

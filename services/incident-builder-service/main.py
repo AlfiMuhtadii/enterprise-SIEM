@@ -507,8 +507,15 @@ def metrics() -> Dict[str, Any]:
 
 
 @app.get("/dlq")
-def dlq() -> Dict[str, Any]:
-    return {"count": len(DLQ), "items": DLQ[-20:]}
+def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    items = [
+        {k: (str(v)[:120] if k in ("event", "error") and isinstance(v, str) and len(str(v)) > 120 else v)
+         for k, v in item.items()}
+        for item in DLQ[-20:]
+    ]
+    return {"count": len(DLQ), "items": items}
 
 
 @app.post("/v1/build")

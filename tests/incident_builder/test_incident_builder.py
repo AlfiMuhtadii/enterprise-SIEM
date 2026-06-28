@@ -21,6 +21,12 @@ for _mod in ("fastapi", "pydantic", "xdr_event_contracts"):
         _stub.FastAPI = MagicMock(return_value=MagicMock())  # type: ignore[attr-defined]
         _stub.BaseModel = object  # type: ignore[attr-defined]
         _stub.Field = lambda *a, **kw: None  # type: ignore[attr-defined]
+        # fastapi extras used by internal-auth and DLQ endpoint signatures
+        _stub.Depends = lambda f=None: f  # type: ignore[attr-defined]
+        _stub.Header = MagicMock(return_value=None)  # type: ignore[attr-defined]
+        _stub.HTTPException = type("HTTPException", (Exception,), {  # type: ignore[attr-defined]
+            "__init__": lambda self, status_code=400, detail="": Exception.__init__(self, detail)
+        })
         _stub.envelope = lambda **kw: {}  # type: ignore[attr-defined]
         _stub.is_envelope = lambda v: False  # type: ignore[attr-defined]
         _stub.unwrap_payload = lambda v, t: v  # type: ignore[attr-defined]

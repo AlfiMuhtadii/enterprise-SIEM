@@ -19,6 +19,7 @@ use Tests\TestCase;
 class CodeLevelXdrMaturityTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private CodeLevelXdrMaturityService $svc;
 
@@ -31,6 +32,11 @@ class CodeLevelXdrMaturityTest extends TestCase
     // -----------------------------------------------------------------------
     // Table existence
     // -----------------------------------------------------------------------
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return CodeLevelXdrMaturityService::class;
+    }
 
     public function test_synthetic_attack_fixtures_table_exists(): void
     {

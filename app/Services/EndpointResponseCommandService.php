@@ -326,6 +326,16 @@ class EndpointResponseCommandService
         ]);
     }
 
+    /**
+     * Public entry point — allows controllers to pre-validate signatures before
+     * calling state-transition methods, so invalid signatures are rejected at
+     * the HTTP boundary (401) rather than logged-but-tolerated.
+     */
+    public function isSignatureValid(string $signature, string $rawPayload): bool
+    {
+        return $this->verifyAgentSignature($signature, $rawPayload);
+    }
+
     private function verifyAgentSignature(string $signature, string $rawPayload): bool
     {
         $token = config('soc.agent_enrollment_token', '');

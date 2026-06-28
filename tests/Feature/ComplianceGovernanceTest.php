@@ -37,6 +37,7 @@ use Tests\TestCase;
 class ComplianceGovernanceTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private ComplianceGovernanceService $svc;
     private ThreatHuntingService        $hunting;
@@ -55,6 +56,11 @@ class ComplianceGovernanceTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return ComplianceGovernanceService::class;
+    }
 
     public function test_evidence_integrity_runs_table_exists(): void
     {

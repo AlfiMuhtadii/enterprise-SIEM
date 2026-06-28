@@ -33,9 +33,11 @@ var httpClient = &http.Client{
 }
 
 // tenantBucket is a per-tenant token-bucket rate limiter (IG-2).
+// lastSeen tracks the last request time for TTL-based eviction (IG-DOS fix).
 type tenantBucket struct {
-	tokens chan struct{}
-	rps    int
+	tokens   chan struct{}
+	rps      int
+	lastSeen atomic.Int64 // UnixNano — updated on every tenantAllowed() call
 }
 
 func newTenantBucket(rps int) *tenantBucket {
@@ -43,7 +45,9 @@ func newTenantBucket(rps int) *tenantBucket {
 	for i := 0; i < rps; i++ {
 		ch <- struct{}{}
 	}
-	return &tenantBucket{tokens: ch, rps: rps}
+	b := &tenantBucket{tokens: ch, rps: rps}
+	b.lastSeen.Store(time.Now().UnixNano())
+	return b
 }
 
 // circuitBreaker protects the Kafka publish path from socket exhaustion (IG-3).
@@ -197,14 +201,22 @@ func (g *Gateway) startMetricsPoller(interval time.Duration) {
 	}()
 }
 
-// startTenantBucketRefiller refills all per-tenant token buckets every second (IG-2).
+// startTenantBucketRefiller refills per-tenant token buckets every second (IG-2)
+// and evicts buckets that have been idle longer than XDR_TENANT_LIMITER_IDLE_MINUTES (IG-DOS fix).
 func (g *Gateway) startTenantBucketRefiller() {
+	idleMinutes := envInt("XDR_TENANT_LIMITER_IDLE_MINUTES", 30)
+	idleTTL := time.Duration(idleMinutes) * time.Minute
 	go func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			g.tenantLimiters.Range(func(_, v any) bool {
+			now := time.Now()
+			g.tenantLimiters.Range(func(k, v any) bool {
 				b := v.(*tenantBucket)
+				if now.Sub(time.Unix(0, b.lastSeen.Load())) > idleTTL {
+					g.tenantLimiters.Delete(k)
+					return true
+				}
 				for len(b.tokens) < b.rps {
 					select {
 					case b.tokens <- struct{}{}:
@@ -219,12 +231,14 @@ func (g *Gateway) startTenantBucketRefiller() {
 
 // tenantAllowed checks per-tenant rate limit (IG-2).
 // Returns false if this tenant's bucket is empty (throttle this tenant).
+// Updates lastSeen on every call so the eviction goroutine can remove idle buckets (IG-DOS fix).
 func (g *Gateway) tenantAllowed(tenantID string) bool {
 	if tenantID == "" {
 		return true
 	}
 	actual, _ := g.tenantLimiters.LoadOrStore(tenantID, newTenantBucket(g.perTenantRPS))
 	b := actual.(*tenantBucket)
+	b.lastSeen.Store(time.Now().UnixNano())
 	select {
 	case <-b.tokens:
 		return true

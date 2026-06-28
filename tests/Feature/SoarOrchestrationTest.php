@@ -38,6 +38,7 @@ use Tests\TestCase;
 class SoarOrchestrationTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private SoarOrchestrationService $svc;
     private ThreatHuntingService     $hunting;
@@ -56,6 +57,11 @@ class SoarOrchestrationTest extends TestCase
     // =========================================================================
     // Schema Ã¢â‚¬â€ new tables exist
     // =========================================================================
+
+    protected function getAdvisoryServiceClass(): string
+    {
+        return SoarOrchestrationService::class;
+    }
 
     public function test_soar_playbooks_table_exists(): void
     {

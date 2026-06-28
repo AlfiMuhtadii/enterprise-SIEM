@@ -50,10 +50,11 @@ class SocResponseWorkflowTest extends TestCase
             'status' => 'approved_queued',
             'approved_by' => $approver->email,
         ]);
-        $this->assertDatabaseHas('agent_commands', [
-            'agent_id' => 'agent-response-1',
-            'command_type' => 'collect-now',
-            'status' => 'queued',
+        // RESP-1: command now routed through EndpointResponseCommandService (endpoint_response_commands).
+        // collect-now maps to collect_diagnostics; initial status is pending_approval.
+        $this->assertDatabaseHas('endpoint_response_commands', [
+            'command_type' => 'collect_diagnostics',
+            'status' => 'draft',
         ]);
     }
 
