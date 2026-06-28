@@ -36,10 +36,28 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **EASM-1** | Enforce TenantContextAuthority in EasmController (replace raw header trust) | `EasmController.php` | High | [#24](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/24) |
 | **PILOT-1** | Scope PilotReadinessMatrixController index/show/report by validated tenant context | `PilotReadinessMatrixController.php` | High | [#25](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/25) |
 
+---
+
+**Batch 16 (2026-06-28)**
+
+| Task ID | Description | Primary File(s) | Priority | GH Issue |
+|---|---|---|---|---|
+| **TC-1** | Add TenantContextAuthority advisory scoping to SecurityAlertController, SocIncidentController, SocDashboardController, SocApiController | `app/Http/Controllers/Soc*.php`, `SecurityAlertController.php` | High | — |
+| **PTS-1** | Extend fastapi test stub with Depends/Header/HTTPException for alert-writer and incident-builder unit tests | `tests/alert_writer/test_alert_writer.py`, `tests/incident_builder/test_incident_builder.py` | Medium | — |
+| **DB-5-DEFECT** | Add top-level `TenantID` field to correlation-worker `Alert` struct so alert-writer reads it via Pydantic top-level field | `services/correlation-worker/main.go`, `main_test.go` | High | — |
+| **IG-DOS** | Add `lastSeen` atomic.Int64 + TTL eviction goroutine to ingestion-gateway `tenantBucket` | `services/ingestion-gateway/main.go` | High | — |
+| **RESP-1** | Route SocAgentController/SocResponseController commands through EndpointResponseCommandService with LEGACY_TYPE_MAP | `SocAgentController.php`, `SocResponseController.php`, `EndpointResponseCommandService.php` | High | — |
+| **AGENT-API-1** | Advisory-only signature check in EndpointAgentApiController.pollCommands() — logs SecurityHardeningEvent, does not block | `EndpointAgentApiController.php`, `EndpointResponseCommandService.php` | Medium | — |
+| **INT-AUTH-1** | Add `ports: !reset []` to pipeline service entries in docker-compose.prod.yml | `docker-compose.prod.yml` | High | — |
+| **INT-AUTH-2** | Add X-Internal-Service-Token validation on GET /dlq in alert-writer and incident-builder | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | High | — |
+| **TEST-1** | Replace trivial ExampleTest assertions with meaningful PHP version, login, and dashboard redirect checks | `tests/Feature/ExampleTest.php`, `tests/Unit/ExampleTest.php` | Low | — |
+| **TEST-2** | Migrate 13 Feature test files to `AssertsAdvisoryOnlyConstraints` trait; remove 5 duplicated inline methods per file | 13 `tests/Feature/*.php` | Low | — |
+
 ## Notes
 
 - Tasks T1–BUG are from the **TEST-SUITE-AUDIT** and **SECRETS-BUG** categories (REVIEW_ALL.md §1–§2).
 - Tasks 23.1–23.2 are from the **TENANCY-023** batch (BACKLOG-TENANCY-023 sub-findings).
 - Tasks INFRA-1/INFRA-2 are from the **INFRA-AUDIT** category (REVIEW_ALL.md §5).
 - Tasks DB-1/DB-2 are from the **DATABASE-AUDIT** category (REVIEW_ALL.md §3).
-- All 10 tasks are implemented and closed. See `REVIEW_COMPLETED.md` for commit references.
+- All batch 15 tasks are implemented and closed. See `REVIEW_COMPLETED.md` for commit references.
+- Batch 16 (10 tasks) implemented 2026-06-28; commit `bf5ca6e`; 4259 PHP tests green.

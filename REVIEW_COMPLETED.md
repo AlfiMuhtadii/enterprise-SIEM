@@ -46,6 +46,16 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **ENTERPRISE-047** | Shadow Ready Promotion Decision — ShadowReadyPromotionDecisionService (0.78/0.65 thresholds, DLQ-aware, advisory), EvaluateShadowPromotionCommand (--dry-run), shadow_promotion_decisions table (append-only), xdr_shadow_promotion_decision_validate.py (16/16 PASS); 35 tests; 3760 PHP green | `7704784` | — | 2026-06-26 |
 | **ENTERPRISE-048** | Endpoint Shadow Domain Soak Plan — EndpointSoakPlanService (tier_1_soak_ready conf>=0.72: 80 rules, tier_2_evidence_collection: 13 rules, 5 gates), 3 append-only tables, GenerateEndpointSoakPlanCommand (--dry-run), xdr_endpoint_soak_plan_validate.py (16/16 PASS); 32 tests; 3792 PHP green | `d4a3ef1` | — | 2026-06-26 |
 | **ENTERPRISE-049** | Stability Evidence Freeze v2 — StabilityEvidenceFreezeV2Service (12 gates EF-01–EF-12, 4 phase summaries E045–E048, STABLE_SCORE_THRESHOLD=0.80), 3 append-only tables, StabilityFreezeV2Command (--dry-run), xdr_stability_freeze_v2_validate.py (14/14 PASS); 25 tests; 3817 PHP green | `e7f73d3` | — | 2026-06-26 |
+| **TC-1** | TenantContextAuthority advisory scoping — SecurityAlertController, SocIncidentController (fixed extra-brace syntax error), SocDashboardController, SocApiController; legacy/demo pass-through (requireTenantContext=false) | `bf5ca6e` | — | 2026-06-28 |
+| **PTS-1** | Fastapi stub: added Depends/Header/HTTPException stubs in alert-writer and incident-builder Python test suites | `bf5ca6e` | — | 2026-06-28 |
+| **DB-5-DEFECT** | Correlation-worker Alert struct: add top-level TenantID field + makeAlert() propagation; 2 new Go tests | `bf5ca6e` | — | 2026-06-28 |
+| **IG-DOS** | Ingestion-gateway: lastSeen atomic.Int64 on tenantBucket + TTL-based eviction goroutine (XDR_TENANT_LIMITER_IDLE_MINUTES=30) | `bf5ca6e` | — | 2026-06-28 |
+| **RESP-1** | SocAgentController + SocResponseController route through EndpointResponseCommandService via LEGACY_TYPE_MAP; unmappable types rejected | `bf5ca6e` | — | 2026-06-28 |
+| **AGENT-API-1** | Advisory-only signature check in pollCommands(): logs SecurityHardeningEvent on invalid sig, does not block (deferred until endpoint 6h soak PASS) | `bf5ca6e` | — | 2026-06-28 |
+| **INT-AUTH-1** | docker-compose.prod.yml: ports: !reset [] on all internal pipeline services (normalizer/correlation/alert-writer/incident-builder/ai-rag) | `bf5ca6e` | — | 2026-06-28 |
+| **INT-AUTH-2** | alert-writer-service + incident-builder-service: X-Internal-Service-Token validation on GET /dlq; field truncation to 120 chars | `bf5ca6e` | — | 2026-06-28 |
+| **TEST-1** | ExampleTest: PHP version minimum (8.1), login page 200, dashboard redirect; Unit ExampleTest: PHP_VERSION_ID >= 80100 | `bf5ca6e` | — | 2026-06-28 |
+| **TEST-2** | 13 Feature test files migrated to AssertsAdvisoryOnlyConstraints trait; 5 duplicated inline advisory methods removed per file | `bf5ca6e` | — | 2026-06-28 |
 
 ---
 
