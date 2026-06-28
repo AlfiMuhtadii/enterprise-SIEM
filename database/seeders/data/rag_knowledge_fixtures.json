@@ -1,0 +1,72 @@
+[
+  {
+    "fixture_id": "rkf-identity-mfa-001",
+    "title": "MFA Fatigue Attack — Detection and Response",
+    "category": "detection_rule",
+    "content": "MFA fatigue attacks involve sending repeated push notifications to trick users into approving access. Indicators: >10 MFA prompts within 5 minutes from the same user. Correlated rule: IDENTITY_MFA_FATIGUE_ATTACK. Response: Temporarily disable push MFA, switch to TOTP, notify user. Severity: High. MITRE: T1621.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-cloud-key-002",
+    "title": "Cloud Access Key Creation Post-MFA Failure",
+    "category": "detection_rule",
+    "content": "After repeated MFA failures, adversaries may create new access keys to maintain persistence. Rule: CLOUD_KEY_AFTER_MFA_FAILURE. Indicators: access_key_created within 60min of mfa_failure burst. Response: Revoke access key immediately, audit key usage, review IAM policies. Severity: Critical. MITRE: T1098.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-saas-export-003",
+    "title": "SaaS Data Export Anomaly",
+    "category": "detection_rule",
+    "content": "Unexpected bulk data export from SaaS applications may indicate credential compromise or insider threat. Rule: SAAS_BULK_EXPORT_ANOMALY. Indicators: export_count > baseline_p95 within 24h window. Response: Suspend export, contact user, review access logs. Severity: High. MITRE: T1530.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-soc-triage-001",
+    "title": "SOC Triage Procedure — High Severity Alerts",
+    "category": "soc_procedure",
+    "content": "For HIGH severity alerts: 1) Acknowledge within 15min (SLA-T1). 2) Assign to senior analyst. 3) Check alert evidence chain: telemetry source → normalizer → correlation → alert. 4) Cross-reference entity graph. 5) Open investigation if confirmed. 6) Escalate to CRIT if containment needed. SLA-T2: 1h for initial triage. SLA-T3: 4h for investigation close.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-soc-triage-002",
+    "title": "SOC Triage Procedure — False Positive Classification",
+    "category": "soc_procedure",
+    "content": "False positive classification procedure: 1) Verify alert evidence is invalid (wrong user, test environment, known-good tool). 2) Set status to false_positive. 3) Submit false positive report in Detection Engineering module. 4) Do not suppress rule without review cycle. 5) Document condition in investigation notes. Rules: NEVER delete alerts — mark as false_positive only.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-incident-type-001",
+    "title": "Identity Compromise Incident — Response Playbook",
+    "category": "incident_type",
+    "content": "Identity compromise incidents involve unauthorized access to user credentials. Playbook steps: 1) Isolate affected account (disable SSO sessions). 2) Reset credentials and MFA. 3) Review access logs for lateral movement. 4) Check for persistent access (API keys, OAuth tokens). 5) Notify user and HR. 6) Complete post-incident review within 48h. Response framework: recommend_* only — no autonomous account actions.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-incident-type-002",
+    "title": "Cloud Resource Abuse Incident — Response Playbook",
+    "category": "incident_type",
+    "content": "Cloud resource abuse incidents involve unauthorized provisioning or data exfiltration via cloud APIs. Playbook: 1) Identify compromised access key or role. 2) Revoke key and invalidate sessions. 3) Inventory resources created by compromised credential. 4) Estimate data exposure scope. 5) Notify cloud provider security team. 6) Review IAM policies and apply least-privilege. MITRE: T1078, T1537.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-threat-intel-001",
+    "title": "Threat Intelligence — Common Attack Patterns in Demo Dataset",
+    "category": "threat_intel",
+    "content": "The demo dataset simulates three attack chains: (1) MFA fatigue → access key creation → S3 exfiltration. (2) OAuth app grant → persistent SaaS access → bulk export. (3) Credential stuffing → successful login → privilege escalation. All scenarios use MITRE ATT&CK framework v14. Evidence chain: source_event_id links attack steps. Use retrospective threat hunting to trace full chain.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-detection-eng-001",
+    "title": "Detection Rule Lifecycle — Promotion from Shadow to Active",
+    "category": "soc_procedure",
+    "content": "Rule promotion lifecycle: DRAFT → shadow → staged_active. Shadow rules produce advisory findings only (xdr.alerts.shadow.endpoint topic). Promotion requires: (1) Domain-specific 6h soak PASS. (2) False positive rate < 5%. (3) Detection Engineering approval. (4) No active blocker. Rules in endpoint/DNS/network/threat-intel domains are shadow-only until domain soak completes. ACTIVE_ALLOWLIST must not be modified without soak PASS.",
+    "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "rkf-investigation-001",
+    "title": "Investigation Query Guide — Threat Hunting Domains",
+    "category": "soc_procedure",
+    "content": "Supported hunt domains include: alerts, processes, persistence_items, execution_chains, beacon_patterns, behavioral_findings, hosts, network_correlations, cross_domain_correlations, dns_events, proxy_events, firewall_events, identity_provider_events, saas_audit_events. Hunt queries are advisory-only, replay-safe, bounded to MAX_RESULTS=500 and MAX_QUERY_WINDOW_DAYS=90. Results are stored in threat_hunt_results (append-only).",
+    "source": "xdr-knowledge-base-v1"
+  }
+]

@@ -100,6 +100,9 @@ use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
 use App\Http\Controllers\PilotReadinessMatrixController;
+use App\Http\Controllers\TenantStrictModeReadinessController;
+use App\Http\Controllers\RedpandaHealthController;
+use App\Http\Controllers\AiKnowledgeSeedController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -1206,6 +1209,32 @@ Route::middleware(['auth', 'soc:pilot.readiness.view'])->group(function () {
     Route::get('/soc/pilot/readiness-matrix',                        [PilotReadinessMatrixController::class, 'index'])->name('soc.pilot.readiness_matrix.index');
     Route::get('/soc/pilot/readiness-matrix/{runId}',                [PilotReadinessMatrixController::class, 'show'])->name('soc.pilot.readiness_matrix.show');
     Route::get('/soc/pilot/readiness-matrix/{runId}/report',         [PilotReadinessMatrixController::class, 'report'])->name('soc.pilot.readiness_matrix.report');
+});
+
+// Tenant Strict Mode Readiness — ENTERPRISE-065
+Route::middleware(['auth', 'soc:tenant.strict-mode.view'])->group(function () {
+    Route::get('/soc/tenant/strict-mode-readiness',         [TenantStrictModeReadinessController::class, 'index'])->name('soc.tenant.strict-mode-readiness.index');
+    Route::get('/soc/tenant/strict-mode-readiness/history', [TenantStrictModeReadinessController::class, 'history'])->name('soc.tenant.strict-mode-readiness.history');
+});
+Route::middleware(['auth', 'soc:tenant.strict-mode.assess'])->group(function () {
+    Route::post('/soc/tenant/strict-mode-readiness/assess', [TenantStrictModeReadinessController::class, 'assess'])->name('soc.tenant.strict-mode-readiness.assess');
+});
+
+// Redpanda Health & Recovery Hardening — ENTERPRISE-066
+Route::middleware(['auth', 'soc:redpanda.health.view'])->group(function () {
+    Route::get('/soc/redpanda/health',        [RedpandaHealthController::class, 'index'])->name('soc.redpanda.health.index');
+    Route::get('/soc/redpanda/health/events', [RedpandaHealthController::class, 'events'])->name('soc.redpanda.health.events');
+});
+Route::middleware(['auth', 'soc:redpanda.health.check'])->group(function () {
+    Route::post('/soc/redpanda/health/check', [RedpandaHealthController::class, 'check'])->name('soc.redpanda.health.check');
+});
+
+// RAG Knowledge Base Seeding — ENTERPRISE-067
+Route::middleware(['auth', 'soc:ai.knowledge.view'])->group(function () {
+    Route::get('/soc/ai/knowledge-seed', [AiKnowledgeSeedController::class, 'index'])->name('soc.ai.knowledge-seed.index');
+});
+Route::middleware(['auth', 'soc:ai.knowledge.seed'])->group(function () {
+    Route::post('/soc/ai/knowledge-seed', [AiKnowledgeSeedController::class, 'seed'])->name('soc.ai.knowledge-seed.seed');
 });
 
 require __DIR__.'/auth.php';

@@ -29,7 +29,7 @@ class FinalXdrCertificationTest extends TestCase
     }
 
     // =========================================================================
-    // Hard constraint checks â€” no autonomous approval, self-approve blocked
+    // Hard constraint checks Ã¢â‚¬â€ no autonomous approval, self-approve blocked
     // =========================================================================
 
     public function test_service_constants_are_correct(): void
@@ -419,7 +419,7 @@ class FinalXdrCertificationTest extends TestCase
     }
 
     // =========================================================================
-    // Append-only integrity â€” no delete/update on any table
+    // Append-only integrity Ã¢â‚¬â€ no delete/update on any table
     // =========================================================================
 
     public function test_xdr_readiness_certifications_are_append_only(): void
@@ -468,13 +468,13 @@ class FinalXdrCertificationTest extends TestCase
     }
 
     // =========================================================================
-    // ThreatHuntingService â€” domain count
+    // ThreatHuntingService Ã¢â‚¬â€ domain count
     // =========================================================================
 
     public function test_threat_hunting_service_has_correct_domain_count(): void
     {
         $domains = ThreatHuntingService::SUPPORTED_DOMAINS;
-        $this->assertCount(164, $domains);
+        $this->assertCount(172, $domains);
     }
 
     public function test_xdr_certification_domains_registered_in_threat_hunting(): void
@@ -488,7 +488,7 @@ class FinalXdrCertificationTest extends TestCase
     }
 
     // =========================================================================
-    // Routes â€” require auth
+    // Routes Ã¢â‚¬â€ require auth
     // =========================================================================
 
     public function test_xdr_cert_dashboard_requires_auth(): void

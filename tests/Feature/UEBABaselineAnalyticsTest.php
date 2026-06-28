@@ -12,7 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * UEBA Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Behavioral Baseline Analytics Tests.
+ * UEBA Phase 1 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Behavioral Baseline Analytics Tests.
  *
  * Asserts:
  *   - Deterministic baseline calculation
@@ -20,7 +20,7 @@ use Tests\TestCase;
  *   - Percentile rank correctness
  *   - Peer group assignment and aggregation
  *   - Anomaly score explainability (all required fields present)
- *   - Replay-safe recalculation (same inputs ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ same outputs)
+ *   - Replay-safe recalculation (same inputs ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ same outputs)
  *   - Risk factor integration (advisory_only=true, not autonomous)
  *   - Threat hunting pivot support
  *
@@ -73,7 +73,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         $this->assertNotNull($baseline1);
         $this->assertNotNull($baseline2);
 
-        // Deterministic: same data ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ same result (delta handles DB float truncation)
+        // Deterministic: same data ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ same result (delta handles DB float truncation)
         $this->assertEqualsWithDelta($baseline1->baseline_mean, $baseline2->baseline_mean, 1e-6);
         $this->assertEqualsWithDelta($baseline1->baseline_median, $baseline2->baseline_median, 1e-6);
         $this->assertEqualsWithDelta($baseline1->baseline_stddev, $baseline2->baseline_stddev, 1e-6);
@@ -95,7 +95,7 @@ class UEBABaselineAnalyticsTest extends TestCase
 
     public function test_baseline_requires_minimum_sample_count(): void
     {
-        // 4 observations ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â below MIN_SAMPLES_FOR_SCORING
+        // 4 observations ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â below MIN_SAMPLES_FOR_SCORING
         foreach ([1.0, 2.0, 3.0, 4.0] as $v) {
             $this->svc->recordObservation('charlie@test.com', 'user', 'source_ip_diversity', $v);
         }
@@ -114,7 +114,7 @@ class UEBABaselineAnalyticsTest extends TestCase
 
     public function test_robust_z_score_with_known_values(): void
     {
-        // median=5, MAD=2, value=9 ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ z = (9-5)/(1.4826*2) = 4/2.9652 ÃƒÂ¢Ã¢â‚¬Â°Ã‹â€  1.349
+        // median=5, MAD=2, value=9 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ z = (9-5)/(1.4826*2) = 4/2.9652 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â  1.349
         $z = $this->svc->robustZScore(9.0, 5.0, 2.0);
         $this->assertEqualsWithDelta(1.349, $z, 0.01);
     }
@@ -151,21 +151,21 @@ class UEBABaselineAnalyticsTest extends TestCase
     {
         $values = [1.0, 2.0, 3.0, 4.0, 5.0];
         $rank = $this->svc->percentileRank(5.0, $values);
-        $this->assertEquals(80.0, $rank); // 4 values below 5 ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 4/5 * 100 = 80
+        $this->assertEquals(80.0, $rank); // 4 values below 5 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 4/5 * 100 = 80
     }
 
     public function test_percentile_rank_for_min_value_is_zero(): void
     {
         $values = [1.0, 2.0, 3.0, 4.0, 5.0];
         $rank = $this->svc->percentileRank(1.0, $values);
-        $this->assertEquals(0.0, $rank); // 0 values below 1 ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 0%
+        $this->assertEquals(0.0, $rank); // 0 values below 1 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 0%
     }
 
     public function test_percentile_rank_for_median_value_is_fifty(): void
     {
         $values = [1.0, 2.0, 3.0, 4.0, 5.0];
         $rank = $this->svc->percentileRank(3.0, $values);
-        $this->assertEquals(40.0, $rank); // 2 values below 3 ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 40%
+        $this->assertEquals(40.0, $rank); // 2 values below 3 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 40%
     }
 
     public function test_percentile_rank_returns_fifty_for_empty_values(): void
@@ -180,7 +180,7 @@ class UEBABaselineAnalyticsTest extends TestCase
 
     public function test_compute_mad_with_known_values(): void
     {
-        // [1,1,2,2,4,6,9] ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ median=2, deviations=[1,1,0,0,2,4,7] ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ MAD=median=1
+        // [1,1,2,2,4,6,9] ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ median=2, deviations=[1,1,0,0,2,4,7] ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ MAD=median=1
         $mad = $this->svc->computeMAD([1.0, 1.0, 2.0, 2.0, 4.0, 6.0, 9.0]);
         $this->assertEquals(1.0, $mad);
     }
@@ -336,10 +336,10 @@ class UEBABaselineAnalyticsTest extends TestCase
         $baseline1 = $this->svc->computeBaseline('helen@test.com', 'user', 'saas_action_frequency');
         $this->assertNotNull($baseline1);
 
-        // Recalculate ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â same window, same data
+        // Recalculate ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â same window, same data
         $baseline2 = $this->svc->computeBaseline('helen@test.com', 'user', 'saas_action_frequency');
 
-        // Results must be identical (deterministic ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â delta handles DB float truncation)
+        // Results must be identical (deterministic ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â delta handles DB float truncation)
         $this->assertEqualsWithDelta($baseline1->baseline_mean, $baseline2->baseline_mean, 1e-6);
         $this->assertEqualsWithDelta($baseline1->baseline_median, $baseline2->baseline_median, 1e-6);
         $this->assertEquals($baseline1->sample_count, $baseline2->sample_count);
@@ -354,7 +354,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         $countAfter = BaselineObservation::where('entity_key', 'iris@test.com')->count();
 
         $this->assertEquals($countBefore + 1, $countAfter,
-            'Each recordObservation call should INSERT a new row ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never update');
+            'Each recordObservation call should INSERT a new row ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â never update');
     }
 
     public function test_anomaly_scores_are_append_only(): void
@@ -372,11 +372,11 @@ class UEBABaselineAnalyticsTest extends TestCase
         $countAfter = BaselineAnomalyScore::where('entity_key', 'james@test.com')->count();
 
         $this->assertEquals($countBefore + 2, $countAfter,
-            'Each scoreAnomaly call should INSERT a new row ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never update');
+            'Each scoreAnomaly call should INSERT a new row ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â never update');
     }
 
     // =========================================================================
-    // Risk factor integration ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â advisory only
+    // Risk factor integration ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â advisory only
     // =========================================================================
 
     public function test_ueba_risk_factors_are_in_weight_table(): void
@@ -410,7 +410,7 @@ class UEBABaselineAnalyticsTest extends TestCase
 
         $this->assertNotNull($score);
         $this->assertTrue($score->is_advisory,
-            'Every anomaly score MUST have is_advisory=true ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â UEBA never triggers enforcement');
+            'Every anomaly score MUST have is_advisory=true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â UEBA never triggers enforcement');
     }
 
     // =========================================================================
@@ -443,14 +443,14 @@ class UEBABaselineAnalyticsTest extends TestCase
 
     public function test_ueba_domains_are_35_total(): void
     {
-        $this->assertCount(164,
+        $this->assertCount(172,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
             'Should have 140 threat hunting domains after all phases through Enterprise Scale HA Phase 1'
         );
     }
 
     // =========================================================================
-    // Advisory-only enforcement ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â hard safety assertions
+    // Advisory-only enforcement ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â hard safety assertions
     // =========================================================================
 
     public function test_no_automatic_account_disable(): void
@@ -583,7 +583,7 @@ class UEBABaselineAnalyticsTest extends TestCase
     }
 
     // =========================================================================
-    // API endpoints ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â advisory response assertions
+    // API endpoints ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â advisory response assertions
     // =========================================================================
 
     public function test_ueba_detect_api_includes_advisory_fields(): void
@@ -640,7 +640,7 @@ class UEBABaselineAnalyticsTest extends TestCase
     }
 
     // =========================================================================
-    // UI routes ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â accessible and display advisory disclaimer
+    // UI routes ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â accessible and display advisory disclaimer
     // =========================================================================
 
     public function test_ueba_dashboard_is_accessible(): void
@@ -771,7 +771,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         );
 
         $this->assertEmpty($uebaActive,
-            'No UEBA rules may ever be staged_active ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â they require a domain-specific 6h soak PASS');
+            'No UEBA rules may ever be staged_active ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â they require a domain-specific 6h soak PASS');
     }
 
     public function test_registry_total_rule_count_is_65(): void

@@ -242,6 +242,17 @@ class ThreatHuntingService
         'pilot_readiness_matrix_runs',
         'pilot_readiness_gate_evaluations',
         'pilot_readiness_evidence_links',
+        // Tenant Backfill + Strict Mode Readiness — ENTERPRISE-065
+        'tenant_backfill_audit_runs',
+        'tenant_strict_mode_assessments',
+        'tenant_strict_mode_gate_results',
+        // Redpanda Recovery Hardening — ENTERPRISE-066
+        'redpanda_topic_health_runs',
+        'redpanda_consumer_group_health_runs',
+        'redpanda_recovery_events',
+        // RAG Knowledge Base Seeding — ENTERPRISE-067
+        'rag_seed_runs',
+        'rag_seed_document_log',
     ];
 
     private const DOMAIN_FIELDS = [

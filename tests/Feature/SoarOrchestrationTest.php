@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * SOAR Governance & Response Orchestration Phase 1 Ã¢â‚¬â€ Feature Tests.
+ * SOAR Governance & Response Orchestration Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -55,7 +55,7 @@ class SoarOrchestrationTest extends TestCase
     }
 
     // =========================================================================
-    // Schema Ã¢â‚¬â€ new tables exist
+    // Schema ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â new tables exist
     // =========================================================================
 
     protected function getAdvisoryServiceClass(): string
@@ -413,7 +413,7 @@ class SoarOrchestrationTest extends TestCase
     }
 
     // =========================================================================
-    // Execution results Ã¢â‚¬â€ append-only
+    // Execution results ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_record_step_result_creates_append_only_record(): void
@@ -513,7 +513,7 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(164, $this->hunting->supportedDomains());
+        $this->assertCount(172, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_soar_playbooks_domain(): void
@@ -647,7 +647,7 @@ class SoarOrchestrationTest extends TestCase
     }
 
     // =========================================================================
-    // Safety invariants Ã¢â‚¬â€ no autonomous enforcement methods exist
+    // Safety invariants ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no autonomous enforcement methods exist
     // =========================================================================
 
     public function test_soar_service_has_no_isolate_host(): void

@@ -446,7 +446,7 @@ class EnterpriseOperationsAutomationTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(164, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(172, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_operational_recovery_runs_domain_supported(): void

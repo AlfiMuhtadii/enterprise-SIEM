@@ -24,7 +24,7 @@ class DocumentationFreezeTest extends TestCase
     public function test_readme_mentions_hunt_domains(): void
     {
         $content = file_get_contents(base_path('README.md'));
-        $this->assertStringContainsString('164', $content);
+        $this->assertStringContainsString('172', $content);
     }
 
     public function test_readme_mentions_detection_rules(): void

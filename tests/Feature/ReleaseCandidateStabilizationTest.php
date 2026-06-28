@@ -30,7 +30,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // Hard constraint assertions â€” no forbidden operations
+    // Hard constraint assertions Ã¢â‚¬â€ no forbidden operations
     // =========================================================================
 
     protected function getAdvisoryServiceClass(): string
@@ -122,7 +122,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // RC manifest â€” generation and state
+    // RC manifest Ã¢â‚¬â€ generation and state
     // =========================================================================
 
     public function test_initiate_rc_creates_draft_manifest(): void
@@ -486,7 +486,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
 
     public function test_threat_hunting_service_has_correct_domain_count(): void
     {
-        $this->assertCount(164, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(172, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_release_stabilization_domains_registered(): void
@@ -500,7 +500,7 @@ class ReleaseCandidateStabilizationTest extends TestCase
     }
 
     // =========================================================================
-    // Routes â€” require auth
+    // Routes Ã¢â‚¬â€ require auth
     // =========================================================================
 
     public function test_release_stab_dashboard_requires_auth(): void

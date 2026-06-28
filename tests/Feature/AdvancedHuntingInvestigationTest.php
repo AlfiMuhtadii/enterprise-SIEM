@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Advanced Threat Hunting & Investigation Phase 1 Ã¢â‚¬â€ Feature Tests.
+ * Advanced Threat Hunting & Investigation Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No isolateHost
@@ -51,7 +51,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Schema Ã¢â‚¬â€ new tables exist
+    // Schema ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â new tables exist
     // =========================================================================
 
     protected function getAdvisoryServiceClass(): string
@@ -149,7 +149,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph nodes Ã¢â‚¬â€ append-safe
+    // Graph nodes ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-safe
     // =========================================================================
 
     public function test_add_node_creates_investigation_graph_node(): void
@@ -202,7 +202,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Graph edges Ã¢â‚¬â€ append-safe
+    // Graph edges ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-safe
     // =========================================================================
 
     public function test_add_edge_creates_investigation_graph_edge(): void
@@ -271,7 +271,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Timeline events Ã¢â‚¬â€ append-only
+    // Timeline events ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_add_timeline_event_creates_record(): void
@@ -384,7 +384,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Evidence linking Ã¢â‚¬â€ append-only
+    // Evidence linking ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_link_evidence_creates_append_only_record(): void
@@ -431,7 +431,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Bookmarks Ã¢â‚¬â€ mutable
+    // Bookmarks ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â mutable
     // =========================================================================
 
     public function test_add_bookmark_creates_record(): void
@@ -479,7 +479,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     public function test_threat_hunting_supported_domains_count(): void
     {
         $domains = $this->hunting->supportedDomains();
-        $this->assertCount(164, $domains);
+        $this->assertCount(172, $domains);
     }
 
     public function test_hunt_investigation_graph_nodes_domain(): void
@@ -566,7 +566,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Entity risk scoring Ã¢â‚¬â€ ATHI factors
+    // Entity risk scoring ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ATHI factors
     // =========================================================================
 
     public function test_entity_risk_scoring_service_has_athi_weights(): void
@@ -668,7 +668,7 @@ class AdvancedHuntingInvestigationTest extends TestCase
     }
 
     // =========================================================================
-    // Safety invariants Ã¢â‚¬â€ no autonomous enforcement methods exist
+    // Safety invariants ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no autonomous enforcement methods exist
     // =========================================================================
 
     public function test_investigation_graph_service_has_no_isolate_host(): void

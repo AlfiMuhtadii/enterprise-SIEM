@@ -31,7 +31,7 @@ class SoakChaosValidationTest extends TestCase
     }
 
     // =========================================================================
-    // Hard constraint Ã¢â‚¬â€ no forbidden operations
+    // Hard constraint ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no forbidden operations
     // =========================================================================
 
 
@@ -543,7 +543,7 @@ class SoakChaosValidationTest extends TestCase
 
     public function test_total_hunt_domains_is_85(): void
     {
-        $this->assertCount(164, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(172, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     // =========================================================================

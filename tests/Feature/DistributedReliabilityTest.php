@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * HA / Distributed Reliability Phase 1 Ã¢â‚¬â€ Feature Tests.
+ * HA / Distributed Reliability Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No autonomous remediation
@@ -48,7 +48,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Schema Ã¢â‚¬â€ new tables exist
+    // Schema ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â new tables exist
     // =========================================================================
 
     protected function getAdvisoryServiceClass(): string
@@ -173,7 +173,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Consumer lag snapshots Ã¢â‚¬â€ append-only
+    // Consumer lag snapshots ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_record_lag_snapshot_creates_record(): void
@@ -316,7 +316,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Duplicate event reports Ã¢â‚¬â€ append-only
+    // Duplicate event reports ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_duplicate_report_has_analytics_protection(): void
@@ -343,7 +343,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Storage pressure snapshots Ã¢â‚¬â€ append-only
+    // Storage pressure snapshots ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_record_storage_pressure_creates_snapshot(): void
@@ -381,7 +381,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Degraded mode events Ã¢â‚¬â€ append-only
+    // Degraded mode events ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_record_degraded_mode_entry_creates_event(): void
@@ -426,7 +426,7 @@ class DistributedReliabilityTest extends TestCase
     }
 
     // =========================================================================
-    // Recovery validation runs Ã¢â‚¬â€ append-only
+    // Recovery validation runs ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â append-only
     // =========================================================================
 
     public function test_start_recovery_run_creates_running_record(): void
@@ -511,7 +511,7 @@ class DistributedReliabilityTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(164, $this->hunting->supportedDomains());
+        $this->assertCount(172, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_system_worker_heartbeats_domain(): void

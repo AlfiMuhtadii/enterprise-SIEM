@@ -77,6 +77,12 @@ return [
             'easm.view',
             'easm.scan',
             'pilot.readiness.view',
+            'tenant.strict-mode.view',
+            'tenant.strict-mode.assess',
+            'redpanda.health.view',
+            'redpanda.health.check',
+            'ai.knowledge.view',
+            'ai.knowledge.seed',
         ],
         'analyst' => [
             'dashboard.view',
@@ -109,6 +115,9 @@ return [
             'shadow.soak.view',
             'easm.view',
             'pilot.readiness.view',
+            'tenant.strict-mode.view',
+            'redpanda.health.view',
+            'ai.knowledge.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -126,6 +135,9 @@ return [
             'shadow.soak.view',
             'easm.view',
             'pilot.readiness.view',
+            'tenant.strict-mode.view',
+            'redpanda.health.view',
+            'ai.knowledge.view',
         ],
         'scenario_operator' => [
             'dashboard.view',

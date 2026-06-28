@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
- * Performance / Capacity / Cost Governance Phase 1 Ã¢â‚¬â€ Feature Tests.
+ * Performance / Capacity / Cost Governance Phase 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Feature Tests.
  *
  * Hard safety assertions (MUST remain green):
  *   - No autonomous scaling
@@ -49,7 +49,7 @@ class CapacityGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // Schema Ã¢â‚¬â€ new tables exist
+    // Schema ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â new tables exist
     // =========================================================================
 
     protected function getAdvisoryServiceClass(): string
@@ -374,7 +374,7 @@ class CapacityGovernanceTest extends TestCase
     }
 
     // =========================================================================
-    // Partition pressure snapshots Ã¢â‚¬â€ mutable
+    // Partition pressure snapshots ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â mutable
     // =========================================================================
 
     public function test_upsert_partition_pressure_creates_record(): void
@@ -471,7 +471,7 @@ class CapacityGovernanceTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(164, $this->hunting->supportedDomains());
+        $this->assertCount(172, $this->hunting->supportedDomains());
     }
 
     public function test_hunt_telemetry_capacity_snapshots_domain(): void
