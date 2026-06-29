@@ -103,6 +103,7 @@ use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
 use App\Http\Controllers\RedpandaHealthController;
 use App\Http\Controllers\AiKnowledgeSeedController;
+use App\Http\Controllers\Security\SecurityHardeningFreezeController;
 use App\Http\Middleware\InternalServiceAuthMiddleware;
 use Illuminate\Support\Facades\Route;
 
@@ -650,6 +651,15 @@ Route::middleware(['auth', 'soc:investigation.create', 'throttle:soc-api'])->pre
 // Security Hardening Dashboard (admin only)
 Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/security/hardening', [SecurityHardeningController::class, 'index'])->name('security.hardening');
+});
+
+// ENTERPRISE-074: Security Hardening Evidence Freeze (admin only)
+Route::middleware(['auth', 'admin'])->prefix('security-hardening-freeze')->group(function () {
+    Route::get('/',         [SecurityHardeningFreezeController::class, 'index'])->name('security-hardening-freeze.index');
+    Route::get('/runs',     [SecurityHardeningFreezeController::class, 'runs'])->name('security-hardening-freeze.runs');
+    Route::get('/controls', [SecurityHardeningFreezeController::class, 'controls'])->name('security-hardening-freeze.controls');
+    Route::get('/coverage', [SecurityHardeningFreezeController::class, 'coverage'])->name('security-hardening-freeze.coverage');
+    Route::get('/delta',    [SecurityHardeningFreezeController::class, 'delta'])->name('security-hardening-freeze.delta');
 });
 
 // Resilience Validation Dashboard (admin only)

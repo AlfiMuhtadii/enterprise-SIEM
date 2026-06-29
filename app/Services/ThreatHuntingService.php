@@ -253,6 +253,12 @@ class ThreatHuntingService
         // RAG Knowledge Base Seeding — ENTERPRISE-067
         'rag_seed_runs',
         'rag_seed_document_log',
+        // Security Hardening Evidence Freeze — ENTERPRISE-074
+        'security_hardening_freeze_runs',
+        'security_hardening_freeze_checks',
+        'security_hardening_freeze_coverage_reports',
+        'security_hardening_freeze_control_evidence',
+        'security_hardening_freeze_audit_events',
     ];
 
     private const DOMAIN_FIELDS = [
