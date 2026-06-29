@@ -19,7 +19,9 @@ class InternalAuthService
 {
     private static function secret(): string
     {
-        $s = env('XDR_INTERNAL_AUTH_SECRET', '');
+        // Use config() instead of env() so the value is honoured under config:cache.
+        // Mapped in config/xdr.php as xdr.internal_auth_secret.
+        $s = config('xdr.internal_auth_secret', '');
         if ($s !== '') {
             return $s;
         }

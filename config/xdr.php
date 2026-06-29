@@ -114,6 +114,11 @@ return [
         // Documentary: strict mode MUST be enabled before multi-tenant production go-live.
         'strict_mode_production_required' => true,
     ],
+
+    // Shared secret for internal service-to-service HMAC tokens.
+    // Set XDR_INTERNAL_AUTH_SECRET in .env (32+ random bytes recommended).
+    // Falls back to APP_KEY when unset.
+    'internal_auth_secret' => env('XDR_INTERNAL_AUTH_SECRET', ''),
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],
         'incidents_workflow_rbac' => ['driver' => 'postgresql', 'retention_days' => 365],

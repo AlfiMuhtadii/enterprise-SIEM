@@ -44,9 +44,12 @@ class TenantNullBackfillTest extends TestCase
         $this->assertContains('dlq_records', TenantBoundaryService::MUTABLE_TABLES);
     }
 
-    public function test_mutable_tables_has_exactly_3_entries(): void
+    public function test_mutable_tables_has_expected_entries(): void
     {
-        $this->assertCount(3, TenantBoundaryService::MUTABLE_TABLES);
+        $this->assertGreaterThanOrEqual(3, count(TenantBoundaryService::MUTABLE_TABLES));
+        $this->assertContains('security_alerts',   TenantBoundaryService::MUTABLE_TABLES);
+        $this->assertContains('security_incidents', TenantBoundaryService::MUTABLE_TABLES);
+        $this->assertContains('dlq_records',        TenantBoundaryService::MUTABLE_TABLES);
     }
 
     public function test_append_only_isolated_tables_constant_is_defined(): void

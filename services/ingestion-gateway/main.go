@@ -282,12 +282,7 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 		g.reject(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	// IG-2: per-tenant rate limit; X-Tenant-ID header identifies the tenant
-	tenantID := r.Header.Get("X-Tenant-ID")
-	if !g.tenantAllowed(tenantID) {
-		g.reject(w, "tenant_rate_limited", http.StatusTooManyRequests)
-		return
-	}
+	// Parse events before rate limiting so we can validate X-Tenant-ID against payload.
 	var events []map[string]any
 	if err := json.Unmarshal(body, &events); err != nil {
 		var one map[string]any
@@ -299,6 +294,24 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(events) == 0 || len(events) > g.maxBatchSize {
 		g.reject(w, "invalid_batch_size", http.StatusBadRequest)
+		return
+	}
+	// IG-2: per-tenant rate limit.
+	// RATE-LIMIT-BYPASS fix: derive effective tenant from payload first; X-Tenant-ID header
+	// is advisory only. If header and payload disagree, reject — prevents a caller from
+	// setting a victim tenant's header to exhaust their rate-limit bucket.
+	headerTenantID := r.Header.Get("X-Tenant-ID")
+	payloadTenantID := extractPayloadTenantID(events)
+	if headerTenantID != "" && payloadTenantID != "" && headerTenantID != payloadTenantID {
+		g.reject(w, "tenant_id_header_mismatch", http.StatusBadRequest)
+		return
+	}
+	effectiveTenantID := payloadTenantID
+	if effectiveTenantID == "" {
+		effectiveTenantID = headerTenantID
+	}
+	if !g.tenantAllowed(effectiveTenantID) {
+		g.reject(w, "tenant_rate_limited", http.StatusTooManyRequests)
 		return
 	}
 	if allowed, reason := g.admissionAllowed(); !allowed {
@@ -315,6 +328,19 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 		"accepted":   len(events),
 		"latency_ms": time.Since(started).Milliseconds(),
 	})
+}
+
+// extractPayloadTenantID returns the first non-empty tenant_id found in a parsed event batch.
+// Returns "" when no event carries a tenant_id field.
+func extractPayloadTenantID(events []map[string]any) string {
+	for _, e := range events {
+		if v, ok := e["tenant_id"]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 // admissionAllowed reads the cached normalizer queue depth (IG-1).

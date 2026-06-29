@@ -50,6 +50,13 @@ class TenantBoundaryService
         'security_incidents',
         'user_tenant_memberships',
         'tenant_membership_audit_events',
+        // AGENT-TENANCY-GAP: endpoint fleet scoping
+        'endpoint_agents',
+        // TENANT-UNSCOPED-TABLES: workflow and graph tables
+        'investigations',
+        'response_plans',
+        'entities',
+        'threat_hunts',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -60,6 +67,10 @@ class TenantBoundaryService
         'security_alerts',
         'security_incidents',
         'dlq_records',
+        'endpoint_agents',
+        'investigations',
+        'response_plans',
+        'entities',
     ];
 
     // Append-only ISOLATED tables — tenant_id backfill is FORBIDDEN on these.
@@ -80,6 +91,8 @@ class TenantBoundaryService
         'shadow_soak_audit_events',
         'user_tenant_memberships',
         'tenant_membership_audit_events',
+        // threat_hunts is append-only per operational policy — tenant_id set at insert only
+        'threat_hunts',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap
@@ -87,7 +100,6 @@ class TenantBoundaryService
         'users',
         'security_audit_trails',
         'telemetry_events',
-        'endpoint_agents',
         'endpoint_agent_heartbeats',
     ];
 

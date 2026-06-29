@@ -43,6 +43,16 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **ENTERPRISE-072** | Shadow Domain Soak Pre-Flight Checklist — `DomainSoakHarnessService::getPreflightStatus()`, `ShadowSoakPreflightCommand` (`domain:soak-preflight`), `xdr_shadow_soak_preflight.py` | `DomainSoakHarnessService.php`, `ShadowSoakPreflightCommand.php`, `scripts/xdr_shadow_soak_preflight.py`, `ShadowSoakPreflightTest.php` | Medium | — |
 | **ENTERPRISE-073** | Redpanda Multi-Node HA Template — `docker-compose.ha.yml` (3-broker cluster), `xdr_redpanda_ha_validate.py` (12 checks), `--replication-factor` flag in `xdr_topic_bootstrap.py` | `docker-compose.ha.yml`, `scripts/xdr_redpanda_ha_validate.py`, `scripts/xdr_topic_bootstrap.py` | Low | — |
 
+## Backlog Hardening Tasks (2026-06-29)
+
+| Task ID | Description | Primary File(s) | Priority | GH Issue |
+|---|---|---|---|---|
+| **ENV-CACHE-DRIFT** | Map XDR_INTERNAL_AUTH_SECRET to `config/xdr.php`; `InternalAuthService` uses `config()` not `env()` | `config/xdr.php`, `InternalAuthService.php`, `InternalAuthConfigMappingTest.php` | Medium | — |
+| **CMD-SHARED-HMAC** | Per-agent `hmac_secret` column on `endpoint_agents`; `EndpointResponseCommandService::verifyAgentSignature()` uses per-agent secret with shared-token fallback | migration `2026_06_29_070001`, `EndpointResponseCommandService.php`, `PerAgentHmacSecretTest.php` | Critical | — |
+| **AGENT-TENANCY-GAP** | `tenant_id` on `endpoint_agents`; `TenantBoundaryService` ISOLATED/MUTABLE; remove from UNISOLATED | migration `2026_06_29_070001`, `TenantBoundaryService.php`, `EndpointAgentTenantScopingTest.php` | High | — |
+| **TENANT-UNSCOPED-TABLES** | `tenant_id` on `investigations`, `response_plans`, `threat_hunts`, `entities`; updated ISOLATED/MUTABLE/APPEND_ONLY_ISOLATED | migration `2026_06_29_080001`, `TenantBoundaryService.php`, `TenantUnscopedTablesTest.php` | High | — |
+| **RATE-LIMIT-BYPASS** | Parse payload before rate limiting; validate X-Tenant-ID header vs payload `tenant_id`; `extractPayloadTenantID()` helper; 8 new Go tests | `services/ingestion-gateway/main.go`, `main_test.go` | Medium | — |
+
 ---
 
 **Batch 16 (2026-06-28)**

@@ -7,6 +7,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Open Backlog Tasks
 
-*(No open tasks — ENTERPRISE-068 through ENTERPRISE-073 have been implemented and moved to REVIEW_COMPLETED.md)*
+*(All tasks implemented — see REVIEW_COMPLETED.md)*
+
 
 ---

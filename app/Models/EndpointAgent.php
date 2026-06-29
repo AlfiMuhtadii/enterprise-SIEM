@@ -29,6 +29,7 @@ class EndpointAgent extends Model
         'enrollment_token_hash', 'agent_version', 'public_key_fingerprint',
         'ip_address', 'platform', 'os_family', 'health_state', 'status',
         'enrolled_at', 'last_seen_at', 'metadata',
+        'hmac_secret', 'tenant_id',
     ];
 
     protected $casts = [

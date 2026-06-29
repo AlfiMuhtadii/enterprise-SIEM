@@ -176,7 +176,7 @@ class EndpointResponseCommandService
         string $signature,
         string $rawPayload
     ): EndpointResponseCommand {
-        $sigValid = $this->verifyAgentSignature($signature, $rawPayload);
+        $sigValid = $this->verifyAgentSignature($signature, $rawPayload, $agentId);
 
         if (!$sigValid) {
             SecurityHardeningEvent::record(
@@ -218,7 +218,7 @@ class EndpointResponseCommandService
         string $rawPayload,
         array $payload
     ): EndpointResponseCommand {
-        $sigValid  = $this->verifyAgentSignature($signature, $rawPayload);
+        $sigValid  = $this->verifyAgentSignature($signature, $rawPayload, $agentId);
         $succeeded = ($payload['status'] ?? '') === 'completed';
 
         if (!$sigValid) {
@@ -331,18 +331,29 @@ class EndpointResponseCommandService
      * calling state-transition methods, so invalid signatures are rejected at
      * the HTTP boundary (401) rather than logged-but-tolerated.
      */
-    public function isSignatureValid(string $signature, string $rawPayload): bool
+    public function isSignatureValid(string $signature, string $rawPayload, ?string $agentId = null): bool
     {
-        return $this->verifyAgentSignature($signature, $rawPayload);
+        return $this->verifyAgentSignature($signature, $rawPayload, $agentId);
     }
 
-    private function verifyAgentSignature(string $signature, string $rawPayload): bool
+    private function verifyAgentSignature(string $signature, string $rawPayload, ?string $agentId = null): bool
     {
-        $token = config('soc.agent_enrollment_token', '');
-        if ($token === '' || $signature === '') {
+        if ($signature === '') {
             return false;
         }
-        $expected = 'sha256=' . hash_hmac('sha256', $rawPayload, $token);
+        // Per-agent secret takes priority; fall back to shared enrollment token.
+        $secret = '';
+        if ($agentId !== null) {
+            $agent  = \App\Models\EndpointAgent::where('agent_id', $agentId)->first();
+            $secret = (string) ($agent?->hmac_secret ?? '');
+        }
+        if ($secret === '') {
+            $secret = config('soc.agent_enrollment_token', '');
+        }
+        if ($secret === '') {
+            return false;
+        }
+        $expected = 'sha256=' . hash_hmac('sha256', $rawPayload, $secret);
         return hash_equals($expected, $signature);
     }
 }

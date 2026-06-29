@@ -376,3 +376,150 @@ func TestCircuitBreakerFastFailWhenOpen(t *testing.T) {
 		t.Errorf("circuit-open fast-fail took %v; expected < 10ms", elapsed)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// RATE-LIMIT-BYPASS: X-Tenant-ID header must match payload tenant_id
+// ---------------------------------------------------------------------------
+
+func TestExtractPayloadTenantIDReturnsFirstFound(t *testing.T) {
+	events := []map[string]any{
+		{"event_type": "login", "tenant_id": "tenant-abc"},
+		{"event_type": "access", "tenant_id": "tenant-xyz"},
+	}
+	got := extractPayloadTenantID(events)
+	if got != "tenant-abc" {
+		t.Errorf("expected tenant-abc, got %q", got)
+	}
+}
+
+func TestExtractPayloadTenantIDReturnsEmptyWhenNone(t *testing.T) {
+	events := []map[string]any{
+		{"event_type": "login"},
+	}
+	got := extractPayloadTenantID(events)
+	if got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+}
+
+func TestExtractPayloadTenantIDSkipsEmptyString(t *testing.T) {
+	events := []map[string]any{
+		{"event_type": "login", "tenant_id": ""},
+		{"event_type": "access", "tenant_id": "tenant-xyz"},
+	}
+	got := extractPayloadTenantID(events)
+	if got != "tenant-xyz" {
+		t.Errorf("expected tenant-xyz, got %q", got)
+	}
+}
+
+func TestIngestHandlerRejectsTenantIDMismatch(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+
+	events := []map[string]any{
+		{"event_type": "login", "tenant_id": "tenant-actual"},
+	}
+	body, _ := json.Marshal(events)
+
+	// Header claims a different tenant than the payload — must be rejected.
+	req := httptest.NewRequest(http.MethodPost, "/v1/ingest", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tenant-ID", "tenant-spoofed")
+	rr := httptest.NewRecorder()
+	gw.ingest(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 on tenant_id mismatch, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerAllowsWhenHeaderMatchesPayload(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+
+	events := []map[string]any{
+		{"event_type": "login", "tenant_id": "tenant-abc"},
+	}
+	body, _ := json.Marshal(events)
+
+	rr := postIngest(gw, body, "tenant-abc")
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 when header matches payload, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerAllowsWhenNoHeaderSet(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+
+	events := []map[string]any{
+		{"event_type": "login", "tenant_id": "tenant-abc"},
+	}
+	body, _ := json.Marshal(events)
+
+	// No X-Tenant-ID header — should be allowed (payload tenant is used directly).
+	rr := postIngest(gw, body, "")
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 when no header set, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerAllowsWhenNoPayloadTenantID(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+
+	// Events without tenant_id — header is used for rate limiting, no mismatch possible.
+	events := []map[string]any{{"event_type": "login"}}
+	body, _ := json.Marshal(events)
+	rr := postIngest(gw, body, "tenant-header-only")
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 when payload has no tenant_id, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerUsesPayloadTenantForRateLimit(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.perTenantRPS = 1
+
+	events := []map[string]any{{"event_type": "login", "tenant_id": "payload-tenant"}}
+	body, _ := json.Marshal(events)
+
+	// First request: 202
+	rr1 := postIngest(gw, body, "payload-tenant")
+	if rr1.Code != http.StatusAccepted {
+		t.Fatalf("first request should succeed, got %d", rr1.Code)
+	}
+	// Second request same tenant: 429 (bucket exhausted)
+	rr2 := postIngest(gw, body, "payload-tenant")
+	if rr2.Code != http.StatusTooManyRequests {
+		t.Errorf("second request should be rate-limited, got %d", rr2.Code)
+	}
+}
