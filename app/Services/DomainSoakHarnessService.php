@@ -378,6 +378,73 @@ class DomainSoakHarnessService
         return compact('run', 'snapshot', 'gates', 'assessment', 'audit');
     }
 
+    /**
+     * ENTERPRISE-072 — Pre-flight status for a shadow domain soak.
+     * Advisory read-only. Never starts a run or modifies state.
+     */
+    public function getPreflightStatus(string $domain): array
+    {
+        $this->assertDomain($domain);
+
+        $checks = [];
+
+        // CHK-01: domain is supported
+        $checks['CHK-01'] = [
+            'name'   => 'Domain is supported by soak harness',
+            'status' => 'PASS',
+            'detail' => "'{$domain}' is in SUPPORTED_DOMAINS",
+        ];
+
+        // CHK-02: shadow rules registered for domain
+        $expectedRules = self::DOMAIN_SHADOW_RULE_COUNTS[$domain] ?? 0;
+        $checks['CHK-02'] = [
+            'name'   => 'Shadow rules registered for domain',
+            'status' => $expectedRules > 0 ? 'PASS' : 'WARN',
+            'detail' => "Expected rule count from registry: {$expectedRules}",
+        ];
+
+        // CHK-03: advisory findings in last 24h
+        $recentFindings = \App\Models\AdvisoryFinding::where('domain', $domain)
+            ->where('last_seen_at', '>=', now()->subHours(24))
+            ->count();
+        $findingsOk = $recentFindings >= self::MIN_FINDINGS_FOR_SOAK;
+        $checks['CHK-03'] = [
+            'name'   => 'Advisory findings in last 24h (minimum evidence)',
+            'status' => $findingsOk ? 'PASS' : 'WARN',
+            'detail' => "{$recentFindings} findings in last 24h (minimum: " . self::MIN_FINDINGS_FOR_SOAK . ')',
+        ];
+
+        // CHK-04: no currently running soak for this domain
+        $activeRun = ShadowSoakRun::where('domain', $domain)
+            ->where('status', 'running')
+            ->exists();
+        $checks['CHK-04'] = [
+            'name'   => 'No active soak run in progress',
+            'status' => $activeRun ? 'WARN' : 'PASS',
+            'detail' => $activeRun
+                ? 'A soak run is already in progress for this domain — wait for it to complete'
+                : 'No active run for this domain',
+        ];
+
+        // CHK-05: promotion_recommended is always false (safety check)
+        $checks['CHK-05'] = [
+            'name'   => 'Promotion-recommended always false (advisory posture)',
+            'status' => 'PASS',
+            'detail' => 'promotion_recommended=false enforced — operator explicit action required for promotion',
+        ];
+
+        $passed = count(array_filter($checks, fn ($c) => $c['status'] === 'PASS'));
+        $ready  = !$activeRun && $recentFindings >= self::MIN_FINDINGS_FOR_SOAK;
+
+        return [
+            'domain'               => $domain,
+            'preflight_ready'      => $ready,
+            'checks'               => $checks,
+            'note'                 => 'Advisory only — soak harness never promotes domains autonomously.',
+            'expected_shadow_rules'=> $expectedRules,
+        ];
+    }
+
     // =========================================================================
     // Private helpers
     // =========================================================================

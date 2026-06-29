@@ -36,6 +36,13 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **EASM-1** | Enforce TenantContextAuthority in EasmController (replace raw header trust) | `EasmController.php` | High | [#24](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/24) |
 | **PILOT-1** | Scope PilotReadinessMatrixController index/show/report by validated tenant context | `PilotReadinessMatrixController.php` | High | [#25](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/25) |
 
+| **ENTERPRISE-068** | Container Resource Governance — `deploy.resources.limits` on 6 services in dev + prod compose, `xdr_container_resource_validate.py` (12 checks) | `docker-compose.yml`, `docker-compose.prod.yml`, `scripts/xdr_container_resource_validate.py` | Medium | — |
+| **ENTERPRISE-069** | PostgreSQL RLS Policy Scaffolding (advisory) — `scaffold_rls_policies` migration (DO block, pgsql-only, no enforcement), `TenantRlsStatusCommand` (read-only), `xdr_rls_scaffold_validate.py` | `database/migrations/`, `TenantRlsStatusCommand.php`, `scripts/xdr_rls_scaffold_validate.py`, `RlsPolicyScaffoldingTest.php` | Medium | — |
+| **ENTERPRISE-070** | Tenant Null Backfill Pre-Flight Validation — `TenantBackfillPreflightCommand` (6 CHK read-only), GATE-08 in `TenantStrictModeReadinessService`, `xdr_tenant_backfill_preflight.py` | `TenantBackfillPreflightCommand.php`, `TenantStrictModeReadinessService.php`, `scripts/xdr_tenant_backfill_preflight.py` | High | — |
+| **ENTERPRISE-071** | RAG Knowledge Base Operational Integration — `RagOperationalCheckCommand` (`ai:knowledge-check`), `xdr_rag_operational_validate.py` (12 checks), PHP integration tests | `RagOperationalCheckCommand.php`, `scripts/xdr_rag_operational_validate.py`, `RagOperationalIntegrationTest.php` | Medium | — |
+| **ENTERPRISE-072** | Shadow Domain Soak Pre-Flight Checklist — `DomainSoakHarnessService::getPreflightStatus()`, `ShadowSoakPreflightCommand` (`domain:soak-preflight`), `xdr_shadow_soak_preflight.py` | `DomainSoakHarnessService.php`, `ShadowSoakPreflightCommand.php`, `scripts/xdr_shadow_soak_preflight.py`, `ShadowSoakPreflightTest.php` | Medium | — |
+| **ENTERPRISE-073** | Redpanda Multi-Node HA Template — `docker-compose.ha.yml` (3-broker cluster), `xdr_redpanda_ha_validate.py` (12 checks), `--replication-factor` flag in `xdr_topic_bootstrap.py` | `docker-compose.ha.yml`, `scripts/xdr_redpanda_ha_validate.py`, `scripts/xdr_topic_bootstrap.py` | Low | — |
+
 ---
 
 **Batch 16 (2026-06-28)**

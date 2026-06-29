@@ -32,6 +32,11 @@ services:
       # Kafka OUTSIDE port 19092 removed — no direct Kafka client access in production
       # Redpanda admin port 9644 removed — accessed via docker exec or SSH tunnel only
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
 
   redpanda-console:
     ports: !reset
@@ -45,18 +50,38 @@ services:
   postgres:
     ports: !reset []
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
 
   clickhouse:
     ports: !reset []
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '3.0'
 
   opensearch:
     ports: !reset []
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '2.0'
 
   qdrant:
     ports: !reset []
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: '1.0'
 
   # ---------------------------------------------------------------------------
   # Grafana: localhost-only + read-only provisioning mounts
@@ -70,6 +95,11 @@ services:
       - ./infra/analytics/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/analytics/grafana/dashboards:/var/lib/grafana/dashboards:ro
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.0'
 
   # ---------------------------------------------------------------------------
   # Laravel SOC application: restart always; port 8000 public (browser access)

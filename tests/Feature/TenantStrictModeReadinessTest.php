@@ -26,7 +26,7 @@ class TenantStrictModeReadinessTest extends TestCase
         $this->assertArrayHasKey('summary', $result);
     }
 
-    public function test_assess_evaluates_all_seven_gates(): void
+    public function test_assess_evaluates_all_eight_gates(): void
     {
         $result = app(TenantStrictModeReadinessService::class)->assess('test');
         $this->assertCount(count(TenantStrictModeReadinessService::GATES), $result['gate_results']);

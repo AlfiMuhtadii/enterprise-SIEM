@@ -80,7 +80,7 @@ def fetch_topic_list(pandaproxy_url: str, timeout: int) -> list[str] | None:
 # Topic creation — rpk via docker compose exec
 # ---------------------------------------------------------------------------
 
-def create_topic(topic: str, dry_run: bool) -> tuple[str, str]:
+def create_topic(topic: str, dry_run: bool, replication_factor: int = 1) -> tuple[str, str]:
     """Create *topic* via rpk inside the Redpanda container.
 
     Returns ``(status, detail)`` where status is one of CREATED / PASS / FAIL / SKIP.
@@ -88,6 +88,7 @@ def create_topic(topic: str, dry_run: bool) -> tuple[str, str]:
     cmd = [
         "docker", "compose", "exec", "-T", "redpanda",
         "rpk", "topic", "create", topic, "--brokers=redpanda:9092",
+        f"--replicas={replication_factor}",
     ]
     if dry_run:
         return SKIP, "dry-run: " + " ".join(cmd)
@@ -148,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run", action="store_true",
         help="Show what would be created without creating anything",
     )
+    parser.add_argument(
+        "--replication-factor", type=int, default=1,
+        help="Replication factor for newly created topics (default: 1; use 3 for HA clusters)",
+    )
     args = parser.parse_args(argv)
 
     print()
@@ -172,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
         if topic in existing_set:
             rows.append((topic, PASS, "already present"))
         else:
-            status, detail = create_topic(topic, args.dry_run)
+            status, detail = create_topic(topic, args.dry_run, args.replication_factor)
             rows.append((topic, status, detail))
             if status == FAIL:
                 fail_count += 1

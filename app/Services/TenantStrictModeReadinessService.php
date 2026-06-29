@@ -27,6 +27,7 @@ class TenantStrictModeReadinessService
         'GATE-05' => 'Strict mode posture documented',
         'GATE-06' => 'Append-only null records accepted-risk documented',
         'GATE-07' => 'Tenant context authority in place',
+        'GATE-08' => 'RLS policies scaffolded (migration exists)',
     ];
 
     // Gates that MUST pass regardless of threshold
@@ -133,6 +134,7 @@ class TenantStrictModeReadinessService
             'GATE-05' => $this->gateDocExists('docs/security/TENANT_STRICT_MODE.md', $gateName),
             'GATE-06' => $this->gateAppendOnlyAcceptedRisk($gateName),
             'GATE-07' => $this->gateTenantContextAuthority($gateName),
+            'GATE-08' => $this->gateRlsPoliciesScaffolded($gateName),
             default   => ['result' => 'FAIL', 'detail' => 'Unknown gate', 'gate_name' => $gateName],
         };
     }
@@ -218,6 +220,20 @@ class TenantStrictModeReadinessService
                 ? 'TenantContextAuthority is in place (BACKLOG-020).'
                 : 'TenantContextAuthority class not found.',
             'metadata'  => ['class_exists' => $exists],
+        ];
+    }
+
+    private function gateRlsPoliciesScaffolded(string $gateName): array
+    {
+        $migrations = glob(database_path('migrations/*scaffold_rls_policies*'));
+        $exists     = !empty($migrations);
+        return [
+            'gate_name' => $gateName,
+            'result'    => $exists ? 'PASS' : 'WARN',
+            'detail'    => $exists
+                ? 'RLS scaffold migration is present (policies defined, not enforced).'
+                : 'RLS scaffold migration not found. Run ENTERPRISE-069 migration.',
+            'metadata'  => ['migration_found' => $exists],
         ];
     }
 
