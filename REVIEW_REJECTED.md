@@ -30,6 +30,28 @@ Findings that are false positives, not applicable to the architecture, or where 
 
 ---
 
+### EDR-EXEC-02: Transition from Recommend-Only to Automated Active EDR Containment
+
+- **Category**: Response Capability / Architecture Boundary Violation
+- **Severity**: Critical (if implemented)
+- **Source**: REVIEW_BACKLOG.md (Gemini proposal 2026-06-29)
+- **Finding**: Proposes converting `EndpointResponseCommandService` and the Python endpoint agents from recommend-only to automated active containment (process kill, isolation, autonomous execution).
+- **Rejection reason**: Directly violates multiple **Forbidden Changes** in CLAUDE.md: *"add ... process killing, persistence install, or active response to endpoint agent"*, *"add execution logic to `response_plan_actions` (`action_types` are `recommend_*` only — NO `execute_*`)"*, and the Phase 1 `ALLOWED_TYPES` allowlist (`noop`, `collect_diagnostics`, `refresh_config`, `upload_health_snapshot`). Also breaches the operational posture *"no active containment, no autonomous response, autonomous response not approved"* and the non-goals (*"live containment"*, *"endpoint enforcement"*). Implementing this would destroy academic defensibility (analyst-in-the-loop is a thesis requirement). This is an architectural boundary, not a deferred feature. See also Section 3 / GAP-007.
+- **Status**: **REJECTED**
+
+---
+
+### AI-CONF-BANDS: Confidence-based automated containment rules + critical asset exclusion list
+
+- **Category**: Response Capability / Architecture Boundary Violation
+- **Severity**: Critical (if implemented)
+- **Source**: REVIEW_BACKLOG.md (Gemini proposal 2026-06-29)
+- **Finding**: Proposes wiring AI confidence bands in `AiAnalystManager` to drive automated containment via `EndpointResponseCommandService`, with a critical-asset exclusion list.
+- **Rejection reason**: The core ask — AI-confidence-driven **automated containment** — violates the same forbidden boundary as EDR-EXEC-02 (no autonomous response, no `execute_*` actions, advisory-only posture). AI output must remain analyst-assist only; it must never trigger response execution. The "critical asset exclusion list" sub-idea is benign on its own but only has meaning in the context of automated containment, so the task as proposed is rejected. If an asset-criticality tag is desired purely as **advisory** alert-enrichment metadata (no response coupling), that would be a separate, new advisory-only proposal — not this task.
+- **Status**: **REJECTED**
+
+---
+
 ## Section 2 — Deferred
 
 Valid enterprise-relevant findings that are not causing harm at current scale but must be addressed before high-traffic or multi-tenant production deployment.
@@ -80,6 +102,18 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 - **Finding**: Redpanda runs as a single Docker container. No replication factor, no partition leadership failover. A single container crash halts the entire event pipeline (all topics go offline).
 - **Why deferred**: Single-node is acceptable for academic demo. Multi-node Redpanda cluster requires infrastructure reconfiguration beyond Docker Compose scope. HA belongs in Kubernetes/production deployment manifest.
 - **Production gate**: Must be addressed before any production pilot with real endpoint traffic. Minimum: 3-node Redpanda with replication factor ≥ 2.
+- **Status**: **DEFERRED**
+
+---
+
+### TENANT-ENFORCE-RLS: Enable hard Row-Level Security enforcement + strict tenant mode defaults
+
+- **Category**: Multi-Tenant Isolation / Security
+- **Severity**: High
+- **Source**: REVIEW_BACKLOG.md (Gemini proposal 2026-06-29)
+- **Finding**: Proposes enabling PostgreSQL RLS enforcement (`ENABLE ROW LEVEL SECURITY`) and flipping `XDR_TENANT_STRICT_MODE` to default `true`.
+- **Why deferred**: This is a valid enterprise hardening target, **not** a false positive — so it is Deferred, not Rejected. It is explicitly gated by an existing decision record (`docs/security/RLS_DECISION_RECORD.md`, ENTERPRISE-040) and by GAP-002/GAP-003: RLS enforcement on tables that still hold `tenant_id = NULL` pre-migration records would silently hide that data, and strict-mode-by-default would lock out seeder/demo users (DB-3, DB-4). The advisory RLS scaffold (ENTERPRISE-069) and backfill pre-flight (ENTERPRISE-070) are already in place as the prerequisite groundwork.
+- **Production gate**: Complete GAP-003 (null `tenant_id` audit → backfill → verify) → then GAP-002 (enable RLS policies) → then flip `XDR_TENANT_STRICT_MODE=true` in staging, validate seeder/demo membership, before production pilot.
 - **Status**: **DEFERRED**
 
 ---

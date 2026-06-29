@@ -65,6 +65,12 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **ENTERPRISE-071** | RAG Knowledge Base Operational Integration — `RagOperationalCheckCommand` (`ai:knowledge-check`, read-only); `xdr_rag_operational_validate.py` 14 tests PASS; `RagOperationalIntegrationTest.php` 12 tests PASS | 0d6cfce | — | 2026-06-29 |
 | **ENTERPRISE-072** | Shadow Domain Soak Pre-Flight — `DomainSoakHarnessService::getPreflightStatus()` (5 CHK, advisory); `ShadowSoakPreflightCommand` (`domain:soak-preflight`); `xdr_shadow_soak_preflight.py` 14 tests PASS; `ShadowSoakPreflightTest.php` 17 tests PASS | 0d6cfce | — | 2026-06-29 |
 | **ENTERPRISE-073** | Redpanda Multi-Node HA Template — `docker-compose.ha.yml` (3-broker, seed discovery, RPC addr, healthcheck, resource limits); `xdr_redpanda_ha_validate.py` 14 tests PASS; `--replication-factor` + `--replicas` flag in `xdr_topic_bootstrap.py` | 0d6cfce | — | 2026-06-29 |
+| **ENV-CACHE-DRIFT** | Map `XDR_INTERNAL_AUTH_SECRET` to `config/xdr.php` (`internal_auth_secret`); `InternalAuthService::secret()` uses `config()` not `env()` (config:cache bypass prevented); `InternalAuthConfigMappingTest.php` 7 tests | 4ee9675 | — | 2026-06-29 |
+| **CMD-SHARED-HMAC** | Per-agent `hmac_secret` column on `endpoint_agents`; `EndpointResponseCommandService::verifyAgentSignature($sig,$raw,$agentId)` uses per-agent secret with shared-token fallback; `PerAgentHmacSecretTest.php` 11 tests | 4ee9675 | — | 2026-06-29 |
+| **AGENT-TENANCY-GAP** | `tenant_id` on `endpoint_agents`; `TenantBoundaryService` ISOLATED+MUTABLE, removed from UNISOLATED; `EndpointAgentTenantScopingTest.php` 11 tests | 4ee9675 | — | 2026-06-29 |
+| **TENANT-UNSCOPED-TABLES** | `tenant_id` on `investigations`, `response_plans`, `entities` (MUTABLE) + `threat_hunts` (APPEND_ONLY_ISOLATED); `TenantUnscopedTablesTest.php` 16 tests | 4ee9675 | — | 2026-06-29 |
+| **RATE-LIMIT-BYPASS** | Parse payload before rate limiting; `extractPayloadTenantID()`; reject `tenant_id_header_mismatch` (400) when `X-Tenant-ID` ≠ payload `tenant_id`; rate-limit keyed on payload tenant; 8 Go tests | 4ee9675 | — | 2026-06-29 |
+| **ENTERPRISE-074** | Consolidated Security Hardening Evidence Freeze — 9 append-only tables, `SecurityHardeningEvidenceFreezeService` (10 controls, ADVISORY_ONLY, SELF_APPROVE_BLOCKED, MIN_PASS_SCORE=0.85), command + controller + 5 views, +5 hunt domains → 177, 55 PHP tests, `xdr_security_hardening_evidence_freeze.py` 12/12 PASS | a44bfd8 | — | 2026-06-29 |
 
 ---
 

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\SocNotifier;
+use App\Services\TenantNotificationResolver;
 use App\Support\AuditLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ class SocSlaEscalationCommand extends Command
 
     protected $description = 'Detect overdue incidents, escalate them, and send configured SOC notifications.';
 
-    public function handle(SocNotifier $notifier): int
+    public function handle(SocNotifier $notifier, TenantNotificationResolver $notificationResolver): int
     {
         $openStatuses = ['open', 'triaged', 'investigating'];
         $incidents = DB::table('security_incidents')
@@ -48,6 +49,12 @@ class SocSlaEscalationCommand extends Command
             AuditLogger::log('automation', 'incident.sla_escalated', 'incident', $incident->incident_id, $before, ['escalation_level' => $newLevel]);
 
             if ((int) $this->option('notify') === 1) {
+                // NOTIFY-TENANCY-GAP: route to the incident's tenant-specific
+                // targets; a null tenant_id or unconfigured tenant falls back to
+                // the global config (backward-compatible demo behavior).
+                $tenantId = $incident->tenant_id ?? null;
+                $targets = $notificationResolver->resolve($tenantId);
+
                 $payload = [
                     'message' => "SLA breach: {$incident->incident_id} ({$incident->severity})",
                     'incident_id' => $incident->incident_id,
@@ -55,9 +62,9 @@ class SocSlaEscalationCommand extends Command
                     'sla_due_at' => $incident->sla_due_at,
                     'escalation_level' => $newLevel,
                 ];
-                $notifier->send('webhook', config('notifications_soc.webhook_url'), 'sla_breach', $incident->incident_id, $payload);
-                $notifier->send('slack', config('notifications_soc.slack_url'), 'sla_breach', $incident->incident_id, $payload);
-                $notifier->send('discord', config('notifications_soc.discord_url'), 'sla_breach', $incident->incident_id, $payload);
+                $notifier->send('webhook', $targets['webhook'], 'sla_breach', $incident->incident_id, $payload, $tenantId);
+                $notifier->send('slack', $targets['slack'], 'sla_breach', $incident->incident_id, $payload, $tenantId);
+                $notifier->send('discord', $targets['discord'], 'sla_breach', $incident->incident_id, $payload, $tenantId);
             }
             $escalated++;
         }

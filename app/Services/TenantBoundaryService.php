@@ -57,6 +57,8 @@ class TenantBoundaryService
         'response_plans',
         'entities',
         'threat_hunts',
+        // NOTIFY-TENANCY-GAP: per-tenant notification target config
+        'tenant_notification_settings',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -71,6 +73,8 @@ class TenantBoundaryService
         'investigations',
         'response_plans',
         'entities',
+        // NOTIFY-TENANCY-GAP: notification settings are upserted per tenant
+        'tenant_notification_settings',
     ];
 
     // Append-only ISOLATED tables — tenant_id backfill is FORBIDDEN on these.

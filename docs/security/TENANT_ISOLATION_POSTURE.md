@@ -1,7 +1,7 @@
 # Tenant Isolation Posture
 
-**Last updated:** 2026-06-23
-**Status:** Application-layer enforcement only; PostgreSQL RLS not yet enabled.
+**Last updated:** 2026-06-29
+**Status:** Application-layer enforcement only; PostgreSQL RLS scaffolded (advisory, not enforced).
 
 ---
 
@@ -51,6 +51,18 @@ The following tables have a `tenant_id` column:
 | `shadow_soak_audit_events` | Yes | Yes |
 | `security_alerts` | Yes (added BACKLOG-019) | No |
 | `security_incidents` | Yes (added BACKLOG-019) | No |
+| `user_tenant_memberships` | Yes (BACKLOG-020) | Yes |
+| `tenant_membership_audit_events` | Yes (BACKLOG-020) | Yes |
+| `endpoint_agents` | Yes (added AGENT-TENANCY-GAP) | No (mutable) |
+| `investigations` | Yes (added TENANT-UNSCOPED-TABLES) | No (mutable) |
+| `response_plans` | Yes (added TENANT-UNSCOPED-TABLES) | No (mutable) |
+| `entities` | Yes (added TENANT-UNSCOPED-TABLES) | No (mutable) |
+| `threat_hunts` | Yes (added TENANT-UNSCOPED-TABLES) | Yes |
+| `tenant_notification_settings` | Yes (added NOTIFY-TENANCY-GAP) | No (mutable upsert) |
+
+> `notification_delivery_logs` also carries a nullable `tenant_id` (NOTIFY-TENANCY-GAP)
+> for audit scoping, but is a write-only log table — not a tenant-owned resource — so it
+> is not registered in `ISOLATED_TABLES`.
 
 ---
 
@@ -63,12 +75,37 @@ The following tables are **missing** `tenant_id` and are currently unscoped:
 | `users` | User model is single-tenant; no tenant_id in current schema |
 | `security_audit_trails` | Not yet updated |
 | `telemetry_events` | Not yet updated |
-| `endpoint_agents` | Not yet updated |
-| `endpoint_agent_heartbeats` | Not yet updated |
+| `endpoint_agent_heartbeats` | High-volume append telemetry; scoped via parent `endpoint_agents` |
 
 These are documented isolation gaps. They do not represent active cross-tenant
 leakage risk in current single-tenant deployments, but must be addressed before
 multi-tenant production use.
+
+---
+
+## Notification Tenancy (NOTIFY-TENANCY-GAP)
+
+SOC outbound notifications (webhook / Slack / Discord) are routed per tenant, so a
+tenant's incident details are never delivered to another tenant's channel or to a
+shared global channel by default.
+
+- **Per-tenant targets:** `tenant_notification_settings` (mutable, isolated) holds one
+  row per `tenant_id` with `webhook_url`, `slack_url`, `discord_url`, and an `enabled` flag.
+- **Resolver:** `TenantNotificationResolver::resolve(?tenantId)` returns the effective
+  targets for an incident:
+  - `tenantId = null` → global config targets (`config/notifications_soc.php`) — legacy/demo path.
+  - configured + enabled tenant → that tenant's URLs; a null channel inherits the global
+    URL for that channel only (single-channel opt-in supported).
+  - tenant row with `enabled = false` → **all channels suppressed** (explicit opt-out;
+    the global channels are *not* used).
+  - no tenant row → global config targets (backward compatible).
+- **Audit scoping:** every delivery attempt is logged to `notification_delivery_logs`
+  with the incident's `tenant_id`.
+- **Callers:** `soc:sla-escalate` (`SocSlaEscalationCommand`) and `soc:notify-critical`
+  (`SocNotifyCriticalCommand`) both resolve per-incident tenant targets before dispatch.
+
+Posture: advisory dispatch only — no autonomous response. Notifications remain
+simulated-by-default and do not mutate incidents or create alerts.
 
 ---
 
