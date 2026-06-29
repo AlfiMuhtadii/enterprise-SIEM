@@ -160,46 +160,89 @@ class SocThreatIntelController extends Controller
         return $rows;
     }
 
+    /**
+     * Match active IOCs against recent alerts and enrich them.
+     *
+     * PERF-IOC-LOOP: the nested alert×IOC scan previously issued one ioc_hits
+     * insert AND one security_alerts UPDATE per match (synchronous writes inside
+     * the inner loop). This batches all hit rows into chunked inserts and writes
+     * each matched alert's evidence exactly once.
+     *
+     * Note: this also fixes a latent correctness bug — the previous code
+     * re-decoded the original (in-memory) $alert->evidence on every inner
+     * iteration, so an alert matching multiple IOCs only persisted the LAST
+     * match. Accumulating per-alert evidence in memory persists all matches.
+     *
+     * Semantics preserved: $hits counts every match (not only new inserts);
+     * ioc_hits has no unique key, so inserts are NOT de-duplicated (a repeated
+     * enrich run appends rows again, matching prior behavior).
+     */
     private function matchIocs(): int
     {
         $iocs = DB::table('threat_iocs')
             ->where('enabled', true)
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->get();
+        if ($iocs->isEmpty()) {
+            return 0;
+        }
+
         $alerts = DB::table('security_alerts')
             ->where('detected_at', '>=', now()->subDays(30))
             ->orderByDesc('detected_at')
             ->limit(2000)
             ->get();
+
+        $now = now();
+        $hitRows = [];
+        $evidenceByAlert = [];
         $hits = 0;
+
         foreach ($alerts as $alert) {
             $haystack = strtolower(json_encode([$alert->ip, $alert->actor_key ?? null, $alert->evidence, $alert->raw_event]));
             foreach ($iocs as $ioc) {
                 if (!str_contains($haystack, strtolower($ioc->ioc_value))) {
                     continue;
                 }
-                DB::table('ioc_hits')->insertOrIgnore([
+                $hitRows[] = [
                     'ioc_id' => $ioc->ioc_id,
                     'alert_id' => $alert->alert_id,
                     'matched_field' => $ioc->ioc_type,
                     'matched_value' => $ioc->ioc_value,
-                    'matched_at' => now(),
+                    'matched_at' => $now,
                     'metadata' => json_encode(['reputation' => $ioc->reputation, 'threat_label' => $ioc->threat_label]),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                $evidence = json_decode($alert->evidence ?: '{}', true) ?: [];
-                $evidence['ioc_matches'][] = [
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                if (!array_key_exists($alert->alert_id, $evidenceByAlert)) {
+                    $evidenceByAlert[$alert->alert_id] = json_decode($alert->evidence ?: '{}', true) ?: [];
+                }
+                $evidenceByAlert[$alert->alert_id]['ioc_matches'][] = [
                     'ioc_id' => $ioc->ioc_id,
                     'type' => $ioc->ioc_type,
                     'value' => $ioc->ioc_value,
                     'reputation' => $ioc->reputation,
                     'threat_label' => $ioc->threat_label,
                 ];
-                DB::table('security_alerts')->where('alert_id', $alert->alert_id)->update(['evidence' => json_encode($evidence), 'updated_at' => now()]);
                 $hits++;
             }
         }
+
+        if ($hitRows === []) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($hitRows, $evidenceByAlert, $now) {
+            foreach (array_chunk($hitRows, 500) as $chunk) {
+                DB::table('ioc_hits')->insertOrIgnore($chunk);
+            }
+            foreach ($evidenceByAlert as $alertId => $evidence) {
+                DB::table('security_alerts')
+                    ->where('alert_id', $alertId)
+                    ->update(['evidence' => json_encode($evidence), 'updated_at' => $now]);
+            }
+        });
+
         return $hits;
     }
 }

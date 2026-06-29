@@ -135,6 +135,18 @@ class SocTuningController extends Controller
         return back()->with('status', 'Rule tuning note saved.');
     }
 
+    /**
+     * Apply active suppression rules to matching alerts.
+     *
+     * PERF-ALERT-TUNE: previously issued one security_alerts UPDATE AND one
+     * alert_suppression_history INSERT per matched alert inside the rule loop
+     * (N+1 writes). For each rule we now resolve the matching alert ids once,
+     * issue a single bulk UPDATE, and batch-insert the history rows.
+     *
+     * Semantics preserved: only currently-unsuppressed alerts are affected, the
+     * 500-row cap per rule is retained, and $count reflects the number of newly
+     * suppressed alerts.
+     */
     private function applyActiveSuppressions(string $actor): int
     {
         $rules = DB::table('alert_suppression_rules')
@@ -142,6 +154,7 @@ class SocTuningController extends Controller
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->get();
         $count = 0;
+        $now = now();
         foreach ($rules as $rule) {
             $query = DB::table('security_alerts')->whereRaw('COALESCE(is_suppressed, false)=false');
             if ($rule->scope === 'alert_type') {
@@ -153,25 +166,39 @@ class SocTuningController extends Controller
             } elseif ($rule->scope === 'rule_id') {
                 $query->where('detector_name', $rule->match_value);
             }
-            $alerts = $query->limit(500)->get();
-            foreach ($alerts as $alert) {
-                DB::table('security_alerts')->where('alert_id', $alert->alert_id)->update([
-                    'is_suppressed' => true,
-                    'suppressed_until' => $rule->expires_at,
-                    'updated_at' => now(),
-                ]);
-                DB::table('alert_suppression_history')->insert([
+
+            // Resolve matching alert ids once (retain the 500-row safety cap).
+            $alertIds = $query->orderBy('id')->limit(500)->pluck('alert_id')->all();
+            if ($alertIds === []) {
+                continue;
+            }
+
+            DB::transaction(function () use ($alertIds, $rule, $actor, $now) {
+                DB::table('security_alerts')
+                    ->whereIn('alert_id', $alertIds)
+                    ->update([
+                        'is_suppressed' => true,
+                        'suppressed_until' => $rule->expires_at,
+                        'updated_at' => $now,
+                    ]);
+
+                $historyRows = array_map(fn ($alertId) => [
                     'suppression_id' => $rule->suppression_id,
-                    'alert_id' => $alert->alert_id,
+                    'alert_id' => $alertId,
                     'suppressed_by' => $actor,
-                    'suppressed_at' => now(),
+                    'suppressed_at' => $now,
                     'reason' => $rule->reason,
                     'metadata' => json_encode(['scope' => $rule->scope, 'match_value' => $rule->match_value]),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                $count++;
-            }
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $alertIds);
+
+                foreach (array_chunk($historyRows, 500) as $chunk) {
+                    DB::table('alert_suppression_history')->insert($chunk);
+                }
+            });
+
+            $count += count($alertIds);
         }
         AuditLogger::log($actor, 'alert.suppression.apply', 'suppression', null, null, ['suppressed_alerts' => $count]);
         return $count;

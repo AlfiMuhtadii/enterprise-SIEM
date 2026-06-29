@@ -9,13 +9,10 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 | Task ID | Title | File / Component | Priority | Status |
 |---|---|---|---|---|
-| **NOTIFY-TENANCY-GAP** | [NOTIFICATION] Implement tenant-specific lookup and isolation for webhook, Slack, and Discord alerts | `app/Console/Commands/SocSlaEscalationCommand.php`, `app/Services/SocNotifier.php`, DB migrations | High | Proposed |
 | **AI-KB-SEMANTIC** | [AI-KB] Implement Qdrant vector semantic search and sentence embedding pipeline | `app/Support/SocKnowledgeRetriever.php`, Qdrant config | High | Proposed |
 | **AI-KB-FEED-INGEST** | [AI-KB] Build MITRE ATT&CK and threat intelligence RSS feed dynamic ingestion pipeline | `app/Services/AiKnowledgeSeedService.php`, `AiSeedKnowledgeCommand.php` | Medium | Proposed |
 | **AI-KB-FEEDBACK-LOOP** | [AI-KB] Create closed-loop analyst feedback ingestion service for approved suggestions | `app/Http/Controllers/SocAiController.php`, `app/Support/AiAnalystManager.php` | Low | Proposed |
 | **PERF-AGENT-UPDATE** | [PERF] Convert N+1 UPDATE queries in agent command retrieval loop to bulk updates | `app/Http/Controllers/AgentIngestionController.php` | Medium | Proposed |
-| **PERF-IOC-LOOP** | [PERF] Refactor threat intel nested loop with synchronous writes to use bulk insert | `app/Http/Controllers/SocThreatIntelController.php` | High | Proposed |
-| **PERF-ALERT-TUNE** | [PERF] Refactor alert suppression rule matching N+1 queries to use bulk updates and inserts | `app/Http/Controllers/SocTuningController.php` | High | Proposed |
 | **GIT-RM-PYC** | [REFACTOR] Remove tracked compiled Python bytecode (*.pyc) files from Git cache | Root directory (.gitignore, git cached rm) | Low | Proposed |
 | **PERF-SUBPROCESS-POLL** | [PERF] Refactor ClickHouse sync daemon to use in-process polling instead of spawning python subprocesses | `scripts/clickhouse_sync_daemon.py`, `scripts/sync_postgres_to_clickhouse.py` | Medium | Proposed |
 | **PERF-AGENT-HEALTH-N1** | [PERF] Convert N+1 database queries in agent health check schedule loop to joins/eager loading | `app/Console/Commands/AgentHealthCheckCommand.php` | Medium | Proposed |
@@ -26,6 +23,8 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **STATE-REDIS-05** | [CORRELATION] Refactor Go Correlation worker state store to use Redis connection pooling | `services/correlation-worker/main.go` | Medium | Proposed |
 
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). The 5 hardening tasks (ENV-CACHE-DRIFT, CMD-SHARED-HMAC, AGENT-TENANCY-GAP, TENANT-UNSCOPED-TABLES, RATE-LIMIT-BYPASS) → COMPLETED at `4ee9675`. See REVIEW_REJECTED.md / REVIEW_COMPLETED.md.
+>
+> **Completed (2026-06-30):** `NOTIFY-TENANCY-GAP` → `5db597c`. `PERF-IOC-LOOP` + `PERF-ALERT-TUNE` (alert-write-path N+1 → bulk) → this batch. See REVIEW_COMPLETED.md.
 
 
 
