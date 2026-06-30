@@ -20,6 +20,17 @@ class AgentHealthCheckCommand extends Command
         $alerts = 0;
 
         $agents = DB::table('endpoint_agents')->get();
+
+        // PERF-AGENT-HEALTH-N1: eager-load referenced policies once into a keyed
+        // map instead of querying agent_policies per agent inside the loop.
+        $policyIds = $agents->pluck('policy_id')->filter()->unique()->values()->all();
+        $policiesById = $policyIds === []
+            ? collect()
+            : DB::table('agent_policies')->whereIn('policy_id', $policyIds)->get()->keyBy('policy_id');
+
+        // Collect stale agent ids and flip them offline in one bulk UPDATE at the end.
+        $staleAgentIds = [];
+
         foreach ($agents as $agent) {
             $stale = !$agent->last_seen_at || $now->diffInSeconds($agent->last_seen_at) > $offlineAfter;
             if ($stale) {
@@ -28,7 +39,7 @@ class AgentHealthCheckCommand extends Command
                     'last_seen_at' => $agent->last_seen_at,
                     'offline_after_seconds' => $offlineAfter,
                 ]);
-                DB::table('endpoint_agents')->where('agent_id', $agent->agent_id)->update(['status' => 'offline', 'updated_at' => $now]);
+                $staleAgentIds[] = $agent->agent_id;
             }
 
             if ((int) ($agent->retry_queue_depth ?? 0) >= $retryThreshold) {
@@ -39,7 +50,7 @@ class AgentHealthCheckCommand extends Command
             }
 
             if (!empty($agent->policy_id)) {
-                $policy = DB::table('agent_policies')->where('policy_id', $agent->policy_id)->first();
+                $policy = $policiesById->get($agent->policy_id);
                 if ($policy && (int) $agent->policy_version_seen > 0 && (int) $agent->policy_version_seen < (int) $policy->version) {
                     $alerts += $this->createAgentAlert($agent, 'AGENT_POLICY_OUTDATED', 'low', 0.45, [
                         'seen_version' => $agent->policy_version_seen,
@@ -64,14 +75,29 @@ class AgentHealthCheckCommand extends Command
             }
         }
 
+        // Flip all stale agents offline in a single bulk UPDATE.
+        if ($staleAgentIds !== []) {
+            DB::table('endpoint_agents')
+                ->whereIn('agent_id', $staleAgentIds)
+                ->update(['status' => 'offline', 'updated_at' => $now]);
+        }
+
         $failures = DB::table('agent_delivery_failures')
             ->select('agent_id', DB::raw('count(*) as total'))
             ->where('failed_at', '>=', now()->subMinutes(30))
             ->groupBy('agent_id')
             ->get();
+
+        // PERF-AGENT-HEALTH-N1: resolve the agents behind breaching failure
+        // aggregates in one query rather than per failure row.
+        $failureAgentIds = $failures->pluck('agent_id')->filter()->unique()->values()->all();
+        $agentsById = $failureAgentIds === []
+            ? collect()
+            : DB::table('endpoint_agents')->whereIn('agent_id', $failureAgentIds)->get()->keyBy('agent_id');
+
         foreach ($failures as $failure) {
             if ((int) $failure->total >= $failureThreshold) {
-                $agent = DB::table('endpoint_agents')->where('agent_id', $failure->agent_id)->first();
+                $agent = $agentsById->get($failure->agent_id);
                 if ($agent) {
                     $alerts += $this->createAgentAlert($agent, 'AGENT_REPEATED_DELIVERY_FAILURE', 'medium', 0.7, [
                         'failures_30m' => $failure->total,

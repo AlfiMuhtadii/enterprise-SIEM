@@ -143,13 +143,18 @@ class AgentIngestionController extends Controller
             ->limit(10)
             ->get();
 
-        foreach ($commands as $command) {
-            DB::table('agent_commands')->where('id', $command->id)->update([
-                'status' => 'sent',
-                'sent_at' => now(),
-                'attempts' => DB::raw('attempts + 1'),
-                'updated_at' => now(),
-            ]);
+        // PERF-AGENT-UPDATE: mark all retrieved commands sent in a single bulk
+        // UPDATE instead of one query per command. Each command appears once in
+        // the result set, so attempts + 1 is equivalent to the per-row increment.
+        if ($commands->isNotEmpty()) {
+            DB::table('agent_commands')
+                ->whereIn('id', $commands->pluck('id')->all())
+                ->update([
+                    'status' => 'sent',
+                    'sent_at' => now(),
+                    'attempts' => DB::raw('attempts + 1'),
+                    'updated_at' => now(),
+                ]);
         }
 
         DB::table('endpoint_agents')->where('agent_id', $agent->agent_id)->update([
