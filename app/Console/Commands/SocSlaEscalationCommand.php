@@ -29,24 +29,31 @@ class SocSlaEscalationCommand extends Command
         foreach ($incidents as $incident) {
             $before = $incident;
             $newLevel = ((int) $incident->escalation_level) + 1;
-            DB::table('security_incidents')->where('incident_id', $incident->incident_id)->update([
-                'escalation_level' => $newLevel,
-                'status' => $incident->status === 'open' ? 'triaged' : $incident->status,
-                'updated_at' => now(),
-            ]);
 
-            DB::table('security_incident_activities')->insert([
-                'incident_id' => $incident->incident_id,
-                'actor' => 'automation',
-                'activity_type' => 'sla_escalation',
-                'before_state' => json_encode($before),
-                'after_state' => json_encode(['escalation_level' => $newLevel]),
-                'metadata' => json_encode(['sla_due_at' => $incident->sla_due_at, 'source' => 'soc:sla-escalate']),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            // PERF-TRANSACTION-GAP: the incident escalation and its activity-log
+            // entry must be atomic — a failure between them would leave an
+            // escalated incident with no audit trail (or vice versa). Notifications
+            // are external I/O and run AFTER commit (never hold a txn open across HTTP).
+            DB::transaction(function () use ($incident, $newLevel, $before) {
+                DB::table('security_incidents')->where('incident_id', $incident->incident_id)->update([
+                    'escalation_level' => $newLevel,
+                    'status' => $incident->status === 'open' ? 'triaged' : $incident->status,
+                    'updated_at' => now(),
+                ]);
 
-            AuditLogger::log('automation', 'incident.sla_escalated', 'incident', $incident->incident_id, $before, ['escalation_level' => $newLevel]);
+                DB::table('security_incident_activities')->insert([
+                    'incident_id' => $incident->incident_id,
+                    'actor' => 'automation',
+                    'activity_type' => 'sla_escalation',
+                    'before_state' => json_encode($before),
+                    'after_state' => json_encode(['escalation_level' => $newLevel]),
+                    'metadata' => json_encode(['sla_due_at' => $incident->sla_due_at, 'source' => 'soc:sla-escalate']),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                AuditLogger::log('automation', 'incident.sla_escalated', 'incident', $incident->incident_id, $before, ['escalation_level' => $newLevel]);
+            });
 
             if ((int) $this->option('notify') === 1) {
                 // NOTIFY-TENANCY-GAP: route to the incident's tenant-specific
