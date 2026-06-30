@@ -149,14 +149,41 @@ class AiAnalystManager
 
     private function compactContext(array $context): array
     {
+        $alerts = array_values($context['alerts'] ?? []);
+        $iocHits = array_values($context['ioc_hits'] ?? []);
+        $citations = array_values($context['retrieval_citations'] ?? []);
+
         return [
             'incident_id' => $context['incident']['incident_id'] ?? null,
+            'title' => $context['incident']['title'] ?? null,
             'severity' => $context['incident']['severity'] ?? null,
             'status' => $context['incident']['status'] ?? null,
-            'alert_count' => count($context['alerts'] ?? []),
             'mitre_mapping' => $context['mitre_mapping'] ?? [],
-            'ioc_hit_count' => count($context['ioc_hits'] ?? []),
-            'retrieval_citation_count' => count($context['retrieval_citations'] ?? []),
+            'alert_count' => count($alerts),
+            'ioc_hit_count' => count($iocHits),
+            'retrieval_citation_count' => count($citations),
+            // AI-CONTEXT-EMPTY: include bounded alert details so the model reasons
+            // over actual evidence rather than only a count (prevents LLM blindness).
+            'alerts' => array_map(fn ($a) => [
+                'alert_type' => $a['alert_type'] ?? null,
+                'severity' => $a['severity'] ?? null,
+                'detector' => $a['detector_name'] ?? null,
+                'score' => $a['score'] ?? null,
+                'ip' => $a['ip'] ?? null,
+                'evidence' => isset($a['evidence']) ? mb_substr((string) $a['evidence'], 0, 400) : null,
+            ], array_slice($alerts, 0, 8)),
+            'ioc_hits' => array_map(fn ($h) => [
+                'type' => $h['matched_field'] ?? null,
+                'value' => $h['matched_value'] ?? null,
+            ], array_slice($iocHits, 0, 8)),
+            // AI-CONTEXT-EMPTY: include the retrieved knowledge text (title +
+            // excerpt) so the model can ground its answer in cited evidence.
+            'knowledge' => array_map(fn ($c) => [
+                'title' => $c['title'] ?? null,
+                'excerpt' => $c['excerpt'] ?? null,
+                'score' => $c['score'] ?? null,
+                'related_rule_id' => $c['related_rule_id'] ?? null,
+            ], array_slice($citations, 0, 6)),
         ];
     }
 
