@@ -30,6 +30,17 @@ Findings that are false positives, not applicable to the architecture, or where 
 
 ---
 
+### STATE-REDIS-05: Refactor Go correlation worker state store to use Redis connection pooling
+
+- **Category**: Performance / False Premise
+- **Severity**: N/A
+- **Source**: REVIEW_BACKLOG.md (Gemini proposal)
+- **Finding**: Proposes pooling Redis connections in the correlation worker's state store.
+- **Rejection reason**: The premise is false — `services/correlation-worker` does **not** use Redis at all. It has no Redis client/import; state is held in-process (`map`/`sync` + atomics), which is intentional for the shadow/advisory single-instance design. There are no Redis connections to pool. (The only "redis" token in the source is the string `"redis-server"` inside a process-name allowlist, unrelated to a datastore client.) Introducing Redis as a distributed state backend would be a separate, much larger architecture proposal — not a connection-pooling refactor — and is not warranted at the current advisory scope. Verified 2026-06-30.
+- **Status**: **REJECTED**
+
+---
+
 ### EDR-EXEC-02: Transition from Recommend-Only to Automated Active EDR Containment
 
 - **Category**: Response Capability / Architecture Boundary Violation
