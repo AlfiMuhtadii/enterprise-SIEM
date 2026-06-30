@@ -26,6 +26,10 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
+# Compiled Go service binaries (build artifacts)
+*.exe
+services/*/detector-xdr-*.exe
+
 # OS
 .DS_Store
 Thumbs.db
