@@ -80,7 +80,9 @@ This release represents the final feature-complete state of the Hybrid Near Real
 
 | Validator | Result | Date |
 |---|---|---|
-| `php artisan test` | **3043 passed, 0 failures** | 2026-05-24 |
+| `php artisan test` | **4538 passed, 0 failures** | 2026-06-30 |
+| Python suites (all) | **1556 passed** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342) | 2026-06-30 |
+| `php artisan test` (rc2) | **3043 passed, 0 failures** | 2026-05-24 |
 | Python endpoint agent | **186 passed** | 2026-05-24 |
 | Rule registry | **PASS — 133 rules, 21/21 checks** | 2026-05-24 |
 | Contract validation | **PASS** | 2026-05-24 |

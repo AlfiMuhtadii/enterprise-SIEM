@@ -14,9 +14,9 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan migrate:fresh --force && php artisan test
 ```
 
-**Expected:** `4274+ passed` — zero failures, zero skipped.
-Last full verification: 3618 PHP (after ENTERPRISE-039, 2026-06-25).
-ENTERPRISE-044 through ENTERPRISE-063 added ~656 additional test methods.
+**Expected:** `4538 passed` — zero failures, zero skipped.
+Last full verification: 4538 PHP (2026-06-30, after the alert/agent N+1 batches, TZ-AGENT-STALE fix, AI-context enrichment, and IOC/status refinements).
+Python suites: 1556 total (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342).
 Always prefix with `migrate:fresh --force` to avoid `QueryException` from stale schema state.
 
 If any test fails: **STOP**. Do not commit, demo, or proceed.

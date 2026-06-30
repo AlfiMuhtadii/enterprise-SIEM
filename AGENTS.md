@@ -11,10 +11,10 @@ Last updated: 2026-06-22
 
 | Metric | Value |
 |---|---|
-| PHP tests | **3077** (run: `php artisan migrate:fresh --force && php artisan test`) |
+| PHP tests | **4538** (run: `php artisan migrate:fresh --force && php artisan test`) |
 | Python tests | **186** (run: `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v`) |
 | Detection rules | **133** (12 staged_active, 121 shadow) |
-| Hunt domains | **161** |
+| Hunt domains | **177** |
 | Active correlation scope | `identity-cloud` (Go engine, 6h soak PASS 2026-05-14) |
 | Shadow / advisory | endpoint, DNS/proxy/firewall, threat-intel |
 
@@ -250,7 +250,7 @@ Circuit breaker: 3 consecutive failures → fallback to legacy PHP. **Do NOT exp
 
 ```powershell
 php artisan migrate:fresh --force && php artisan test
-# → 3077 passed, 0 failures
+# → 4538 passed, 0 failures
 
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 # → 186 passed

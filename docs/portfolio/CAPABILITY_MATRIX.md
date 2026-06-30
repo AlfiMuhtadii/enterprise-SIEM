@@ -83,7 +83,7 @@
 |---|---|---|
 | Multi-domain retrospective hunting | **Implemented** | Advisory only |
 | Allowlisted bounded queries (no arbitrary SQL) | **Implemented** | Active |
-| 158 supported hunt domains | **Implemented** | Active |
+| 177 supported hunt domains | **Implemented** | Active |
 | Append-only hunt records | **Implemented** | Active |
 | Cross-domain pivot graphs | **Implemented** | Advisory only |
 

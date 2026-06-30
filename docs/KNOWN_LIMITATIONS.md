@@ -71,13 +71,16 @@ This document honestly describes the known limitations of the platform. These ar
 
 ---
 
-## 7. AI/RAG Heuristic Fallback
+## 7. AI/RAG Heuristic Embeddings
 
-**Limitation:** The AI/RAG service (`ai-rag-service`) falls back to heuristic responses when Qdrant is unavailable or the vector store is empty.
+**Limitation:** The AI/RAG service (`ai-rag-service`) generates deterministic mock embeddings (via SHA256 hashes) and the local retriever uses keyword + cosine scoring rather than a live transformer embedding model.
 
-**Why:** Vector store population requires a seeding pipeline with real telemetry corpus. The heuristic fallback ensures the service remains functional in development environments.
+**Why:** Real sentence-embedding models require external ML infrastructure, which is out of scope for the lightweight, offline-first local academic configuration (by design).
 
-**Impact:** Analyst assist quality degrades gracefully when Qdrant is unavailable. The RAG capability is not demonstrated in the primary evaluation path.
+**Impact:** Retrieval ranking is heuristic rather than semantic. The pipeline is fully functional and grounds answers in cited evidence, but ranking quality is below a production transformer.
+
+**Resolved (2026-06-30, AI-CONTEXT-EMPTY):** The prompt manager (`compactContext`) **no longer** strips telemetry detail — it now passes bounded alert details (type/severity/detector/score/ip/evidence) and the retrieved knowledge text (title + excerpt) into the LLM context, so the model is grounded in actual evidence rather than only counts. The remaining heuristic-embedding gap is tracked as `AI-KB-SEMANTIC`.
+
 
 ---
 

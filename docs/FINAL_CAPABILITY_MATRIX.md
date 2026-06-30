@@ -86,7 +86,7 @@
 
 | Capability | Tier | Notes |
 |---|---|---|
-| Structured query engine | implemented | 158 domains, allowlisted fields |
+| Structured query engine | implemented | 177 domains, allowlisted fields |
 | Multi-hop graph pivot | implemented | Up to MAX_GRAPH_DEPTH=5 |
 | Retrospective investigation | implemented | Replay-safe, bounded window (30d max) |
 | Attack timeline reconstruction | implemented | Append-only investigation timeline |

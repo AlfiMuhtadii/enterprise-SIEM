@@ -108,20 +108,32 @@ This roadmap describes improvements that are out of scope for the current academ
 ---
 
 ## Priority 8 — Mobile / Browser Threat Telemetry
+ 
+ **Description:** Extend the endpoint agent to mobile platforms (iOS/Android) and browser extensions:
+ - Mobile telemetry: app install events, permission changes, network activity
+ - Browser telemetry: URL visits, credential form usage, extension activity
+ - New normalized event schemas
+ - New detection rules for mobile/browser attack vectors
+ 
+ ---
 
-**Description:** Extend the endpoint agent to mobile platforms (iOS/Android) and browser extensions:
-- Mobile telemetry: app install events, permission changes, network activity
-- Browser telemetry: URL visits, credential form usage, extension activity
-- New normalized event schemas
-- New detection rules for mobile/browser attack vectors
+## Priority 9 — High-Performance Ingest & Storage Architecture
+ 
+ **Description:** Refactor the hot-ingestion data path and database architecture to eliminate HTTP REST intermediate overhead, transactional write-locks, and connection pooling leaks:
+ - **Native Kafka TCP Ingestion**: Transition Go ingestion gateway and Go workers from Pandaproxy HTTP REST API to native binary Kafka TCP protocol (port 9092) with zstd/snappy compression.
+ - **ClickHouse Storage Split**: Route raw and normalized telemetry directly to a ClickHouse OLAP cluster in bulk batches, reserving PostgreSQL OLTP database solely for relational incident management and RBAC.
+ - **Mutual TLS (mTLS) Security**: Secure all container-to-container REST/gRPC communications using cryptographically signed client certs (mTLS) instead of shared static tokens.
+ - **Thread-Safe In-Memory Cache for IOCs**: Replace synchronous HTTP threat intelligence lookup calls in hot matching loops with a fast, thread-safe in-memory cache.
+ 
+ ---
+ 
+ ## Academic Extensions
+ 
+ | Extension | Description |
+ |---|---|
+ | Graph neural network for lateral movement | Replace rule-based lateral movement with GNN on the entity graph |
+ | Federated learning for multi-tenant detection | Share model improvements across tenants without sharing raw telemetry |
+ | Natural language investigation queries | LLM-powered natural language interface over the 177-domain hunt engine |
+ | Automated attack scenario generation | Use LLMs to generate novel attack scenarios from ATT&CK matrix entries |
+ 
 
----
-
-## Academic Extensions
-
-| Extension | Description |
-|---|---|
-| Graph neural network for lateral movement | Replace rule-based lateral movement with GNN on the entity graph |
-| Federated learning for multi-tenant detection | Share model improvements across tenants without sharing raw telemetry |
-| Natural language investigation queries | LLM-powered natural language interface over the 158-domain hunt engine |
-| Automated attack scenario generation | Use LLMs to generate novel attack scenarios from ATT&CK matrix entries |

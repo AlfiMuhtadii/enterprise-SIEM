@@ -357,3 +357,4 @@ Current: **133 rules** — 12 staged_active, 121 shadow
 | 2026-05-24 | 3077 | 186 | + Final XDR cert, RC, code maturity, demo pkg, doc freeze |
 | 2026-06-25 | 3618 | 1156 | + ATTR/DLQ/shadow consumer/tenant/EASM/pilot/E036–E041 |
 | 2026-06-27 | ~4274+ | 186 (endpoint_agent) | + E044–E063 (~656 test methods) |
+| 2026-06-30 | 4538 | 1556 (all suites) | + NOTIFY-TENANCY, alert/agent N+1 bulk batches, TZ-AGENT-STALE (pgsql session UTC) fix, AI-context enrichment, Python service HTTP-session + in-process ClickHouse sync, IOC pre-lowercase + agent-status DRY refactor |

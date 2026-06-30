@@ -20,7 +20,7 @@
 php artisan test
 ```
 
-Show: 3077 tests, 0 failures. Point out the test count is not inflated — each test covers a real behavior or contract.
+Show: 4538 tests, 0 failures. Point out the test count is not inflated — each test covers a real behavior or contract.
 
 **2. The architecture boundary** (1.5 minutes)
 
@@ -95,7 +95,7 @@ Show two governance subsystems:
 ### Phase 5 — Engineering Discipline (3 minutes)
 
 Show these numbers:
-- 3077 PHP tests, 186 Python tests
+- 4538 PHP tests, 186 Python tests
 - 133 detection rules validated by 21-check registry
 - 50+ governance subsystems
 - 158 threat hunting domains

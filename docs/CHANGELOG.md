@@ -4,6 +4,33 @@ All notable changes to this project are documented here. This project follows a 
 
 ---
 
+## [1.0.0-rc3] — 2026-06-30
+
+### Fixed
+- **TZ-AGENT-STALE**: PostgreSQL server session ran at +07 while `app.timezone=UTC`, so naive query-builder timestamps read back ~7h off in PHP. This silently broke every `now()->diffInSeconds($row->last_seen_at)` comparison — agent online/offline `computed_status` across the SOC dashboard, `SocAgentController`, `SocApiController`, `EndpointController`, `OpsHealthController` telemetry-lag, and `soc:agent-health-check` (flagged all agents stale + spurious `AGENT_STALE_OR_STOPPED` alerts). Pinned the pgsql connection `timezone` to UTC (`config/database.php`) + in-DB staleness comparison. Locked by `TimezoneRoundTripTest`.
+
+### Added
+- **NOTIFY-TENANCY-GAP**: per-tenant SOC notification routing — `tenant_notification_settings` (mutable, isolated) + `tenant_id` on `notification_delivery_logs`; `TenantNotificationResolver`; `soc:sla-escalate` + `soc:notify-critical` route per incident tenant.
+- **AI-CONTEXT-EMPTY**: `AiAnalystManager::compactContext()` now includes bounded alert details + retrieved knowledge text (not just counts) so LLM answers are grounded.
+
+### Changed (performance / refactor)
+- **PERF-IOC-LOOP / PERF-ALERT-TUNE**: alert-write-path N+1 loops batched (chunked inserts + one UPDATE per entity in a transaction); fixed latent multi-match evidence loss.
+- **PERF-AGENT-UPDATE / PERF-AGENT-HEALTH-N1**: agent-management N+1 → bulk `whereIn` updates + eager-loaded keyed maps.
+- **PERF-TRANSACTION-GAP**: SLA escalation state change made atomic (`DB::transaction`).
+- **PERF-PYTHON-HTTP**: alert-writer + incident-builder reuse a module-level `requests.Session()` (keep-alive pooling).
+- **PERF-SUBPROCESS-POLL**: ClickHouse sync daemon runs in-process instead of spawning an interpreter subprocess each cycle.
+- **PERF-IOC-STR-LOWER**: IOC values pre-lowercased once before the matching loop.
+- **REFINE-AGENT-STATUS**: duplicated online/offline staleness expression extracted to `EndpointAgentService::computeStatus()`.
+- **GIT-RM-PYC**: untracked compiled `*.pyc` / Go `*.exe` build artifacts.
+
+### Rejected / Deferred
+- **STATE-REDIS-05** rejected (correlation worker uses no Redis). **PERF-DB-CONN-LEAK** deferred (psycopg3 `with conn:` already closes — no leak; safe pooling needs `psycopg_pool`, not installed). **EDR-EXEC-02 / AI-CONF-BANDS** rejected (forbidden automated containment); **TENANT-ENFORCE-RLS** deferred.
+
+### Validation
+- `php artisan test` → **4538 passed, 0 failures**. Python suites: **1556** across endpoint_agent (186), alert_writer (13), incident_builder (10), scripts (5), xdr_topic_bootstrap (1342). Rule registry **133 rules**, threat-hunting **177 domains**.
+
+---
+
 ## [1.0.0-rc2] — 2026-06-27
 
 ### Fixed

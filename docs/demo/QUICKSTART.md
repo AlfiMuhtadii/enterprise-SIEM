@@ -52,7 +52,7 @@ python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 python scripts/xdr_rule_registry_validate.py
 ```
 
-Expected: **2997+ PHP tests passed, 0 failures; 186 Python tests; rules=133 PASS**
+Expected: **4538 PHP tests passed, 0 failures; 186 Python tests; rules=133 PASS**
 
 ---
 

@@ -56,7 +56,7 @@ Alternatively, run the validation suite:
 
 ```powershell
 php artisan test
-# Expected: 3077 passed, 0 failures
+# Expected: 4538 passed, 0 failures
 
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 # Expected: 186 tests, OK
@@ -142,7 +142,7 @@ php artisan db:seed --class=DemoScenarioSeeder
 - A production-discipline strangler migration from a monolith SOC to a polyglot microservice pipeline
 - Enterprise-grade governance across 50+ subsystems
 - Hybrid rule-based + logistic regression detection
-- 158-domain threat hunting with multi-hop graph investigation
+- 177-domain threat hunting with multi-hop graph investigation
 - Full audit trail with append-only event sourcing
 
 ---
