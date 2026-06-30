@@ -28,12 +28,24 @@ class AgentHealthCheckCommand extends Command
             ? collect()
             : DB::table('agent_policies')->whereIn('policy_id', $policyIds)->get()->keyBy('policy_id');
 
+        // TZ-AGENT-STALE: resolve staleness with an in-database time comparison
+        // rather than PHP-side diffInSeconds(). A raw timestamptz read back into
+        // PHP can be off by the DB session offset (e.g. +07 vs UTC app tz), which
+        // made every agent appear ~7h stale. The in-DB comparison binds now() and
+        // the stored value symmetrically, so it is correct regardless of session tz.
+        $staleCutoff = now()->subSeconds($offlineAfter);
+        $staleSet = array_flip(
+            DB::table('endpoint_agents')
+                ->where(fn ($q) => $q->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $staleCutoff))
+                ->pluck('agent_id')
+                ->all()
+        );
+
         // Collect stale agent ids and flip them offline in one bulk UPDATE at the end.
         $staleAgentIds = [];
 
         foreach ($agents as $agent) {
-            $stale = !$agent->last_seen_at || $now->diffInSeconds($agent->last_seen_at) > $offlineAfter;
-            if ($stale) {
+            if (isset($staleSet[$agent->agent_id])) {
                 $alerts += $this->createAgentAlert($agent, 'AGENT_STALE_OR_STOPPED', 'high', 0.8, [
                     'reason' => 'missing heartbeat or unexpected stop',
                     'last_seen_at' => $agent->last_seen_at,

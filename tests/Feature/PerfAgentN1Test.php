@@ -106,15 +106,15 @@ class PerfAgentN1Test extends TestCase
 
     private function seedAgent(string $agentId, array $overrides = []): void
     {
-        // PostgreSQL session is +07 while app tz is UTC; seed timestamptz with an
-        // explicit offset so the PHP-side diffInSeconds() staleness check is exact.
+        // Seed last_seen_at exactly like the production heartbeat path (raw now()),
+        // so the in-DB staleness comparison is validated against real behavior.
         DB::table('endpoint_agents')->insert(array_merge([
             'agent_id' => $agentId,
             'host_fingerprint' => 'fp-'.$agentId,
             'host_id' => 'host-'.$agentId,
             'agent_version' => '0.1.0',
             'status' => 'online',
-            'last_seen_at' => now()->format('Y-m-d H:i:sP'),
+            'last_seen_at' => now(),
             'policy_id' => null,
             'policy_version_seen' => 0,
             'retry_queue_depth' => 0,
@@ -126,8 +126,8 @@ class PerfAgentN1Test extends TestCase
 
     public function test_health_check_flags_stale_agents_and_marks_offline(): void
     {
-        $this->seedAgent('stale-1', ['last_seen_at' => now()->subHours(2)->format('Y-m-d H:i:sP')]);
-        $this->seedAgent('fresh-1', ['last_seen_at' => now()->format('Y-m-d H:i:sP')]);
+        $this->seedAgent('stale-1', ['last_seen_at' => now()->subHours(2)]);
+        $this->seedAgent('fresh-1', ['last_seen_at' => now()]);
 
         $this->artisan('soc:agent-health-check')->assertExitCode(0);
 
@@ -151,7 +151,7 @@ class PerfAgentN1Test extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $this->seedAgent('pol-agent', ['policy_id' => 'pol-1', 'policy_version_seen' => 2, 'last_seen_at' => now()->format('Y-m-d H:i:sP')]);
+        $this->seedAgent('pol-agent', ['policy_id' => 'pol-1', 'policy_version_seen' => 2, 'last_seen_at' => now()]);
 
         $this->artisan('soc:agent-health-check')->assertExitCode(0);
 
@@ -164,7 +164,7 @@ class PerfAgentN1Test extends TestCase
     public function test_health_check_flags_repeated_delivery_failures(): void
     {
         Config::set('soc.agent_delivery_failure_alert_threshold', 3);
-        $this->seedAgent('fail-agent', ['last_seen_at' => now()->format('Y-m-d H:i:sP')]);
+        $this->seedAgent('fail-agent', ['last_seen_at' => now()]);
 
         for ($i = 0; $i < 4; $i++) {
             DB::table('agent_delivery_failures')->insert([

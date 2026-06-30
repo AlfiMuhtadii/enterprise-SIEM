@@ -72,6 +72,12 @@ return [
             'username' => env('DB_USERNAME', 'forge'),
             'password' => env('DB_PASSWORD', ''),
             'charset' => 'utf8',
+            // TZ-AGENT-STALE: pin the session time zone to match app.timezone (UTC).
+            // The PostgreSQL server defaults to a +07 session, which made naive
+            // timestamps written by the query builder round-trip ~7h off when read
+            // back into PHP (every agent appeared stale/offline). Aligning the
+            // session to UTC makes timestamptz round-trips faithful.
+            'timezone' => env('DB_TIMEZONE', 'UTC'),
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
