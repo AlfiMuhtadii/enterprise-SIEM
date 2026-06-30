@@ -15,8 +15,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **PERF-SUBPROCESS-POLL** | [PERF] Refactor ClickHouse sync daemon to use in-process polling instead of spawning python subprocesses | `scripts/clickhouse_sync_daemon.py`, `scripts/sync_postgres_to_clickhouse.py` | Medium | Proposed |
 | **PERF-GO-LIMITER** | [PERF] Refactor Go ingestion rate limiters to use mathematical time-delta calculations instead of channel loops | `services/ingestion-gateway/main.go` | High | Proposed |
 | **PERF-PYTHON-HTTP** | [PERF] Refactor python HTTP client requests in alert writer and incident builder to use persistent Session pools | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
-| **PERF-TRANSACTION-GAP** | [PERF] Wrap sequential Laravel write operations in database transactions to preserve data integrity | `app/Http/Controllers/*`, `app/Console/Commands/SocSlaEscalationCommand.php` | Medium | Proposed |
-| **AI-CONTEXT-EMPTY** | [AI] Include alert details and RAG knowledge base text in compactContext to prevent LLM blindness | `app/Support/AiAnalystManager.php` | High | Proposed |
 | **STATE-REDIS-05** | [CORRELATION] Refactor Go Correlation worker state store to use Redis connection pooling | `services/correlation-worker/main.go` | Medium | Proposed |
 | **RATE-LIMIT-DOS** | [INGESTION] Restrict rate limiter instantiation to verified tenants to prevent memory exhaustion DoS | `services/ingestion-gateway/main.go` | High | Proposed |
 | **PERF-DB-CONN-LEAK** | [PERF] Refactor Python workers (alert writer / incident builder) to use database connection pooling | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | High | Proposed |
