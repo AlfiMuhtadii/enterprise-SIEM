@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync Postgres tables to ClickHouse.")
     parser.add_argument("--pg-dsn", default=os.getenv("SECURITY_INGEST_DSN", ""))
     parser.add_argument("--ch-url", default=os.getenv("CLICKHOUSE_HTTP_URL", "http://127.0.0.1:8123"))
@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-file", default="storage/app/clickhouse_sync_state.json")
     parser.add_argument("--batch-size", type=int, default=1000)
     parser.add_argument("--full-refresh", action="store_true")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def parse_env_file(path: Path) -> Dict[str, str]:
@@ -235,8 +235,8 @@ def sync_table(
     return max_id
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv=None) -> int:
+    args = parse_args(argv)
     project_root = Path(__file__).resolve().parents[1]
     pg_dsn = args.pg_dsn.strip() or build_pg_dsn(project_root)
     if not pg_dsn:

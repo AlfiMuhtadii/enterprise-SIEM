@@ -12,7 +12,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **AI-KB-SEMANTIC** | [AI-KB] Implement Qdrant vector semantic search and sentence embedding pipeline | `app/Support/SocKnowledgeRetriever.php`, Qdrant config | High | Proposed |
 | **AI-KB-FEED-INGEST** | [AI-KB] Build MITRE ATT&CK and threat intelligence RSS feed dynamic ingestion pipeline | `app/Services/AiKnowledgeSeedService.php`, `AiSeedKnowledgeCommand.php` | Medium | Proposed |
 | **AI-KB-FEEDBACK-LOOP** | [AI-KB] Create closed-loop analyst feedback ingestion service for approved suggestions | `app/Http/Controllers/SocAiController.php`, `app/Support/AiAnalystManager.php` | Low | Proposed |
-| **PERF-SUBPROCESS-POLL** | [PERF] Refactor ClickHouse sync daemon to use in-process polling instead of spawning python subprocesses | `scripts/clickhouse_sync_daemon.py`, `scripts/sync_postgres_to_clickhouse.py` | Medium | Proposed |
 | **PERF-GO-LIMITER** | [PERF] Refactor Go ingestion rate limiters to use mathematical time-delta calculations instead of channel loops | `services/ingestion-gateway/main.go` | High | Proposed |
 | **RATE-LIMIT-DOS** | [INGESTION] Restrict rate limiter instantiation to verified tenants to prevent memory exhaustion DoS | `services/ingestion-gateway/main.go` | High | Proposed |
 | **PERF-REST-POLL** | [PERF] Refactor Go workers (normalizer / correlation) to use native binary Kafka protocol instead of HTTP REST | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
