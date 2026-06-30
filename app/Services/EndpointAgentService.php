@@ -16,6 +16,23 @@ class EndpointAgentService
     private const DEGRADED_MULTIPLIER = 5;
     private const STALE_MULTIPLIER    = 30;
 
+    /**
+     * Compute an agent's online/offline status from its last heartbeat time.
+     *
+     * Centralizes the staleness comparison previously duplicated across the SOC
+     * dashboard, API, agent and endpoint controllers. Uses the configured
+     * offline threshold unless one is supplied. Timezone-safe because the DB
+     * session is pinned to UTC (see config/database.php — TZ-AGENT-STALE).
+     *
+     * @param  mixed  $lastSeenAt  string|\DateTimeInterface|null
+     */
+    public static function computeStatus($lastSeenAt, ?int $offlineAfterSeconds = null): string
+    {
+        $threshold = $offlineAfterSeconds ?? (int) config('soc.agent_offline_after_seconds', 180);
+
+        return $lastSeenAt && now()->diffInSeconds($lastSeenAt) <= $threshold ? 'online' : 'offline';
+    }
+
     // -----------------------------------------------------------------------
     // Enrollment
     // -----------------------------------------------------------------------

@@ -37,9 +37,7 @@ class EndpointController extends Controller
             ->get()
             ->map(function ($agent) {
                 $meta   = json_decode($agent->metadata ?? '{}', true) ?? [];
-                $online = $agent->last_seen_at
-                    && now()->diffInSeconds($agent->last_seen_at) <= self::OFFLINE_AFTER_SECONDS;
-                $agent->status          = $online ? 'online' : 'offline';
+                $agent->status          = \App\Services\EndpointAgentService::computeStatus($agent->last_seen_at, self::OFFLINE_AFTER_SECONDS);
                 $agent->integrity_ok    = (bool) ($meta['startup_integrity_ok'] ?? true);
                 $agent->restarts        = (int) ($meta['unexpected_restart_count'] ?? 0);
                 $agent->platform        = $meta['platform'] ?? null;
@@ -100,9 +98,7 @@ class EndpointController extends Controller
         abort_if(!$agent, 404);
 
         $meta         = json_decode($agent->metadata ?? '{}', true) ?? [];
-        $online       = $agent->last_seen_at
-            && now()->diffInSeconds($agent->last_seen_at) <= self::OFFLINE_AFTER_SECONDS;
-        $agent->status     = $online ? 'online' : 'offline';
+        $agent->status     = \App\Services\EndpointAgentService::computeStatus($agent->last_seen_at, self::OFFLINE_AFTER_SECONDS);
         $agent->platform   = $meta['platform'] ?? null;
         $agent->integrity  = (bool) ($meta['startup_integrity_ok'] ?? true);
 
@@ -173,7 +169,7 @@ class EndpointController extends Controller
         $offlineAfter = self::OFFLINE_AFTER_SECONDS;
         $agents = DB::table('endpoint_agents')->get();
         $online  = $agents->filter(fn ($a) =>
-            $a->last_seen_at && now()->diffInSeconds($a->last_seen_at) <= $offlineAfter
+            \App\Services\EndpointAgentService::computeStatus($a->last_seen_at, $offlineAfter) === 'online'
         )->count();
 
         return response()->json([

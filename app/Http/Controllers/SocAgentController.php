@@ -32,7 +32,7 @@ class SocAgentController extends Controller
             ->paginate(25)
             ->withQueryString();
         $agents->getCollection()->transform(function ($agent) use ($offlineAfter) {
-            $agent->computed_status = $agent->last_seen_at && now()->diffInSeconds($agent->last_seen_at) <= $offlineAfter ? 'online' : 'offline';
+            $agent->computed_status = \App\Services\EndpointAgentService::computeStatus($agent->last_seen_at, $offlineAfter);
             return $agent;
         });
 

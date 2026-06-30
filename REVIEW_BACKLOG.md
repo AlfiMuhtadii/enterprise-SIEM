@@ -18,6 +18,12 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **PERF-GO-OVERCONCURRENT** | [PERF] Eliminate per-batch goroutine and channel allocations in Go workers to avoid GC churn | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | Medium | Proposed |
 | **PERF-GO-HOT-HTTP** | [PERF] Refactor hot-loop synchronous HTTP IOC lookups to use thread-safe in-memory cache | `services/correlation-worker/main.go` | High | Proposed |
 | **PERF-REST-REBALANCE** | [PERF] Use static consumer instance IDs in Go workers to prevent Kafka REST rebalance storms | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
+| **ARCH-KAFKA-NATIVE** | [ARCH] Replace Pandaproxy REST calls in Go workers with Native Kafka client binary protocol | `services/ingestion-gateway/*`, Go workers | High | Proposed |
+| **ARCH-DB-SPLIT** | [ARCH] Route high-throughput streaming telemetries to ClickHouse OLAP and reserve PG for relational OLTP | `services/alert-writer-service/main.py`, Clickhouse | High | Proposed |
+| **ARCH-MTLS-SEC** | [ARCH] Implement Mutual TLS (mTLS) for secure service-to-service internal container communications | Docker / Network config | High | Proposed |
+| **ARCH-DISCOVERY** | [ARCH] Integrate dynamic DNS-based service discovery or internal load balancers | Network configuration | Medium | Proposed |
+
+
 
 
 

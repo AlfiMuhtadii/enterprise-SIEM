@@ -129,4 +129,19 @@ class PerfIocLoopTest extends TestCase
 
         $this->assertSame(2, DB::table('ioc_hits')->where('alert_id', 'alert-rep')->count());
     }
+
+    public function test_matching_is_case_insensitive_after_prelowercase(): void
+    {
+        // PERF-IOC-STR-LOWER: IOC value is uppercase, alert evidence is lowercase —
+        // matching must still hit (lowercasing happens once, before the loop).
+        $this->seedAlert('alert-ci', '10.0.0.1', ['domain' => 'evil.example']);
+        $this->seedIoc('domain', 'EVIL.EXAMPLE');
+
+        $this->enrich();
+
+        $this->assertDatabaseHas('ioc_hits', [
+            'alert_id' => 'alert-ci',
+            'matched_value' => 'EVIL.EXAMPLE',
+        ]);
+    }
 }

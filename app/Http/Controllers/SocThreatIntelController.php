@@ -198,12 +198,20 @@ class SocThreatIntelController extends Controller
         $evidenceByAlert = [];
         $hits = 0;
 
+        // PERF-IOC-STR-LOWER: lowercase each IOC value once here instead of once
+        // per (alert × IOC) inside the nested matching loop below.
+        $iocNeedles = [];
+        foreach ($iocs as $ioc) {
+            $iocNeedles[] = ['ioc' => $ioc, 'needle' => strtolower((string) $ioc->ioc_value)];
+        }
+
         foreach ($alerts as $alert) {
             $haystack = strtolower(json_encode([$alert->ip, $alert->actor_key ?? null, $alert->evidence, $alert->raw_event]));
-            foreach ($iocs as $ioc) {
-                if (!str_contains($haystack, strtolower($ioc->ioc_value))) {
+            foreach ($iocNeedles as $entry) {
+                if (!str_contains($haystack, $entry['needle'])) {
                     continue;
                 }
+                $ioc = $entry['ioc'];
                 $hitRows[] = [
                     'ioc_id' => $ioc->ioc_id,
                     'alert_id' => $alert->alert_id,
