@@ -19,6 +19,11 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 import requests
+
+# PERF-PYTHON-HTTP: reuse a single Session so outbound HTTP calls (Pandaproxy,
+# OpenSearch) share a pooled, keep-alive connection instead of opening and tearing
+# down a fresh TCP connection on every requests.<verb> call.
+SESSION = requests.Session()
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
@@ -256,7 +261,7 @@ def write_opensearch(alerts: List[AlertPayload]) -> int:
         doc["alert_fingerprint"] = fp
         doc["indexed_at"] = now_iso()
         try:
-            resp = requests.put(f"{url}/xdr-alerts/_doc/{alert_id(alert, fp)}", json=doc, timeout=5)
+            resp = SESSION.put(f"{url}/xdr-alerts/_doc/{alert_id(alert, fp)}", json=doc, timeout=5)
             if resp.status_code >= 300:
                 failures += 1
         except Exception:
@@ -285,7 +290,7 @@ def produce(topic: str, events: List[Dict[str, Any]]) -> int:
     if not events:
         return 0
     payload = {"records": [{"value": event} for event in events]}
-    resp = requests.post(
+    resp = SESSION.post(
         f"{redpanda_rest()}/topics/{topic}",
         json=payload,
         headers={"Content-Type": "application/vnd.kafka.json.v2+json"},
@@ -353,7 +358,7 @@ def _is_offset_range_error(exc: Exception) -> bool:
 
 
 def consumer_create(group: str, name: str, offset_reset: str = "earliest") -> str:
-    resp = requests.post(
+    resp = SESSION.post(
         f"{redpanda_rest()}/consumers/{group}",
         json={"name": name, "format": "json", "auto.offset.reset": offset_reset},
         headers={"Content-Type": "application/vnd.kafka.v2+json", "Accept": "application/vnd.kafka.v2+json"},
@@ -365,7 +370,7 @@ def consumer_create(group: str, name: str, offset_reset: str = "earliest") -> st
 
 def consumer_delete(base_uri: str) -> None:
     try:
-        requests.delete(
+        SESSION.delete(
             base_uri,
             headers={"Content-Type": "application/vnd.kafka.v2+json"},
             timeout=5,
@@ -375,7 +380,7 @@ def consumer_delete(base_uri: str) -> None:
 
 
 def consumer_subscribe(base_uri: str, topic: str) -> None:
-    resp = requests.post(
+    resp = SESSION.post(
         f"{base_uri}/subscription",
         json={"topics": [topic]},
         headers={"Content-Type": "application/vnd.kafka.v2+json"},
@@ -385,7 +390,7 @@ def consumer_subscribe(base_uri: str, topic: str) -> None:
 
 
 def consumer_poll(base_uri: str) -> List[Dict[str, Any]]:
-    resp = requests.get(
+    resp = SESSION.get(
         f"{base_uri}/records?timeout=1000&max_bytes=1048576",
         headers={"Accept": "application/vnd.kafka.json.v2+json"},
         timeout=10,

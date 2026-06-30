@@ -66,14 +66,14 @@ class TestConsumerCreateIncludesOffsetReset(unittest.TestCase):
 
     def test_default_offset_reset_is_earliest(self):
         captured, fake_post = self._post_capture()
-        with patch.object(ib.requests, "post", side_effect=fake_post):
+        with patch.object(ib.SESSION, "post", side_effect=fake_post):
             ib.consumer_create("g", "n")
         self.assertIn("auto.offset.reset", captured["json"])
         self.assertEqual(captured["json"]["auto.offset.reset"], "earliest")
 
     def test_offset_reset_configurable_via_parameter(self):
         captured, fake_post = self._post_capture()
-        with patch.object(ib.requests, "post", side_effect=fake_post):
+        with patch.object(ib.SESSION, "post", side_effect=fake_post):
             ib.consumer_create("g", "n", offset_reset="latest")
         self.assertEqual(captured["json"]["auto.offset.reset"], "latest")
 
@@ -105,14 +105,14 @@ class TestConsumerDelete(unittest.TestCase):
     def test_delete_calls_requests_delete(self):
         delete_calls = []
         with patch.object(
-            ib.requests, "delete",
+            ib.SESSION, "delete",
             side_effect=lambda url, **kw: delete_calls.append(url),
         ):
             ib.consumer_delete("http://localhost:8082/consumers/g/instances/n")
         self.assertEqual(len(delete_calls), 1)
 
     def test_delete_does_not_raise_on_network_error(self):
-        with patch.object(ib.requests, "delete", side_effect=ConnectionError("refused")):
+        with patch.object(ib.SESSION, "delete", side_effect=ConnectionError("refused")):
             ib.consumer_delete("http://localhost:8082/consumers/g/instances/n")
 
 
@@ -158,9 +158,9 @@ class TestEventLoopOffsetRecovery(unittest.TestCase):
 
         ib.STOP.clear()
         ib.DLQ.clear()
-        with patch.object(ib.requests, "post", side_effect=fake_post), \
-             patch.object(ib.requests, "get", side_effect=fake_get), \
-             patch.object(ib.requests, "delete", side_effect=fake_delete), \
+        with patch.object(ib.SESSION, "post", side_effect=fake_post), \
+             patch.object(ib.SESSION, "get", side_effect=fake_get), \
+             patch.object(ib.SESSION, "delete", side_effect=fake_delete), \
              patch.object(ib.time, "sleep", return_value=None):
             ib.event_loop()
 
@@ -204,8 +204,8 @@ class TestEventLoopNormalPolling(unittest.TestCase):
 
         ib.STOP.clear()
         ib.DLQ.clear()
-        with patch.object(ib.requests, "post", side_effect=fake_post), \
-             patch.object(ib.requests, "get", side_effect=fake_get), \
+        with patch.object(ib.SESSION, "post", side_effect=fake_post), \
+             patch.object(ib.SESSION, "get", side_effect=fake_get), \
              patch.object(ib.time, "sleep", return_value=None):
             ib.event_loop()
 
@@ -215,6 +215,14 @@ class TestEventLoopNormalPolling(unittest.TestCase):
                                 "Consumer should poll at least 3 times")
         error_dlq = [e for e in ib.DLQ if "error" in e]
         self.assertEqual(len(error_dlq), 0, "No DLQ errors during normal polling")
+
+
+class TestHttpSessionPooling(unittest.TestCase):
+    """PERF-PYTHON-HTTP: outbound HTTP must go through a reused Session."""
+
+    def test_module_exposes_requests_session(self):
+        import requests as req
+        self.assertIsInstance(ib.SESSION, req.Session)
 
 
 if __name__ == "__main__":

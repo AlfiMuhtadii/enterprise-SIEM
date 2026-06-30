@@ -14,12 +14,12 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **AI-KB-FEEDBACK-LOOP** | [AI-KB] Create closed-loop analyst feedback ingestion service for approved suggestions | `app/Http/Controllers/SocAiController.php`, `app/Support/AiAnalystManager.php` | Low | Proposed |
 | **PERF-SUBPROCESS-POLL** | [PERF] Refactor ClickHouse sync daemon to use in-process polling instead of spawning python subprocesses | `scripts/clickhouse_sync_daemon.py`, `scripts/sync_postgres_to_clickhouse.py` | Medium | Proposed |
 | **PERF-GO-LIMITER** | [PERF] Refactor Go ingestion rate limiters to use mathematical time-delta calculations instead of channel loops | `services/ingestion-gateway/main.go` | High | Proposed |
-| **PERF-PYTHON-HTTP** | [PERF] Refactor python HTTP client requests in alert writer and incident builder to use persistent Session pools | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 | **RATE-LIMIT-DOS** | [INGESTION] Restrict rate limiter instantiation to verified tenants to prevent memory exhaustion DoS | `services/ingestion-gateway/main.go` | High | Proposed |
-| **PERF-DB-CONN-LEAK** | [PERF] Refactor Python workers (alert writer / incident builder) to use database connection pooling | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | High | Proposed |
 | **PERF-REST-POLL** | [PERF] Refactor Go workers (normalizer / correlation) to use native binary Kafka protocol instead of HTTP REST | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
 | **PERF-GO-OVERCONCURRENT** | [PERF] Eliminate per-batch goroutine and channel allocations in Go workers to avoid GC churn | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | Medium | Proposed |
 | **PERF-GO-HOT-HTTP** | [PERF] Refactor hot-loop synchronous HTTP IOC lookups to use thread-safe in-memory cache | `services/correlation-worker/main.go` | High | Proposed |
+| **PERF-REST-REBALANCE** | [PERF] Use static consumer instance IDs in Go workers to prevent Kafka REST rebalance storms | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
+
 
 
 

@@ -79,14 +79,14 @@ class TestConsumerCreateIncludesOffsetReset(unittest.TestCase):
 
     def test_default_offset_reset_is_earliest(self):
         captured, fake_post = self._post_capture()
-        with patch.object(aw.requests, "post", side_effect=fake_post):
+        with patch.object(aw.SESSION, "post", side_effect=fake_post):
             aw.consumer_create("g", "n")
         self.assertIn("auto.offset.reset", captured["json"])
         self.assertEqual(captured["json"]["auto.offset.reset"], "earliest")
 
     def test_offset_reset_configurable_via_parameter(self):
         captured, fake_post = self._post_capture()
-        with patch.object(aw.requests, "post", side_effect=fake_post):
+        with patch.object(aw.SESSION, "post", side_effect=fake_post):
             aw.consumer_create("g", "n", offset_reset="latest")
         self.assertEqual(captured["json"]["auto.offset.reset"], "latest")
 
@@ -115,8 +115,8 @@ class TestConsumerCreateIncludesOffsetReset(unittest.TestCase):
         aw.STOP.clear()
         aw.DLQ.clear()
         with patch.dict("os.environ", {"XDR_ALERT_WRITER_AUTO_OFFSET_RESET": "latest"}), \
-             patch.object(aw.requests, "post", side_effect=fake_post), \
-             patch.object(aw.requests, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
              patch.object(aw.time, "sleep", return_value=None):
             aw.event_loop()
 
@@ -164,7 +164,7 @@ class TestConsumerDelete(unittest.TestCase):
     def test_delete_calls_requests_delete(self):
         delete_calls = []
         with patch.object(
-            aw.requests, "delete",
+            aw.SESSION, "delete",
             side_effect=lambda url, **kw: delete_calls.append(url),
         ):
             aw.consumer_delete("http://localhost:8082/consumers/g/instances/n")
@@ -172,7 +172,7 @@ class TestConsumerDelete(unittest.TestCase):
 
     def test_delete_does_not_raise_on_network_error(self):
         with patch.object(
-            aw.requests, "delete",
+            aw.SESSION, "delete",
             side_effect=ConnectionError("connection refused"),
         ):
             aw.consumer_delete("http://localhost:8082/consumers/g/instances/n")
@@ -221,9 +221,9 @@ class TestEventLoopOffsetRecovery(unittest.TestCase):
 
         aw.STOP.clear()
         aw.DLQ.clear()
-        with patch.object(aw.requests, "post", side_effect=fake_post), \
-             patch.object(aw.requests, "get", side_effect=fake_get), \
-             patch.object(aw.requests, "delete", side_effect=fake_delete), \
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", side_effect=fake_delete), \
              patch.object(aw.time, "sleep", return_value=None):
             aw.event_loop()
 
@@ -268,8 +268,8 @@ class TestEventLoopNormalPolling(unittest.TestCase):
 
         aw.STOP.clear()
         aw.DLQ.clear()
-        with patch.object(aw.requests, "post", side_effect=fake_post), \
-             patch.object(aw.requests, "get", side_effect=fake_get), \
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
              patch.object(aw.time, "sleep", return_value=None):
             aw.event_loop()
 
@@ -279,6 +279,14 @@ class TestEventLoopNormalPolling(unittest.TestCase):
                                 "Consumer should poll at least 3 times")
         error_dlq = [e for e in aw.DLQ if "error" in e]
         self.assertEqual(len(error_dlq), 0, "No DLQ errors during normal polling")
+
+
+class TestHttpSessionPooling(unittest.TestCase):
+    """PERF-PYTHON-HTTP: outbound HTTP must go through a reused Session."""
+
+    def test_module_exposes_requests_session(self):
+        import requests as req
+        self.assertIsInstance(aw.SESSION, req.Session)
 
 
 if __name__ == "__main__":

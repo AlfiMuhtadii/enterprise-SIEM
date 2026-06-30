@@ -80,6 +80,7 @@ This file tracks all completed and verified implementations for the tenancy, sec
 | **GIT-RM-PYC** | Untracked 147 compiled `*.pyc`/`__pycache__` files + 3 Go `*.exe` service binaries from the git index (`git rm --cached`); added `*.exe` rules to `.gitignore` (`*.py[cod]`/`__pycache__/` already present). Removes perpetual `git status` noise; working files retained | 317f1a0 | — | 2026-06-30 |
 | **PERF-TRANSACTION-GAP** | SLA escalation atomicity — `SocSlaEscalationCommand` wraps incident UPDATE + activity INSERT + audit log in one `DB::transaction`; notifications (external I/O) stay after commit; 2 tests (`PerfTransactionGapTest`) | 9800281 | — | 2026-06-30 |
 | **AI-CONTEXT-EMPTY** | LLM context enrichment — `AiAnalystManager::compactContext()` now includes bounded alert details (type/severity/detector/score/ip/evidence, top 8), IOC hit values (top 8), and retrieved knowledge text (title+excerpt+score, top 6) instead of only counts; existing count keys retained; 3 tests (`AiContextEnrichmentTest`) | 34d7b0f | — | 2026-06-30 |
+| **PERF-PYTHON-HTTP** | HTTP session pooling — alert-writer + incident-builder now route all outbound HTTP (Pandaproxy/OpenSearch put/post/get/delete) through a module-level `SESSION = requests.Session()` (keep-alive connection reuse) instead of per-call transient connections; tests repointed to patch `SESSION`; +2 lock tests; 23 service + 1340 Python tests pass | (this batch) | — | 2026-06-30 |
 
 ---
 
