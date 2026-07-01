@@ -100,6 +100,14 @@ type Gateway struct {
 	// IG-2: per-tenant rate limiter (map[tenantID → *tenantBucket])
 	tenantLimiters sync.Map
 	perTenantRPS   int
+	// RATE-LIMIT-DOS: bound the number of distinct per-tenant buckets so an
+	// authenticated client cannot exhaust memory by flooding distinct tenant IDs.
+	// When >= maxTenantBuckets distinct tenants are active, additional new tenants
+	// share a single overflow bucket instead of each allocating their own.
+	// maxTenantBuckets <= 0 disables the cap (unbounded, legacy behavior).
+	maxTenantBuckets  int
+	tenantBucketCount atomic.Int64
+	overflowBucket    atomic.Pointer[tenantBucket]
 	// IG-3: bounded retry + circuit breaker on publish path
 	cb                *circuitBreaker
 	maxPublishRetries int
@@ -121,6 +129,7 @@ func main() {
 	publishTimeoutSecs := envInt("XDR_PUBLISH_TIMEOUT_SECONDS", 5)
 	maxRetries := envInt("XDR_PUBLISH_MAX_RETRIES", 3)
 	perTenantRPS := envInt("XDR_INGEST_PER_TENANT_RPS", envInt("XDR_INGEST_RPS", 50))
+	maxTenantBuckets := envInt("XDR_INGEST_MAX_TENANT_BUCKETS", 10000)
 	metricsPollSecs := envInt("XDR_NORMALIZER_METRICS_POLL_INTERVAL_SECONDS", 5)
 
 	gw := &Gateway{
@@ -131,6 +140,7 @@ func main() {
 		normalizerMetricsURL: env("XDR_NORMALIZER_METRICS_URL", ""),
 		maxNormalizerQueue: int64(envInt("XDR_MAX_NORMALIZER_QUEUE_DEPTH", 150000)),
 		perTenantRPS:       perTenantRPS,
+		maxTenantBuckets:   maxTenantBuckets,
 		cb:                 newCircuitBreaker(cbMaxFailures, time.Duration(cbOpenSecs)*time.Second),
 		maxPublishRetries:  maxRetries,
 		publishTimeoutSecs: publishTimeoutSecs,
@@ -211,10 +221,20 @@ func (g *Gateway) startTenantBucketRefiller() {
 		defer ticker.Stop()
 		for range ticker.C {
 			now := time.Now()
+			// RATE-LIMIT-DOS: refill the shared overflow bucket too (it is not in the map).
+			if ob := g.overflowBucket.Load(); ob != nil {
+				for len(ob.tokens) < ob.rps {
+					select {
+					case ob.tokens <- struct{}{}:
+					default:
+					}
+				}
+			}
 			g.tenantLimiters.Range(func(k, v any) bool {
 				b := v.(*tenantBucket)
 				if now.Sub(time.Unix(0, b.lastSeen.Load())) > idleTTL {
 					g.tenantLimiters.Delete(k)
+					g.tenantBucketCount.Add(-1) // RATE-LIMIT-DOS: keep the cap counter accurate
 					return true
 				}
 				for len(b.tokens) < b.rps {
@@ -236,8 +256,7 @@ func (g *Gateway) tenantAllowed(tenantID string) bool {
 	if tenantID == "" {
 		return true
 	}
-	actual, _ := g.tenantLimiters.LoadOrStore(tenantID, newTenantBucket(g.perTenantRPS))
-	b := actual.(*tenantBucket)
+	b := g.limiterFor(tenantID)
 	b.lastSeen.Store(time.Now().UnixNano())
 	select {
 	case <-b.tokens:
@@ -245,6 +264,36 @@ func (g *Gateway) tenantAllowed(tenantID string) bool {
 	default:
 		return false
 	}
+}
+
+// limiterFor returns the token bucket for a tenant (RATE-LIMIT-DOS).
+// Existing tenants always keep their own bucket. New tenants get a fresh bucket
+// until the distinct-bucket cap is reached, after which they share the overflow
+// bucket — bounding memory without rejecting legitimate multi-tenant traffic.
+func (g *Gateway) limiterFor(tenantID string) *tenantBucket {
+	if v, ok := g.tenantLimiters.Load(tenantID); ok {
+		return v.(*tenantBucket)
+	}
+	if g.maxTenantBuckets > 0 && g.tenantBucketCount.Load() >= int64(g.maxTenantBuckets) {
+		return g.getOverflowBucket()
+	}
+	actual, loaded := g.tenantLimiters.LoadOrStore(tenantID, newTenantBucket(g.perTenantRPS))
+	if !loaded {
+		g.tenantBucketCount.Add(1)
+	}
+	return actual.(*tenantBucket)
+}
+
+// getOverflowBucket lazily creates the single shared overflow bucket (RATE-LIMIT-DOS).
+func (g *Gateway) getOverflowBucket() *tenantBucket {
+	if ob := g.overflowBucket.Load(); ob != nil {
+		return ob
+	}
+	nb := newTenantBucket(g.perTenantRPS)
+	if g.overflowBucket.CompareAndSwap(nil, nb) {
+		return nb
+	}
+	return g.overflowBucket.Load()
 }
 
 func (g *Gateway) health(w http.ResponseWriter, r *http.Request) {
@@ -263,6 +312,8 @@ func (g *Gateway) metrics(w http.ResponseWriter, r *http.Request) {
 		"publish_errors":         g.publishErrors.Load(),
 		"retry_count":            g.retryCount.Load(),
 		"normalizer_queue_depth": g.normalizerQueueDepth.Load(),
+		"tenant_bucket_count":    g.tenantBucketCount.Load(),
+		"tenant_bucket_max":      g.maxTenantBuckets,
 	})
 }
 

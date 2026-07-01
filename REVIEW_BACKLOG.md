@@ -23,7 +23,9 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 >
 > **Completed (2026-07-01):** review-finding fixes `IOC-HITS-IDEMPOTENCY` (unique index + idempotent enrich), `AGENT-SECRET-DECRYPT-500` (guarded decrypt → 401), `RESP-POLICY-FAIL-OPEN` (fail-closed on malformed expiry). `ENV-CACHE-DRIFT-BATCH` runtime slice (integration adapters + TrustProxies + force_https) done; CLI/advisory slice remains. See REVIEW_COMPLETED.md.
 >
-> **Deferred (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`, `PERF-GO-HOT-HTTP`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), `RATE-LIMIT-DOS` (careful Go work), and AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → see REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
+> **Completed (2026-07-01, enterprise target):** `RATE-LIMIT-DOS` (bounded distinct per-tenant buckets + shared overflow) → this batch. See REVIEW_COMPLETED.md.
+>
+> **Deferred — enterprise roadmap, staged (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`, `PERF-GO-HOT-HTTP`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → in-scope for enterprise but each needs a dedicated validated effort. See REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
 
 
 

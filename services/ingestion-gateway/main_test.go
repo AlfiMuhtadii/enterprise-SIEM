@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -153,6 +154,56 @@ func TestTenantRateLimitIsolation(t *testing.T) {
 	// tenant-C (brand new) must also be immediately allowed.
 	if !gw.tenantAllowed("tenant-C") {
 		t.Error("tenant-C (new tenant) must not be blocked by tenant-A exhaustion")
+	}
+}
+
+func TestTenantBucketCapBoundsDistinctBuckets(t *testing.T) {
+	// RATE-LIMIT-DOS: with a cap of 2, flooding 100 distinct tenant IDs must never
+	// allocate more than 2 per-tenant buckets.
+	gw := &Gateway{perTenantRPS: 5, maxTenantBuckets: 2}
+	for i := 0; i < 100; i++ {
+		gw.tenantAllowed(fmt.Sprintf("flood-tenant-%d", i))
+	}
+	if got := gw.tenantBucketCount.Load(); got > 2 {
+		t.Errorf("tenant bucket count = %d, must not exceed cap of 2", got)
+	}
+}
+
+func TestTenantBucketCapDisabledWhenZero(t *testing.T) {
+	// maxTenantBuckets = 0 preserves legacy unbounded behavior.
+	gw := &Gateway{perTenantRPS: 5, maxTenantBuckets: 0}
+	for i := 0; i < 10; i++ {
+		gw.tenantAllowed(fmt.Sprintf("t-%d", i))
+	}
+	if got := gw.tenantBucketCount.Load(); got != 10 {
+		t.Errorf("with cap disabled, expected 10 distinct buckets, got %d", got)
+	}
+}
+
+func TestExistingTenantKeepsOwnBucketBeyondCap(t *testing.T) {
+	gw := &Gateway{perTenantRPS: 3, maxTenantBuckets: 1}
+	// tenant-A registers first and owns the only capped slot.
+	gw.tenantAllowed("tenant-A")
+	// Flood past the cap.
+	for i := 0; i < 20; i++ {
+		gw.tenantAllowed(fmt.Sprintf("other-%d", i))
+	}
+	// tenant-A must still resolve to its OWN bucket (present in the map), not overflow.
+	if _, ok := gw.tenantLimiters.Load("tenant-A"); !ok {
+		t.Error("existing tenant-A lost its dedicated bucket after the cap was reached")
+	}
+}
+
+func TestOverflowTenantsShareRateLimit(t *testing.T) {
+	gw := &Gateway{perTenantRPS: 3, maxTenantBuckets: 1}
+	gw.tenantAllowed("owner") // consumes the single capped slot
+	// Drain the shared overflow bucket via one overflow tenant.
+	for i := 0; i < 3; i++ {
+		gw.tenantAllowed("overflow-1")
+	}
+	// A different overflow tenant shares the (now drained) bucket → must be throttled.
+	if gw.tenantAllowed("overflow-2") {
+		t.Error("overflow tenants must share a single rate-limited bucket")
 	}
 }
 

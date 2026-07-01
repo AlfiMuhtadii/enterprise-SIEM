@@ -143,14 +143,17 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 
 ---
 
-### BATCH-DEFER-2026-07-01: Hot-path Go, core-pipeline rearchitecture, and AI live-model tasks
+### BATCH-DEFER-2026-07-01: Enterprise-roadmap — hot-path Go, core-pipeline rearchitecture, AI live-model
 
-The following backlog items are **valid enterprise concerns** but are Deferred (not
-Rejected) because they either (a) touch the hot ingestion/correlation path that per
-CLAUDE.md requires Go tests + a live-pipeline verifier and carry real regression risk
-to the demo that anchors the thesis, (b) are major architectural rewrites out of scope
-for the current single-node academic/demo posture, or (c) conflict with the intentional
-offline-first AI design. Verified/triaged 2026-07-01.
+**Target reframed to enterprise demo (2026-07-01):** these are now **in-scope enterprise
+roadmap** items (no longer "out of scope for academic posture"), but remain **staged**
+(Deferred) because they either (a) touch the hot ingestion/correlation path that per
+CLAUDE.md requires Go tests + a live-pipeline verifier and carry real regression risk to
+the running demo, (b) are major architectural rewrites (multi-node infra) that need
+their own design + staged validation, or (c) require external ML infra. Each should be
+picked up as a dedicated, validated effort — not a batch. Hard safety boundaries in
+CLAUDE.md (no active containment / autonomous response, shadow-rule soak gates) still
+apply regardless of target. Triaged 2026-07-01.
 
 - **PERF-GO-LIMITER** — the channel+ticker token bucket (IG-2) is correct and was just hardened (IG-2/IG-DOS); an atomic time-delta rewrite risks regressing it for negligible benefit at demo RPS.
 - **PERF-GO-OVERCONCURRENT** — per-batch goroutine/channel allocation only causes GC churn at high sustained RPS (not the academic/demo profile).
@@ -160,7 +163,6 @@ offline-first AI design. Verified/triaged 2026-07-01.
 - **ARCH-DB-SPLIT** — routing raw/normalized telemetry to a ClickHouse OLAP cluster and reserving PG for OLTP is an infrastructure redesign beyond Docker-Compose demo scope.
 - **ARCH-MTLS-SEC** — mutual TLS for service-to-service traffic belongs in a production/K8s deployment manifest, not the local demo compose (traffic is already loopback-bound).
 - **ARCH-DISCOVERY** — dynamic DNS/service discovery / internal LBs are a multi-node production concern; single-node compose uses static hostnames by design.
-- **RATE-LIMIT-DOS** — valid (an authenticated client can spam distinct tenant_ids to allocate buckets; HMAC gating + TTL eviction already bound it). The right fix is a bounded cap on distinct tenant buckets, but it touches the just-hardened IG-2 limiter → do carefully with Go tests, not in a batch.
 - **AI-KB-SEMANTIC** — the Qdrant path + embeddings + cosine ranking already exist (`SocKnowledgeRetriever::retrieveQdrant`, `soc_knowledge_embeddings`); only a live transformer embedding model is missing, which requires external ML infra and conflicts with the intentional offline-first design (see KNOWN_LIMITATIONS §7).
 - **AI-KB-FEED-INGEST** — live MITRE/RSS ingestion adds an external network dependency + scheduler against the offline-first posture; should be re-scoped as a bundled offline dataset import instead.
 
