@@ -18,6 +18,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -219,6 +220,7 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
 		"ioc_lookup_total":        iocLookupTotal.Load(),
 		"ioc_match_total":         iocMatchTotal.Load(),
+		"ioc_cache_hits":          iocCacheHits.Load(),
 		"dlq_written":             w.dlqWritten.Load(),
 		"dlq_write_errors":        w.dlqWriteErrors.Load(),
 		"input_topic":             w.inputTopic,
@@ -971,13 +973,84 @@ func envInt(name string, fallback int) int {
 var (
 	iocLookupTotal atomic.Int64
 	iocMatchTotal  atomic.Int64
+	iocCacheHits   atomic.Int64
 	iocHTTPClient  = &http.Client{Timeout: 3 * time.Second}
+	// PERF-GO-HOT-HTTP: cache definitive IOC lookup results so repeated indicators
+	// (common in a batch) don't re-issue a synchronous HTTP GET on every call.
+	globalIOCCache = newIOCCache(
+		time.Duration(envInt("XDR_IOC_CACHE_TTL_SECONDS", 60))*time.Second,
+		envInt("XDR_IOC_CACHE_MAX", 10000),
+	)
 )
+
+// iocCacheEntry is a cached lookup result (result == nil means a definitive
+// no-match). Errors/transient failures are never cached (they are retried).
+type iocCacheEntry struct {
+	result  map[string]any
+	expires time.Time
+}
+
+// iocCache is a bounded, TTL, thread-safe cache for IOC lookups (PERF-GO-HOT-HTTP).
+type iocCache struct {
+	mu      sync.RWMutex
+	entries map[string]iocCacheEntry
+	ttl     time.Duration
+	max     int
+}
+
+func newIOCCache(ttl time.Duration, max int) *iocCache {
+	return &iocCache{entries: make(map[string]iocCacheEntry), ttl: ttl, max: max}
+}
+
+func (c *iocCache) get(key string) (map[string]any, bool) {
+	c.mu.RLock()
+	e, ok := c.entries[key]
+	c.mu.RUnlock()
+	if !ok || time.Now().After(e.expires) {
+		return nil, false
+	}
+	return e.result, true
+}
+
+func (c *iocCache) set(key string, result map[string]any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.max > 0 && len(c.entries) >= c.max {
+		// Bounded: drop expired entries first; if still at capacity, skip caching
+		// (the live lookup already returned a value, we just don't grow the map).
+		now := time.Now()
+		for k, e := range c.entries {
+			if now.After(e.expires) {
+				delete(c.entries, k)
+			}
+		}
+		if len(c.entries) >= c.max {
+			return
+		}
+	}
+	c.entries[key] = iocCacheEntry{result: result, expires: time.Now().Add(c.ttl)}
+}
 
 func lookupIOC(iocURL, iocType, value string) map[string]any {
 	if iocURL == "" || value == "" {
 		return nil
 	}
+	key := iocType + "|" + value
+	if cached, ok := globalIOCCache.get(key); ok {
+		iocCacheHits.Add(1)
+		return cached
+	}
+	result, cacheable := fetchIOC(iocURL, iocType, value)
+	if cacheable {
+		globalIOCCache.set(key, result)
+	}
+	return result
+}
+
+// fetchIOC performs the synchronous HTTP lookup. The bool return is true only for
+// a definitive HTTP-200 outcome (match or explicit no-match), which is safe to
+// cache; transient errors/non-200 return false so they are not cached.
+func fetchIOC(iocURL, iocType, value string) (map[string]any, bool) {
 	iocLookupTotal.Add(1)
 	queryURL := fmt.Sprintf("%s/v1/lookup?type=%s&value=%s",
 		strings.TrimRight(iocURL, "/"),
@@ -985,26 +1058,26 @@ func lookupIOC(iocURL, iocType, value string) map[string]any {
 		url.QueryEscape(value))
 	req, err := http.NewRequest(http.MethodGet, queryURL, nil)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	resp, err := iocHTTPClient.Do(req)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil
+		return nil, false
 	}
 	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil
+		return nil, false
 	}
 	matched, _ := result["matched"].(bool)
 	if !matched {
-		return nil
+		return nil, true
 	}
 	iocMatchTotal.Add(1)
-	return result
+	return result, true
 }
 
 func iocSeverity(ioc map[string]any) string {

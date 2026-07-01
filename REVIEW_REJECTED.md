@@ -157,7 +157,6 @@ apply regardless of target. Triaged 2026-07-01.
 
 - **PERF-GO-LIMITER** — the channel+ticker token bucket (IG-2) is correct and was just hardened (IG-2/IG-DOS); an atomic time-delta rewrite risks regressing it for negligible benefit at demo RPS.
 - **PERF-GO-OVERCONCURRENT** — per-batch goroutine/channel allocation only causes GC churn at high sustained RPS (not the academic/demo profile).
-- **PERF-GO-HOT-HTTP** — real (correlation worker does synchronous IOC HTTP lookups in the hot loop); a thread-safe cache is worthwhile but needs Go tests + live verifier.
 - **PERF-REST-POLL** / **ARCH-KAFKA-NATIVE** — moving the Go workers from Pandaproxy HTTP REST to the native binary Kafka protocol is a **major rearchitecture** of the core event pipeline (produce/consume, offset recovery, poison-message DLQ — all recently hardened). Pandaproxy REST was chosen deliberately for demo simplicity.
 - **PERF-REST-REBALANCE** — static consumer instance IDs to avoid REST rebalance storms; valid, but changes the recently-hardened consumer-offset-recovery path — needs live-pipeline validation.
 - **ARCH-DB-SPLIT** — routing raw/normalized telemetry to a ClickHouse OLAP cluster and reserving PG for OLTP is an infrastructure redesign beyond Docker-Compose demo scope.
