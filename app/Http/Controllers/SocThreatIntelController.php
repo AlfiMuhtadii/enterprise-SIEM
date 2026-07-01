@@ -173,9 +173,10 @@ class SocThreatIntelController extends Controller
      * iteration, so an alert matching multiple IOCs only persisted the LAST
      * match. Accumulating per-alert evidence in memory persists all matches.
      *
-     * Semantics preserved: $hits counts every match (not only new inserts);
-     * ioc_hits has no unique key, so inserts are NOT de-duplicated (a repeated
-     * enrich run appends rows again, matching prior behavior).
+     * Semantics: $hits counts every match (not only new inserts). ioc_hits has a
+     * unique (ioc_id, alert_id) index (IOC-HITS-IDEMPOTENCY), so insertOrIgnore
+     * de-duplicates — re-running enrichment is idempotent and does not append
+     * duplicate hit rows.
      */
     private function matchIocs(): int
     {

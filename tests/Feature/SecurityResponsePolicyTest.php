@@ -95,6 +95,27 @@ class SecurityResponsePolicyTest extends TestCase
     /**
      * @param array<string, array<string, string>> $entries
      */
+    public function test_malformed_expiry_is_treated_as_inactive_fail_closed(): void
+    {
+        // RESP-POLICY-FAIL-OPEN: a malformed (non-empty) expires_at must be treated
+        // as expired/inactive, not active-forever. null/empty stays permanent.
+        $this->writePolicy('block_ips', [
+            '10.0.0.1' => ['expires_at' => 'not-a-real-date', 'reason' => 'malformed'],
+            '10.0.0.2' => ['expires_at' => null, 'reason' => 'permanent'],
+            '10.0.0.3' => ['expires_at' => now()->addDay()->toIso8601String()],
+            '10.0.0.4' => ['expires_at' => now()->subDay()->toIso8601String()],
+        ]);
+
+        $this->assertFalse(\App\Support\SecurityResponsePolicy::isIpFlagged('block_ips', '10.0.0.1'), 'malformed expiry must fail-closed');
+        $this->assertTrue(\App\Support\SecurityResponsePolicy::isIpFlagged('block_ips', '10.0.0.2'), 'null expiry = permanent');
+        $this->assertTrue(\App\Support\SecurityResponsePolicy::isIpFlagged('block_ips', '10.0.0.3'), 'future expiry = active');
+        $this->assertFalse(\App\Support\SecurityResponsePolicy::isIpFlagged('block_ips', '10.0.0.4'), 'past expiry = inactive');
+
+        $active = \App\Support\SecurityResponsePolicy::activeEntries('block_ips');
+        $this->assertArrayNotHasKey('10.0.0.1', $active);
+        $this->assertArrayHasKey('10.0.0.2', $active);
+    }
+
     private function writePolicy(string $name, array $entries): void
     {
         File::put(

@@ -118,16 +118,17 @@ class PerfIocLoopTest extends TestCase
         $this->assertArrayNotHasKey('ioc_matches', $evidence);
     }
 
-    public function test_repeated_enrich_appends_hits_no_unique_dedup(): void
+    public function test_repeated_enrich_is_idempotent(): void
     {
-        // ioc_hits has no unique key — behavior is plain insert, not de-dup.
+        // IOC-HITS-IDEMPOTENCY: unique (ioc_id, alert_id) index means re-running
+        // enrichment does NOT append duplicate hit rows.
         $this->seedAlert('alert-rep', '203.0.113.50');
         $this->seedIoc('ip', '203.0.113.50');
 
         $this->enrich();
         $this->enrich();
 
-        $this->assertSame(2, DB::table('ioc_hits')->where('alert_id', 'alert-rep')->count());
+        $this->assertSame(1, DB::table('ioc_hits')->where('alert_id', 'alert-rep')->count());
     }
 
     public function test_matching_is_case_insensitive_after_prelowercase(): void

@@ -102,6 +102,24 @@ class PerfAgentN1Test extends TestCase
         $this->assertSame(0, DB::table('agent_commands')->count());
     }
 
+    public function test_corrupted_agent_secret_returns_401_not_500(): void
+    {
+        // AGENT-SECRET-DECRYPT-500: a stored secret that cannot be decrypted (e.g.
+        // APP_KEY rotation / corruption) must yield a graceful 401, not a 500.
+        $agent = $this->registerAgent('fp-corrupt', 'host-corrupt');
+        DB::table('endpoint_agents')->where('agent_id', $agent['agent_id'])
+            ->update(['agent_secret' => 'not-a-valid-laravel-ciphertext']);
+
+        // Client still signs with the original secret; server fails to decrypt the DB copy.
+        $this->postSignedAgentJson('/api/agents/config', $agent['agent_id'], $agent['agent_secret'], [])
+            ->assertStatus(401);
+
+        $this->assertDatabaseHas('agent_delivery_failures', [
+            'agent_id' => $agent['agent_id'],
+            'failure_type' => 'secret_decrypt_failed',
+        ]);
+    }
+
     // ---- PERF-AGENT-HEALTH-N1 ----------------------------------------------
 
     private function seedAgent(string $agentId, array $overrides = []): void

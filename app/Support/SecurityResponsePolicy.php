@@ -160,7 +160,10 @@ class SecurityResponsePolicy
         try {
             return CarbonImmutable::parse($expiresAt)->isFuture();
         } catch (\Throwable) {
-            return true;
+            // RESP-POLICY-FAIL-OPEN: a malformed (non-empty) expiry is treated as
+            // expired/inactive (fail-closed) rather than active-forever. A null or
+            // empty expires_at still means "no expiry" (handled above).
+            return false;
         }
     }
 }

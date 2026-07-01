@@ -23,9 +23,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ARCH-MTLS-SEC** | [ARCH] Implement Mutual TLS (mTLS) for secure service-to-service internal container communications | Docker / Network config | High | Proposed |
 | **ARCH-DISCOVERY** | [ARCH] Integrate dynamic DNS-based service discovery or internal load balancers | Network configuration | Medium | Proposed |
 | **ENV-CACHE-DRIFT-BATCH** | [CONFIG] Migrate remaining ~25 direct `env()` calls in `app/` to `config()` — under `php artisan config:cache` these return empty/default and silently break (integration adapter creds: Jira/PagerDuty/Slack/ServiceNow; normalizer URLs; correlation-engine flags; TrustProxies; DLQ replay token). Same class as the fixed ENV-CACHE-DRIFT. | `app/Services/Integrations/*`, `ResilienceValidationService.php`, `Phase1SoakExecutionService.php`, `DlqReplayCommand.php`, `TrustProxies.php`, + ~8 more | Medium | Proposed |
-| **IOC-HITS-IDEMPOTENCY** | [DATA] `ioc_hits` has no unique constraint on `(ioc_id, alert_id)`, so `matchIocs()` `insertOrIgnore` never de-dups — re-running `POST /soc/threat-intel/enrich` inserts duplicate hit rows every time (inflated counts + unbounded table growth). Add a unique index + make enrichment idempotent. | migration for `ioc_hits`, `app/Http/Controllers/SocThreatIntelController.php` | Medium | Proposed |
-| **AGENT-SECRET-DECRYPT-500** | [ROBUSTNESS] `AgentIngestionController::verifiedAgent()` calls `Crypt::decryptString($agent->agent_secret)` unguarded (line ~297) — a corrupted secret or an `APP_KEY` rotation throws `DecryptException` → unhandled HTTP 500 for that agent instead of a graceful 401. Wrap in try/catch and `recordFailure()` → return null. | `app/Http/Controllers/AgentIngestionController.php` | Medium | Proposed |
-| **RESP-POLICY-FAIL-OPEN** | [SECURITY] `SecurityResponsePolicy::recordIsActive()` returns `true` (active) when `expires_at` is unparseable (`catch → return true`) — fail-open: a policy/allowlist entry with a malformed expiry stays active indefinitely. Consider fail-closed (return false) or validate on write. | `app/Support/SecurityResponsePolicy.php` | Low | Proposed |
 
 
 
@@ -35,6 +32,8 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). The 5 hardening tasks (ENV-CACHE-DRIFT, CMD-SHARED-HMAC, AGENT-TENANCY-GAP, TENANT-UNSCOPED-TABLES, RATE-LIMIT-BYPASS) → COMPLETED at `4ee9675`. See REVIEW_REJECTED.md / REVIEW_COMPLETED.md.
 >
 > **Completed (2026-06-30):** `NOTIFY-TENANCY-GAP` → `5db597c`. `PERF-IOC-LOOP` + `PERF-ALERT-TUNE` (alert-write-path N+1 → bulk) → `1e4bc3c`. `PERF-AGENT-UPDATE` + `PERF-AGENT-HEALTH-N1` (agent-management N+1 → bulk/eager-load) → this batch. See REVIEW_COMPLETED.md.
+>
+> **Completed (2026-07-01):** review-finding fixes `IOC-HITS-IDEMPOTENCY` (unique index + idempotent enrich), `AGENT-SECRET-DECRYPT-500` (guarded decrypt → 401), `RESP-POLICY-FAIL-OPEN` (fail-closed on malformed expiry). `ENV-CACHE-DRIFT-BATCH` remains open (larger config migration). See REVIEW_COMPLETED.md.
 
 
 

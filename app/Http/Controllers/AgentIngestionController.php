@@ -294,7 +294,15 @@ class AgentIngestionController extends Controller
             return null;
         }
 
-        $secret = Crypt::decryptString($agent->agent_secret);
+        // AGENT-SECRET-DECRYPT-500: a corrupted stored secret or an APP_KEY rotation
+        // makes decryptString throw DecryptException. Treat it as an auth failure
+        // (401) rather than letting it bubble up as an unhandled HTTP 500.
+        try {
+            $secret = Crypt::decryptString($agent->agent_secret);
+        } catch (\Throwable $e) {
+            $this->recordFailure($agentId, 'secret_decrypt_failed', 'Agent secret could not be decrypted (possible APP_KEY rotation or corruption)', []);
+            return null;
+        }
         $expected = hash_hmac('sha256', $timestamp.'.'.$request->getContent(), $secret);
         if (!hash_equals($expected, $signature)) {
             $this->recordFailure($agentId, 'bad_signature', 'Invalid payload signature', []);
