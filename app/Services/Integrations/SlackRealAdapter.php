@@ -23,8 +23,8 @@ class SlackRealAdapter
 
     public function __construct()
     {
-        $this->webhookUrl = (string) env('XDR_SLACK_WEBHOOK_URL', '');
-        $this->dryRun     = filter_var(env('XDR_SLACK_DRY_RUN', 'true'), FILTER_VALIDATE_BOOLEAN);
+        $this->webhookUrl = (string) config('integrations.slack.webhook_url', '');
+        $this->dryRun     = (bool) config('integrations.slack.dry_run', true);
     }
 
     public function isConfigured(): bool

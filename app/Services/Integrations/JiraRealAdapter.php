@@ -28,11 +28,11 @@ class JiraRealAdapter
 
     public function __construct()
     {
-        $this->jiraUrl    = rtrim((string) env('XDR_JIRA_URL', ''), '/');
-        $this->email      = (string) env('XDR_JIRA_EMAIL', '');
-        $this->apiToken   = (string) env('XDR_JIRA_API_TOKEN', '');
-        $this->projectKey = (string) env('XDR_JIRA_PROJECT_KEY', 'SOC');
-        $this->dryRun     = filter_var(env('XDR_JIRA_DRY_RUN', 'true'), FILTER_VALIDATE_BOOLEAN);
+        $this->jiraUrl    = rtrim((string) config('integrations.jira.url', ''), '/');
+        $this->email      = (string) config('integrations.jira.email', '');
+        $this->apiToken   = (string) config('integrations.jira.api_token', '');
+        $this->projectKey = (string) config('integrations.jira.project_key', 'SOC');
+        $this->dryRun     = (bool) config('integrations.jira.dry_run', true);
     }
 
     public function isConfigured(): bool

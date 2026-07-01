@@ -35,7 +35,9 @@ class TrustProxies extends Middleware
      */
     private function resolveTrustedProxies(): array|string|null
     {
-        $value = (string) env('TRUSTED_PROXIES', '127.0.0.1,::1');
+        // ENV-CACHE-DRIFT-BATCH: read via config so a custom TRUSTED_PROXIES value
+        // survives `php artisan config:cache` (env() would return the default there).
+        $value = (string) config('xdr.trusted_proxies', '127.0.0.1,::1');
         $value = trim($value);
 
         if ($value === '') {

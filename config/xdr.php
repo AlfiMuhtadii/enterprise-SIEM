@@ -119,6 +119,13 @@ return [
     // Set XDR_INTERNAL_AUTH_SECRET in .env (32+ random bytes recommended).
     // Falls back to APP_KEY when unset.
     'internal_auth_secret' => env('XDR_INTERNAL_AUTH_SECRET', ''),
+
+    // ENV-CACHE-DRIFT-BATCH: read via config so a custom value survives config:cache.
+    // Comma-separated list, or '*', or empty for none.
+    'trusted_proxies' => env('TRUSTED_PROXIES', '127.0.0.1,::1'),
+
+    // Force HTTPS in production (respected only when app.env === 'production').
+    'force_https' => env('APP_FORCE_HTTPS', false),
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],
         'incidents_workflow_rbac' => ['driver' => 'postgresql', 'retention_days' => 365],

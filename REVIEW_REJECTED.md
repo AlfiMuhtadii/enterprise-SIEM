@@ -143,6 +143,32 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 
 ---
 
+### BATCH-DEFER-2026-07-01: Hot-path Go, core-pipeline rearchitecture, and AI live-model tasks
+
+The following backlog items are **valid enterprise concerns** but are Deferred (not
+Rejected) because they either (a) touch the hot ingestion/correlation path that per
+CLAUDE.md requires Go tests + a live-pipeline verifier and carry real regression risk
+to the demo that anchors the thesis, (b) are major architectural rewrites out of scope
+for the current single-node academic/demo posture, or (c) conflict with the intentional
+offline-first AI design. Verified/triaged 2026-07-01.
+
+- **PERF-GO-LIMITER** — the channel+ticker token bucket (IG-2) is correct and was just hardened (IG-2/IG-DOS); an atomic time-delta rewrite risks regressing it for negligible benefit at demo RPS.
+- **PERF-GO-OVERCONCURRENT** — per-batch goroutine/channel allocation only causes GC churn at high sustained RPS (not the academic/demo profile).
+- **PERF-GO-HOT-HTTP** — real (correlation worker does synchronous IOC HTTP lookups in the hot loop); a thread-safe cache is worthwhile but needs Go tests + live verifier.
+- **PERF-REST-POLL** / **ARCH-KAFKA-NATIVE** — moving the Go workers from Pandaproxy HTTP REST to the native binary Kafka protocol is a **major rearchitecture** of the core event pipeline (produce/consume, offset recovery, poison-message DLQ — all recently hardened). Pandaproxy REST was chosen deliberately for demo simplicity.
+- **PERF-REST-REBALANCE** — static consumer instance IDs to avoid REST rebalance storms; valid, but changes the recently-hardened consumer-offset-recovery path — needs live-pipeline validation.
+- **ARCH-DB-SPLIT** — routing raw/normalized telemetry to a ClickHouse OLAP cluster and reserving PG for OLTP is an infrastructure redesign beyond Docker-Compose demo scope.
+- **ARCH-MTLS-SEC** — mutual TLS for service-to-service traffic belongs in a production/K8s deployment manifest, not the local demo compose (traffic is already loopback-bound).
+- **ARCH-DISCOVERY** — dynamic DNS/service discovery / internal LBs are a multi-node production concern; single-node compose uses static hostnames by design.
+- **RATE-LIMIT-DOS** — valid (an authenticated client can spam distinct tenant_ids to allocate buckets; HMAC gating + TTL eviction already bound it). The right fix is a bounded cap on distinct tenant buckets, but it touches the just-hardened IG-2 limiter → do carefully with Go tests, not in a batch.
+- **AI-KB-SEMANTIC** — the Qdrant path + embeddings + cosine ranking already exist (`SocKnowledgeRetriever::retrieveQdrant`, `soc_knowledge_embeddings`); only a live transformer embedding model is missing, which requires external ML infra and conflicts with the intentional offline-first design (see KNOWN_LIMITATIONS §7).
+- **AI-KB-FEED-INGEST** — live MITRE/RSS ingestion adds an external network dependency + scheduler against the offline-first posture; should be re-scoped as a bundled offline dataset import instead.
+
+**Production gate (all):** revisit when moving to a multi-node / production deployment
+with load testing; the Go hot-path items require a live-pipeline verifier run per CLAUDE.md.
+
+---
+
 ### INFRA-3: No memory/CPU limits on intensive containers
 
 - **Category**: Enterprise Reliability / Production Hardening

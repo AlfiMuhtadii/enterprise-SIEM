@@ -25,8 +25,8 @@ class PagerDutyRealAdapter
 
     public function __construct()
     {
-        $this->routingKey = (string) env('XDR_PAGERDUTY_ROUTING_KEY', '');
-        $this->dryRun     = filter_var(env('XDR_PAGERDUTY_DRY_RUN', 'true'), FILTER_VALIDATE_BOOLEAN);
+        $this->routingKey = (string) config('integrations.pagerduty.routing_key', '');
+        $this->dryRun     = (bool) config('integrations.pagerduty.dry_run', true);
     }
 
     public function isConfigured(): bool

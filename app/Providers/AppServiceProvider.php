@@ -20,7 +20,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (config('app.env') === 'production' && filter_var(env('APP_FORCE_HTTPS', false), FILTER_VALIDATE_BOOL)) {
+        // ENV-CACHE-DRIFT-BATCH: config-cache-safe (env() in a provider returns null
+        // once config is cached).
+        if (config('app.env') === 'production' && filter_var(config('xdr.force_https', false), FILTER_VALIDATE_BOOL)) {
             URL::forceScheme('https');
         }
     }

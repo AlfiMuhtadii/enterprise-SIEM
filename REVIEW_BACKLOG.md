@@ -9,20 +9,8 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 | Task ID | Title | File / Component | Priority | Status |
 |---|---|---|---|---|
-| **AI-KB-SEMANTIC** | [AI-KB] Implement Qdrant vector semantic search and sentence embedding pipeline | `app/Support/SocKnowledgeRetriever.php`, Qdrant config | High | Proposed |
-| **AI-KB-FEED-INGEST** | [AI-KB] Build MITRE ATT&CK and threat intelligence RSS feed dynamic ingestion pipeline | `app/Services/AiKnowledgeSeedService.php`, `AiSeedKnowledgeCommand.php` | Medium | Proposed |
 | **AI-KB-FEEDBACK-LOOP** | [AI-KB] Create closed-loop analyst feedback ingestion service for approved suggestions | `app/Http/Controllers/SocAiController.php`, `app/Support/AiAnalystManager.php` | Low | Proposed |
-| **PERF-GO-LIMITER** | [PERF] Refactor Go ingestion rate limiters to use mathematical time-delta calculations instead of channel loops | `services/ingestion-gateway/main.go` | High | Proposed |
-| **RATE-LIMIT-DOS** | [INGESTION] Restrict rate limiter instantiation to verified tenants to prevent memory exhaustion DoS | `services/ingestion-gateway/main.go` | High | Proposed |
-| **PERF-REST-POLL** | [PERF] Refactor Go workers (normalizer / correlation) to use native binary Kafka protocol instead of HTTP REST | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
-| **PERF-GO-OVERCONCURRENT** | [PERF] Eliminate per-batch goroutine and channel allocations in Go workers to avoid GC churn | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | Medium | Proposed |
-| **PERF-GO-HOT-HTTP** | [PERF] Refactor hot-loop synchronous HTTP IOC lookups to use thread-safe in-memory cache | `services/correlation-worker/main.go` | High | Proposed |
-| **PERF-REST-REBALANCE** | [PERF] Use static consumer instance IDs in Go workers to prevent Kafka REST rebalance storms | `services/normalizer-worker/main.go`, `services/correlation-worker/main.go` | High | Proposed |
-| **ARCH-KAFKA-NATIVE** | [ARCH] Replace Pandaproxy REST calls in Go workers with Native Kafka client binary protocol | `services/ingestion-gateway/*`, Go workers | High | Proposed |
-| **ARCH-DB-SPLIT** | [ARCH] Route high-throughput streaming telemetries to ClickHouse OLAP and reserve PG for relational OLTP | `services/alert-writer-service/main.py`, Clickhouse | High | Proposed |
-| **ARCH-MTLS-SEC** | [ARCH] Implement Mutual TLS (mTLS) for secure service-to-service internal container communications | Docker / Network config | High | Proposed |
-| **ARCH-DISCOVERY** | [ARCH] Integrate dynamic DNS-based service discovery or internal load balancers | Network configuration | Medium | Proposed |
-| **ENV-CACHE-DRIFT-BATCH** | [CONFIG] Migrate remaining ~25 direct `env()` calls in `app/` to `config()` — under `php artisan config:cache` these return empty/default and silently break (integration adapter creds: Jira/PagerDuty/Slack/ServiceNow; normalizer URLs; correlation-engine flags; TrustProxies; DLQ replay token). Same class as the fixed ENV-CACHE-DRIFT. | `app/Services/Integrations/*`, `ResilienceValidationService.php`, `Phase1SoakExecutionService.php`, `DlqReplayCommand.php`, `TrustProxies.php`, + ~8 more | Medium | Proposed |
+| **ENV-CACHE-DRIFT-BATCH** | [CONFIG] (Partial — runtime slice done 2026-07-01) Migrate remaining direct `env()` calls in `app/` to `config()`. DONE: 4 integration adapters (→ `config/integrations.php`), `TrustProxies`, `AppServiceProvider` force_https. REMAINING: CLI/advisory tooling (`ResilienceValidationService`, `Phase1SoakExecutionService`, `RealDomainSoakPlanService`, `EndpointSoakPlanService`, `Ops/TenantBackfill` commands, `SecurityHardeningController`) — several map to existing `config/xdr.php` keys whose defaults must be reconciled first. | `app/Services/*`, `app/Console/Commands/*`, `app/Http/Controllers/Security/SecurityHardeningController.php` | Medium | Proposed |
 
 
 
@@ -33,7 +21,9 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 >
 > **Completed (2026-06-30):** `NOTIFY-TENANCY-GAP` → `5db597c`. `PERF-IOC-LOOP` + `PERF-ALERT-TUNE` (alert-write-path N+1 → bulk) → `1e4bc3c`. `PERF-AGENT-UPDATE` + `PERF-AGENT-HEALTH-N1` (agent-management N+1 → bulk/eager-load) → this batch. See REVIEW_COMPLETED.md.
 >
-> **Completed (2026-07-01):** review-finding fixes `IOC-HITS-IDEMPOTENCY` (unique index + idempotent enrich), `AGENT-SECRET-DECRYPT-500` (guarded decrypt → 401), `RESP-POLICY-FAIL-OPEN` (fail-closed on malformed expiry). `ENV-CACHE-DRIFT-BATCH` remains open (larger config migration). See REVIEW_COMPLETED.md.
+> **Completed (2026-07-01):** review-finding fixes `IOC-HITS-IDEMPOTENCY` (unique index + idempotent enrich), `AGENT-SECRET-DECRYPT-500` (guarded decrypt → 401), `RESP-POLICY-FAIL-OPEN` (fail-closed on malformed expiry). `ENV-CACHE-DRIFT-BATCH` runtime slice (integration adapters + TrustProxies + force_https) done; CLI/advisory slice remains. See REVIEW_COMPLETED.md.
+>
+> **Deferred (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`, `PERF-GO-HOT-HTTP`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), `RATE-LIMIT-DOS` (careful Go work), and AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → see REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
 
 
 

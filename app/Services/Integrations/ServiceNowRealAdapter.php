@@ -26,10 +26,10 @@ class ServiceNowRealAdapter
 
     public function __construct()
     {
-        $this->instanceUrl = rtrim((string) env('XDR_SERVICENOW_URL', ''), '/');
-        $this->user        = (string) env('XDR_SERVICENOW_USER', '');
-        $this->password    = (string) env('XDR_SERVICENOW_PASSWORD', '');
-        $this->dryRun      = filter_var(env('XDR_SERVICENOW_DRY_RUN', 'true'), FILTER_VALIDATE_BOOLEAN);
+        $this->instanceUrl = rtrim((string) config('integrations.servicenow.url', ''), '/');
+        $this->user        = (string) config('integrations.servicenow.user', '');
+        $this->password    = (string) config('integrations.servicenow.password', '');
+        $this->dryRun      = (bool) config('integrations.servicenow.dry_run', true);
     }
 
     public function isConfigured(): bool
