@@ -13,7 +13,7 @@
 | PHP Feature Tests | **PASS** | 4274+ passed, 0 failures | `php artisan migrate:fresh --force && php artisan test` |
 | Python Endpoint Agent | **PASS** | 186 passed, 0 failures | `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v` |
 
-PHP count: last full-suite verification **4538** (2026-06-30). Python suites total **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342).
+PHP count: last full-suite verification **4544** (2026-06-30). Python suites total **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342).
 
 ---
 

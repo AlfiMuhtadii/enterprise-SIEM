@@ -4,6 +4,32 @@ All notable changes to this project are documented here. This project follows a 
 
 ---
 
+## [1.0.0-rc4] — 2026-07-02
+
+**Positioning:** demo target reframed from *thesis demo* → **enterprise demo**. Deferred
+hot-path/architecture items are now tracked as **enterprise roadmap** (staged, in-scope),
+not "out of scope for academic posture". The hard safety boundaries (no active
+containment / autonomous response, shadow-rule soak gates) remain in force regardless of
+target.
+
+### Fixed (review findings)
+- **IOC-HITS-IDEMPOTENCY**: `ioc_hits` had no unique key, so re-running IOC enrichment appended duplicate rows. Added a dedup-first migration + unique `(ioc_id, alert_id)` index → `insertOrIgnore` now de-dups (idempotent enrichment).
+- **AGENT-SECRET-DECRYPT-500**: `AgentIngestionController::verifiedAgent()` now guards `Crypt::decryptString()` → graceful 401 (`secret_decrypt_failed`) instead of an unhandled 500 on a corrupt secret / APP_KEY rotation.
+- **RESP-POLICY-FAIL-OPEN**: `SecurityResponsePolicy::recordIsActive()` now fails **closed** on an unparseable `expires_at` (was active-forever); null/empty still = permanent.
+
+### Added / Changed (enterprise hardening)
+- **RATE-LIMIT-DOS** (ingestion-gateway): bounded distinct per-tenant rate-limiter buckets (`XDR_INGEST_MAX_TENANT_BUCKETS`, default 10000). Beyond the cap, new tenant IDs share a lazily-created overflow bucket (still rate-limited) so an authenticated client can't exhaust memory by flooding distinct tenant_ids. `/metrics` exposes `tenant_bucket_count`/`tenant_bucket_max`.
+- **PERF-GO-HOT-HTTP** (correlation-worker): bounded, TTL, thread-safe `iocCache` in front of `lookupIOC` — repeated indicators in a batch no longer re-issue a synchronous HTTP GET. Only definitive HTTP-200 outcomes cached (transient errors retried). `XDR_IOC_CACHE_TTL_SECONDS`=60, `XDR_IOC_CACHE_MAX`=10000; `/metrics` exposes `ioc_cache_hits`.
+- **ENV-CACHE-DRIFT-BATCH** (runtime slice): integration adapters (Jira/PagerDuty/ServiceNow/Slack) → new `config/integrations.php`; `TrustProxies` + `force_https` → `config/xdr.php` — config-cache-safe (env() no longer null under `php artisan config:cache`).
+
+### Deferred (enterprise roadmap, staged)
+- Hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) — each needs a dedicated, validated effort (Go hot-path items require a live-pipeline verifier).
+
+### Validation
+- `php artisan test` → **4544 passed, 0 failures**. Python suites: **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342). Go services: `go test` green (ingestion-gateway + correlation-worker gained cap/cache tests). Rule registry **133 rules**, threat-hunting **177 domains**.
+
+---
+
 ## [1.0.0-rc3] — 2026-06-30
 
 ### Fixed

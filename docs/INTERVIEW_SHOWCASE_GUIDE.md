@@ -20,7 +20,7 @@
 php artisan test
 ```
 
-Show: 4538 tests, 0 failures. Point out the test count is not inflated — each test covers a real behavior or contract.
+Show: 4544 tests, 0 failures. Point out the test count is not inflated — each test covers a real behavior or contract.
 
 **2. The architecture boundary** (1.5 minutes)
 
@@ -80,7 +80,7 @@ Navigate to http://localhost:8000/threat-hunts
 Create a hunt on `processes` domain with filter `is_suspicious = true`.
 
 Show:
-- 158 query domains available
+- 177 query domains available
 - Allowlisted fields per domain (no arbitrary SQL injection risk)
 - Advisory-only results (append-only, never destructive)
 - Multi-hop graph investigation available
@@ -95,7 +95,7 @@ Show two governance subsystems:
 ### Phase 5 — Engineering Discipline (3 minutes)
 
 Show these numbers:
-- 4538 PHP tests, 186 Python tests
+- 4544 PHP tests, 1556 Python tests
 - 133 detection rules validated by 21-check registry
 - 50+ governance subsystems
 - 158 threat hunting domains
