@@ -11,7 +11,7 @@
 
 | Gate | Result | Evidence |
 |---|---|---|
-| PHP test suite | PASS — 4544/4544 | `php artisan test` |
+| PHP test suite | PASS — 4545/4545 | `php artisan test` |
 | Python endpoint tests | PASS — 186/186 | `python -m unittest discover` |
 | Rule registry validation | PASS — 133 rules, 21/21 checks | `xdr_rule_registry_validate.py` |
 | Contract validation | PASS | `xdr_contract_validate.py` |
@@ -59,7 +59,7 @@ All governance, investigation, threat hunting, SOAR, maturity scoring, and demo 
 | Detection rules | 133 (12 active, 121 shadow) |
 | Threat hunting domains | 158 |
 | Database tables | 200+ |
-| PHP test cases | 4544 |
+| PHP test cases | 4545 |
 | Python test cases | 186 |
 | Governance subsystems | 50+ |
 

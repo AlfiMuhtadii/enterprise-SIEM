@@ -166,11 +166,12 @@ class EndpointSoakPlanService
             $agentTableExists,
             $agentTableExists ? 'endpoint_agent_heartbeats table present' : 'table missing (advisory)');
 
-        // GATE-02: XDR_SHADOW_CONSUMER_ENABLED env var
-        $shadowEnabled = (env('XDR_SHADOW_CONSUMER_ENABLED', 'false') === 'true');
+        // GATE-02: XDR_SHADOW_CONSUMER_ENABLED (ENV-CACHE-DRIFT-BATCH: via config, config:cache-safe)
+        $shadowConsumer = (string) config('xdr.shadow_consumer_enabled', 'false');
+        $shadowEnabled = ($shadowConsumer === 'true');
         $gates[] = $this->gate($planRunId, 'GATE-02', self::GATES['GATE-02'],
             true, // advisory — not blocking; default false is expected
-            'advisory: XDR_SHADOW_CONSUMER_ENABLED=' . env('XDR_SHADOW_CONSUMER_ENABLED', 'false') . '; enable before soak');
+            'advisory: XDR_SHADOW_CONSUMER_ENABLED=' . $shadowConsumer . '; enable before soak');
 
         // GATE-03: advisory findings table accessible
         $afExists = \Illuminate\Support\Facades\Schema::hasTable('advisory_findings');

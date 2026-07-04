@@ -102,7 +102,11 @@ class TenantBackfillPreflightCommand extends Command
         ];
 
         // CHK-06: strict mode off
-        $strictMode = (bool) env('XDR_TENANT_STRICT_MODE', false);
+        // ENV-CACHE-DRIFT-BATCH: read via config('xdr.tenancy.strict_mode') to match
+        // the app's canonical strict-mode source (TenantContextAuthority et al.) and
+        // survive config:cache — previously this command read env() directly, which
+        // diverged from the rest of the app and returned null under config:cache.
+        $strictMode = (bool) config('xdr.tenancy.strict_mode', false);
         $results['CHK-06'] = [
             'name'   => self::CHECKS['CHK-06'],
             'status' => !$strictMode ? 'PASS' : 'WARN',

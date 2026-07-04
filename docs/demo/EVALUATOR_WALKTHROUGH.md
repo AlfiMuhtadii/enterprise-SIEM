@@ -29,7 +29,7 @@ docker compose up -d && php artisan migrate:fresh --force && php artisan db:seed
 Navigate to: `http://localhost:8000/demo-platform/readiness`
 
 **What to observe:**
-- PHP tests: 4544 passed
+- PHP tests: 4545 passed
 - Python tests: 1556 passed (all suites)
 - Rule registry: PASS (133 rules, 21/21 checks)
 - Contract validation: PASS

@@ -26,7 +26,7 @@ target.
 - Hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) — each needs a dedicated, validated effort (Go hot-path items require a live-pipeline verifier).
 
 ### Validation
-- `php artisan test` → **4544 passed, 0 failures**. Python suites: **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342). Go services: `go test` green (ingestion-gateway + correlation-worker gained cap/cache tests). Rule registry **133 rules**, threat-hunting **177 domains**.
+- `php artisan test` → **4545 passed, 0 failures**. Python suites: **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342). Go services: `go test` green (ingestion-gateway + correlation-worker gained cap/cache tests). Rule registry **133 rules**, threat-hunting **177 domains**.
 
 ---
 

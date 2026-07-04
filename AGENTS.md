@@ -11,7 +11,7 @@ Last updated: 2026-06-22
 
 | Metric | Value |
 |---|---|
-| PHP tests | **4544** (run: `php artisan migrate:fresh --force && php artisan test`) |
+| PHP tests | **4545** (run: `php artisan migrate:fresh --force && php artisan test`) |
 | Python tests | **186** (run: `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v`) |
 | Detection rules | **133** (12 staged_active, 121 shadow) |
 | Hunt domains | **177** |
@@ -250,7 +250,7 @@ Circuit breaker: 3 consecutive failures → fallback to legacy PHP. **Do NOT exp
 
 ```powershell
 php artisan migrate:fresh --force && php artisan test
-# → 4544 passed, 0 failures
+# → 4545 passed, 0 failures
 
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 # → 186 passed

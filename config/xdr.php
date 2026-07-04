@@ -126,6 +126,10 @@ return [
 
     // Force HTTPS in production (respected only when app.env === 'production').
     'force_https' => env('APP_FORCE_HTTPS', false),
+
+    // Shadow alert consumer toggle (advisory; string 'true'/'false' for gate reporting).
+    // ENV-CACHE-DRIFT-BATCH: read via config so it survives config:cache.
+    'shadow_consumer_enabled' => env('XDR_SHADOW_CONSUMER_ENABLED', 'false'),
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],
         'incidents_workflow_rbac' => ['driver' => 'postgresql', 'retention_days' => 365],

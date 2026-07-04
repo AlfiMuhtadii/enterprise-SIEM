@@ -68,4 +68,19 @@ class IntegrationConfigCacheTest extends TestCase
             );
         }
     }
+
+    public function test_cli_slice_reads_config_not_env(): void
+    {
+        // ENV-CACHE-DRIFT-BATCH (CLI slice): strict-mode preflight + shadow-consumer
+        // gate now read config (config:cache-safe, aligned with the canonical source).
+        $this->assertArrayHasKey('shadow_consumer_enabled', config('xdr'));
+
+        $preflight = file_get_contents(base_path('app/Console/Commands/TenantBackfillPreflightCommand.php'));
+        $this->assertStringNotContainsString("env('XDR_TENANT_STRICT_MODE'", $preflight);
+        $this->assertStringContainsString("config('xdr.tenancy.strict_mode'", $preflight);
+
+        $soak = file_get_contents(base_path('app/Services/EndpointSoakPlanService.php'));
+        $this->assertStringNotContainsString("env('XDR_SHADOW_CONSUMER_ENABLED'", $soak);
+        $this->assertStringContainsString("config('xdr.shadow_consumer_enabled'", $soak);
+    }
 }

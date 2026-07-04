@@ -3,7 +3,7 @@
 **Release:** Release Candidate 1 (RC1)  
 **Date:** 2026-05-24  
 **Status:** Feature-complete, presentation-ready  
-**Validation:** 4544 PHP / 1556 Python tests green; all validators PASS
+**Validation:** 4545 PHP / 1556 Python tests green; all validators PASS
 
 ---
 
@@ -80,7 +80,7 @@ This release represents the final feature-complete state of the Hybrid Near Real
 
 | Validator | Result | Date |
 |---|---|---|
-| `php artisan test` | **4544 passed, 0 failures** | 2026-07-02 |
+| `php artisan test` | **4545 passed, 0 failures** | 2026-07-02 |
 | Python suites (all) | **1556 passed** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342) | 2026-07-02 |
 | Go services (`go test`) | **PASS** (ingestion-gateway + correlation-worker, incl. RATE-LIMIT-DOS cap + IOC-cache tests) | 2026-07-02 |
 | `php artisan test` (rc3) | **4538 passed, 0 failures** | 2026-06-30 |
