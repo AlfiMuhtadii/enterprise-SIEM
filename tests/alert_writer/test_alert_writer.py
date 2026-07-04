@@ -289,5 +289,39 @@ class TestHttpSessionPooling(unittest.TestCase):
         self.assertIsInstance(aw.SESSION, req.Session)
 
 
+class TestInternalTokenConstantTime(unittest.TestCase):
+    """AUTH-TIMING-CMP: internal-token compare must be constant-time."""
+
+    _TOK = "s3cr3t-token-value"
+
+    def _env(self, enforce, token):
+        return patch.dict("os.environ", {
+            "XDR_ENFORCE_INTERNAL_AUTH": enforce,
+            "XDR_ALERT_WRITER_INTERNAL_TOKEN": token,
+        })
+
+    def test_correct_token_accepted_when_enforced(self):
+        with self._env("true", self._TOK):
+            self.assertTrue(aw.verify_internal_token(self._TOK))
+
+    def test_wrong_token_same_length_rejected(self):
+        with self._env("true", self._TOK):
+            self.assertFalse(aw.verify_internal_token("X3cr3t-token-valuX"))
+
+    def test_wrong_length_rejected(self):
+        with self._env("true", "s3cr3t"):
+            self.assertFalse(aw.verify_internal_token("s3cr3t-longer"))
+
+    def test_permissive_when_not_configured(self):
+        with self._env("false", ""):
+            self.assertTrue(aw.verify_internal_token("anything"))
+
+    def test_uses_compare_digest(self):
+        import inspect
+        src = inspect.getsource(aw.verify_internal_token)
+        self.assertIn("compare_digest", src)
+        self.assertNotIn("== expected", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

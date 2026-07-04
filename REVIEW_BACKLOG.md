@@ -14,7 +14,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **OBS-OTEL-TRACING** | [Enterprise-XDR] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent) | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | Medium | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Trained multiclass LR model is offline-script-only; not deployed as an online inference service in the live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | Medium-High | Proposed |
 | **SECRETS-VAULT** | [Enterprise-XDR] No centralized secrets manager (Vault/KMS); all service/DB/HMAC secrets resolved from `.env`/env vars | `config/*`, `docker-compose*.yml`, `services/*`, `app/Services/InternalAuthService.php` | Medium | Proposed |
-| **AUTH-TIMING-CMP** | [Security] Non-constant-time internal-token compare (`token == expected`) in Python alert-writer + incident-builder — timing side-channel; inconsistent with Go (`hmac.Equal`) and Laravel (`hash_equals`) | `services/alert-writer-service/main.py:1244,1247`, `services/incident-builder-service/main.py:598,601` | Medium | Proposed |
 | **MEM-UNBOUNDED-STATE** | [Reliability] Unbounded `SEEN` idempotency set + in-memory `DLQ` lists in Python services (no cap/TTL/eviction) → memory growth / OOM at enterprise volume | `services/alert-writer-service/main.py:99-100`, `services/incident-builder-service/main.py:73` | Medium | Proposed |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
 | **FASTAPI-LIFESPAN** | [Obsolete API] Deprecated `@app.on_event("startup"/"shutdown")` in both Python services — removed in modern FastAPI; migrate to `lifespan` handler | `services/alert-writer-service/main.py:1250,1275`, `services/incident-builder-service/main.py:604,611` | Low | Proposed |
@@ -32,15 +31,9 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 
 
-> **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). The 5 hardening tasks (ENV-CACHE-DRIFT, CMD-SHARED-HMAC, AGENT-TENANCY-GAP, TENANT-UNSCOPED-TABLES, RATE-LIMIT-BYPASS) → COMPLETED at `4ee9675`. See REVIEW_REJECTED.md / REVIEW_COMPLETED.md.
+> **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`. The running list of completions (NOTIFY-TENANCY-GAP, the PERF-* batches, IOC-HITS-IDEMPOTENCY, AGENT-SECRET-DECRYPT-500, RESP-POLICY-FAIL-OPEN, RATE-LIMIT-DOS, PERF-GO-HOT-HTTP, ENV-CACHE-DRIFT-BATCH, …) is in `REVIEW_COMPLETED.md`.
 >
-> **Completed (2026-06-30):** `NOTIFY-TENANCY-GAP` → `5db597c`. `PERF-IOC-LOOP` + `PERF-ALERT-TUNE` (alert-write-path N+1 → bulk) → `1e4bc3c`. `PERF-AGENT-UPDATE` + `PERF-AGENT-HEALTH-N1` (agent-management N+1 → bulk/eager-load) → this batch. See REVIEW_COMPLETED.md.
->
-> **Completed (2026-07-01):** review-finding fixes `IOC-HITS-IDEMPOTENCY` (unique index + idempotent enrich), `AGENT-SECRET-DECRYPT-500` (guarded decrypt → 401), `RESP-POLICY-FAIL-OPEN` (fail-closed on malformed expiry). `ENV-CACHE-DRIFT-BATCH` runtime slice (integration adapters + TrustProxies + force_https) done; CLI/advisory slice remains. See REVIEW_COMPLETED.md.
->
-> **Completed (2026-07-01, enterprise target):** `RATE-LIMIT-DOS` (bounded distinct per-tenant buckets + shared overflow) → `0e99c61`. `PERF-GO-HOT-HTTP` (bounded TTL thread-safe IOC lookup cache in correlation-worker) → `3d2f229`. See REVIEW_COMPLETED.md.
->
-> **Completed (2026-07-02):** `ENV-CACHE-DRIFT-BATCH` CLI slice (TenantBackfillPreflight strict-mode + EndpointSoakPlan shadow gate → config) — task closed; remaining env() reads are intentional live-env (validation/posture, putenv-tested + load-bearing defaults), documented in REVIEW_COMPLETED. See REVIEW_COMPLETED.md.
+> **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
 >
 > **Deferred — enterprise roadmap, staged (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → in-scope for enterprise but each needs a dedicated validated effort. See REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
 
@@ -136,7 +129,9 @@ Each still needs Claude validation before implementation per the workflow.
   Keep the env driver default so the demo is unchanged.
 - **Safety:** Config/security hardening only; no forbidden boundary touched.
 
-## Proposed Task: AUTH-TIMING-CMP — Non-constant-time internal-token compare in Python services
+## ✅ COMPLETED (2026-07-04): AUTH-TIMING-CMP — Non-constant-time internal-token compare in Python services
+
+> Done — `verify_internal_token()` in both Python services now uses `hmac.compare_digest`; +10 tests. See REVIEW_COMPLETED.md.
 
 - **Priority:** Medium (Security — timing side-channel)
 - **Component:** `services/alert-writer-service/main.py` (`verify_internal_token`, lines ~1244/1247),

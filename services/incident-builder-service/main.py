@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import sys
@@ -595,10 +596,10 @@ def verify_internal_token(token: str) -> bool:
     if enforce:
         if not expected:
             return False  # enforced but not configured — startup should have caught this
-        return token == expected
+        return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
     if not expected:
         return True  # permissive: not configured
-    return token == expected
+    return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
 
 @app.on_event("startup")
