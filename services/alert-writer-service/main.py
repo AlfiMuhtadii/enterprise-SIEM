@@ -15,6 +15,7 @@ import os
 import sys
 import threading
 import time
+from collections import OrderedDict, deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
@@ -97,9 +98,25 @@ METRICS: Dict[str, Any] = {
     "pipeline_dlq_consumer_records_upserted": 0,
     "pipeline_dlq_consumer_errors": 0,
 }
-SEEN: set[str] = set()
-DLQ: List[Dict[str, Any]] = []
+# Bounded in-memory state (MEM-UNBOUNDED-STATE). The DB ON CONFLICT upserts are the
+# source of truth for idempotency, so SEEN is a bounded LRU fast-path cache and DLQ is
+# a fixed-size ring buffer — both capped to prevent unbounded memory growth / OOM at
+# sustained enterprise volume. Caps are env-tunable; defaults are single-node safe.
+_SEEN_MAX = max(1, int(os.getenv("XDR_ALERT_WRITER_SEEN_MAX", "100000")))
+_DLQ_MAX = max(1, int(os.getenv("XDR_ALERT_WRITER_DLQ_MAX", "1000")))
+SEEN: "OrderedDict[str, None]" = OrderedDict()
+DLQ: "deque[Dict[str, Any]]" = deque(maxlen=_DLQ_MAX)
 STOP = threading.Event()
+
+
+def _seen_add(fp: str) -> None:
+    """Record a fingerprint in the bounded LRU dedupe cache, evicting the oldest when full."""
+    if fp in SEEN:
+        SEEN.move_to_end(fp)
+        return
+    SEEN[fp] = None
+    if len(SEEN) > _SEEN_MAX:
+        SEEN.popitem(last=False)
 
 # ---------------------------------------------------------------------------
 # Shadow consumer constants
@@ -597,7 +614,7 @@ def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[
     items = [
         {k: (str(v)[:120] if k in ("event", "error") and isinstance(v, str) and len(str(v)) > 120 else v)
          for k, v in item.items()}
-        for item in DLQ[-20:]
+        for item in list(DLQ)[-20:]
     ]
     return {"count": len(DLQ), "items": items}
 
@@ -619,7 +636,7 @@ def write(
         if fp in SEEN:
             duplicates += 1
             continue
-        SEEN.add(fp)
+        _seen_add(fp)
         unique.append(alert)
     METRICS["duplicates"] += duplicates
 

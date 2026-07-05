@@ -259,5 +259,24 @@ class TestInternalTokenConstantTime(unittest.TestCase):
         self.assertNotIn("== expected", src)
 
 
+class TestBoundedInMemoryState(unittest.TestCase):
+    """MEM-UNBOUNDED-STATE: DLQ must be a bounded ring buffer to prevent OOM."""
+
+    def test_dlq_is_bounded_ring(self):
+        from collections import deque
+        self.assertIsInstance(ib.DLQ, deque)
+        self.assertIsNotNone(ib.DLQ.maxlen)
+        self.assertEqual(ib.DLQ.maxlen, ib._DLQ_MAX)
+
+    def test_dlq_overflow_drops_oldest(self):
+        from collections import deque
+        with patch.object(ib, "DLQ", deque(maxlen=5)):
+            for i in range(20):
+                ib.DLQ.append({"i": i})
+            self.assertEqual(len(ib.DLQ), 5)
+            self.assertEqual(ib.DLQ[0]["i"], 15)   # oldest dropped
+            self.assertEqual(ib.DLQ[-1]["i"], 19)  # newest retained
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

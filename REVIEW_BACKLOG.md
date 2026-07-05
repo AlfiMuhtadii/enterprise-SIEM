@@ -14,7 +14,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **OBS-OTEL-TRACING** | [Enterprise-XDR] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent) | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | Medium | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Trained multiclass LR model is offline-script-only; not deployed as an online inference service in the live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | Medium-High | Proposed |
 | **SECRETS-VAULT** | [Enterprise-XDR] No centralized secrets manager (Vault/KMS); all service/DB/HMAC secrets resolved from `.env`/env vars | `config/*`, `docker-compose*.yml`, `services/*`, `app/Services/InternalAuthService.php` | Medium | Proposed |
-| **MEM-UNBOUNDED-STATE** | [Reliability] Unbounded `SEEN` idempotency set + in-memory `DLQ` lists in Python services (no cap/TTL/eviction) → memory growth / OOM at enterprise volume | `services/alert-writer-service/main.py:99-100`, `services/incident-builder-service/main.py:73` | Medium | Proposed |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
 | **FASTAPI-LIFESPAN** | [Obsolete API] Deprecated `@app.on_event("startup"/"shutdown")` in both Python services — removed in modern FastAPI; migrate to `lifespan` handler | `services/alert-writer-service/main.py:1250,1275`, `services/incident-builder-service/main.py:604,611` | Low | Proposed |
 | **PY-CONTAINER-HARDENING** | [Infra/Best-practice] Python service Dockerfiles run as **root** (no `USER`), no `HEALTHCHECK`, unpinned deps (no lockfile) — Go Dockerfiles already do non-root multi-stage | `services/alert-writer-service/Dockerfile`, `services/incident-builder-service/Dockerfile`, `services/ai-rag-service/Dockerfile`, `requirements.txt` | Medium | Proposed |
@@ -154,7 +153,9 @@ Each still needs Claude validation before implementation per the workflow.
   test asserting rejection of a wrong token of equal length.
 - **Safety:** Pure security hardening; no behavior change for valid tokens; no forbidden boundary.
 
-## Proposed Task: MEM-UNBOUNDED-STATE — Bound the `SEEN` idempotency set and in-memory `DLQ` lists
+## ✅ COMPLETED (2026-07-05): MEM-UNBOUNDED-STATE — Bound the `SEEN` idempotency set and in-memory `DLQ` lists
+
+> Done — `SEEN` is now a bounded LRU (`OrderedDict` + `_seen_add`, cap `XDR_ALERT_WRITER_SEEN_MAX=100000`); `DLQ` is a fixed-size `deque(maxlen=…)` ring in both services (`XDR_ALERT_WRITER_DLQ_MAX` / `XDR_INCIDENT_BUILDER_DLQ_MAX`, default 1000). `DLQ[-20:]` view fixed to `list(DLQ)[-20:]`. +6 tests. See REVIEW_COMPLETED.md.
 
 - **Priority:** Medium (Reliability — memory growth / OOM at scale)
 - **Component:** `services/alert-writer-service/main.py` (`SEEN` set line ~99, `DLQ` list line ~100),

@@ -323,5 +323,40 @@ class TestInternalTokenConstantTime(unittest.TestCase):
         self.assertNotIn("== expected", src)
 
 
+class TestBoundedInMemoryState(unittest.TestCase):
+    """MEM-UNBOUNDED-STATE: SEEN (LRU) and DLQ (ring) must be bounded to prevent OOM."""
+
+    def test_dlq_is_bounded_ring(self):
+        from collections import deque
+        self.assertIsInstance(aw.DLQ, deque)
+        self.assertIsNotNone(aw.DLQ.maxlen)
+        self.assertEqual(aw.DLQ.maxlen, aw._DLQ_MAX)
+
+    def test_dlq_overflow_drops_oldest(self):
+        from collections import deque
+        with patch.object(aw, "DLQ", deque(maxlen=5)):
+            for i in range(20):
+                aw.DLQ.append({"i": i})
+            self.assertEqual(len(aw.DLQ), 5)
+            self.assertEqual(aw.DLQ[0]["i"], 15)   # oldest 15 kept, 0..14 dropped
+            self.assertEqual(aw.DLQ[-1]["i"], 19)  # newest retained
+
+    def test_seen_lru_evicts_oldest_over_cap(self):
+        with patch.object(aw, "SEEN", aw.SEEN.__class__()), \
+             patch.object(aw, "_SEEN_MAX", 3):
+            for fp in ["a", "b", "c", "d", "e"]:
+                aw._seen_add(fp)
+            self.assertEqual(len(aw.SEEN), 3)
+            self.assertNotIn("a", aw.SEEN)  # oldest evicted
+            self.assertIn("e", aw.SEEN)     # newest retained
+
+    def test_seen_add_is_idempotent(self):
+        with patch.object(aw, "SEEN", aw.SEEN.__class__()), \
+             patch.object(aw, "_SEEN_MAX", 100):
+            aw._seen_add("x")
+            aw._seen_add("x")
+            self.assertEqual(len(aw.SEEN), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

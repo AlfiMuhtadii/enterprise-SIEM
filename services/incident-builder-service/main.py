@@ -10,7 +10,7 @@ import os
 import sys
 import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, urlunparse
@@ -71,7 +71,10 @@ METRICS: Dict[str, Any] = {
     "operational_events_stored": 0,
     "internal_auth_mode": "permissive",
 }
-DLQ: List[Dict[str, Any]] = []
+# Bounded in-memory DLQ ring (MEM-UNBOUNDED-STATE) — fixed-size buffer to prevent
+# unbounded memory growth / OOM during a sustained failure storm. Cap is env-tunable.
+_DLQ_MAX = max(1, int(os.getenv("XDR_INCIDENT_BUILDER_DLQ_MAX", "1000")))
+DLQ: "deque[Dict[str, Any]]" = deque(maxlen=_DLQ_MAX)
 STOP = threading.Event()
 
 
@@ -519,7 +522,7 @@ def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[
     items = [
         {k: (str(v)[:120] if k in ("event", "error") and isinstance(v, str) and len(str(v)) > 120 else v)
          for k, v in item.items()}
-        for item in DLQ[-20:]
+        for item in list(DLQ)[-20:]
     ]
     return {"count": len(DLQ), "items": items}
 
