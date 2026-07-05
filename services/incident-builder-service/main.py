@@ -7,6 +7,7 @@ import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import os
 import sys
 import threading
@@ -30,6 +31,28 @@ try:
     import psycopg
 except Exception:  # pragma: no cover
     psycopg = None  # type: ignore
+
+
+class _JsonLogFormatter(logging.Formatter):
+    """PY-PRINT-LOGGING: structured JSON-line log output (level/timestamp/service)
+    replacing plain print(), so container log aggregators can filter by severity."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps({
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "service": "incident-builder",
+            "message": record.getMessage(),
+        })
+
+
+log = logging.getLogger("incident-builder")
+log.setLevel(logging.INFO)
+log.propagate = False
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_JsonLogFormatter())
+    log.addHandler(_handler)
 
 
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -327,7 +350,7 @@ def write_incident_failure(
         return True
     except Exception as exc:
         METRICS["incident_write_dlq_errors"] += 1
-        print(f"[incident-builder] WARN: dlq write failed topic={dlq_topic}: {exc}", flush=True)
+        log.warning(f"[incident-builder] WARN: dlq write failed topic={dlq_topic}: {exc}")
         return False
 
 
@@ -478,17 +501,15 @@ def event_loop() -> None:
     def _setup_consumer(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
         consumer_subscribe(uri, topic)
-        print(
+        log.info(
             f"[incident-builder] consumer ready  topic={topic}  group={g}"
-            f"  instance={n}  auto.offset.reset={offset_reset}",
-            flush=True,
+            f"  instance={n}  auto.offset.reset={offset_reset}"
         )
         return uri
 
-    print(
+    log.info(
         f"[incident-builder] consumer starting  topic={topic}  group={group}"
-        f"  instance={name}  auto.offset.reset={offset_reset}",
-        flush=True,
+        f"  instance={name}  auto.offset.reset={offset_reset}"
     )
     try:
         base_uri = _setup_consumer(group, name)
@@ -505,10 +526,9 @@ def event_loop() -> None:
             consecutive_errors = 0
             alerts = normalize_records(records)
             if alerts:
-                print(
+                log.info(
                     f"[incident-builder] consumed {len(records)} records → {len(alerts)} alerts"
-                    f"  group={group}  topic={topic}",
-                    flush=True,
+                    f"  group={group}  topic={topic}"
                 )
                 batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
                 process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
@@ -529,10 +549,9 @@ def event_loop() -> None:
             should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
-                print(
+                log.warning(
                     f"[incident-builder] WARN: consumer recovery triggered ({reason})"
-                    f"  group={group}  topic={topic}  — deleting and recreating",
-                    flush=True,
+                    f"  group={group}  topic={topic}  — deleting and recreating"
                 )
                 if base_uri:
                     consumer_delete(base_uri)
@@ -541,10 +560,7 @@ def event_loop() -> None:
                 try:
                     base_uri = _setup_consumer(group, name)
                 except Exception as setup_exc:
-                    print(
-                        f"[incident-builder] ERROR: consumer recreate failed: {setup_exc}",
-                        flush=True,
-                    )
+                    log.error(f"[incident-builder] ERROR: consumer recreate failed: {setup_exc}")
                     METRICS["consumer_errors"] += 1
                     time.sleep(5)
             else:
@@ -650,14 +666,14 @@ def validate_startup_secrets() -> None:
     token_set = bool(os.getenv("XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", "").strip())
     if enforce:
         if not token_set:
-            print("[SECURITY-FATAL] incident-builder-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_INCIDENT_BUILDER_INTERNAL_TOKEN is not set — refusing to start", flush=True)
+            log.error("[SECURITY-FATAL] incident-builder-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_INCIDENT_BUILDER_INTERNAL_TOKEN is not set — refusing to start")
             sys.exit(1)
-        print("[SECURITY] incident-builder-service: internal auth enforced — /v1/build and /v1/process require X-Internal-Service-Token", flush=True)
+        log.info("[SECURITY] incident-builder-service: internal auth enforced — /v1/build and /v1/process require X-Internal-Service-Token")
     else:
         if not token_set:
-            print("[SECURITY-WARN] incident-builder-service: XDR_INCIDENT_BUILDER_INTERNAL_TOKEN not set — /v1/build internal auth is permissive", flush=True)
+            log.warning("[SECURITY-WARN] incident-builder-service: XDR_INCIDENT_BUILDER_INTERNAL_TOKEN not set — /v1/build internal auth is permissive")
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
-        print("[SECURITY-WARN] incident-builder-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback", flush=True)
+        log.warning("[SECURITY-WARN] incident-builder-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
 
 
 def verify_internal_token(token: str) -> bool:

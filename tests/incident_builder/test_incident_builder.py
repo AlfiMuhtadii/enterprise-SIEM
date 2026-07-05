@@ -413,5 +413,33 @@ class TestWriteIncidentFailure(unittest.TestCase):
         self.assertEqual(calls[0][0], "postgres_write_failed")
 
 
+class TestStructuredLogging(unittest.TestCase):
+    """PY-PRINT-LOGGING: service must emit structured JSON-line logs, not print()."""
+
+    def test_log_is_a_logger_instance(self):
+        import logging
+        self.assertIsInstance(ib.log, logging.Logger)
+
+    def test_no_print_calls_in_event_loop_functions(self):
+        import inspect
+        for fn in (ib.event_loop, ib.validate_startup_secrets, ib._startup_tasks):
+            src = inspect.getsource(fn)
+            self.assertNotIn("print(", src, f"{fn.__name__} should log via `log`, not print()")
+
+    def test_json_formatter_produces_valid_json_with_expected_fields(self):
+        import json as _json
+        import logging
+        record = logging.LogRecord(
+            name="incident-builder", level=logging.ERROR, pathname=__file__, lineno=1,
+            msg="test message", args=(), exc_info=None,
+        )
+        formatted = ib._JsonLogFormatter().format(record)
+        parsed = _json.loads(formatted)
+        self.assertEqual(parsed["level"], "ERROR")
+        self.assertEqual(parsed["service"], "incident-builder")
+        self.assertEqual(parsed["message"], "test message")
+        self.assertIn("ts", parsed)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

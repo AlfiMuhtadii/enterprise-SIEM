@@ -571,5 +571,34 @@ class TestIncidentWriteFailedClassification(unittest.TestCase):
         self.assertFalse(parsed[0]["replayable"])
 
 
+class TestStructuredLogging(unittest.TestCase):
+    """PY-PRINT-LOGGING: service must emit structured JSON-line logs, not print()."""
+
+    def test_log_is_a_logger_instance(self):
+        import logging
+        self.assertIsInstance(aw.log, logging.Logger)
+
+    def test_no_print_calls_in_event_loop_functions(self):
+        import inspect
+        for fn in (aw.event_loop, aw.shadow_event_loop, aw.dlq_consumer_event_loop,
+                   aw.pipeline_dlq_consumer_event_loop, aw.validate_startup_secrets, aw._startup_tasks):
+            src = inspect.getsource(fn)
+            self.assertNotIn("print(", src, f"{fn.__name__} should log via `log`, not print()")
+
+    def test_json_formatter_produces_valid_json_with_expected_fields(self):
+        import json as _json
+        import logging
+        record = logging.LogRecord(
+            name="alert-writer", level=logging.WARNING, pathname=__file__, lineno=1,
+            msg="test message", args=(), exc_info=None,
+        )
+        formatted = aw._JsonLogFormatter().format(record)
+        parsed = _json.loads(formatted)
+        self.assertEqual(parsed["level"], "WARNING")
+        self.assertEqual(parsed["service"], "alert-writer")
+        self.assertEqual(parsed["message"], "test message")
+        self.assertIn("ts", parsed)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

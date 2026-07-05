@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import os
 import sys
 import threading
@@ -35,6 +36,28 @@ try:
     import psycopg
 except Exception:  # pragma: no cover
     psycopg = None  # type: ignore
+
+
+class _JsonLogFormatter(logging.Formatter):
+    """PY-PRINT-LOGGING: structured JSON-line log output (level/timestamp/service)
+    replacing plain print(), so container log aggregators can filter by severity."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps({
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "service": "alert-writer",
+            "message": record.getMessage(),
+        })
+
+
+log = logging.getLogger("alert-writer")
+log.setLevel(logging.INFO)
+log.propagate = False
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(_JsonLogFormatter())
+    log.addHandler(_handler)
 
 
 class AlertPayload(BaseModel):
@@ -360,7 +383,7 @@ def write_alert_failure(
         return True
     except Exception as exc:
         METRICS["alert_write_dlq_errors"] += 1
-        print(f"[alert-writer] WARN: dlq write failed topic={dlq_topic}: {exc}", flush=True)
+        log.warning(f"[alert-writer] WARN: dlq write failed topic={dlq_topic}: {exc}")
         return False
 
 
@@ -516,17 +539,15 @@ def event_loop() -> None:
     def _setup_consumer(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
         consumer_subscribe(uri, topic)
-        print(
+        log.info(
             f"[alert-writer] consumer ready  topic={topic}  group={g}"
-            f"  instance={n}  auto.offset.reset={offset_reset}",
-            flush=True,
+            f"  instance={n}  auto.offset.reset={offset_reset}"
         )
         return uri
 
-    print(
+    log.info(
         f"[alert-writer] consumer starting  topic={topic}  group={group}"
-        f"  instance={name}  auto.offset.reset={offset_reset}",
-        flush=True,
+        f"  instance={name}  auto.offset.reset={offset_reset}"
     )
     try:
         base_uri = _setup_consumer(group, name)
@@ -543,10 +564,9 @@ def event_loop() -> None:
             consecutive_errors = 0
             alerts = normalize_records(records)
             if alerts:
-                print(
+                log.info(
                     f"[alert-writer] consumed {len(records)} records → {len(alerts)} alerts"
-                    f"  group={group}  topic={topic}",
-                    flush=True,
+                    f"  group={group}  topic={topic}"
                 )
                 batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
                 process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
@@ -567,10 +587,9 @@ def event_loop() -> None:
             should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
-                print(
+                log.warning(
                     f"[alert-writer] WARN: consumer recovery triggered ({reason})"
-                    f"  group={group}  topic={topic}  — deleting and recreating",
-                    flush=True,
+                    f"  group={group}  topic={topic}  — deleting and recreating"
                 )
                 if base_uri:
                     consumer_delete(base_uri)
@@ -579,10 +598,7 @@ def event_loop() -> None:
                 try:
                     base_uri = _setup_consumer(group, name)
                 except Exception as setup_exc:
-                    print(
-                        f"[alert-writer] ERROR: consumer recreate failed: {setup_exc}",
-                        flush=True,
-                    )
+                    log.error(f"[alert-writer] ERROR: consumer recreate failed: {setup_exc}")
                     METRICS["consumer_errors"] += 1
                     time.sleep(5)
             else:
@@ -864,7 +880,7 @@ def shadow_event_loop(source_topic: str) -> None:
     def _setup(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
         consumer_subscribe(uri, source_topic)
-        print(f"[shadow-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        log.info(f"[shadow-consumer] ready  topic={source_topic}  group={g}")
         return uri
 
     try:
@@ -888,10 +904,7 @@ def shadow_event_loop(source_topic: str) -> None:
                 if outcome == "updated":
                     METRICS["shadow_findings_upserted"] += 1
             if findings:
-                print(
-                    f"[shadow-consumer] {len(findings)} findings  topic={source_topic}",
-                    flush=True,
-                )
+                log.info(f"[shadow-consumer] {len(findings)} findings  topic={source_topic}")
         except Exception as exc:
             METRICS["shadow_consumer_errors"] += 1
             consecutive_errors += 1
@@ -904,10 +917,7 @@ def shadow_event_loop(source_topic: str) -> None:
             should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
-                print(
-                    f"[shadow-consumer] WARN: consumer recovery ({reason}) topic={source_topic}",
-                    flush=True,
-                )
+                log.warning(f"[shadow-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
                 group, name = _new_ids()
@@ -916,7 +926,7 @@ def shadow_event_loop(source_topic: str) -> None:
                     base_uri = _setup(group, name)
                 except Exception as se:
                     METRICS["shadow_consumer_errors"] += 1
-                    print(f"[shadow-consumer] ERROR: recreate failed: {se}", flush=True)
+                    log.error(f"[shadow-consumer] ERROR: recreate failed: {se}")
                     time.sleep(5)
             else:
                 time.sleep(2)
@@ -1095,7 +1105,7 @@ def dlq_consumer_event_loop() -> None:
     def _setup(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
         consumer_subscribe(uri, source_topic)
-        print(f"[dlq-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        log.info(f"[dlq-consumer] ready  topic={source_topic}  group={g}")
         return uri
 
     try:
@@ -1119,7 +1129,7 @@ def dlq_consumer_event_loop() -> None:
                 if outcome == "updated":
                     METRICS["dlq_consumer_records_upserted"] += 1
             if parsed:
-                print(f"[dlq-consumer] {len(parsed)} records  topic={source_topic}", flush=True)
+                log.info(f"[dlq-consumer] {len(parsed)} records  topic={source_topic}")
         except Exception as exc:
             METRICS["dlq_consumer_errors"] += 1
             consecutive_errors += 1
@@ -1132,7 +1142,7 @@ def dlq_consumer_event_loop() -> None:
             should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
-                print(f"[dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}", flush=True)
+                log.warning(f"[dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
                 group, name = _new_ids()
@@ -1141,7 +1151,7 @@ def dlq_consumer_event_loop() -> None:
                     base_uri = _setup(group, name)
                 except Exception as se:
                     METRICS["dlq_consumer_errors"] += 1
-                    print(f"[dlq-consumer] ERROR: recreate failed: {se}", flush=True)
+                    log.error(f"[dlq-consumer] ERROR: recreate failed: {se}")
                     time.sleep(5)
             else:
                 time.sleep(2)
@@ -1227,7 +1237,7 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
     def _setup(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
         consumer_subscribe(uri, source_topic)
-        print(f"[pipeline-dlq-consumer] ready  topic={source_topic}  group={g}", flush=True)
+        log.info(f"[pipeline-dlq-consumer] ready  topic={source_topic}  group={g}")
         return uri
 
     try:
@@ -1251,7 +1261,7 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
                 if outcome == "updated":
                     METRICS["pipeline_dlq_consumer_records_upserted"] += 1
             if parsed:
-                print(f"[pipeline-dlq-consumer] {len(parsed)} records  topic={source_topic}", flush=True)
+                log.info(f"[pipeline-dlq-consumer] {len(parsed)} records  topic={source_topic}")
         except Exception as exc:
             METRICS["pipeline_dlq_consumer_errors"] += 1
             consecutive_errors += 1
@@ -1264,10 +1274,7 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
             should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
-                print(
-                    f"[pipeline-dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}",
-                    flush=True,
-                )
+                log.warning(f"[pipeline-dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
                 group, name = _new_ids()
@@ -1276,7 +1283,7 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
                     base_uri = _setup(group, name)
                 except Exception as se:
                     METRICS["pipeline_dlq_consumer_errors"] += 1
-                    print(f"[pipeline-dlq-consumer] ERROR: recreate failed: {se}", flush=True)
+                    log.error(f"[pipeline-dlq-consumer] ERROR: recreate failed: {se}")
                     time.sleep(5)
             else:
                 time.sleep(2)
@@ -1287,17 +1294,17 @@ def validate_startup_secrets() -> None:
     token_set = bool(os.getenv("XDR_ALERT_WRITER_INTERNAL_TOKEN", "").strip())
     if enforce:
         if not token_set:
-            print("[SECURITY-FATAL] alert-writer-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_ALERT_WRITER_INTERNAL_TOKEN is not set — refusing to start", flush=True)
+            log.error("[SECURITY-FATAL] alert-writer-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_ALERT_WRITER_INTERNAL_TOKEN is not set — refusing to start")
             sys.exit(1)
-        print("[SECURITY] alert-writer-service: internal auth enforced — /v1/write and /v1/process require X-Internal-Service-Token", flush=True)
+        log.info("[SECURITY] alert-writer-service: internal auth enforced — /v1/write and /v1/process require X-Internal-Service-Token")
     else:
         if not token_set:
-            print("[SECURITY-WARN] alert-writer-service: XDR_ALERT_WRITER_INTERNAL_TOKEN not set — /v1/write internal auth is permissive", flush=True)
+            log.warning("[SECURITY-WARN] alert-writer-service: XDR_ALERT_WRITER_INTERNAL_TOKEN not set — /v1/write internal auth is permissive")
     if not os.getenv("XDR_INTERNAL_AUTH_SECRET"):
-        print("[SECURITY-WARN] alert-writer-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback", flush=True)
+        log.warning("[SECURITY-WARN] alert-writer-service: XDR_INTERNAL_AUTH_SECRET not set — internal auth uses fallback")
     ingest_secret = os.getenv("XDR_INGEST_SECRET", "")
     if ingest_secret == "dev-secret-change-me":
-        print("[SECURITY-WARN] alert-writer-service: XDR_INGEST_SECRET is using dev default — replace in production", flush=True)
+        log.warning("[SECURITY-WARN] alert-writer-service: XDR_INGEST_SECRET is using dev default — replace in production")
 
 
 def verify_internal_token(token: str) -> bool:
@@ -1322,25 +1329,25 @@ def _startup_tasks() -> None:
         network_topic  = os.getenv("XDR_SHADOW_NETWORK_TOPIC",  "xdr.alerts.shadow.network")
         threading.Thread(target=shadow_event_loop, args=(endpoint_topic,), daemon=True).start()
         threading.Thread(target=shadow_event_loop, args=(network_topic,),  daemon=True).start()
-        print(f"[shadow-consumer] started  endpoint_topic={endpoint_topic}  network_topic={network_topic}", flush=True)
+        log.info(f"[shadow-consumer] started  endpoint_topic={endpoint_topic}  network_topic={network_topic}")
     if os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
         dlq_topic = os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed")
         threading.Thread(target=dlq_consumer_event_loop, daemon=True).start()
-        print(f"[dlq-consumer] started  topic={dlq_topic}", flush=True)
+        log.info(f"[dlq-consumer] started  topic={dlq_topic}")
     if os.getenv("XDR_CORRELATION_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
         corr_failed_topic = os.getenv("XDR_CORRELATION_FAILED_TOPIC") or "xdr.correlation_failed"
         threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(corr_failed_topic,), daemon=True).start()
-        print(f"[pipeline-dlq-consumer] started  topic={corr_failed_topic}", flush=True)
+        log.info(f"[pipeline-dlq-consumer] started  topic={corr_failed_topic}")
     if os.getenv("XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
         write_failed_topic = os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed"
         threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(write_failed_topic,), daemon=True).start()
-        print(f"[pipeline-dlq-consumer] started  topic={write_failed_topic}", flush=True)
+        log.info(f"[pipeline-dlq-consumer] started  topic={write_failed_topic}")
     if os.getenv("XDR_INCIDENT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
         # IB-DLQ-NOT-DURABLE: incident-builder failures are reviewed here, alongside
         # correlation/alert-write failures, for a single unified DLQ review surface.
         incident_write_failed_topic = os.getenv("XDR_INCIDENT_WRITE_FAILED_TOPIC") or "xdr.incident_write_failed"
         threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(incident_write_failed_topic,), daemon=True).start()
-        print(f"[pipeline-dlq-consumer] started  topic={incident_write_failed_topic}", flush=True)
+        log.info(f"[pipeline-dlq-consumer] started  topic={incident_write_failed_topic}")
 
 
 def _shutdown_tasks() -> None:
