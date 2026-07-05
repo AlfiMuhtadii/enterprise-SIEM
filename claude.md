@@ -56,7 +56,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 3077 passed, zero failures (always prefix with migrate:fresh --force)
+php artisan test         → 4595 passed, zero failures (always prefix with migrate:fresh --force)
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=133  checks=21/21
 fleet simulation         → 8/8 passed
@@ -216,7 +216,7 @@ Academic scope is stable and defensible as of 2026-05-18. The platform continues
 identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
 Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
 Threat-intel/IOC correlation, DNS, proxy, firewall: shadow-only, cutover not approved.
-Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 161 supported domains.
+Threat hunting: replay-safe retrospective investigation across behavioral data, allowlisted bounded queries, advisory-only hunt records (append-only), no destructive operations. 179 supported domains.
 
 SOC Collaboration & Analyst Workflow: escalation routing, SLA tracking, watchlists, shift handoffs, analyst queue, investigation sharing — all analyst-driven, no autonomous SOC operations.
 
@@ -382,7 +382,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan migrate:fresh --force && php artisan test
 ```
 
-Current: **3077 tests**, all green. Always prefix with `migrate:fresh --force` to avoid intermittent `QueryException` failures from stale schema state. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **4595 tests**, all green. Always prefix with `migrate:fresh --force` to avoid intermittent `QueryException` failures from stale schema state. Do NOT run parallel processes against the same PostgreSQL test database.
 
 Rule registry: **133 rules** (12 staged_active, 121 shadow). Run `python scripts/xdr_rule_registry_validate.py`.
 

@@ -97,6 +97,7 @@ Route prefix        Module                          Permission gate
 /shadow-soak        Shadow Domain Soak Harness          soc:shadow.soak.view
 /dlq                DLQ Review & Replay                 soc:dlq.view
 /advisory           Shadow Alert Advisory Findings      soc:advisory.view
+/asset-inventory    Asset Inventory / CMDB              soc:assetinventory.view (soc:assetinventory.manage for mutations)
 ```
 
 ---
@@ -244,12 +245,29 @@ Supported query domains with allowlisted fields:
 | `hosts` | hostname, platform, health_state, agent_id |
 | `network_correlations` | remote_ip, remote_port, process_name (contains) |
 | `alerts` | alert_type, severity, actor_key (=), trace_id |
+| `asset_inventory` | hostname (contains), ip_address, environment, asset_type, tenant_id |
+| `asset_criticality` | criticality_tier, tenant_id |
 
 Pivot types: `host`, `process`, `persistence`, `trace`, `entity`
 
 All hunts are append-only records (`threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`). No destructive operations.
 
-Supported domains: 164 total (see `ThreatHuntingService::supportedDomains()`)
+Supported domains: 179 total (see `ThreatHuntingService::supportedDomains()`)
+
+---
+
+## Asset Inventory / CMDB
+
+Service: `App\Services\AssetContextService` — Model: `App\Models\AssetInventory` + `App\Models\AssetCriticality`
+
+Advisory alert-enrichment metadata only. `asset_criticality` ranks the analyst queue — it is never read by any response/execution path (`ADVISORY_ONLY = true`, `NO_AUTO_RESPONSE = true`).
+
+- `asset_inventory` (mutable): hostname, ip_address, owner, environment, asset_type, source (manual|csv_import). Unique on `external_id`.
+- `asset_criticality` (mutable): one row per asset, `criticality_tier` (crown_jewel|high|medium|low), FK to `asset_inventory.id`.
+- Bulk import: `php artisan asset:import {tenant} {path}` (bounded `MAX_CSV_ROWS=5000`) or the CSV upload form on `/asset-inventory`.
+- Enrichment: `SocIncidentController::show()` matches an incident's alert IPs against `asset_inventory` and displays an advisory "Asset Context" panel with criticality — display-only, never gates workflow transitions.
+- RBAC: `soc:assetinventory.view` (admin/analyst/viewer), `soc:assetinventory.manage` (admin/analyst).
+- Hunt domains: `asset_inventory`, `asset_criticality`.
 
 ---
 

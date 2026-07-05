@@ -99,6 +99,7 @@ use App\Http\Controllers\Advisory\AdvisoryFindingsController;
 use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
+use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
 use App\Http\Controllers\RedpandaHealthController;
@@ -1213,6 +1214,16 @@ Route::middleware(['auth', 'soc:easm.view'])->group(function () {
 Route::middleware(['auth', 'soc:easm.scan'])->group(function () {
     Route::post('/soc/easm/assets',                            [EasmController::class, 'store'])->name('soc.easm.assets.store');
     Route::post('/soc/easm/assets/{assetId}/scan',             [EasmController::class, 'scan'])->name('soc.easm.assets.scan');
+});
+
+// Asset Inventory / CMDB — advisory alert-enrichment metadata only, never triggers response
+Route::middleware(['auth', 'soc:assetinventory.view'])->group(function () {
+    Route::get('/asset-inventory',                             [AssetInventoryController::class, 'index'])->name('asset-inventory.index');
+});
+Route::middleware(['auth', 'soc:assetinventory.manage'])->group(function () {
+    Route::post('/asset-inventory',                            [AssetInventoryController::class, 'store'])->name('asset-inventory.store');
+    Route::post('/asset-inventory/import',                     [AssetInventoryController::class, 'import'])->name('asset-inventory.import');
+    Route::post('/asset-inventory/{assetId}/criticality',      [AssetInventoryController::class, 'setCriticality'])->name('asset-inventory.criticality');
 });
 
 Route::middleware(['auth', 'soc:pilot.readiness.view'])->group(function () {

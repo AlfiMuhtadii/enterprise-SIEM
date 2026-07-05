@@ -13,9 +13,9 @@ A full-stack, enterprise-governed, AI-assisted XDR-like platform. Originally an 
 | Architecture | Polyglot microservices (PHP/Go/Python), event-driven, strangler migration |
 | Detection | Rule-based + Multiclass Logistic Regression, 133 detection rules |
 | Correlation | Identity/cloud/SaaS: active (6h soak PASS); endpoint/DNS/proxy: shadow-only |
-| Threat Hunting | 177 query domains, advisory-only, append-only results |
+| Threat Hunting | 179 query domains, advisory-only, append-only results |
 | Governance | 50+ governance subsystems: HA, compliance, SOAR, release governance, XDR maturity |
-| Test Coverage | 4545 PHP tests, 1556 Python tests, Go services green |
+| Test Coverage | 4595 PHP tests, 1556 Python tests, Go services green |
 | Validation | Rule registry 133/21 checks PASS; fleet sim 8/8; resilience 8/8 |
 
 ---
@@ -164,7 +164,7 @@ python scripts/xdr_resilience_validate.py
 python scripts/xdr_fleet_simulation_validate.py
 ```
 
-**Current baselines:** 4545 PHP tests, 1556 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
+**Current baselines:** 4595 PHP tests, 1556 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
 
 ---
 

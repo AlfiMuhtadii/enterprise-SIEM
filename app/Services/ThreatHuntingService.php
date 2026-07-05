@@ -259,6 +259,9 @@ class ThreatHuntingService
         'security_hardening_freeze_coverage_reports',
         'security_hardening_freeze_control_evidence',
         'security_hardening_freeze_audit_events',
+        // Asset Inventory / CMDB — ASSET-INVENTORY
+        'asset_inventory',
+        'asset_criticality',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1396,6 +1399,17 @@ class ThreatHuntingService
             'total_findings'        => ['>=', '<='],
             'run_id'                => ['='],
         ],
+        'asset_inventory' => [
+            'hostname'     => ['=', 'contains'],
+            'ip_address'   => ['='],
+            'environment'  => ['='],
+            'asset_type'   => ['='],
+            'tenant_id'    => ['='],
+        ],
+        'asset_criticality' => [
+            'criticality_tier' => ['='],
+            'tenant_id'        => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -1590,6 +1604,9 @@ class ThreatHuntingService
         'shadow_soak_runs'               => \App\Models\ShadowSoakRun::class,
         'shadow_soak_gate_checks'        => \App\Models\ShadowSoakGateCheck::class,
         'shadow_soak_evidence_snapshots' => \App\Models\ShadowSoakEvidenceSnapshot::class,
+        // Asset Inventory / CMDB — ASSET-INVENTORY
+        'asset_inventory'   => \App\Models\AssetInventory::class,
+        'asset_criticality' => \App\Models\AssetCriticality::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [

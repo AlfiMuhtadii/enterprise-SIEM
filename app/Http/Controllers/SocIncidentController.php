@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AssetContextService;
 use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
@@ -11,7 +12,10 @@ use Illuminate\View\View;
 
 class SocIncidentController extends Controller
 {
-    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+    public function __construct(
+        private readonly TenantContextAuthority $tenantAuthority,
+        private readonly AssetContextService $assetContext,
+    ) {}
 
     public function show(Request $request, string $incidentId): View
     {
@@ -22,9 +26,16 @@ class SocIncidentController extends Controller
             abort(404);
         }
 
+        $incidentAlerts = DB::table('security_alerts')->where('incident_id', $incidentId)->orderByDesc('detected_at')->get();
+
         return view('soc.incident', [
             'incident' => $incident,
-            'alerts' => DB::table('security_alerts')->where('incident_id', $incidentId)->orderByDesc('detected_at')->get(),
+            'alerts' => $incidentAlerts,
+            // ASSET-INVENTORY: advisory context only — never used to gate workflow/response.
+            'assetContext' => $this->assetContext->assetContextForIps(
+                $incident->tenant_id ?? 'default',
+                $incidentAlerts->pluck('ip')->filter()->unique()->values()->all(),
+            ),
             'notes' => DB::table('security_incident_notes')->where('incident_id', $incidentId)->orderByDesc('created_at')->get(),
             'activities' => DB::table('security_incident_activities')->where('incident_id', $incidentId)->orderByDesc('created_at')->get(),
             'audit' => DB::table('security_audit_trails')->where('target_type', 'incident')->where('target_id', $incidentId)->orderByDesc('occurred_at')->limit(50)->get(),

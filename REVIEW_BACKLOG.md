@@ -16,7 +16,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
 | **CODE-STRUCT-DECOMPOSE** | [Structure/Maintainability] `correlation-worker/main.go` is 2944 lines in one file (normalizer 1181, alert-writer 1277) — no package decomposition; hurts testability at enterprise scale | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
-| **ASSET-INVENTORY** | [Capability — ABSENT] No asset inventory / CMDB / asset-criticality tagging. Enterprise XDR needs asset context for risk-based prioritization (advisory-only; explicitly invited in REVIEW_REJECTED §AI-CONF-BANDS) | new `asset_inventory` tables, `app/Services/*`, enrichment on alerts | High | Proposed |
 | **SIEM-SEARCH** | [Capability — ABSENT] No free-form/full-text search over raw telemetry; only bounded allowlisted hunt queries. Analysts cannot investigate arbitrary raw events (Splunk/Kibana-style search) | `app/Http/Controllers/*`, OpenSearch/ClickHouse query layer | Medium-High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
@@ -178,28 +177,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   still flow through the existing normalize→correlate shadow path — no new active domain, soak
   gates unchanged.
 - **Safety:** Ingestion only; feeds the existing shadow pipeline; no active-domain expansion.
-
-## Proposed Task: ASSET-INVENTORY — Asset inventory / CMDB + advisory asset-criticality context
-
-- **Priority:** High
-- **Component:** new `asset_inventory` / `asset_criticality` tables, an `AssetContextService`,
-  advisory enrichment on alerts/incidents
-- **Finding — verified:** No asset inventory exists — grep for
-  `asset_inventory|cmdb|asset_criticality|business_criticality|crown_jewel` returns nothing.
-  The platform tracks endpoint *agents* but has no catalog of assets, their owners, business
-  criticality, or environment (prod/dev). Risk scoring therefore has no asset context.
-  `REVIEW_REJECTED.md` (§AI-CONF-BANDS) explicitly says an asset-criticality tag "purely as
-  **advisory** alert-enrichment metadata (no response coupling)… would be a separate, new
-  advisory-only proposal" — this is that proposal.
-- **Why enterprise-relevant:** Risk-based alert prioritization ("this beacon is on a domain
-  controller vs a test VM") is core to enterprise triage and is impossible without asset
-  context. Also underpins crown-jewel monitoring and blast-radius scoring.
-- **Proposed fix:** Add append-only-friendly `asset_inventory` (hostname/ip/owner/environment)
-  and `asset_criticality` (advisory tier) tables + import command (CSV/CMDB sync), and enrich
-  alerts/incidents with an advisory `asset_criticality` field used only to *rank* the analyst
-  queue — never to trigger response (respects the no-autonomous-response boundary).
-- **Safety:** Advisory metadata + prioritization only; explicitly decoupled from response
-  execution. No forbidden boundary.
 
 ## Proposed Task: SIEM-SEARCH — Free-form search over raw telemetry for analysts
 

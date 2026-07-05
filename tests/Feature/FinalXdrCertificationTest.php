@@ -474,7 +474,7 @@ class FinalXdrCertificationTest extends TestCase
     public function test_threat_hunting_service_has_correct_domain_count(): void
     {
         $domains = ThreatHuntingService::SUPPORTED_DOMAINS;
-        $this->assertCount(177, $domains);
+        $this->assertCount(179, $domains);
     }
 
     public function test_xdr_certification_domains_registered_in_threat_hunting(): void

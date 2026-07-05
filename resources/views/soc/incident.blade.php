@@ -63,6 +63,19 @@
                     <span class="rounded-full bg-amber-300/10 px-2 py-1 mono-ui text-xs text-amber-100">{{ $technique }}</span>
                 @endforeach
             </div>
+            @if ($assetContext->isNotEmpty())
+                <div class="mt-4 border-t border-cyan-100/15 pt-4">
+                    <h4 class="text-sm font-semibold text-main-ui">Asset Context <span class="text-xs text-amber-400/80">(advisory only)</span></h4>
+                    <div class="mt-2 space-y-2">
+                        @foreach ($assetContext as $asset)
+                            <div class="rounded bg-black/20 p-2 text-xs text-cyan-50">
+                                <span class="mono-ui">{{ $asset->hostname }}</span> ({{ $asset->ip_address }}) — {{ $asset->environment }} —
+                                criticality: <span class="text-amber-300">{{ $asset->criticality->criticality_tier ?? 'unrated' }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </section>
     </div>
 

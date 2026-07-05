@@ -83,6 +83,8 @@ return [
             'redpanda.health.check',
             'ai.knowledge.view',
             'ai.knowledge.seed',
+            'assetinventory.view',
+            'assetinventory.manage',
         ],
         'analyst' => [
             'dashboard.view',
@@ -118,6 +120,8 @@ return [
             'tenant.strict-mode.view',
             'redpanda.health.view',
             'ai.knowledge.view',
+            'assetinventory.view',
+            'assetinventory.manage',
         ],
         'viewer' => [
             'dashboard.view',
@@ -138,6 +142,7 @@ return [
             'tenant.strict-mode.view',
             'redpanda.health.view',
             'ai.knowledge.view',
+            'assetinventory.view',
         ],
         'scenario_operator' => [
             'dashboard.view',

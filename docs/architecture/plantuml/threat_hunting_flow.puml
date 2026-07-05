@@ -17,7 +17,7 @@ note over SVC
   MAX_RESULTS = 500
   MAX_QUERY_WINDOW_DAYS = 30
   MAX_GRAPH_DEPTH = 5
-  177 supported domains
+  179 supported domains
   All fields allowlisted per domain
   No arbitrary SQL — allowlist enforced
 end note
