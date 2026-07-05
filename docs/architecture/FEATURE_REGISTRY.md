@@ -98,6 +98,7 @@ Route prefix        Module                          Permission gate
 /dlq                DLQ Review & Replay                 soc:dlq.view
 /advisory           Shadow Alert Advisory Findings      soc:advisory.view
 /asset-inventory    Asset Inventory / CMDB              soc:assetinventory.view (soc:assetinventory.manage for mutations)
+/siem-search        SIEM Search (read-only)             soc:search.view
 ```
 
 ---
@@ -268,6 +269,30 @@ Advisory alert-enrichment metadata only. `asset_criticality` ranks the analyst q
 - Enrichment: `SocIncidentController::show()` matches an incident's alert IPs against `asset_inventory` and displays an advisory "Asset Context" panel with criticality — display-only, never gates workflow transitions.
 - RBAC: `soc:assetinventory.view` (admin/analyst/viewer), `soc:assetinventory.manage` (admin/analyst).
 - Hunt domains: `asset_inventory`, `asset_criticality`.
+
+---
+
+## SIEM Search
+
+Service: `App\Services\SiemSearchService` — Controller: `App\Http\Controllers\SiemSearchController`
+
+Read-only free-form search over raw alert telemetry. No mutation, no autonomous action.
+
+- Primary path: `xdr-alerts` OpenSearch index via a bounded `query_string` DSL query
+  (`tenant_id` term filter + `detected_at` range filter), max `MAX_RESULTS=500` /
+  default `DEFAULT_MAX_RESULTS=100`, window capped at `MAX_QUERY_WINDOW_DAYS=30`.
+- Fallback: if OpenSearch is unreachable or returns a non-2xx response, falls back to a
+  bounded `ILIKE` search over `security_alerts` (`alert_type`, `ip`, `detector_name`,
+  `evidence::text`, `raw_event::text`) — mirrors the platform's existing OpenSearch
+  graceful-degradation posture (alert-writer already tolerates OpenSearch outages via DLQ).
+- All results pass through `TraceRedactor` before rendering. OpenSearch hits decode
+  `evidence`/`raw_event` to arrays (not JSON strings), so `SiemSearchService` re-encodes
+  those two fields to JSON strings first — `TraceRedactor::row()` only deep-redacts
+  `JSON_PAYLOAD_FIELDS` when they arrive as strings, otherwise redaction would be skipped.
+- Tenant-scoped via `TenantContextAuthority`; `MIN_QUERY_LENGTH=2` guards against overly
+  broad single-character queries.
+- RBAC: `soc:search.view` (admin/analyst/viewer — read-only, granted broadly like other `.view` abilities).
+- UI: `/siem-search` (single GET route, server-rendered — no separate JSON API).
 
 ---
 

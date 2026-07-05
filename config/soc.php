@@ -85,6 +85,7 @@ return [
             'ai.knowledge.seed',
             'assetinventory.view',
             'assetinventory.manage',
+            'search.view',
         ],
         'analyst' => [
             'dashboard.view',
@@ -122,6 +123,7 @@ return [
             'ai.knowledge.view',
             'assetinventory.view',
             'assetinventory.manage',
+            'search.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -143,6 +145,7 @@ return [
             'redpanda.health.view',
             'ai.knowledge.view',
             'assetinventory.view',
+            'search.view',
         ],
         'scenario_operator' => [
             'dashboard.view',

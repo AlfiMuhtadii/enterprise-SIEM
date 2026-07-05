@@ -16,7 +16,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
 | **CODE-STRUCT-DECOMPOSE** | [Structure/Maintainability] `correlation-worker/main.go` is 2944 lines in one file (normalizer 1181, alert-writer 1277) — no package decomposition; hurts testability at enterprise scale | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
-| **SIEM-SEARCH** | [Capability — ABSENT] No free-form/full-text search over raw telemetry; only bounded allowlisted hunt queries. Analysts cannot investigate arbitrary raw events (Splunk/Kibana-style search) | `app/Http/Controllers/*`, OpenSearch/ClickHouse query layer | Medium-High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
@@ -177,23 +176,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   still flow through the existing normalize→correlate shadow path — no new active domain, soak
   gates unchanged.
 - **Safety:** Ingestion only; feeds the existing shadow pipeline; no active-domain expansion.
-
-## Proposed Task: SIEM-SEARCH — Free-form search over raw telemetry for analysts
-
-- **Priority:** Medium-High
-- **Component:** new search controller + query layer over OpenSearch/ClickHouse, SOC UI view
-- **Finding — verified:** There is no free-form/full-text search over raw events. Grep for
-  `raw search|full text|log search` in controllers returns nothing. Threat hunting exists but is
-  **bounded, allowlisted, field-equality queries** across defined domains — deliberately
-  constrained. Analysts have no Splunk/Kibana-style ad-hoc search over raw telemetry to pivot
-  during an investigation.
-- **Why enterprise-relevant:** Interactive search over raw logs is a baseline SOC-analyst
-  workflow; without it, investigation depth is capped by the pre-defined hunt domains.
-- **Proposed fix:** Add a read-only search surface over the existing OpenSearch alert index and
-  (optionally) a ClickHouse raw-event store, with tenant scoping enforced via
-  `TenantContextAuthority`, RBAC (`soc:search.view`), bounded result windows, and the existing
-  `TraceRedactor` applied to output. Read-only — no mutation, respects append-only guarantees.
-- **Safety:** Read-only query surface; tenant-scoped + redacted; no data mutation.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 

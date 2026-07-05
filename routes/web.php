@@ -100,6 +100,7 @@ use App\Http\Controllers\Dlq\DlqController;
 use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
 use App\Http\Controllers\AssetInventoryController;
+use App\Http\Controllers\SiemSearchController;
 use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
 use App\Http\Controllers\RedpandaHealthController;
@@ -1224,6 +1225,11 @@ Route::middleware(['auth', 'soc:assetinventory.manage'])->group(function () {
     Route::post('/asset-inventory',                            [AssetInventoryController::class, 'store'])->name('asset-inventory.store');
     Route::post('/asset-inventory/import',                     [AssetInventoryController::class, 'import'])->name('asset-inventory.import');
     Route::post('/asset-inventory/{assetId}/criticality',      [AssetInventoryController::class, 'setCriticality'])->name('asset-inventory.criticality');
+});
+
+// SIEM Search — read-only free-form search over raw telemetry/alerts, no mutation
+Route::middleware(['auth', 'soc:search.view'])->group(function () {
+    Route::get('/siem-search',                                 [SiemSearchController::class, 'index'])->name('siem-search.index');
 });
 
 Route::middleware(['auth', 'soc:pilot.readiness.view'])->group(function () {
