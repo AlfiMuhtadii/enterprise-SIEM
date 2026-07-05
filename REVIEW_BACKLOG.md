@@ -22,13 +22,9 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** | [Dummy → must be real/labelled] HA/scale/chaos/soak/pilot validators emit PASS/readiness records without exercising a real cluster (LIMITATIONS admits "advisory/simulation layer, not tested under real distributed load") — a PASS can be misread as real validation | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php` | High | Proposed |
 | **IG-HMAC-REPLAY** | [Security] Ingest HMAC signs body only — no timestamp/nonce → captured batches replayable forever. Sign `ts+body` with tolerance window behind compat flag | `services/ingestion-gateway/main.go`, `services/endpoint-agent/agent.py` | Medium | Proposed |
-| **IG-HMAC-FAIL-OPEN** | [Security posture] Empty `XDR_INGEST_SECRET` disables signature check with WARN only; in enforced/prod posture gateway must refuse to start on empty/dev-default secret | `services/ingestion-gateway/main.go` | Medium | Proposed |
-| **GO-BASEIMAGE-EOL** | [Tech currency] `go 1.22` + `golang:1.22-alpine` (EOL Feb 2025) and `alpine:3.20` (EOL 2026-04) in all 3 Go services — no security patches. Bump to supported Go ≥1.24 + alpine 3.22+ (complements TECH-EOL-UPGRADE which is PHP-only) | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/{Dockerfile,go.mod}` | Medium | Proposed |
 | **IB-DLQ-NOT-DURABLE** | [Reliability] Incident-builder failures live only in in-memory ring (lost on restart) — alert-writer has durable `xdr.alert_write_failed`, incident-builder has no `xdr.incident_write_failed` equivalent; asymmetric with unified DLQ review | `services/incident-builder-service/main.py`, `scripts/xdr_topic_bootstrap.py` | Medium | Proposed |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
-| **AIRAG-STUB-CITATIONS** | [Groundedness] `/v1/retrieve` returns 2 hardcoded fake citations with no stub label — mark `provider:"stub"` / `grounded:false` or return empty until Qdrant wired (adjacent to AI-1/RAG-1/RAG-2) | `services/ai-rag-service/main.py` | Low | Proposed |
 | **PY-PRINT-LOGGING** | [Best practice] Python services log via `print()` — no levels/timestamps/structure; adopt stdlib `logging` + JSON formatter | `services/*/main.py` | Low | Proposed |
-| **GO-GRACEFUL-SHUTDOWN** | [Reliability] SIGTERM handler calls `server.Close()` (drops in-flight ingest) while logging "gracefully"; use `server.Shutdown(ctx)` with drain timeout | `services/ingestion-gateway/main.go`, `services/correlation-worker/main.go` | Low | Proposed |
 
 
 
@@ -476,11 +472,17 @@ duplicate — silent alert loss. Fix: record fingerprints only after successful 
 Signature covers body only; captured batches replay forever. Sign `ts + "." + body`, tolerance window,
 compat flag `XDR_INGEST_SIGV2_REQUIRED=false` default. See REVIEW_ALL Batch 18.
 
-## Proposed Task: IG-HMAC-FAIL-OPEN — Fail-fast on empty/dev ingest secret in enforced posture (Medium)
+## ✅ COMPLETED (2026-07-05): IG-HMAC-FAIL-OPEN — Fail-fast on empty/dev ingest secret in enforced posture (Medium)
+
+> Done — added `envBool()` + pure `shouldRefuseIngestSecret(secret, enforced)` helper; `validateStartupSecrets()` now calls `log.Fatalf` (refuse to start) when `XDR_ENFORCE_INTERNAL_AUTH=true` and `XDR_INGEST_SECRET` is empty or `dev-secret-change-me` — mirrors the existing Python/correlation-worker/normalizer-worker fail-fast pattern. Permissive (non-enforced) posture behavior unchanged (WARN only). +5 Go tests. See REVIEW_COMPLETED.md.
+
 Empty `XDR_INGEST_SECRET` silently disables auth (WARN only). When `XDR_ENFORCE_INTERNAL_AUTH=true`,
 refuse to start on empty or `dev-secret-change-me`. See REVIEW_ALL Batch 18.
 
-## Proposed Task: GO-BASEIMAGE-EOL — Upgrade Go 1.22 / alpine:3.20 (both EOL) (Medium)
+## ✅ COMPLETED (2026-07-05): GO-BASEIMAGE-EOL — Upgrade Go 1.22 / alpine:3.20 (both EOL) (Medium)
+
+> Done — `go.mod` in all 3 Go services bumped `go 1.22` → `go 1.24`; Dockerfiles bumped `golang:1.22-alpine` → `golang:1.26-alpine` builder and `alpine:3.20` → `alpine:3.22` runtime (tags verified to exist on Docker Hub before pinning). `go build`/`go vet`/`go test` all green on all 3 services with the local go1.26.3 toolchain; `docker compose config --quiet` exit 0. See REVIEW_COMPLETED.md.
+
 All 3 Go services build on EOL toolchain+runtime images. Bump go.mod ≥1.24, `golang:*-alpine` builder,
 `alpine:3.22+` runtime. Stdlib-only services → low-risk. Complements TECH-EOL-UPGRADE (PHP). See REVIEW_ALL Batch 18.
 
@@ -501,7 +503,10 @@ Fresh ms-timestamp group + `earliest` on every start/recovery reprocesses full t
 Stable group id + explicit commits; recreate identity only on offset_out_of_range. Enterprise-relevant
 reliability — per classification rules must not be Rejected. See REVIEW_ALL Batch 18.
 
-## Proposed Task: AIRAG-STUB-CITATIONS — Label fabricated /v1/retrieve results as stub (Low)
+## ✅ COMPLETED (2026-07-05): AIRAG-STUB-CITATIONS — Label fabricated /v1/retrieve results as stub (Low)
+
+> Done — `/v1/retrieve` response now includes explicit `"provider": "stub"` and `"grounded": false` fields; confirmed no live caller depends on the prior shape (`AiRagServiceProvider.php` only calls `/v1/analyze`, never `/v1/retrieve` — this endpoint was reachable but unused). +1 test. See REVIEW_COMPLETED.md.
+
 Hardcoded fake citations returned with no stub marker. Add `provider:"stub"` / `grounded:false` or return
 empty until Qdrant retrieval is wired. See REVIEW_ALL Batch 18.
 
@@ -509,6 +514,9 @@ empty until Qdrant retrieval is wired. See REVIEW_ALL Batch 18.
 Adopt stdlib `logging` + shared JSON-line formatter across Python services; map `[SECURITY-WARN]`/WARN
 prefixes to levels. See REVIEW_ALL Batch 18.
 
-## Proposed Task: GO-GRACEFUL-SHUTDOWN — Use server.Shutdown(ctx) on SIGTERM (Low)
+## ✅ COMPLETED (2026-07-05): GO-GRACEFUL-SHUTDOWN — Use server.Shutdown(ctx) on SIGTERM (Low)
+
+> Done — both `ingestion-gateway` and `correlation-worker` SIGTERM handlers now call `server.Shutdown(ctx)` with a 15s drain timeout instead of `server.Close()`, so in-flight requests complete instead of being dropped mid-deploy. `context` import added to correlation-worker. `go build`/`go vet`/`go test` green on both. See REVIEW_COMPLETED.md.
+
 `server.Close()` drops in-flight ingest requests during deploys despite "gracefully" log line. Drain with
 10–15 s Shutdown timeout. See REVIEW_ALL Batch 18.
