@@ -21,12 +21,10 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** | [Dummy → must be real/labelled] HA/scale/chaos/soak/pilot validators emit PASS/readiness records without exercising a real cluster (LIMITATIONS admits "advisory/simulation layer, not tested under real distributed load") — a PASS can be misread as real validation | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php` | High | Proposed |
-| **AW-DEDUPE-BEFORE-COMMIT** | [Bug — correctness] `SEEN` fingerprint recorded *before* PG write succeeds → replay of a failed (replayable) batch is dropped as "duplicate"; silent alert loss. Add to SEEN only after successful write | `services/alert-writer-service/main.py` | High | Proposed |
 | **IG-HMAC-REPLAY** | [Security] Ingest HMAC signs body only — no timestamp/nonce → captured batches replayable forever. Sign `ts+body` with tolerance window behind compat flag | `services/ingestion-gateway/main.go`, `services/endpoint-agent/agent.py` | Medium | Proposed |
 | **IG-HMAC-FAIL-OPEN** | [Security posture] Empty `XDR_INGEST_SECRET` disables signature check with WARN only; in enforced/prod posture gateway must refuse to start on empty/dev-default secret | `services/ingestion-gateway/main.go` | Medium | Proposed |
 | **GO-BASEIMAGE-EOL** | [Tech currency] `go 1.22` + `golang:1.22-alpine` (EOL Feb 2025) and `alpine:3.20` (EOL 2026-04) in all 3 Go services — no security patches. Bump to supported Go ≥1.24 + alpine 3.22+ (complements TECH-EOL-UPGRADE which is PHP-only) | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/{Dockerfile,go.mod}` | Medium | Proposed |
 | **IB-DLQ-NOT-DURABLE** | [Reliability] Incident-builder failures live only in in-memory ring (lost on restart) — alert-writer has durable `xdr.alert_write_failed`, incident-builder has no `xdr.incident_write_failed` equivalent; asymmetric with unified DLQ review | `services/incident-builder-service/main.py`, `scripts/xdr_topic_bootstrap.py` | Medium | Proposed |
-| **PY-POISON-RECORD-BATCH** | [Resilience] One malformed record (`AlertPayload(**row)` ValidationError) fails the whole poll batch → recreate-from-earliest loop forever; add per-record try/except + DLQ skip (mirror normalizer 40801 pattern) | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 | **AIRAG-STUB-CITATIONS** | [Groundedness] `/v1/retrieve` returns 2 hardcoded fake citations with no stub label — mark `provider:"stub"` / `grounded:false` or return empty until Qdrant wired (adjacent to AI-1/RAG-1/RAG-2) | `services/ai-rag-service/main.py` | Low | Proposed |
 | **PY-PRINT-LOGGING** | [Best practice] Python services log via `print()` — no levels/timestamps/structure; adopt stdlib `logging` + JSON formatter | `services/*/main.py` | Low | Proposed |
@@ -467,7 +465,10 @@ REVIEW_ALL / REVIEW_REJECTED / REVIEW_COMPLETED. None crosses a CLAUDE.md Forbid
   recreate, zero alerts written. Fix: extract `_write_alerts_core()` / `_build_incidents_core()`; auth stays at HTTP layer.
   Regression test: event loop with token env set must still write. See REVIEW_ALL Batch 18.
 
-## Proposed Task: AW-DEDUPE-BEFORE-COMMIT — SEEN cache poisons replay after failed PG write (High)
+## ✅ COMPLETED (2026-07-05): AW-DEDUPE-BEFORE-COMMIT — SEEN cache poisons replay after failed PG write (High)
+
+> Done — `_write_alerts_core()` now computes fingerprints into a local `seen_in_batch` set (still deduping intra-batch repeats) and only commits them into the durable `SEEN` LRU via `_seen_add()` *after* `write_postgres()` succeeds (`postgres_ok`), or in pure dry-run (no backing store configured at all, where marking on receipt is the intended demo behavior). A failed Postgres write no longer poisons `SEEN`. Verified against real pydantic: an alert that fails to write, then is retried once the store recovers, is written successfully instead of being silently dropped as a duplicate. +4 unit tests + 1 real-dependency reproduction. See REVIEW_COMPLETED.md.
+
 `_seen_add(fp)` runs before `write_postgres()`; a replayable `postgres_write_failed` batch is later dropped as
 duplicate — silent alert loss. Fix: record fingerprints only after successful write. See REVIEW_ALL Batch 18.
 
@@ -488,7 +489,10 @@ Incident write/publish failures exist only in the in-memory ring (lost on restar
 `write_incident_failure()` → `xdr.incident_write_failed`, register in topic bootstrap, extend pipeline-DLQ
 classification. See REVIEW_ALL Batch 18.
 
-## Proposed Task: PY-POISON-RECORD-BATCH — Per-record poison isolation in Python consumers (Medium)
+## ✅ COMPLETED (2026-07-05): PY-POISON-RECORD-BATCH — Per-record poison isolation in Python consumers (Medium)
+
+> Done — `AlertPayload(**row)` construction in `normalize_records()` (both services) is now wrapped in a per-record `try/except`; a malformed record is isolated to the bounded `DLQ` ring as `alert_payload_invalid: …` and the loop continues, instead of the exception propagating up through `event_loop()` and aborting the entire poll batch (previously: a single poison record forced a recreate-from-earliest loop forever). Verified against real pydantic with a mixed valid/invalid batch: the malformed record is isolated to DLQ and the valid record in the same batch is still recovered. +6 unit tests (3/service) + 1 real-dependency reproduction. See REVIEW_COMPLETED.md.
+
 One malformed record aborts the whole poll batch → recreate-from-earliest loop forever. Per-record
 try/except → skip + structured DLQ entry (mirror normalizer 40801 pattern). See REVIEW_ALL Batch 18.
 
