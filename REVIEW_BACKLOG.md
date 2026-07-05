@@ -22,7 +22,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** | [Dummy → must be real/labelled] HA/scale/chaos/soak/pilot validators emit PASS/readiness records without exercising a real cluster (LIMITATIONS admits "advisory/simulation layer, not tested under real distributed load") — a PASS can be misread as real validation | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php` | High | Proposed |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
-| **PY-PRINT-LOGGING** | [Best practice] Python services log via `print()` — no levels/timestamps/structure; adopt stdlib `logging` + JSON formatter | `services/*/main.py` | Low | Proposed |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
@@ -296,8 +295,3 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 Fresh ms-timestamp group + `earliest` on every start/recovery reprocesses full topic history each restart.
 Stable group id + explicit commits; recreate identity only on offset_out_of_range. Enterprise-relevant
 reliability — per classification rules must not be Rejected. See REVIEW_ALL Batch 18.
-
-## Proposed Task: PY-PRINT-LOGGING — Replace print() with structured logging (Low)
-
-Adopt stdlib `logging` + shared JSON-line formatter across Python services; map `[SECURITY-WARN]`/WARN
-prefixes to levels. See REVIEW_ALL Batch 18.
