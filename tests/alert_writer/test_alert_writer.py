@@ -379,5 +379,47 @@ class TestFastapiLifespan(unittest.TestCase):
             aw.STOP.clear()
 
 
+class TestPipeConsumerAuthFix(unittest.TestCase):
+    """PIPE-CONSUMER-AUTH-500: the internal event-loop path must never run through
+    the HTTP-auth-checking route function — it must call the auth-free core directly,
+    otherwise every batch fails once XDR_ENFORCE_INTERNAL_AUTH=true + a token is
+    configured (the docker-compose.prod.yml posture), stalling the whole pipeline."""
+
+    def test_process_alerts_calls_core_not_route(self):
+        import inspect
+        src = inspect.getsource(aw.process_alerts)
+        self.assertIn("_write_alerts_core", src)
+        self.assertNotIn("= write(", src)
+
+    def test_core_function_has_no_token_parameter(self):
+        import inspect
+        sig = inspect.signature(aw._write_alerts_core)
+        self.assertNotIn("x_internal_service_token", sig.parameters)
+
+    def test_core_function_runs_without_auth_even_when_enforced(self):
+        class _FakeRequest:
+            alerts: list = []
+            trace_id = None
+            source_topic = "xdr.alerts"
+
+        with patch.dict("os.environ", {
+            "XDR_ENFORCE_INTERNAL_AUTH": "true",
+            "XDR_ALERT_WRITER_INTERNAL_TOKEN": "secret",
+        }):
+            result = aw._write_alerts_core(_FakeRequest())
+        self.assertTrue(result["ok"])
+
+    def test_write_route_source_still_checks_auth(self):
+        # The stubbed @app.post decorator (see module header) shadows `write` with a
+        # MagicMock in this test harness, so the route can't be invoked directly here —
+        # assert the auth check is still present in source instead.
+        import inspect
+        src = inspect.getsource(aw)
+        route_src = src[src.index('@app.post("/v1/write")'):]
+        route_src = route_src[:route_src.index("@app.post(\"/v1/process\")")]
+        self.assertIn("verify_internal_token", route_src)
+        self.assertIn("HTTPException", route_src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

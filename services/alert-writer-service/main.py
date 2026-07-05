@@ -452,7 +452,7 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
 
 
 def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_topic: str) -> Dict[str, Any]:
-    result = write(WriteRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
+    result = _write_alerts_core(WriteRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
     created_topic = os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created")
     created_events = []
     for alert in alerts:
@@ -630,13 +630,10 @@ def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[
     return {"count": len(DLQ), "items": items}
 
 
-@app.post("/v1/write")
-def write(
-    request: WriteRequest,
-    x_internal_service_token: Optional[str] = Header(default=None),
-) -> Dict[str, Any]:
-    if not verify_internal_token(x_internal_service_token or ""):
-        raise HTTPException(status_code=401, detail="unauthorized")
+def _write_alerts_core(request: WriteRequest) -> Dict[str, Any]:
+    """Core dedupe/persist logic — internal auth is checked only at the HTTP layer
+    (the `write()` route below). PIPE-CONSUMER-AUTH-500: the event loop calls this
+    directly so an internal-token check never runs against a non-HTTP caller."""
     started = time.perf_counter()
     METRICS["batches"] += 1
     METRICS["alerts_seen"] += len(request.alerts)
@@ -687,6 +684,16 @@ def write(
         "write_latency_ms": round(elapsed, 3),
         "dry_run": dry_run,
     }
+
+
+@app.post("/v1/write")
+def write(
+    request: WriteRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    return _write_alerts_core(request)
 
 
 @app.post("/v1/process")

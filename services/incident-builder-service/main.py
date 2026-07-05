@@ -378,7 +378,7 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
 
 
 def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_topic: str) -> Dict[str, Any]:
-    result = build(BuildRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
+    result = _build_incidents_core(BuildRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
     topic = os.getenv("XDR_INCIDENTS_TOPIC", "incidents.updated")
     events = []
     for incident in result.get("incidents", []):
@@ -538,13 +538,10 @@ def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[
     return {"count": len(DLQ), "items": items}
 
 
-@app.post("/v1/build")
-def build(
-    request: BuildRequest,
-    x_internal_service_token: Optional[str] = Header(default=None),
-) -> Dict[str, Any]:
-    if not verify_internal_token(x_internal_service_token or ""):
-        raise HTTPException(status_code=401, detail="unauthorized")
+def _build_incidents_core(request: BuildRequest) -> Dict[str, Any]:
+    """Core aggregate/persist logic — internal auth is checked only at the HTTP layer
+    (the `build()` route below). PIPE-CONSUMER-AUTH-500: the event loop calls this
+    directly so an internal-token check never runs against a non-HTTP caller."""
     started = time.perf_counter()
     METRICS["batches"] += 1
     METRICS["alerts_seen"] += len(request.alerts)
@@ -576,6 +573,16 @@ def build(
         "latency_ms": round(elapsed, 3),
         "dry_run": connect_pg() is None,
     }
+
+
+@app.post("/v1/build")
+def build(
+    request: BuildRequest,
+    x_internal_service_token: Optional[str] = Header(default=None),
+) -> Dict[str, Any]:
+    if not verify_internal_token(x_internal_service_token or ""):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    return _build_incidents_core(request)
 
 
 @app.post("/v1/process")
