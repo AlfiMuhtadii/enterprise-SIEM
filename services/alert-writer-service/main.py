@@ -8,6 +8,7 @@ safe to run in dry-run mode during strangler migration.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -58,7 +59,17 @@ class WriteRequest(BaseModel):
     source_topic: str = "xdr.alerts"
 
 
-app = FastAPI(title="Detector XDR Alert Writer", version="0.1.0")
+@contextlib.asynccontextmanager
+async def lifespan(_app: "FastAPI"):
+    """Modern FastAPI lifespan replacing the deprecated startup/shutdown event hooks."""
+    _startup_tasks()
+    try:
+        yield
+    finally:
+        _shutdown_tasks()
+
+
+app = FastAPI(title="Detector XDR Alert Writer", version="0.1.0", lifespan=lifespan)
 METRICS: Dict[str, Any] = {
     "batches": 0,
     "alerts_seen": 0,
@@ -1265,8 +1276,7 @@ def verify_internal_token(token: str) -> bool:
     return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
 
-@app.on_event("startup")
-def startup() -> None:
+def _startup_tasks() -> None:
     validate_startup_secrets()
     if os.getenv("XDR_EVENT_LOOP_ENABLED", "false").lower() in {"1", "true", "yes"}:
         threading.Thread(target=event_loop, daemon=True).start()
@@ -1290,6 +1300,5 @@ def startup() -> None:
         print(f"[pipeline-dlq-consumer] started  topic={write_failed_topic}", flush=True)
 
 
-@app.on_event("shutdown")
-def shutdown() -> None:
+def _shutdown_tasks() -> None:
     STOP.set()

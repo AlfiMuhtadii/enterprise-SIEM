@@ -278,5 +278,26 @@ class TestBoundedInMemoryState(unittest.TestCase):
             self.assertEqual(ib.DLQ[-1]["i"], 19)  # newest retained
 
 
+class TestFastapiLifespan(unittest.TestCase):
+    """FASTAPI-LIFESPAN: use the lifespan context manager, not deprecated on_event."""
+
+    def test_no_deprecated_on_event(self):
+        import inspect
+        self.assertNotIn("on_event", inspect.getsource(ib))
+
+    def test_lifespan_helpers_exist(self):
+        self.assertTrue(hasattr(ib, "lifespan"))
+        self.assertTrue(callable(ib._startup_tasks))
+        self.assertTrue(callable(ib._shutdown_tasks))
+
+    def test_shutdown_sets_stop(self):
+        ib.STOP.clear()
+        try:
+            ib._shutdown_tasks()
+            self.assertTrue(ib.STOP.is_set())
+        finally:
+            ib.STOP.clear()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

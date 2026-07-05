@@ -15,7 +15,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Trained multiclass LR model is offline-script-only; not deployed as an online inference service in the live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | Medium-High | Proposed |
 | **SECRETS-VAULT** | [Enterprise-XDR] No centralized secrets manager (Vault/KMS); all service/DB/HMAC secrets resolved from `.env`/env vars | `config/*`, `docker-compose*.yml`, `services/*`, `app/Services/InternalAuthService.php` | Medium | Proposed |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
-| **FASTAPI-LIFESPAN** | [Obsolete API] Deprecated `@app.on_event("startup"/"shutdown")` in both Python services — removed in modern FastAPI; migrate to `lifespan` handler | `services/alert-writer-service/main.py:1250,1275`, `services/incident-builder-service/main.py:604,611` | Low | Proposed |
 | **PY-CONTAINER-HARDENING** | [Infra/Best-practice] Python service Dockerfiles run as **root** (no `USER`), no `HEALTHCHECK`, unpinned deps (no lockfile) — Go Dockerfiles already do non-root multi-stage | `services/alert-writer-service/Dockerfile`, `services/incident-builder-service/Dockerfile`, `services/ai-rag-service/Dockerfile`, `requirements.txt` | Medium | Proposed |
 | **CODE-STRUCT-DECOMPOSE** | [Structure/Maintainability] `correlation-worker/main.go` is 2944 lines in one file (normalizer 1181, alert-writer 1277) — no package decomposition; hurts testability at enterprise scale | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
@@ -210,7 +209,9 @@ compiled `.exe`/`.pyc` are gitignored (not tracked). The items below are the rea
   do it as a dedicated effort, not bundled.
 - **Safety:** Framework upgrade only; no product-boundary change. Must keep the full suite green.
 
-## Proposed Task: FASTAPI-LIFESPAN — Replace deprecated `@app.on_event` with lifespan handlers
+## ✅ COMPLETED (2026-07-05): FASTAPI-LIFESPAN — Replace deprecated `@app.on_event` with lifespan handlers
+
+> Done — both services now use `@contextlib.asynccontextmanager lifespan(...)` passed as `FastAPI(lifespan=…)`; the old `startup`/`shutdown` bodies became plain `_startup_tasks()`/`_shutdown_tasks()`. Behavior-neutral. +6 tests. See REVIEW_COMPLETED.md.
 
 - **Priority:** Low (obsolete API / future-break)
 - **Component:** `services/alert-writer-service/main.py` (lines 1250, 1275),
