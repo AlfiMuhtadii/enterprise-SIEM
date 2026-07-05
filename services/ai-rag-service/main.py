@@ -86,11 +86,16 @@ if FastAPI is not None:
 
     @app.post("/v1/retrieve")
     def retrieve(request: RetrievalRequest) -> Dict[str, Any]:
+        # AIRAG-STUB-CITATIONS: no real vector store (Qdrant) is wired up yet, so these
+        # are fixed placeholder results, not a grounded retrieval. Labelled explicitly so
+        # a caller can never mistake this for a real, evidence-backed citation.
         started = time.perf_counter()
         METRICS["retrieval_requests"] += 1
         METRICS["latency_ms_total"] += (time.perf_counter() - started) * 1000
         return {
             "query": request.query,
+            "provider": "stub",
+            "grounded": False,
             "results": [
                 {"citation": "kb:incident-response", "score": 0.82, "title": "Incident response checklist"},
                 {"citation": "kb:xdr-correlation", "score": 0.74, "title": "XDR correlation notes"},
