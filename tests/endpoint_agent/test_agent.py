@@ -2442,5 +2442,76 @@ class TestLowLevelSafetyInvariants(unittest.TestCase):
             self.assertTrue(hasattr(ag, fn), f"agent module should expose {fn}()")
 
 
+class TestSignBodyReplayProtection(unittest.TestCase):
+    """IG-HMAC-REPLAY: sign_body() must support the ts+body (sigv2) scheme, and
+    GatewayClient._send_raw() must send X-XDR-Timestamp alongside a sigv2
+    signature so the gateway can bound how long a captured signature is valid."""
+
+    def test_sign_body_legacy_v1_unchanged(self) -> None:
+        body = b'{"a":1}'
+        sig = ag.sign_body("secret", body)
+        import hashlib
+        import hmac as hmac_mod
+        expected = "sha256=" + hmac_mod.new(b"secret", body, hashlib.sha256).hexdigest()
+        self.assertEqual(sig, expected)
+
+    def test_sign_body_v2_covers_timestamp_and_body(self) -> None:
+        body = b'{"a":1}'
+        sig = ag.sign_body("secret", body, timestamp="1000")
+        import hashlib
+        import hmac as hmac_mod
+        expected = "sha256=" + hmac_mod.new(b"secret", b"1000." + body, hashlib.sha256).hexdigest()
+        self.assertEqual(sig, expected)
+
+    def test_sign_body_v2_differs_from_v1_for_same_body(self) -> None:
+        body = b'{"a":1}'
+        self.assertNotEqual(ag.sign_body("secret", body), ag.sign_body("secret", body, timestamp="1000"))
+
+    def test_send_raw_includes_timestamp_header_and_v2_signature(self) -> None:
+        cfg = _make_cfg(
+            ingestion_gateway_url="http://127.0.0.1:19999",
+            ingestion_gateway_secret="secret",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            buf = ag.LocalBuffer(str(Path(tmp) / "buffer.jsonl"))
+            gw = ag.GatewayClient(cfg, buf)
+            captured: dict[str, Any] = {}
+
+            def fake_post(url, payload, headers, timeout=15):
+                captured["headers"] = headers
+                captured["payload"] = payload
+                return 202, b"{}"
+
+            with patch.object(ag, "_http_post", side_effect=fake_post):
+                ok = gw._send_raw([ag.base_event("heartbeat", "agent-1", "trace-1")])
+
+        self.assertTrue(ok)
+        self.assertIn("X-XDR-Timestamp", captured["headers"])
+        ts = captured["headers"]["X-XDR-Timestamp"]
+        self.assertTrue(ts.isdigit())
+        expected_sig = ag.sign_body("secret", captured["payload"], timestamp=ts)
+        self.assertEqual(captured["headers"]["X-XDR-Signature"], expected_sig)
+
+    def test_send_raw_omits_signature_when_no_secret(self) -> None:
+        cfg = _make_cfg(
+            ingestion_gateway_url="http://127.0.0.1:19999",
+            ingestion_gateway_secret="",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            buf = ag.LocalBuffer(str(Path(tmp) / "buffer.jsonl"))
+            gw = ag.GatewayClient(cfg, buf)
+            captured: dict[str, Any] = {}
+
+            def fake_post(url, payload, headers, timeout=15):
+                captured["headers"] = headers
+                return 202, b"{}"
+
+            with patch.object(ag, "_http_post", side_effect=fake_post):
+                gw._send_raw([ag.base_event("heartbeat", "agent-1", "trace-1")])
+
+        self.assertNotIn("X-XDR-Signature", captured["headers"])
+        self.assertNotIn("X-XDR-Timestamp", captured["headers"])
+
+
 if __name__ == "__main__":
     unittest.main()

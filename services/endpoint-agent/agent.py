@@ -193,9 +193,20 @@ def save_state(state_path: str, state: dict[str, Any]) -> None:
 # HMAC signing
 # ---------------------------------------------------------------------------
 
-def sign_body(secret: str, body: bytes) -> str:
-    """Return the X-XDR-Signature header value: 'sha256=<hex>'."""
-    mac = hmac.new(secret.encode(), body, hashlib.sha256)
+def sign_body(secret: str, body: bytes, timestamp: str | None = None) -> str:
+    """Return the X-XDR-Signature header value: 'sha256=<hex>'.
+
+    IG-HMAC-REPLAY: when timestamp is provided, the signature covers
+    "timestamp.body" instead of body alone, and the caller must also send it
+    as the X-XDR-Timestamp header — the gateway enforces a tolerance window
+    so a captured (signature, timestamp, body) tuple cannot be replayed
+    indefinitely. Legacy body-only signing (timestamp=None) is preserved for
+    any other caller of this function.
+    """
+    if timestamp is not None:
+        mac = hmac.new(secret.encode(), (timestamp + ".").encode() + body, hashlib.sha256)
+    else:
+        mac = hmac.new(secret.encode(), body, hashlib.sha256)
     return "sha256=" + mac.hexdigest()
 
 
@@ -461,7 +472,9 @@ class GatewayClient:
         body = json.dumps(events, separators=(",", ":")).encode()
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.secret:
-            headers["X-XDR-Signature"] = sign_body(self.secret, body)
+            timestamp = str(int(time.time()))
+            headers["X-XDR-Timestamp"] = timestamp
+            headers["X-XDR-Signature"] = sign_body(self.secret, body, timestamp)
 
         for attempt in range(self.MAX_RETRIES):
             try:

@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -605,5 +609,84 @@ func TestShouldRefuseIngestSecretPermissiveEmpty(t *testing.T) {
 func TestShouldRefuseIngestSecretPermissiveDevDefault(t *testing.T) {
 	if shouldRefuseIngestSecret("dev-secret-change-me", false) {
 		t.Error("must not refuse when enforced=false, even with the dev-default secret")
+	}
+}
+
+// IG-HMAC-REPLAY: sigv2 (ts+body) signature verification with a tolerance window.
+
+func signV2(secret, timestamp string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp))
+	mac.Write([]byte("."))
+	mac.Write(body)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func TestVerifySignatureNoSecretAlwaysPasses(t *testing.T) {
+	if err := verifySignature("", []byte("body"), "garbage", "", 300, false); err != nil {
+		t.Errorf("empty secret must disable verification, got error: %v", err)
+	}
+}
+
+func TestVerifySignatureLegacyV1StillAccepted(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	mac := hmac.New(sha256.New, []byte("secret"))
+	mac.Write(body)
+	sigV1 := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if err := verifySignature("secret", body, sigV1, "", 300, false); err != nil {
+		t.Errorf("legacy v1 body-only signature should be accepted when sigV2Required=false, got: %v", err)
+	}
+}
+
+func TestVerifySignatureV1RejectedWhenV2Required(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	mac := hmac.New(sha256.New, []byte("secret"))
+	mac.Write(body)
+	sigV1 := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if err := verifySignature("secret", body, sigV1, "", 300, true); err == nil {
+		t.Error("legacy v1 signature (no timestamp) must be rejected when sigV2Required=true")
+	}
+}
+
+func TestVerifySignatureV2ValidWithinTolerance(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	sig := signV2("secret", ts, body)
+	if err := verifySignature("secret", body, sig, ts, 300, false); err != nil {
+		t.Errorf("valid sigv2 within tolerance should be accepted, got: %v", err)
+	}
+}
+
+func TestVerifySignatureV2RejectsStaleTimestamp(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	staleTs := strconv.FormatInt(time.Now().Add(-10*time.Minute).Unix(), 10)
+	sig := signV2("secret", staleTs, body)
+	if err := verifySignature("secret", body, sig, staleTs, 300, false); err == nil {
+		t.Error("a timestamp older than the tolerance window must be rejected (replay protection)")
+	}
+}
+
+func TestVerifySignatureV2RejectsFutureTimestamp(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	futureTs := strconv.FormatInt(time.Now().Add(10*time.Minute).Unix(), 10)
+	sig := signV2("secret", futureTs, body)
+	if err := verifySignature("secret", body, sig, futureTs, 300, false); err == nil {
+		t.Error("a timestamp far in the future must be rejected too")
+	}
+}
+
+func TestVerifySignatureV2RejectsWrongSignature(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	if err := verifySignature("secret", body, "sha256=deadbeef", ts, 300, false); err == nil {
+		t.Error("an incorrect sigv2 signature must be rejected")
+	}
+}
+
+func TestVerifySignatureV2RejectsMalformedTimestamp(t *testing.T) {
+	body := []byte(`{"a":1}`)
+	sig := signV2("secret", "not-a-number", body)
+	if err := verifySignature("secret", body, sig, "not-a-number", 300, false); err == nil {
+		t.Error("a non-numeric X-XDR-Timestamp must be rejected")
 	}
 }

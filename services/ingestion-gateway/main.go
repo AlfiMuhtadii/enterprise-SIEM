@@ -112,6 +112,10 @@ type Gateway struct {
 	cb                *circuitBreaker
 	maxPublishRetries int
 	publishTimeoutSecs int
+	// IG-HMAC-REPLAY: sigv2 (ts+body) tolerance window and whether legacy
+	// body-only signatures (no X-XDR-Timestamp header) are still accepted.
+	sigTimestampToleranceSecs int64
+	sigV2Required             bool
 	// core counters
 	requests      atomic.Int64
 	accepted      atomic.Int64
@@ -144,6 +148,8 @@ func main() {
 		cb:                 newCircuitBreaker(cbMaxFailures, time.Duration(cbOpenSecs)*time.Second),
 		maxPublishRetries:  maxRetries,
 		publishTimeoutSecs: publishTimeoutSecs,
+		sigTimestampToleranceSecs: int64(envInt("XDR_INGEST_SIG_TOLERANCE_SECONDS", 300)),
+		sigV2Required:             envBool("XDR_INGEST_SIGV2_REQUIRED", false),
 	}
 
 	// IG-1: start background goroutine to poll normalizer metrics
@@ -334,7 +340,7 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 		g.reject(w, "read_failed", http.StatusBadRequest)
 		return
 	}
-	if err := verifySignature(g.secret, body, r.Header.Get("X-XDR-Signature")); err != nil {
+	if err := verifySignature(g.secret, body, r.Header.Get("X-XDR-Signature"), r.Header.Get("X-XDR-Timestamp"), g.sigTimestampToleranceSecs, g.sigV2Required); err != nil {
 		g.reject(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -484,9 +490,42 @@ func (g *Gateway) publish(events []map[string]any) error {
 	return lastErr
 }
 
-func verifySignature(secret string, body []byte, signature string) error {
+// verifySignature checks the X-XDR-Signature header against the request body.
+//
+// IG-HMAC-REPLAY: when the sender includes an X-XDR-Timestamp header, the
+// signature covers "ts.body" (sigv2) and the timestamp must fall within
+// toleranceSecs of the gateway's clock — bounding how long a captured
+// (signature, timestamp, body) tuple remains replayable, instead of forever.
+// Senders that don't yet send a timestamp fall back to the legacy body-only
+// signature (sigv1), unless sigV2Required forces the tolerance-bounded path.
+func verifySignature(secret string, body []byte, signature string, timestamp string, toleranceSecs int64, sigV2Required bool) error {
 	if secret == "" {
 		return nil
+	}
+	if timestamp != "" {
+		ts, err := strconv.ParseInt(timestamp, 10, 64)
+		if err != nil {
+			return errors.New("invalid_timestamp")
+		}
+		delta := time.Now().Unix() - ts
+		if delta < 0 {
+			delta = -delta
+		}
+		if toleranceSecs > 0 && delta > toleranceSecs {
+			return errors.New("stale_timestamp")
+		}
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(timestamp))
+		mac.Write([]byte("."))
+		mac.Write(body)
+		expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal([]byte(expected), []byte(signature)) {
+			return errors.New("invalid_signature")
+		}
+		return nil
+	}
+	if sigV2Required {
+		return errors.New("timestamp_required")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
