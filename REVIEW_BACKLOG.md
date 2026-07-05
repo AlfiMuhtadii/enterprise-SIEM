@@ -20,7 +20,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **SIEM-SEARCH** | [Capability — ABSENT] No free-form/full-text search over raw telemetry; only bounded allowlisted hunt queries. Analysts cannot investigate arbitrary raw events (Splunk/Kibana-style search) | `app/Http/Controllers/*`, OpenSearch/ClickHouse query layer | Medium-High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
-| **SIM-LAYER-REALITY-GATE** | [Dummy → must be real/labelled] HA/scale/chaos/soak/pilot validators emit PASS/readiness records without exercising a real cluster (LIMITATIONS admits "advisory/simulation layer, not tested under real distributed load") — a PASS can be misread as real validation | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php` | High | Proposed |
+| **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
@@ -265,30 +265,30 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Safety:** Refactor/consolidation only; append-only tables retained (deprecate = stop writing,
   not drop); full PHP suite must stay green.
 
-## Proposed Task: SIM-LAYER-REALITY-GATE — Back (or clearly label) the HA/scale/chaos/soak simulators
+## Proposed Task: SIM-LAYER-REALITY-GATE (Track B) — Back the key HA/scale/chaos/soak simulators with real infra
+
+> **Track A (labelling) completed 2026-07-06** — see REVIEW_COMPLETED.md. All 35 validation-run
+> tables across `EnterpriseScaleHaService`, `TelemetryScalePilotService`, `SoakChaosValidationService`,
+> `PilotExecutionService` now carry `is_simulated`/`evidence_basis`, defaulting `true`/`'computed'`
+> since none of these validators currently exercise real distributed infrastructure. This section now
+> tracks only the remaining Track B scope.
 
 - **Priority:** High (credibility / enterprise validity)
 - **Component:** `EnterpriseScaleHaService`, `TelemetryScalePilotService`, `SoakChaosValidationService`,
-  `PilotExecutionService`, `EnterpriseOperationsAutomationService`, related "validation run" tables
-- **Finding — verified:** These services accept parameters (e.g. `node_count`, endpoint counts,
-  chaos scenario) and **write a `*_validation_run` record with a PASS/score** — without exercising
-  any real distributed infrastructure. `docs/thesis/LIMITATIONS_FUTURE_WORK.md` states it plainly:
-  *"HA governance, multi-tenant isolation, and cluster topology are implemented at the advisory/
-  simulation layer, not tested under real distributed load."* Redpanda is single-node (GAP-004),
-  so an `EnterpriseScaleHaService` "HA_PASS" is a computed record, not a failover proof. The risk:
-  a stored `PASS` / high readiness score is indistinguishable, in the UI/exports, from a real
-  validated result.
-- **Why enterprise-relevant:** "Full enterprise XDR" claims must be backed by real evidence.
-  Either the load-bearing validators (HA failover, scale, soak) run against a real multi-node
-  cluster, or every simulated result must be unambiguously non-authoritative.
-- **Proposed fix (two-track):** (a) **Label:** add an explicit `is_simulated=true` +
-  `evidence_basis='computed'|'measured'` field (and UI/export badge) to every such run so a
-  simulated PASS can never be read as measured — cheap, immediate, preserves academic honesty.
-  (b) **Back the key ones:** wire `EnterpriseScaleHaService`/soak to the real `docker-compose.ha.yml`
-  multi-node path (ties into GAP-004 / HA-DRILL-01) so at least HA-failover and soak produce
-  *measured* evidence before any production-readiness claim. Track (b) as the enterprise gate.
-- **Safety:** Governance/labelling + real validation harness; advisory-only records preserved;
-  no autonomous action; append-only tables untouched.
+  `PilotExecutionService`, `docker-compose.ha.yml`
+- **Finding — verified:** Redpanda is single-node (GAP-004), so an `EnterpriseScaleHaService`
+  "HA_PASS" is a computed record, not a failover proof. `docs/thesis/LIMITATIONS_FUTURE_WORK.md`
+  states it plainly: *"HA governance, multi-tenant isolation, and cluster topology are implemented
+  at the advisory/simulation layer, not tested under real distributed load."* Now that every record
+  is explicitly labelled `is_simulated=true`/`evidence_basis='computed'` (Track A), a real PASS can
+  no longer be confused with a computed one — but no validator produces a real PASS yet.
+- **Why enterprise-relevant:** "Full enterprise XDR" claims must eventually be backed by real
+  evidence, not just honestly-labelled simulated evidence.
+- **Proposed fix:** Wire `EnterpriseScaleHaService`/soak validators to the real `docker-compose.ha.yml`
+  multi-node path (ties into GAP-004 / HA-DRILL-01) so at least HA-failover and soak can produce
+  *measured* evidence (`evidence_basis='measured'`) before any production-readiness claim.
+- **Safety:** Real validation harness only; advisory-only records preserved; no autonomous action;
+  append-only tables untouched.
 
 ## Proposed Task: CONSUMER-GROUP-EPHEMERAL — Stable consumer group + offset commits (Medium)
 
