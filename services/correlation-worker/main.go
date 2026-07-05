@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -186,7 +187,12 @@ func main() {
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
 		log.Printf("xdr correlation worker shutting down gracefully")
-		_ = server.Close()
+		// GO-GRACEFUL-SHUTDOWN: drain in-flight requests instead of dropping them.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("xdr correlation worker shutdown error: %v", err)
+		}
 	}()
 	log.Printf("xdr correlation worker listening on %s shadow_mode=true", *addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

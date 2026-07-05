@@ -574,3 +574,36 @@ func TestIngestHandlerUsesPayloadTenantForRateLimit(t *testing.T) {
 		t.Errorf("second request should be rate-limited, got %d", rr2.Code)
 	}
 }
+
+// IG-HMAC-FAIL-OPEN: in enforced posture, an empty or dev-default ingest secret
+// must be a hard failure, not a silent fail-open warning.
+
+func TestShouldRefuseIngestSecretEnforcedEmpty(t *testing.T) {
+	if !shouldRefuseIngestSecret("", true) {
+		t.Error("expected refusal when enforced=true and secret is empty")
+	}
+}
+
+func TestShouldRefuseIngestSecretEnforcedDevDefault(t *testing.T) {
+	if !shouldRefuseIngestSecret("dev-secret-change-me", true) {
+		t.Error("expected refusal when enforced=true and secret is the dev default")
+	}
+}
+
+func TestShouldRefuseIngestSecretEnforcedStrongSecret(t *testing.T) {
+	if shouldRefuseIngestSecret("a-strong-random-secret", true) {
+		t.Error("must not refuse when enforced=true and a real secret is configured")
+	}
+}
+
+func TestShouldRefuseIngestSecretPermissiveEmpty(t *testing.T) {
+	if shouldRefuseIngestSecret("", false) {
+		t.Error("must not refuse when enforced=false, even with an empty secret (permissive/demo posture)")
+	}
+}
+
+func TestShouldRefuseIngestSecretPermissiveDevDefault(t *testing.T) {
+	if shouldRefuseIngestSecret("dev-secret-change-me", false) {
+		t.Error("must not refuse when enforced=false, even with the dev-default secret")
+	}
+}

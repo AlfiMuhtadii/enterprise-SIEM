@@ -172,7 +172,12 @@ func main() {
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 		<-stop
 		log.Printf("xdr ingestion gateway shutting down gracefully")
-		_ = server.Close()
+		// GO-GRACEFUL-SHUTDOWN: drain in-flight ingest requests instead of dropping them.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Printf("xdr ingestion gateway shutdown error: %v", err)
+		}
 	}()
 	validateStartupSecrets(gw.secret)
 	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s", *addr, gw.topic, gw.redpandaREST)
@@ -544,7 +549,27 @@ func envInt(name string, fallback int) int {
 	return value
 }
 
+func envBool(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value == "1" || value == "true" || value == "yes"
+}
+
+// shouldRefuseIngestSecret reports whether the gateway must refuse to start
+// (IG-HMAC-FAIL-OPEN): in enforced/production posture, an empty or dev-default
+// XDR_INGEST_SECRET would silently disable HMAC verification and accept every
+// unsigned ingest request, so it must be a hard failure rather than a warning.
+func shouldRefuseIngestSecret(ingestSecret string, enforced bool) bool {
+	return enforced && (ingestSecret == "" || ingestSecret == "dev-secret-change-me")
+}
+
 func validateStartupSecrets(ingestSecret string) {
+	enforced := envBool("XDR_ENFORCE_INTERNAL_AUTH", false)
+	if shouldRefuseIngestSecret(ingestSecret, enforced) {
+		log.Fatalf("[SECURITY-FATAL] XDR_ENFORCE_INTERNAL_AUTH=true but XDR_INGEST_SECRET is empty or using the dev default — refusing to start")
+	}
 	if ingestSecret == "" {
 		log.Printf("[SECURITY-WARN] XDR_INGEST_SECRET is not set — HMAC auth is disabled, all ingest requests accepted")
 	} else if ingestSecret == "dev-secret-change-me" {
