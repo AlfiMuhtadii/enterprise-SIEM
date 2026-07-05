@@ -588,6 +588,31 @@ class EnterpriseScaleHaTest extends TestCase
     // UI routes
     // =========================================================================
 
+    // =========================================================================
+    // SIM-LAYER-REALITY-GATE: simulated/computed labelling
+    // =========================================================================
+
+    public function test_cluster_topology_is_labelled_simulated_computed(): void
+    {
+        $report = $this->service->recordClusterTopology('cluster-90', 'primary', 'healthy');
+        $this->assertTrue($report->is_simulated);
+        $this->assertSame('computed', $report->evidence_basis);
+    }
+
+    public function test_ha_validation_is_labelled_simulated_computed(): void
+    {
+        $run = $this->service->runHaValidation('cluster-91', 'quorum');
+        $this->assertTrue($run->is_simulated);
+        $this->assertSame('computed', $run->evidence_basis);
+    }
+
+    public function test_failover_coordination_is_labelled_simulated_computed(): void
+    {
+        $history = $this->service->coordinateFailover('cluster-92', 'drill', 'planned');
+        $this->assertTrue($history->is_simulated);
+        $this->assertSame('computed', $history->evidence_basis);
+    }
+
     public function test_enterprise_scale_routes_require_auth(): void
     {
         $routes = [

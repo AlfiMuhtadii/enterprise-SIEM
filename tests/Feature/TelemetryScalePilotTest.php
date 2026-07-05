@@ -540,5 +540,24 @@ class TelemetryScalePilotTest extends TestCase
         $this->actingAs($user)->get(route('scale-pilot.dashboard'))
             ->assertSee('advisory-only');
     }
+
+    // =========================================================================
+    // SIM-LAYER-REALITY-GATE: simulated/computed labelling
+    // =========================================================================
+
+    public function test_scale_validation_run_is_labelled_simulated_computed(): void
+    {
+        $run = $this->service->startScaleValidation('t1', 50);
+        $this->assertTrue($run->is_simulated);
+        $this->assertSame('computed', $run->evidence_basis);
+    }
+
+    public function test_scale_metric_is_labelled_simulated_computed(): void
+    {
+        $run = $this->service->startScaleValidation('t1', 50);
+        $m = $this->service->recordScaleMetric($run->run_id, 't1', 'queue_lag', 500.0, 200.0);
+        $this->assertTrue($m->is_simulated);
+        $this->assertSame('computed', $m->evidence_basis);
+    }
 }
 

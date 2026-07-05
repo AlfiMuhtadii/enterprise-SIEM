@@ -12,12 +12,23 @@ class PilotExecutionAudit extends Model
     public const EVENT_TYPES = ['activation', 'enrollment', 'checkpoint', 'review', 'drift', 'rollback', 'completion'];
     public const OUTCOMES    = ['success', 'failure', 'pending', 'escalated'];
 
+    // SIM-LAYER-REALITY-GATE: model-level defaults so freshly created
+    // instances carry the simulated/computed label immediately in-memory
+    // (Eloquent does not re-fetch DB column defaults after INSERT).
+    protected $attributes = [
+        'is_simulated' => true,
+        'evidence_basis' => 'computed',
+    ];
+
     protected $fillable = [
         'audit_id', 'run_id', 'tenant_id', 'event_type', 'actor',
         'outcome', 'description', 'is_advisory', 'payload',
+        'is_simulated',
+        'evidence_basis',
     ];
 
     protected $casts = [
+        'is_simulated' => 'boolean',
         'is_advisory' => 'boolean',
         'payload'     => 'array',
     ];

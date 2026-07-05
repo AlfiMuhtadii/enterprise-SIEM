@@ -16,6 +16,14 @@ class HaValidationRun extends Model
 
     public const HA_STATES = ['passing', 'degraded', 'failed', 'recovering'];
 
+    // SIM-LAYER-REALITY-GATE: model-level defaults so freshly created
+    // instances carry the simulated/computed label immediately in-memory
+    // (Eloquent does not re-fetch DB column defaults after INSERT).
+    protected $attributes = [
+        'is_simulated' => true,
+        'evidence_basis' => 'computed',
+    ];
+
     protected $fillable = [
         'ha_run_id',
         'cluster_id',
@@ -29,9 +37,12 @@ class HaValidationRun extends Model
         'failover_ready',
         'is_advisory',
         'ha_evidence',
+        'is_simulated',
+        'evidence_basis',
     ];
 
     protected $casts = [
+        'is_simulated' => 'boolean',
         'ha_score'           => 'float',
         'replication_lag_ms' => 'float',
         'quorum_valid'       => 'boolean',

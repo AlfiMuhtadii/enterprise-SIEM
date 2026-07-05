@@ -13,14 +13,25 @@ class SoakValidationRun extends Model
 
     public const STATUSES = ['running', 'completed', 'aborted'];
 
+    // SIM-LAYER-REALITY-GATE: model-level defaults so freshly created
+    // instances carry the simulated/computed label immediately in-memory
+    // (Eloquent does not re-fetch DB column defaults after INSERT).
+    protected $attributes = [
+        'is_simulated' => true,
+        'evidence_basis' => 'computed',
+    ];
+
     protected $fillable = [
         'run_id', 'soak_type', 'duration_minutes', 'status', 'passed',
         'memory_growth_mb', 'queue_lag_growth', 'replay_backlog',
         'duplicate_event_rate', 'worker_restart_count', 'telemetry_gap_rate',
         'retry_amplification_factor', 'is_advisory', 'summary',
+        'is_simulated',
+        'evidence_basis',
     ];
 
     protected $casts = [
+        'is_simulated' => 'boolean',
         'passed'       => 'boolean',
         'is_advisory'  => 'boolean',
         'summary'      => 'array',

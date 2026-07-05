@@ -596,6 +596,24 @@ class SoakChaosValidationTest extends TestCase
         $this->actingAs($user)->get('/soak-chaos')
             ->assertSee('Operational soak and chaos workflows are bounded, replay-safe, and advisory-only');
     }
+
+    // =========================================================================
+    // SIM-LAYER-REALITY-GATE: simulated/computed labelling
+    // =========================================================================
+
+    public function test_soak_run_is_labelled_simulated_computed(): void
+    {
+        $run = $this->service->recordSoakRun('6h', 360, 'completed');
+        $this->assertTrue($run->is_simulated);
+        $this->assertSame('computed', $run->evidence_basis);
+    }
+
+    public function test_chaos_simulation_is_labelled_simulated_computed(): void
+    {
+        $run = $this->service->runChaosSimulation('worker_restart', 30);
+        $this->assertTrue($run->is_simulated);
+        $this->assertSame('computed', $run->evidence_basis);
+    }
 }
 
 

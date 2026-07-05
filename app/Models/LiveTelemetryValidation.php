@@ -7,15 +7,26 @@ use LogicException;
 
 class LiveTelemetryValidation extends Model
 {
+    // SIM-LAYER-REALITY-GATE: model-level defaults so freshly created
+    // instances carry the simulated/computed label immediately in-memory
+    // (Eloquent does not re-fetch DB column defaults after INSERT).
+    protected $attributes = [
+        'is_simulated' => true,
+        'evidence_basis' => 'computed',
+    ];
+
     protected $fillable = [
         'validation_id', 'run_id', 'tenant_id', 'events_per_second',
         'telemetry_continuity_pct', 'queue_lag', 'replay_continuity_pct',
         'duplicate_event_rate', 'telemetry_gap_rate', 'collector_reconnect_count',
         'storage_pressure_pct', 'worker_healthy', 'validation_passed',
         'is_advisory', 'raw_metrics',
+        'is_simulated',
+        'evidence_basis',
     ];
 
     protected $casts = [
+        'is_simulated' => 'boolean',
         'events_per_second'        => 'float',
         'telemetry_continuity_pct' => 'float',
         'replay_continuity_pct'    => 'float',

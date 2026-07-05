@@ -680,5 +680,31 @@ class PilotExecutionTest extends TestCase
         $this->assertEquals(1, PilotDriftReview::where('is_advisory', true)->count());
         $this->assertEquals(1, PilotRollbackAudit::where('is_advisory', true)->count());
     }
+
+    // =========================================================================
+    // SIM-LAYER-REALITY-GATE: simulated/computed labelling
+    // =========================================================================
+
+    public function test_all_pilot_models_are_labelled_simulated_computed(): void
+    {
+        $run = $this->service->activatePilot('t1', 'Pilot', 10, 'admin');
+        $this->service->enrollEndpoint($run->run_id, 't1', 'ep-1', 'host-1');
+        $this->service->recordHealthCheckpoint($run->run_id, 't1', 'manual', []);
+        $this->service->recordTelemetryValidation($run->run_id, 't1', []);
+        $this->service->recordObservationCheckpoint($run->run_id, 't1', '48h', []);
+        $this->service->recordOperationalReview($run->run_id, 't1', 'daily', 'a1', 'acknowledged');
+        $this->service->recordDriftReview($run->run_id, 't1', 'schema', 0.01, 'low', 'stable', 'a1');
+        $this->service->recordRollbackAudit($run->run_id, 't1', 'operator_request', 'a1');
+
+        $this->assertTrue($run->is_simulated);
+        $this->assertSame('computed', $run->evidence_basis);
+        $this->assertEquals(1, PilotEndpointEnrollment::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, PilotHealthCheckpoint::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, LiveTelemetryValidation::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, ProductionObservationCheckpoint::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, PilotOperationalReview::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, PilotDriftReview::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+        $this->assertEquals(1, PilotRollbackAudit::where('is_simulated', true)->where('evidence_basis', 'computed')->count());
+    }
 }
 
