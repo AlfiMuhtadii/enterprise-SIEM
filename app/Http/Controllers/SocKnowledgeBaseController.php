@@ -41,7 +41,7 @@ class SocKnowledgeBaseController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:220'],
-            'entry_type' => ['required', 'in:rule_doc,ioc_note,investigation_template,lesson_learned,analyst_note,response_procedure,mitre_reference'],
+            'entry_type' => ['required', 'in:rule_doc,ioc_note,investigation_template,lesson_learned,analyst_note,response_procedure,mitre_reference,ai_suggestion_feedback'],
             'content_markdown' => ['required', 'string', 'max:20000'],
             'tags' => ['nullable', 'string', 'max:500'],
             'related_incident_id' => ['nullable', 'string', 'max:80'],

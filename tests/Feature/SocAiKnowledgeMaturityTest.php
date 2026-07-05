@@ -42,6 +42,77 @@ class SocAiKnowledgeMaturityTest extends TestCase
             'status' => 'accepted',
             'reviewed_by' => $analyst->email,
         ]);
+
+        $this->assertDatabaseHas('soc_knowledge_base', [
+            'entry_type' => 'ai_suggestion_feedback',
+            'related_incident_id' => 'incident-ai-1',
+        ]);
+        $kb = DB::table('soc_knowledge_base')->where('entry_type', 'ai_suggestion_feedback')->first();
+        $this->assertStringContainsString($suggestion->suggestion_id, $kb->tags);
+        $this->assertStringContainsString('useful triage summary', $kb->content_markdown);
+    }
+
+    public function test_rejecting_ai_suggestion_does_not_create_knowledge_base_entry(): void
+    {
+        $analyst = User::factory()->create(['role' => 'analyst']);
+        $this->seedIncident('incident-ai-2');
+        $this->seedAlert('alert-ai-2', 'incident-ai-2', 'BRUTE_FORCE_IP');
+
+        $this->actingAs($analyst)
+            ->post('/soc/incidents/incident-ai-2/ai', ['suggestion_type' => 'incident_summary'])
+            ->assertRedirect();
+        $suggestion = DB::table('ai_analyst_suggestions')->where('target_id', 'incident-ai-2')->first();
+
+        $this->actingAs($analyst)
+            ->post('/soc/ai/'.$suggestion->suggestion_id.'/review', ['status' => 'rejected'])
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('soc_knowledge_base', ['entry_type' => 'ai_suggestion_feedback']);
+    }
+
+    public function test_ingest_approved_feedback_is_idempotent(): void
+    {
+        DB::table('ai_analyst_suggestions')->insert([
+            'suggestion_id' => 'ai-idempotent-1',
+            'target_type' => 'incident',
+            'target_id' => 'incident-idempotent',
+            'suggestion_type' => 'incident_summary',
+            'provider' => 'local-heuristic',
+            'output' => json_encode(['summary' => 'idempotent summary']),
+            'status' => 'accepted',
+            'requested_by' => 'analyst@example.com',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $ai = app(\App\Support\AiAnalystManager::class);
+        $first = $ai->ingestApprovedFeedback('ai-idempotent-1', 'analyst@example.com');
+        $second = $ai->ingestApprovedFeedback('ai-idempotent-1', 'analyst@example.com');
+
+        $this->assertNotNull($first);
+        $this->assertSame($first, $second);
+        $this->assertSame(1, DB::table('soc_knowledge_base')->where('entry_type', 'ai_suggestion_feedback')->count());
+    }
+
+    public function test_ingest_approved_feedback_is_noop_when_not_accepted(): void
+    {
+        DB::table('ai_analyst_suggestions')->insert([
+            'suggestion_id' => 'ai-pending-1',
+            'target_type' => 'incident',
+            'target_id' => 'incident-pending',
+            'suggestion_type' => 'incident_summary',
+            'provider' => 'local-heuristic',
+            'output' => json_encode(['summary' => 'pending summary']),
+            'status' => 'pending_review',
+            'requested_by' => 'analyst@example.com',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $result = app(\App\Support\AiAnalystManager::class)->ingestApprovedFeedback('ai-pending-1', 'analyst@example.com');
+
+        $this->assertNull($result);
+        $this->assertDatabaseMissing('soc_knowledge_base', ['entry_type' => 'ai_suggestion_feedback']);
     }
 
     public function test_knowledge_base_entry_can_be_created_and_searched(): void

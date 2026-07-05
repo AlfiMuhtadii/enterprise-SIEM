@@ -14,7 +14,7 @@
             <input name="q" value="{{ $q }}" placeholder="search title/content" class="rounded border border-cyan-200/30 bg-slate-950 px-3 py-2 text-sm text-cyan-50">
             <select name="entry_type" class="rounded border border-cyan-200/30 bg-slate-950 px-3 py-2 text-sm text-cyan-50">
                 <option value="">all types</option>
-                @foreach (['rule_doc','ioc_note','investigation_template','lesson_learned','analyst_note','response_procedure','mitre_reference'] as $entryType)
+                @foreach (['rule_doc','ioc_note','investigation_template','lesson_learned','analyst_note','response_procedure','mitre_reference','ai_suggestion_feedback'] as $entryType)
                     <option value="{{ $entryType }}" @selected($type === $entryType)>{{ $entryType }}</option>
                 @endforeach
             </select>

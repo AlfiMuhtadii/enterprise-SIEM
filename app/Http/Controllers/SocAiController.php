@@ -33,7 +33,7 @@ class SocAiController extends Controller
         return back()->with('status', 'AI suggestion generated.');
     }
 
-    public function review(Request $request, string $suggestionId): RedirectResponse
+    public function review(Request $request, string $suggestionId, AiAnalystManager $ai): RedirectResponse
     {
         $data = $request->validate([
             'status' => ['required', 'in:accepted,rejected'],
@@ -50,6 +50,10 @@ class SocAiController extends Controller
         ]);
         $after = DB::table('ai_analyst_suggestions')->where('suggestion_id', $suggestionId)->first();
         AuditLogger::log($request->user()->email, 'ai.review', 'ai_suggestion', $suggestionId, $before, $after);
+
+        if ($data['status'] === 'accepted') {
+            $ai->ingestApprovedFeedback($suggestionId, $request->user()->email, $data['review_note'] ?? null);
+        }
 
         return back()->with('status', 'AI suggestion reviewed.');
     }

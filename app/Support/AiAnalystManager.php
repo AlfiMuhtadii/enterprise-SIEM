@@ -212,6 +212,59 @@ class AiAnalystManager
         return $confidence >= 0.75 ? 'high' : ($confidence >= 0.5 ? 'medium' : 'low');
     }
 
+    /**
+     * AI-KB-FEEDBACK-LOOP: close the loop on an analyst-approved suggestion by
+     * persisting it into the knowledge base for future retrieval/citation.
+     * Idempotent — a suggestion already ingested returns its existing kb_id.
+     * No-op (returns null) unless the suggestion is currently 'accepted'.
+     */
+    public function ingestApprovedFeedback(string $suggestionId, string $reviewerEmail, ?string $reviewNote = null): ?string
+    {
+        $suggestion = DB::table('ai_analyst_suggestions')->where('suggestion_id', $suggestionId)->first();
+        if (!$suggestion || $suggestion->status !== 'accepted') {
+            return null;
+        }
+
+        $existing = DB::table('soc_knowledge_base')
+            ->where('entry_type', 'ai_suggestion_feedback')
+            ->whereRaw('tags::text ilike ?', ['%'.$suggestionId.'%'])
+            ->first();
+        if ($existing) {
+            return $existing->kb_id;
+        }
+
+        $output = json_decode($suggestion->output ?? '{}', true) ?: [];
+        $summary = (string) ($output['summary'] ?? 'Analyst-approved AI suggestion.');
+        $steps = array_map('strval', $output['recommended_steps'] ?? []);
+        $responses = array_map('strval', $output['recommended_responses'] ?? []);
+
+        $content = "## Analyst-approved AI suggestion ({$suggestion->suggestion_type})\n\n{$summary}\n\n"
+            .(!empty($steps) ? "### Recommended steps\n- ".implode("\n- ", $steps)."\n\n" : '')
+            .(!empty($responses) ? "### Recommended responses\n- ".implode("\n- ", $responses)."\n\n" : '')
+            .($reviewNote ? "### Analyst note\n{$reviewNote}\n" : '');
+
+        $kbId = 'kb-'.Str::uuid();
+        DB::table('soc_knowledge_base')->insert([
+            'kb_id' => $kbId,
+            'title' => 'AI suggestion (approved): '.$suggestion->suggestion_type.' — '.($suggestion->target_id ?? $suggestion->target_type),
+            'entry_type' => 'ai_suggestion_feedback',
+            'content_markdown' => $content,
+            'tags' => json_encode(['ai-feedback', $suggestion->suggestion_type, $suggestionId]),
+            'related_incident_id' => $suggestion->target_type === 'incident' ? $suggestion->target_id : null,
+            'related_rule_id' => null,
+            'related_ioc_id' => null,
+            'created_by' => 'ai-feedback-loop:'.$reviewerEmail,
+            'updated_by' => 'ai-feedback-loop:'.$reviewerEmail,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $entry = DB::table('soc_knowledge_base')->where('kb_id', $kbId)->first();
+        (new SocKnowledgeRetriever())->upsertEmbedding($entry);
+
+        return $kbId;
+    }
+
     private function safeBlockedOutput(string $type, array $citations): array
     {
         return [
