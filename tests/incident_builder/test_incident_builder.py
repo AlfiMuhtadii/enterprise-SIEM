@@ -341,5 +341,33 @@ class TestPipeConsumerAuthFix(unittest.TestCase):
         self.assertIn("HTTPException", route_src)
 
 
+class TestPoisonRecordIsolation(unittest.TestCase):
+    """PY-POISON-RECORD-BATCH: a malformed record must be isolated to the DLQ,
+    not raise and abort the whole poll batch (which would otherwise recreate
+    the consumer from earliest forever on the same poison record)."""
+
+    def setUp(self):
+        ib.DLQ.clear()
+
+    def test_malformed_record_does_not_raise(self):
+        # AlertPayload construction always fails in this stubbed harness (see
+        # module header) — every record below exercises the isolation path.
+        records = [{"value": {"alert_type": "A"}}, {"value": {"alert_type": "B"}}]
+        alerts = ib.normalize_records(records)  # must not raise
+        self.assertEqual(alerts, [])
+
+    def test_malformed_record_isolated_to_dlq(self):
+        records = [{"value": {"alert_type": "A"}}, {"value": {"alert_type": "B"}}]
+        ib.normalize_records(records)
+        errors = [e for e in ib.DLQ if str(e.get("error", "")).startswith("alert_payload_invalid")]
+        self.assertEqual(len(errors), 2)
+
+    def test_construction_wrapped_in_try_except(self):
+        import inspect
+        src = inspect.getsource(ib.normalize_records)
+        self.assertIn("try:", src)
+        self.assertIn("alerts.append(AlertPayload(**row))", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

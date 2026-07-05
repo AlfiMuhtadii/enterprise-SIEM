@@ -421,5 +421,129 @@ class TestPipeConsumerAuthFix(unittest.TestCase):
         self.assertIn("HTTPException", route_src)
 
 
+class _FakeAlert:
+    """Minimal stand-in for AlertPayload — the stubbed pydantic BaseModel in this
+    test harness can't construct a real one via kwargs (see module header)."""
+
+    def __init__(self, alert_type="TEST_ALERT", severity="high", actor_key="host-1",
+                 ip=None, evidence=None, alert_id=None, trace_id=None):
+        self.alert_type = alert_type
+        self.severity = severity
+        self.actor_key = actor_key
+        self.ip = ip
+        self.evidence = evidence or {}
+        self.raw_event = {}
+        self.alert_id = alert_id
+        self.trace_id = trace_id
+        self.detected_at = None
+        self.detector_name = "test"
+        self.detector_version = "v1"
+        self.tenant_id = None
+
+    def model_dump(self):
+        return {"alert_type": self.alert_type, "severity": self.severity}
+
+
+class _FakeWriteRequest:
+    """Stand-in for WriteRequest — same stub construction limitation as _FakeAlert."""
+
+    def __init__(self, alerts, trace_id="t1", source_topic="xdr.alerts"):
+        self.alerts = alerts
+        self.trace_id = trace_id
+        self.source_topic = source_topic
+
+
+class TestDedupeAfterCommit(unittest.TestCase):
+    """AW-DEDUPE-BEFORE-COMMIT: SEEN must only be marked once Postgres actually
+    persisted the batch (or in pure dry-run with no backing store at all) —
+    otherwise a failed write poisons SEEN and a later retry of the exact same
+    batch is silently dropped as a duplicate despite never being written."""
+
+    def setUp(self):
+        aw.SEEN.clear()
+        aw.DLQ.clear()
+
+    def _request(self, alert):
+        return _FakeWriteRequest(alerts=[alert])
+
+    def test_seen_not_marked_when_postgres_write_fails(self):
+        # postgres_configured() must return True here — otherwise dry_run=True
+        # (no store configured at all in this sandboxed env) would mark SEEN
+        # regardless of write outcome, masking the exact bug under test.
+        alert = _FakeAlert()
+        fp = aw.fingerprint(alert)
+        with patch.object(aw, "postgres_configured", return_value=True), \
+             patch.object(aw, "write_postgres", side_effect=Exception("db down")), \
+             patch.object(aw, "write_opensearch", return_value=0):
+            result = aw._write_alerts_core(self._request(alert))
+        self.assertEqual(result["unique"], 1)
+        self.assertNotIn(fp, aw.SEEN)
+
+    def test_seen_marked_when_postgres_write_succeeds(self):
+        alert = _FakeAlert()
+        fp = aw.fingerprint(alert)
+        with patch.object(aw, "postgres_configured", return_value=True), \
+             patch.object(aw, "write_postgres", return_value=1), \
+             patch.object(aw, "write_opensearch", return_value=0):
+            aw._write_alerts_core(self._request(alert))
+        self.assertIn(fp, aw.SEEN)
+
+    def test_retry_after_failed_write_is_not_dropped_as_duplicate(self):
+        alert = _FakeAlert()
+        with patch.object(aw, "postgres_configured", return_value=True), \
+             patch.object(aw, "write_postgres", side_effect=Exception("db down")), \
+             patch.object(aw, "write_opensearch", return_value=0):
+            first = aw._write_alerts_core(self._request(alert))
+        self.assertEqual(first["unique"], 1)
+        self.assertEqual(first["duplicates"], 0)
+
+        # Retry the identical batch once the store recovers — must NOT be dropped.
+        with patch.object(aw, "postgres_configured", return_value=True), \
+             patch.object(aw, "write_postgres", return_value=1), \
+             patch.object(aw, "write_opensearch", return_value=0):
+            second = aw._write_alerts_core(self._request(alert))
+        self.assertEqual(second["unique"], 1)
+        self.assertEqual(second["duplicates"], 0)
+        self.assertEqual(second["postgres_written"], 1)
+
+    def test_intra_batch_duplicate_still_deduped(self):
+        alert_a = _FakeAlert()
+        alert_b = _FakeAlert()  # identical fingerprint material
+        request = _FakeWriteRequest(alerts=[alert_a, alert_b])
+        with patch.object(aw, "write_postgres", return_value=1), \
+             patch.object(aw, "write_opensearch", return_value=0):
+            result = aw._write_alerts_core(request)
+        self.assertEqual(result["unique"], 1)
+        self.assertEqual(result["duplicates"], 1)
+
+
+class TestPoisonRecordIsolation(unittest.TestCase):
+    """PY-POISON-RECORD-BATCH: a malformed record must be isolated to the DLQ,
+    not raise and abort the whole poll batch (which would otherwise recreate
+    the consumer from earliest forever on the same poison record)."""
+
+    def setUp(self):
+        aw.DLQ.clear()
+
+    def test_malformed_record_does_not_raise(self):
+        # AlertPayload construction always fails in this stubbed harness (see
+        # module header) — every record below exercises the isolation path.
+        records = [{"value": {"alert_type": "A"}}, {"value": {"alert_type": "B"}}]
+        alerts = aw.normalize_records(records)  # must not raise
+        self.assertEqual(alerts, [])
+
+    def test_malformed_record_isolated_to_dlq(self):
+        records = [{"value": {"alert_type": "A"}}, {"value": {"alert_type": "B"}}]
+        aw.normalize_records(records)
+        errors = [e for e in aw.DLQ if str(e.get("error", "")).startswith("alert_payload_invalid")]
+        self.assertEqual(len(errors), 2)
+
+    def test_construction_wrapped_in_try_except(self):
+        import inspect
+        src = inspect.getsource(aw.normalize_records)
+        self.assertIn("try:", src)
+        self.assertIn("alerts.append(AlertPayload(**row))", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

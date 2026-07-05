@@ -373,7 +373,15 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
                 row["alert_id"] = value.get("alert_id")
             if not row.get("trace_id") and isinstance(value, dict):
                 row["trace_id"] = value.get("trace_id")
-            alerts.append(AlertPayload(**row))
+            try:
+                alerts.append(AlertPayload(**row))
+            except Exception as exc:
+                # PY-POISON-RECORD-BATCH: isolate one malformed record instead of
+                # letting it abort the whole poll batch (which would otherwise
+                # recreate-from-earliest forever on the same poison record).
+                METRICS["contract_validation_failures"] += 1
+                DLQ.append({"ts": now_iso(), "target": "alerts.created", "error": f"alert_payload_invalid: {exc}", "event": row})
+                METRICS["dlq_count"] = len(DLQ)
     return alerts
 
 

@@ -447,7 +447,15 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
             if isinstance(row, dict):
                 if not row.get("trace_id") and batch_trace_id:
                     row["trace_id"] = batch_trace_id
-                alerts.append(AlertPayload(**row))
+                try:
+                    alerts.append(AlertPayload(**row))
+                except Exception as exc:
+                    # PY-POISON-RECORD-BATCH: isolate one malformed record instead of
+                    # letting it abort the whole poll batch (which would otherwise
+                    # recreate-from-earliest forever on the same poison record).
+                    METRICS["contract_validation_failures"] += 1
+                    DLQ.append({"ts": now_iso(), "target": "xdr.alerts", "error": f"alert_payload_invalid: {exc}", "event": row})
+                    METRICS["dlq_count"] = len(DLQ)
     return alerts
 
 
@@ -639,19 +647,24 @@ def _write_alerts_core(request: WriteRequest) -> Dict[str, Any]:
     METRICS["alerts_seen"] += len(request.alerts)
     unique: List[AlertPayload] = []
     duplicates = 0
+    batch_fingerprints: List[str] = []
+    seen_in_batch: set[str] = set()
     for alert in request.alerts:
         fp = fingerprint(alert)
-        if fp in SEEN:
+        if fp in SEEN or fp in seen_in_batch:
             duplicates += 1
             continue
-        _seen_add(fp)
+        seen_in_batch.add(fp)
+        batch_fingerprints.append(fp)
         unique.append(alert)
     METRICS["duplicates"] += duplicates
 
     written_pg = 0
     written_os = 0
+    postgres_ok = False
     try:
         written_pg = write_postgres(unique, trace_id=request.trace_id)
+        postgres_ok = True
     except Exception as exc:
         METRICS["postgres_failures"] += len(unique)
         METRICS["retry_count"] += 1
@@ -667,6 +680,14 @@ def _write_alerts_core(request: WriteRequest) -> Dict[str, Any]:
         write_alert_failure("opensearch_write_failed", str(exc), request.source_topic, request.trace_id, len(unique))
 
     dry_run = not postgres_configured() and not os.getenv("XDR_OPENSEARCH_URL")
+    # AW-DEDUPE-BEFORE-COMMIT: only mark fingerprints durably SEEN once the primary
+    # store (Postgres) actually persisted them, or in pure dry-run (no backing store
+    # configured at all) where marking on receipt is the intended demo behavior.
+    # Otherwise a postgres failure would poison SEEN and a later retry of the exact
+    # same batch would be silently dropped as a "duplicate" despite never being written.
+    if postgres_ok or dry_run:
+        for fp in batch_fingerprints:
+            _seen_add(fp)
     METRICS["alerts_written"] += max(written_pg, written_os, len(unique) if dry_run else 0)
     elapsed = (time.perf_counter() - started) * 1000
     METRICS["write_latency_ms_last"] = round(elapsed, 3)
