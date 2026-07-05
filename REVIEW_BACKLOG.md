@@ -21,31 +21,16 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** | [Dummy → must be real/labelled] HA/scale/chaos/soak/pilot validators emit PASS/readiness records without exercising a real cluster (LIMITATIONS admits "advisory/simulation layer, not tested under real distributed load") — a PASS can be misread as real validation | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php` | High | Proposed |
-| **IG-HMAC-REPLAY** | [Security] Ingest HMAC signs body only — no timestamp/nonce → captured batches replayable forever. Sign `ts+body` with tolerance window behind compat flag | `services/ingestion-gateway/main.go`, `services/endpoint-agent/agent.py` | Medium | Proposed |
-| **IB-DLQ-NOT-DURABLE** | [Reliability] Incident-builder failures live only in in-memory ring (lost on restart) — alert-writer has durable `xdr.alert_write_failed`, incident-builder has no `xdr.incident_write_failed` equivalent; asymmetric with unified DLQ review | `services/incident-builder-service/main.py`, `scripts/xdr_topic_bootstrap.py` | Medium | Proposed |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 | **PY-PRINT-LOGGING** | [Best practice] Python services log via `print()` — no levels/timestamps/structure; adopt stdlib `logging` + JSON formatter | `services/*/main.py` | Low | Proposed |
 
-
-
-
-
-
-> **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`. The running list of completions (NOTIFY-TENANCY-GAP, the PERF-* batches, IOC-HITS-IDEMPOTENCY, AGENT-SECRET-DECRYPT-500, RESP-POLICY-FAIL-OPEN, RATE-LIMIT-DOS, PERF-GO-HOT-HTTP, ENV-CACHE-DRIFT-BATCH, …) is in `REVIEW_COMPLETED.md`.
+> **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
 >
 > **Deferred — enterprise roadmap, staged (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → in-scope for enterprise but each needs a dedicated validated effort. See REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
 
 ---
-
-# Enterprise Full-XDR Gap Review (2026-07-04)
-
-Code-level gaps found by auditing the running system against a **full enterprise XDR**
-target. These are **new** — verified absent from `REVIEW_ALL.md`, `REVIEW_REJECTED.md`,
-`REVIEW_COMPLETED.md`, and `REVIEW_FUTURE_BACKLOG.md`. None crosses a CLAUDE.md Forbidden
-Change (no active containment, no autonomous response, shadow-soak gates still apply).
-Each still needs Claude validation before implementation per the workflow.
 
 ## Proposed Task: IDENTITY-SSO-MFA — Enterprise SSO (SAML/OIDC) + MFA for analyst auth
 
@@ -129,70 +114,6 @@ Each still needs Claude validation before implementation per the workflow.
   Keep the env driver default so the demo is unchanged.
 - **Safety:** Config/security hardening only; no forbidden boundary touched.
 
-## ✅ COMPLETED (2026-07-04): AUTH-TIMING-CMP — Non-constant-time internal-token compare in Python services
-
-> Done — `verify_internal_token()` in both Python services now uses `hmac.compare_digest`; +10 tests. See REVIEW_COMPLETED.md.
-
-- **Priority:** Medium (Security — timing side-channel)
-- **Component:** `services/alert-writer-service/main.py` (`verify_internal_token`, lines ~1244/1247),
-  `services/incident-builder-service/main.py` (`verify_internal_token`, lines ~598/601)
-- **Finding — verified in code:** Both Python microservices validate the
-  `X-Internal-Service-Token` with a plain Python `==` string comparison
-  (`return token == expected`). Python `==` on `str` short-circuits on the first differing
-  byte, leaking token-prefix-match length via response timing. This is **inconsistent with
-  the rest of the codebase**, which already does this correctly:
-  `app/Services/InternalAuthService.php` uses `hash_equals()` (lines 74, 110) and
-  `services/ingestion-gateway/main.go` uses `hmac.Equal()` (line 489). Only the two Python
-  services regressed to a timing-vulnerable compare.
-- **Why enterprise-relevant:** These tokens gate `/v1/write`, `/v1/process`, and `/dlq`
-  (which returns alert/incident evidence). A timing oracle on a privileged internal token is
-  a real weakness once the pipeline ports are reachable beyond loopback (which is exactly the
-  multi-node enterprise target). Low effort, high consistency payoff.
-- **Proposed fix:** Replace `token == expected` with
-  `hmac.compare_digest(token.encode(), expected.encode())` in both `verify_internal_token`
-  functions (import `hmac`). Keep the permissive/enforced branching unchanged. Add a unit
-  test asserting rejection of a wrong token of equal length.
-- **Safety:** Pure security hardening; no behavior change for valid tokens; no forbidden boundary.
-
-## ✅ COMPLETED (2026-07-05): MEM-UNBOUNDED-STATE — Bound the `SEEN` idempotency set and in-memory `DLQ` lists
-
-> Done — `SEEN` is now a bounded LRU (`OrderedDict` + `_seen_add`, cap `XDR_ALERT_WRITER_SEEN_MAX=100000`); `DLQ` is a fixed-size `deque(maxlen=…)` ring in both services (`XDR_ALERT_WRITER_DLQ_MAX` / `XDR_INCIDENT_BUILDER_DLQ_MAX`, default 1000). `DLQ[-20:]` view fixed to `list(DLQ)[-20:]`. +6 tests. See REVIEW_COMPLETED.md.
-
-- **Priority:** Medium (Reliability — memory growth / OOM at scale)
-- **Component:** `services/alert-writer-service/main.py` (`SEEN` set line ~99, `DLQ` list line ~100),
-  `services/incident-builder-service/main.py` (`DLQ` list line ~73)
-- **Finding — verified in code:** The alert-writer keeps a process-global
-  `SEEN: set[str]` of every alert fingerprint it has ever seen, added to on every write and
-  **never evicted or capped** (`idempotency_cache_size` just reports `len(SEEN)`). Likewise
-  both Python services keep `DLQ: List[Dict] = []` that is appended to on every failure and
-  **never trimmed** — only the *view* endpoint slices `DLQ[-20:]`, while the backing list and
-  `METRICS["dlq_count"] = len(DLQ)` grow without bound. Under sustained enterprise-volume
-  ingestion (or a sustained failure storm) both structures grow until the container OOMs.
-  Notably the endpoint agent already solves exactly this with
-  `collections.deque(maxlen=STREAM_QUEUE_MAX)` (`agent.py:795`) — the bounded-buffer pattern
-  exists in the repo but was not applied to these services.
-- **Why enterprise-relevant:** Unbounded in-process state is a classic single-node demo
-  artifact that fails under real 24/7 throughput. Idempotency dedupe should be TTL/LRU-bounded
-  (or delegated to the DB unique constraint, which already exists via `ON CONFLICT`), and the
-  DLQ ring should be a fixed-size buffer.
-- **Proposed fix:** (1) Convert `DLQ` to `collections.deque(maxlen=N)` (e.g. 1000) in both
-  services so `dlq_count` reflects a bounded ring; (2) bound `SEEN` with an LRU/TTL structure
-  (e.g. `OrderedDict` capped at N, or time-windowed) — the DB `ON CONFLICT (alert_id)` /
-  `(fingerprint)` upserts already guarantee correctness, so `SEEN` is a fast-path optimization
-  and is safe to bound. Add a test that inserting > N items keeps memory bounded.
-- **Safety:** Reliability hardening; DB idempotency guarantees preserved; append-only tables
-  untouched; no forbidden boundary.
-
----
-
-## Architecture / Infra / Tech-Currency review (2026-07-04)
-
-Found by reading `composer.json`, `go.mod`, the Dockerfiles, and both compose overlays.
-**Positives confirmed (not gaps):** `docker-compose.prod.yml` is well-hardened (per-service
-`deploy.resources.limits`, `ports: !reset`, RO Grafana mounts, `XDR_ENFORCE_INTERNAL_AUTH:true`);
-Go Dockerfiles are multi-stage + non-root (`adduser`/`USER app`); base compose has 9 healthchecks;
-compiled `.exe`/`.pyc` are gitignored (not tracked). The items below are the real gaps.
-
 ## Proposed Task: TECH-EOL-UPGRADE — Runtime/framework are at or past end-of-life
 
 - **Priority:** High
@@ -207,51 +128,9 @@ compiled `.exe`/`.pyc` are gitignored (not tracked). The items below are the rea
   enterprise-grade" signal in the dependency manifest.
 - **Proposed fix:** Staged upgrade — PHP 8.1→8.3, Laravel 10→11 (then evaluate 12), Sanctum
   3→4 — each behind its own branch with the full `migrate:fresh --force && php artisan test`
-  gate (4544 tests) green before merge. Laravel 11 changes the bootstrap/config structure, so
+  gate (4548 tests) green before merge. Laravel 11 changes the bootstrap/config structure, so
   do it as a dedicated effort, not bundled.
 - **Safety:** Framework upgrade only; no product-boundary change. Must keep the full suite green.
-
-## ✅ COMPLETED (2026-07-05): FASTAPI-LIFESPAN — Replace deprecated `@app.on_event` with lifespan handlers
-
-> Done — both services now use `@contextlib.asynccontextmanager lifespan(...)` passed as `FastAPI(lifespan=…)`; the old `startup`/`shutdown` bodies became plain `_startup_tasks()`/`_shutdown_tasks()`. Behavior-neutral. +6 tests. See REVIEW_COMPLETED.md.
-
-- **Priority:** Low (obsolete API / future-break)
-- **Component:** `services/alert-writer-service/main.py` (lines 1250, 1275),
-  `services/incident-builder-service/main.py` (lines 604, 611)
-- **Finding — verified:** Both services use `@app.on_event("startup")` /
-  `@app.on_event("shutdown")` to launch consumer threads and set the `STOP` event. FastAPI
-  deprecated `on_event` in 0.93 (2023) in favor of a `lifespan` async context manager; it emits
-  `DeprecationWarning` today and will be removed, silently breaking consumer startup/shutdown on
-  a future `fastapi`/`uvicorn` bump (and `requirements.txt` pins only `fastapi>=0.110`, so an
-  unattended `pip install` can pull that breaking release).
-- **Proposed fix:** Move the startup thread-launch and shutdown `STOP.set()` into a
-  `@contextlib.asynccontextmanager` lifespan passed as `FastAPI(lifespan=…)`. Behavior-neutral.
-- **Safety:** Pure modernization; consumer semantics unchanged.
-
-## ✅ COMPLETED (2026-07-05): PY-CONTAINER-HARDENING — Python Dockerfiles run as root, no healthcheck, unpinned deps
-
-> Done — all 3 Python Dockerfiles now build a non-root `app` user (`groupadd`/`useradd` + `COPY --chown` + `USER app`) and a `HEALTHCHECK` hitting `/health` via stdlib `urllib` (no extra curl dependency). `requirements.txt` in all 3 services pinned to exact versions (`==`, freezing current resolution) instead of open `>=` ranges. Verified by installing the exact pins into a disposable venv and importing each service's real (non-stubbed) `main.py` + running its real `/health`/`/metrics` through the full FastAPI lifespan — confirms the earlier FASTAPI-LIFESPAN change also works against real (non-stub) FastAPI. **Deferred, documented limitation:** full hash-locking (`pip-compile --generate-hashes`) needs a Linux-matching build environment to verify; the Docker daemon was unavailable in this session (`docker version` connects to the client but not the engine), so only `docker compose config --quiet` (exit 0) could be run, not an actual image build. See REVIEW_COMPLETED.md.
-
-## Proposed Task: PY-CONTAINER-HARDENING — Python Dockerfiles run as root, no healthcheck, unpinned deps
-
-- **Priority:** Medium
-- **Component:** `services/alert-writer-service/Dockerfile`,
-  `services/incident-builder-service/Dockerfile`, `services/ai-rag-service/Dockerfile`,
-  the three `requirements.txt`
-- **Finding — verified:** The Python service Dockerfiles are single-stage `python:3.12-slim`
-  that `pip install` then run `uvicorn` **as root** — no `USER` directive, no `HEALTHCHECK`, and
-  `requirements.txt` uses unpinned lower bounds (`fastapi>=0.110`, `uvicorn[standard]>=0.27`,
-  etc.) with no lockfile/hashes. That means (a) container processes run as UID 0 (violates
-  least-privilege / breaks `runAsNonRoot` admission in K8s), (b) no container-level liveness
-  signal, and (c) non-reproducible builds — two builds a week apart can ship different
-  transitive dependency trees. The **Go** Dockerfiles already do this right (multi-stage,
-  `adduser -D -H app` + `USER app`), so this is an inconsistency, not an unknown pattern.
-- **Why enterprise-relevant:** Non-root containers, pinned/hash-locked dependencies, and
-  healthchecks are standard enterprise container-supply-chain controls.
-- **Proposed fix:** Add a non-root user + `USER` to each Python Dockerfile, add a `HEALTHCHECK`
-  hitting `/health`, and pin dependencies (compile `requirements.txt` to fully-pinned,
-  hash-locked versions via `pip-tools`/`uv`). Keep `python:3.12-slim` base.
-- **Safety:** Infra hardening only; no application behavior change.
 
 ## Proposed Task: CODE-STRUCT-DECOMPOSE — Decompose monolithic single-file services
 
@@ -275,15 +154,6 @@ compiled `.exe`/`.pyc` are gitignored (not tracked). The items below are the rea
   time, not a big-bang rewrite (respects the Architecture Direction Lock).
 - **Safety:** Structure only; detection behavior and event contracts must be byte-identical.
   Live-pipeline verifier required because this touches the correlation hot path.
-
----
-
-## Largest capability absences for enterprise FULL XDR (2026-07-04)
-
-Answering "what is *most* missing/absent for a full enterprise XDR." These are whole
-capabilities, verified absent in code (not weak — absent), ranked by impact. Enrichment is
-**not** listed because it already exists offline (`GeoAsnLookupService` + `AlertAttributionService`).
-All four are advisory/ingestion/read-only — none crosses a Forbidden Change.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 
@@ -368,18 +238,6 @@ All four are advisory/ingestion/read-only — none crosses a Forbidden Change.
   archive-then-prune. Keep append-only audit tables exempt from pruning.
 - **Safety:** Storage-lifecycle only; archive-before-delete; append-only tables never pruned.
 
----
-
-## Off-track / scope-creep / dummy-vs-real review (2026-07-04)
-
-Answering "what is irrelevant / off-track / simulated-but-should-be-real." **First, what is
-legitimately NOT a defect (verified, so the backlog stays honest):** the 121 shadow detection
-rules are the *deliberate* strangler posture (promotion gated by GAP-001 domain soaks) — shadow
-≠ dummy; the threat-intel service is **real** (`ExternalThreatIntelService::virusTotalLike`/
-`abuseIpDbLike` make live VirusTotal/AbuseIPDB HTTP calls when keys are set, `importFeed` parses
-MISP/OpenCTI); notification delivery is **real** (`SocNotifier` uses `Http::post`); the
-response simulation-first flow is a **safety design**, not theater. The two real problems:
-
 ## Proposed Task: META-MODULE-RATIONALIZE — Consolidate the self-assessment / evidence-freeze sprawl
 
 - **Priority:** Medium (maintainability / focus)
@@ -433,90 +291,13 @@ response simulation-first flow is a **safety design**, not theater. The two real
 - **Safety:** Governance/labelling + real validation harness; advisory-only records preserved;
   no autonomous action; append-only tables untouched.
 
-
-
-
-
-
-
-
----
-
----
-
-# Claude QC Pipeline Audit (2026-07-05)
-
-Findings from a code-level QA/QC + architecture audit by Claude (source: `REVIEW_ALL.md` — Review Batch 18,
-CLAUDE-QC-PIPELINE-AUDIT). Full issue/fix detail lives in Batch 18; headers below exist so the standard
-workflow (validate → GitHub Issue → `## Task #N`) applies. Verified non-duplicate against
-REVIEW_ALL / REVIEW_REJECTED / REVIEW_COMPLETED. None crosses a CLAUDE.md Forbidden Change.
-
-## ✅ COMPLETED (2026-07-05): PIPE-CONSUMER-AUTH-500 — Consumer loop breaks when internal token is configured (Critical)
-
-> Done — extracted `_write_alerts_core(request)` / `_build_incidents_core(request)` (no `x_internal_service_token` parameter at all) out of the `write()`/`build()` HTTP routes; the routes now check `verify_internal_token()` then delegate to the core function, and `process_alerts()` (called by both `event_loop()`s) calls the core function directly instead of the route function. **Bug reproduced and fix verified against real (non-stubbed) FastAPI/pydantic** in a disposable venv: calling `write()`/`build()` directly under `XDR_ENFORCE_INTERNAL_AUTH=true` + a configured token raised `AttributeError: 'Header' object has no attribute 'encode'` (the real defect — worse than a clean 401) on both services; after the fix, `process_alerts()` under the identical enforced+token posture returns `ok=True` on both. +8 unit tests (route delegates to core, core has no token param, core runs successfully under enforced mode, route source still contains the auth check). See REVIEW_COMPLETED.md.
-
-- **Priority:** Critical (Bug)
-- Event loop calls FastAPI route functions directly; `Header(default=None)` leaks in → 401/AttributeError on every
-  batch when `XDR_*_INTERNAL_TOKEN` is set (exactly the `docker-compose.prod.yml` posture) → endless consumer
-  recreate, zero alerts written. Fix: extract `_write_alerts_core()` / `_build_incidents_core()`; auth stays at HTTP layer.
-  Regression test: event loop with token env set must still write. See REVIEW_ALL Batch 18.
-
-## ✅ COMPLETED (2026-07-05): AW-DEDUPE-BEFORE-COMMIT — SEEN cache poisons replay after failed PG write (High)
-
-> Done — `_write_alerts_core()` now computes fingerprints into a local `seen_in_batch` set (still deduping intra-batch repeats) and only commits them into the durable `SEEN` LRU via `_seen_add()` *after* `write_postgres()` succeeds (`postgres_ok`), or in pure dry-run (no backing store configured at all, where marking on receipt is the intended demo behavior). A failed Postgres write no longer poisons `SEEN`. Verified against real pydantic: an alert that fails to write, then is retried once the store recovers, is written successfully instead of being silently dropped as a duplicate. +4 unit tests + 1 real-dependency reproduction. See REVIEW_COMPLETED.md.
-
-`_seen_add(fp)` runs before `write_postgres()`; a replayable `postgres_write_failed` batch is later dropped as
-duplicate — silent alert loss. Fix: record fingerprints only after successful write. See REVIEW_ALL Batch 18.
-
-## Proposed Task: IG-HMAC-REPLAY — Add timestamp/nonce to ingest HMAC (Medium)
-Signature covers body only; captured batches replay forever. Sign `ts + "." + body`, tolerance window,
-compat flag `XDR_INGEST_SIGV2_REQUIRED=false` default. See REVIEW_ALL Batch 18.
-
-## ✅ COMPLETED (2026-07-05): IG-HMAC-FAIL-OPEN — Fail-fast on empty/dev ingest secret in enforced posture (Medium)
-
-> Done — added `envBool()` + pure `shouldRefuseIngestSecret(secret, enforced)` helper; `validateStartupSecrets()` now calls `log.Fatalf` (refuse to start) when `XDR_ENFORCE_INTERNAL_AUTH=true` and `XDR_INGEST_SECRET` is empty or `dev-secret-change-me` — mirrors the existing Python/correlation-worker/normalizer-worker fail-fast pattern. Permissive (non-enforced) posture behavior unchanged (WARN only). +5 Go tests. See REVIEW_COMPLETED.md.
-
-Empty `XDR_INGEST_SECRET` silently disables auth (WARN only). When `XDR_ENFORCE_INTERNAL_AUTH=true`,
-refuse to start on empty or `dev-secret-change-me`. See REVIEW_ALL Batch 18.
-
-## ✅ COMPLETED (2026-07-05): GO-BASEIMAGE-EOL — Upgrade Go 1.22 / alpine:3.20 (both EOL) (Medium)
-
-> Done — `go.mod` in all 3 Go services bumped `go 1.22` → `go 1.24`; Dockerfiles bumped `golang:1.22-alpine` → `golang:1.26-alpine` builder and `alpine:3.20` → `alpine:3.22` runtime (tags verified to exist on Docker Hub before pinning). `go build`/`go vet`/`go test` all green on all 3 services with the local go1.26.3 toolchain; `docker compose config --quiet` exit 0. See REVIEW_COMPLETED.md.
-
-All 3 Go services build on EOL toolchain+runtime images. Bump go.mod ≥1.24, `golang:*-alpine` builder,
-`alpine:3.22+` runtime. Stdlib-only services → low-risk. Complements TECH-EOL-UPGRADE (PHP). See REVIEW_ALL Batch 18.
-
-## Proposed Task: IB-DLQ-NOT-DURABLE — Durable failure topic for incident-builder (Medium)
-Incident write/publish failures exist only in the in-memory ring (lost on restart). Add
-`write_incident_failure()` → `xdr.incident_write_failed`, register in topic bootstrap, extend pipeline-DLQ
-classification. See REVIEW_ALL Batch 18.
-
-## ✅ COMPLETED (2026-07-05): PY-POISON-RECORD-BATCH — Per-record poison isolation in Python consumers (Medium)
-
-> Done — `AlertPayload(**row)` construction in `normalize_records()` (both services) is now wrapped in a per-record `try/except`; a malformed record is isolated to the bounded `DLQ` ring as `alert_payload_invalid: …` and the loop continues, instead of the exception propagating up through `event_loop()` and aborting the entire poll batch (previously: a single poison record forced a recreate-from-earliest loop forever). Verified against real pydantic with a mixed valid/invalid batch: the malformed record is isolated to DLQ and the valid record in the same batch is still recovered. +6 unit tests (3/service) + 1 real-dependency reproduction. See REVIEW_COMPLETED.md.
-
-One malformed record aborts the whole poll batch → recreate-from-earliest loop forever. Per-record
-try/except → skip + structured DLQ entry (mirror normalizer 40801 pattern). See REVIEW_ALL Batch 18.
-
 ## Proposed Task: CONSUMER-GROUP-EPHEMERAL — Stable consumer group + offset commits (Medium)
+
 Fresh ms-timestamp group + `earliest` on every start/recovery reprocesses full topic history each restart.
 Stable group id + explicit commits; recreate identity only on offset_out_of_range. Enterprise-relevant
 reliability — per classification rules must not be Rejected. See REVIEW_ALL Batch 18.
 
-## ✅ COMPLETED (2026-07-05): AIRAG-STUB-CITATIONS — Label fabricated /v1/retrieve results as stub (Low)
-
-> Done — `/v1/retrieve` response now includes explicit `"provider": "stub"` and `"grounded": false` fields; confirmed no live caller depends on the prior shape (`AiRagServiceProvider.php` only calls `/v1/analyze`, never `/v1/retrieve` — this endpoint was reachable but unused). +1 test. See REVIEW_COMPLETED.md.
-
-Hardcoded fake citations returned with no stub marker. Add `provider:"stub"` / `grounded:false` or return
-empty until Qdrant retrieval is wired. See REVIEW_ALL Batch 18.
-
 ## Proposed Task: PY-PRINT-LOGGING — Replace print() with structured logging (Low)
+
 Adopt stdlib `logging` + shared JSON-line formatter across Python services; map `[SECURITY-WARN]`/WARN
 prefixes to levels. See REVIEW_ALL Batch 18.
-
-## ✅ COMPLETED (2026-07-05): GO-GRACEFUL-SHUTDOWN — Use server.Shutdown(ctx) on SIGTERM (Low)
-
-> Done — both `ingestion-gateway` and `correlation-worker` SIGTERM handlers now call `server.Shutdown(ctx)` with a 15s drain timeout instead of `server.Close()`, so in-flight requests complete instead of being dropped mid-deploy. `context` import added to correlation-worker. `go build`/`go vet`/`go test` green on both. See REVIEW_COMPLETED.md.
-
-`server.Close()` drops in-flight ingest requests during deploys despite "gracefully" log line. Drain with
-10–15 s Shutdown timeout. See REVIEW_ALL Batch 18.
