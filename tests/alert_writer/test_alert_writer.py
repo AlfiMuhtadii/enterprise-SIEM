@@ -545,5 +545,31 @@ class TestPoisonRecordIsolation(unittest.TestCase):
         self.assertIn("alerts.append(AlertPayload(**row))", src)
 
 
+class TestIncidentWriteFailedClassification(unittest.TestCase):
+    """IB-DLQ-NOT-DURABLE: alert-writer's unified pipeline-DLQ classification must
+    also cover xdr.incident_write_failed records (mirrors alert_write_failed)."""
+
+    def test_incident_write_failed_postgres_error_is_replayable(self):
+        records = [{"value": {
+            "dlq_event_type": "incident_write_failed",
+            "reason": "postgres_write_failed",
+            "error_message": "db down",
+            "ts": "2026-07-05T00:00:00Z",
+        }}]
+        parsed = aw.normalize_pipeline_dlq_records(records, "xdr.incident_write_failed")
+        self.assertEqual(len(parsed), 1)
+        self.assertTrue(parsed[0]["replayable"])
+
+    def test_incident_write_failed_event_loop_error_is_not_replayable(self):
+        records = [{"value": {
+            "dlq_event_type": "incident_write_failed",
+            "reason": "event_loop_error",
+            "error_message": "unknown",
+            "ts": "2026-07-05T00:00:00Z",
+        }}]
+        parsed = aw.normalize_pipeline_dlq_records(records, "xdr.incident_write_failed")
+        self.assertFalse(parsed[0]["replayable"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

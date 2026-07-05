@@ -369,5 +369,49 @@ class TestPoisonRecordIsolation(unittest.TestCase):
         self.assertIn("alerts.append(AlertPayload(**row))", src)
 
 
+class TestWriteIncidentFailure(unittest.TestCase):
+    """IB-DLQ-NOT-DURABLE: incident-builder failures must be durably published to
+    xdr.incident_write_failed, not only kept in the in-memory DLQ ring."""
+
+    def test_writes_structured_record_to_incident_write_failed_topic(self):
+        captured = {}
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            captured["url"] = url
+            captured["json"] = json
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        with patch.object(ib.SESSION, "post", side_effect=fake_post):
+            ok = ib.write_incident_failure("postgres_write_failed", "db down", "alerts.created", "trace-1", 3)
+
+        self.assertTrue(ok)
+        self.assertIn("xdr.incident_write_failed", captured["url"])
+        record = captured["json"]["records"][0]["value"]
+        self.assertEqual(record["dlq_event_type"], "incident_write_failed")
+        self.assertEqual(record["reason"], "postgres_write_failed")
+        self.assertEqual(record["incident_count"], 3)
+        self.assertEqual(record["trace_id"], "trace-1")
+
+    def test_returns_false_without_raising_when_publish_fails(self):
+        with patch.object(ib.SESSION, "post", side_effect=ConnectionError("refused")):
+            ok = ib.write_incident_failure("event_loop_error", "boom", "alerts.created")
+        self.assertFalse(ok)
+
+    def test_build_core_failure_publishes_incident_write_failed(self):
+        class _FakeRequest:
+            alerts: list = []
+            trace_id = "t1"
+            source_topic = "alerts.created"
+
+        calls = []
+        with patch.object(ib, "write_incidents", side_effect=Exception("db down")), \
+             patch.object(ib, "write_incident_failure", side_effect=lambda *a, **kw: calls.append(a) or True):
+            ib._build_incidents_core(_FakeRequest())
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "postgres_write_failed")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -81,6 +81,8 @@ METRICS: Dict[str, Any] = {
     "contract_validation_failures": 0,
     "operational_events_stored": 0,
     "internal_auth_mode": "permissive",
+    "incident_write_dlq_written": 0,
+    "incident_write_dlq_errors": 0,
 }
 # Bounded in-memory DLQ ring (MEM-UNBOUNDED-STATE) — fixed-size buffer to prevent
 # unbounded memory growth / OOM during a sustained failure storm. Cap is env-tunable.
@@ -292,6 +294,43 @@ def produce(topic: str, events: List[Dict[str, Any]]) -> int:
     return len(events)
 
 
+def write_incident_failure(
+    reason: str,
+    error_message: str,
+    source_topic: str,
+    trace_id: Optional[str] = None,
+    incident_count: int = 0,
+) -> bool:
+    """IB-DLQ-NOT-DURABLE: write a structured incident-write failure to
+    xdr.incident_write_failed. Returns True on success.
+
+    Mirrors alert-writer's write_alert_failure() — previously incident-builder
+    failures lived only in the in-memory DLQ ring (lost on restart), asymmetric
+    with alert-writer's durable xdr.alert_write_failed. If this write itself
+    fails, the error is logged in-memory only (DLQ write failure must not
+    cascade into another DLQ write).
+    """
+    dlq_topic = os.getenv("XDR_INCIDENT_WRITE_FAILED_TOPIC") or "xdr.incident_write_failed"
+    record: Dict[str, Any] = {
+        "dlq_event_type": "incident_write_failed",
+        "source_topic": source_topic,
+        "error_message": error_message,
+        "reason": reason,
+        "incident_count": incident_count,
+        "ts": now_iso(),
+    }
+    if trace_id:
+        record["trace_id"] = trace_id
+    try:
+        produce(dlq_topic, [record])
+        METRICS["incident_write_dlq_written"] += 1
+        return True
+    except Exception as exc:
+        METRICS["incident_write_dlq_errors"] += 1
+        print(f"[incident-builder] WARN: dlq write failed topic={dlq_topic}: {exc}", flush=True)
+        return False
+
+
 # Signals that identify an offset-out-of-range response from Pandaproxy.
 _OFFSET_RANGE_SIGNALS = frozenset([
     "offset_out_of_range",
@@ -477,6 +516,7 @@ def event_loop() -> None:
             METRICS["consumer_errors"] += 1
             consecutive_errors += 1
             is_offset_err = _is_offset_range_error(exc)
+            dlq_ok = write_incident_failure("event_loop_error", str(exc), topic)
             DLQ.append({
                 "ts": now_iso(),
                 "target": topic,
@@ -486,7 +526,7 @@ def event_loop() -> None:
             })
             METRICS["dlq_count"] = len(DLQ)
 
-            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE
+            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok
             if should_recreate:
                 reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
                 print(
@@ -524,6 +564,7 @@ def health() -> Dict[str, Any]:
         "mode": "event-driven",
         "consumes": os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created"),
         "produces": os.getenv("XDR_INCIDENTS_TOPIC", "incidents.updated"),
+        "incident_write_failed_topic": os.getenv("XDR_INCIDENT_WRITE_FAILED_TOPIC") or "xdr.incident_write_failed",
         "internal_auth_mode": auth_mode,
     }
 
@@ -564,6 +605,7 @@ def _build_incidents_core(request: BuildRequest) -> Dict[str, Any]:
         METRICS["failures"] += len(incidents)
         DLQ.append({"ts": now_iso(), "trace_id": request.trace_id, "error": str(exc), "incidents": incidents[:10]})
         METRICS["dlq_count"] = len(DLQ)
+        write_incident_failure("postgres_write_failed", str(exc), request.source_topic, request.trace_id, len(incidents))
     METRICS["incidents_built"] += len(incidents)
     METRICS["incident_updates"] += written
     elapsed = (time.perf_counter() - started) * 1000

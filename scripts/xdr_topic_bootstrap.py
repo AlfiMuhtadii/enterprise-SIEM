@@ -36,6 +36,7 @@ REQUIRED_TOPICS: list[str] = [
     "telemetry.normalization_failed",
     "xdr.correlation_failed",
     "xdr.alert_write_failed",
+    "xdr.incident_write_failed",
 ]
 
 PASS    = "PASS"

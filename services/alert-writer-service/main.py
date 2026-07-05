@@ -599,6 +599,7 @@ def health() -> Dict[str, Any]:
     dlq_enabled        = os.getenv("XDR_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     corr_dlq_enabled   = os.getenv("XDR_CORRELATION_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     write_dlq_enabled  = os.getenv("XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
+    incident_write_dlq_enabled = os.getenv("XDR_INCIDENT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}
     auth_mode = _auth_mode()
     return {
         "status": "ok",
@@ -613,8 +614,10 @@ def health() -> Dict[str, Any]:
         "dlq_topic":                         os.getenv("XDR_DLQ_TOPIC", "telemetry.normalization_failed"),
         "alert_write_failed_topic":          os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed",
         "correlation_failed_topic":          os.getenv("XDR_CORRELATION_FAILED_TOPIC") or "xdr.correlation_failed",
+        "incident_write_failed_topic":       os.getenv("XDR_INCIDENT_WRITE_FAILED_TOPIC") or "xdr.incident_write_failed",
         "correlation_dlq_consumer_enabled":  corr_dlq_enabled,
         "alert_write_dlq_consumer_enabled":  write_dlq_enabled,
+        "incident_write_dlq_consumer_enabled": incident_write_dlq_enabled,
         "internal_auth_mode":                auth_mode,
     }
 
@@ -1145,13 +1148,16 @@ def dlq_consumer_event_loop() -> None:
 
 
 def normalize_pipeline_dlq_records(records: List[Dict[str, Any]], source_topic: str) -> List[Dict[str, Any]]:
-    """Parse structured failure records from xdr.correlation_failed / xdr.alert_write_failed.
+    """Parse structured failure records from xdr.correlation_failed / xdr.alert_write_failed /
+    xdr.incident_write_failed.
 
     Replayability classification:
     - correlation_parse_error: structural (invalid JSON at source) — not replayable
     - correlation_publish_error: transient (alert publish failed) — replayable
     - alert_write_failed with postgres_write_failed/opensearch_write_failed: transient — replayable
     - alert_write_failed with event_loop_error: unknown consumer exception — not replayable
+    - incident_write_failed with postgres_write_failed: transient — replayable
+    - incident_write_failed with event_loop_error: unknown consumer exception — not replayable
     """
     results: List[Dict[str, Any]] = []
     for record in records:
@@ -1171,6 +1177,8 @@ def normalize_pipeline_dlq_records(records: List[Dict[str, Any]], source_topic: 
         elif dlq_event_type == "alert_write_failed" and error_reason in (
             "postgres_write_failed", "opensearch_write_failed"
         ):
+            replayable = True
+        elif dlq_event_type == "incident_write_failed" and error_reason == "postgres_write_failed":
             replayable = True
         else:
             replayable = False
@@ -1196,7 +1204,8 @@ def normalize_pipeline_dlq_records(records: List[Dict[str, Any]], source_topic: 
 
 
 def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
-    """Consumer loop for xdr.correlation_failed or xdr.alert_write_failed. Runs in a daemon thread.
+    """Consumer loop for xdr.correlation_failed, xdr.alert_write_failed, or
+    xdr.incident_write_failed. Runs in a daemon thread.
 
     Persists structured failure records to dlq_records table for SOC review.
     Never publishes to alerts.created. Never creates incidents. Never auto-replays.
@@ -1326,6 +1335,12 @@ def _startup_tasks() -> None:
         write_failed_topic = os.getenv("XDR_ALERT_WRITE_FAILED_TOPIC") or "xdr.alert_write_failed"
         threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(write_failed_topic,), daemon=True).start()
         print(f"[pipeline-dlq-consumer] started  topic={write_failed_topic}", flush=True)
+    if os.getenv("XDR_INCIDENT_WRITE_DLQ_CONSUMER_ENABLED", "false").lower() in {"1", "true", "yes"}:
+        # IB-DLQ-NOT-DURABLE: incident-builder failures are reviewed here, alongside
+        # correlation/alert-write failures, for a single unified DLQ review surface.
+        incident_write_failed_topic = os.getenv("XDR_INCIDENT_WRITE_FAILED_TOPIC") or "xdr.incident_write_failed"
+        threading.Thread(target=pipeline_dlq_consumer_event_loop, args=(incident_write_failed_topic,), daemon=True).start()
+        print(f"[pipeline-dlq-consumer] started  topic={incident_write_failed_topic}", flush=True)
 
 
 def _shutdown_tasks() -> None:

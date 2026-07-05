@@ -202,7 +202,7 @@ class TestMain(unittest.TestCase):
     def test_partial_failure_exits_1(self):
         # Two topics missing; only first one fails to create.
         call_count = {"n": 0}
-        def side_effect(topic, dry_run):
+        def side_effect(topic, dry_run, replication_factor=1):
             call_count["n"] += 1
             return (tb.FAIL, "err") if call_count["n"] == 1 else (tb.CREATED, "ok")
         with self._patch_fetch(list(tb.REQUIRED_TOPICS[:2])):

@@ -229,7 +229,7 @@ class TestBootstrapDlqTopics(unittest.TestCase):
         existing = ["telemetry.raw", "telemetry.normalized", "xdr.alerts",
                     "alerts.created", "telemetry.normalization_failed"]
 
-        def fake_create(topic, dry_run):
+        def fake_create(topic, dry_run, replication_factor=1):
             return tb.CREATED, f"created {topic}"
 
         def fake_fetch(url, timeout):
