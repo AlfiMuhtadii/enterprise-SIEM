@@ -19,10 +19,11 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"detector-xdr-correlation-worker/internal/ioc"
 )
 
 var httpClient = &http.Client{
@@ -152,6 +153,11 @@ func main() {
 	flag.Parse()
 	validateCorrelationSecrets()
 	debug.SetGCPercent(envInt("XDR_CORRELATION_GOGC", 300))
+	// PERF-GO-HOT-HTTP: size the IOC lookup cache from env before any lookups happen.
+	ioc.Configure(
+		time.Duration(envInt("XDR_IOC_CACHE_TTL_SECONDS", 60))*time.Second,
+		envInt("XDR_IOC_CACHE_MAX", 10000),
+	)
 	w := &Worker{
 		redpandaREST:      env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
 		inputTopic:        env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
@@ -224,9 +230,9 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 		"consumer_recreate_count": w.consumerRecreateCount.Load(),
 		"retry_count":             w.retryCount.Load(),
 		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
-		"ioc_lookup_total":        iocLookupTotal.Load(),
-		"ioc_match_total":         iocMatchTotal.Load(),
-		"ioc_cache_hits":          iocCacheHits.Load(),
+		"ioc_lookup_total":        ioc.LookupTotal.Load(),
+		"ioc_match_total":         ioc.MatchTotal.Load(),
+		"ioc_cache_hits":          ioc.CacheHits.Load(),
 		"dlq_written":             w.dlqWritten.Load(),
 		"dlq_write_errors":        w.dlqWriteErrors.Load(),
 		"input_topic":             w.inputTopic,
@@ -976,129 +982,9 @@ func envInt(name string, fallback int) int {
 // Threat intelligence IOC shadow enrichment (shadow-only, graceful degradation)
 // ---------------------------------------------------------------------------
 
-var (
-	iocLookupTotal atomic.Int64
-	iocMatchTotal  atomic.Int64
-	iocCacheHits   atomic.Int64
-	iocHTTPClient  = &http.Client{Timeout: 3 * time.Second}
-	// PERF-GO-HOT-HTTP: cache definitive IOC lookup results so repeated indicators
-	// (common in a batch) don't re-issue a synchronous HTTP GET on every call.
-	globalIOCCache = newIOCCache(
-		time.Duration(envInt("XDR_IOC_CACHE_TTL_SECONDS", 60))*time.Second,
-		envInt("XDR_IOC_CACHE_MAX", 10000),
-	)
-)
-
-// iocCacheEntry is a cached lookup result (result == nil means a definitive
-// no-match). Errors/transient failures are never cached (they are retried).
-type iocCacheEntry struct {
-	result  map[string]any
-	expires time.Time
-}
-
-// iocCache is a bounded, TTL, thread-safe cache for IOC lookups (PERF-GO-HOT-HTTP).
-type iocCache struct {
-	mu      sync.RWMutex
-	entries map[string]iocCacheEntry
-	ttl     time.Duration
-	max     int
-}
-
-func newIOCCache(ttl time.Duration, max int) *iocCache {
-	return &iocCache{entries: make(map[string]iocCacheEntry), ttl: ttl, max: max}
-}
-
-func (c *iocCache) get(key string) (map[string]any, bool) {
-	c.mu.RLock()
-	e, ok := c.entries[key]
-	c.mu.RUnlock()
-	if !ok || time.Now().After(e.expires) {
-		return nil, false
-	}
-	return e.result, true
-}
-
-func (c *iocCache) set(key string, result map[string]any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.max > 0 && len(c.entries) >= c.max {
-		// Bounded: drop expired entries first; if still at capacity, skip caching
-		// (the live lookup already returned a value, we just don't grow the map).
-		now := time.Now()
-		for k, e := range c.entries {
-			if now.After(e.expires) {
-				delete(c.entries, k)
-			}
-		}
-		if len(c.entries) >= c.max {
-			return
-		}
-	}
-	c.entries[key] = iocCacheEntry{result: result, expires: time.Now().Add(c.ttl)}
-}
-
-func lookupIOC(iocURL, iocType, value string) map[string]any {
-	if iocURL == "" || value == "" {
-		return nil
-	}
-	key := iocType + "|" + value
-	if cached, ok := globalIOCCache.get(key); ok {
-		iocCacheHits.Add(1)
-		return cached
-	}
-	result, cacheable := fetchIOC(iocURL, iocType, value)
-	if cacheable {
-		globalIOCCache.set(key, result)
-	}
-	return result
-}
-
-// fetchIOC performs the synchronous HTTP lookup. The bool return is true only for
-// a definitive HTTP-200 outcome (match or explicit no-match), which is safe to
-// cache; transient errors/non-200 return false so they are not cached.
-func fetchIOC(iocURL, iocType, value string) (map[string]any, bool) {
-	iocLookupTotal.Add(1)
-	queryURL := fmt.Sprintf("%s/v1/lookup?type=%s&value=%s",
-		strings.TrimRight(iocURL, "/"),
-		iocType,
-		url.QueryEscape(value))
-	req, err := http.NewRequest(http.MethodGet, queryURL, nil)
-	if err != nil {
-		return nil, false
-	}
-	resp, err := iocHTTPClient.Do(req)
-	if err != nil {
-		return nil, false
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, false
-	}
-	var result map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, false
-	}
-	matched, _ := result["matched"].(bool)
-	if !matched {
-		return nil, true
-	}
-	iocMatchTotal.Add(1)
-	return result, true
-}
-
-func iocSeverity(ioc map[string]any) string {
-	if s, ok := ioc["severity"].(string); ok && s != "" {
-		return s
-	}
-	return "medium"
-}
-
-func iocConfidence(ioc map[string]any) float64 {
-	if c, ok := ioc["confidence"].(float64); ok && c > 0 {
-		return c
-	}
-	return 0.70
-}
+// IOC lookup + cache moved to internal/ioc (CODE-STRUCT-DECOMPOSE). ioc.Configure
+// is called at the top of main() with the same env vars this package var block
+// used to read directly.
 
 func ruleIOCIPMatch(events []map[string]any, iocURL string) []EndpointAlert {
 	var alerts []EndpointAlert
@@ -1111,17 +997,17 @@ func ruleIOCIPMatch(events []map[string]any, iocURL string) []EndpointAlert {
 			if ip == "" {
 				continue
 			}
-			ioc := lookupIOC(iocURL, "ip", ip)
-			if ioc == nil {
+			iocResult := ioc.Lookup(iocURL, "ip", ip)
+			if iocResult == nil {
 				continue
 			}
 			a := makeEndpointAlert("ioc_ip_match", "v1", "Endpoint IOC IP Match",
-				iocSeverity(ioc), iocConfidence(ioc), ev)
-			a.Evidence["ioc_id"] = ioc["ioc_id"]
+				ioc.Severity(iocResult), ioc.Confidence(iocResult), ev)
+			a.Evidence["ioc_id"] = iocResult["ioc_id"]
 			a.Evidence["matched_ip"] = ip
 			a.Evidence["matched_field"] = "network." + field
-			a.Evidence["ioc_source"] = ioc["source"]
-			a.Evidence["ioc_tags"] = ioc["tags"]
+			a.Evidence["ioc_source"] = iocResult["source"]
+			a.Evidence["ioc_tags"] = iocResult["tags"]
 			alerts = append(alerts, a)
 		}
 	}
@@ -1138,16 +1024,16 @@ func ruleIOCDomainMatch(events []map[string]any, iocURL string) []EndpointAlert 
 		if domain == "" {
 			continue
 		}
-		ioc := lookupIOC(iocURL, "domain", domain)
-		if ioc == nil {
+		iocResult := ioc.Lookup(iocURL, "domain", domain)
+		if iocResult == nil {
 			continue
 		}
 		a := makeEndpointAlert("ioc_domain_match", "v1", "Endpoint IOC Domain Match",
-			iocSeverity(ioc), iocConfidence(ioc), ev)
-		a.Evidence["ioc_id"] = ioc["ioc_id"]
+			ioc.Severity(iocResult), ioc.Confidence(iocResult), ev)
+		a.Evidence["ioc_id"] = iocResult["ioc_id"]
 		a.Evidence["matched_domain"] = domain
-		a.Evidence["ioc_source"] = ioc["source"]
-		a.Evidence["ioc_tags"] = ioc["tags"]
+		a.Evidence["ioc_source"] = iocResult["source"]
+		a.Evidence["ioc_tags"] = iocResult["tags"]
 		alerts = append(alerts, a)
 	}
 	return alerts
@@ -1164,18 +1050,18 @@ func ruleIOCHashMatch(events []map[string]any, iocURL string) []EndpointAlert {
 			if h == "" {
 				continue
 			}
-			ioc := lookupIOC(iocURL, "file_hash", h)
-			if ioc == nil {
+			iocResult := ioc.Lookup(iocURL, "file_hash", h)
+			if iocResult == nil {
 				continue
 			}
 			section := strings.Join(field, ".")
 			a := makeEndpointAlert("ioc_file_hash_match", "v1", "Endpoint IOC File Hash Match",
-				iocSeverity(ioc), iocConfidence(ioc), ev)
-			a.Evidence["ioc_id"] = ioc["ioc_id"]
+				ioc.Severity(iocResult), ioc.Confidence(iocResult), ev)
+			a.Evidence["ioc_id"] = iocResult["ioc_id"]
 			a.Evidence["matched_hash"] = h
 			a.Evidence["matched_section"] = section
-			a.Evidence["ioc_source"] = ioc["source"]
-			a.Evidence["ioc_tags"] = ioc["tags"]
+			a.Evidence["ioc_source"] = iocResult["source"]
+			a.Evidence["ioc_tags"] = iocResult["tags"]
 			alerts = append(alerts, a)
 		}
 	}

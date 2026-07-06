@@ -18,7 +18,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
-| **CODE-STRUCT-DECOMPOSE** | [Structure/Maintainability] `correlation-worker/main.go` is 2944 lines in one file (normalizer 1181, alert-writer 1277) — no package decomposition; hurts testability at enterprise scale | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed |
+| **CODE-STRUCT-DECOMPOSE** (1st seam done — `internal/ioc` extracted) | [Structure/Maintainability] `correlation-worker/main.go` now 2836 lines (was 2950) after extracting the IOC lookup+cache into `internal/ioc` (own package, own tests, zero behavior change). Remaining seams: `internal/rules` (rule evaluation), `internal/kafka` (Pandaproxy consume/produce), `internal/correlate` (cross-domain correlation); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
@@ -135,6 +135,17 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   time, not a big-bang rewrite (respects the Architecture Direction Lock).
 - **Safety:** Structure only; detection behavior and event contracts must be byte-identical.
   Live-pipeline verifier required because this touches the correlation hot path.
+- **Progress (2026-07-09):** First seam done — IOC lookup+cache extracted to
+  `internal/ioc` (own package: `Cache`, `Lookup`, `Severity`, `Confidence`, `Configure`; the
+  3 call sites in `ruleIOCIPMatch`/`ruleIOCDomainMatch`/`ruleIOCHashMatch` now call
+  `ioc.Lookup(...)` etc.). `ioc_cache_test.go`'s 5 tests moved into the new package
+  (`internal/ioc/ioc_test.go`) unchanged in behavior, +2 new tests for `Severity`/`Confidence`
+  defaults. `go build`/`go vet`/`go test ./...` all clean for both packages;
+  `main.go` 2950→2836 lines. **Not run**: the live-pipeline verifier (needs Docker, unavailable
+  in this environment) — this was pure code movement with identical logic/tests, so risk is low,
+  but per CLAUDE.md's own note this touches the correlation hot path and should be confirmed with
+  a live run before the next deploy. Remaining seams (`internal/rules`, `internal/kafka`,
+  `internal/correlate`) and normalizer/alert-writer decomposition are still open.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 
