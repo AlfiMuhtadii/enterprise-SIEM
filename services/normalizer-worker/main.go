@@ -69,9 +69,22 @@ type Worker struct {
 	queueCapacity int
 	producerBatch int
 	producerFlush time.Duration
-	producerQueues []chan map[string]any
+	producerQueues []chan queuedEvent
 	nextProducer  atomic.Uint64
 	mu           sync.Mutex
+}
+
+// queuedEvent pairs a normalized event with the WaitGroup (if any) that must
+// not resolve until the event has been through a completed publish attempt
+// (success, or failure recorded to the DLQ). consumeOnce uses this to avoid
+// advancing past a Pandaproxy fetch (which implicitly commits the previous
+// batch's offsets on the *next* poll) before that batch has actually been
+// published — see NORM-ASYNC-COMMIT-LOSS. The HTTP ingestion path
+// (normalizeHTTP) passes a nil WaitGroup since it is intentionally
+// fire-and-forget (202 Accepted before publish).
+type queuedEvent struct {
+	event map[string]any
+	wg    *sync.WaitGroup
 }
 
 func main() {
@@ -95,9 +108,9 @@ func main() {
 	if producerCount < 1 {
 		producerCount = 1
 	}
-	w.producerQueues = make([]chan map[string]any, producerCount)
+	w.producerQueues = make([]chan queuedEvent, producerCount)
 	for i := 0; i < producerCount; i++ {
-		w.producerQueues[i] = make(chan map[string]any, max(1, w.queueCapacity/producerCount))
+		w.producerQueues[i] = make(chan queuedEvent, max(1, w.queueCapacity/producerCount))
 		go w.producerLoop(w.producerQueues[i])
 	}
 
@@ -218,10 +231,18 @@ func (w *Worker) consumeOnce() {
 		normalized, malformed := normalizeBatch(rawEvents)
 		w.processed.Add(int64(len(rawEvents)))
 		w.malformed.Add(int64(malformed))
+		// Block the next consumerPoll (which implicitly commits this batch's
+		// offsets via Pandaproxy's fetch-time auto-commit) until every event
+		// from this batch has been through a completed publish attempt —
+		// otherwise a crash here could lose up to queueCapacity (default
+		// 200k) already-committed-but-unpublished events. See
+		// NORM-ASYNC-COMMIT-LOSS.
+		var wg sync.WaitGroup
 		for _, event := range normalized {
-			w.enqueue(event)
+			w.enqueue(event, &wg)
 			w.queueDepth.Add(1)
 		}
+		wg.Wait()
 	}
 }
 
@@ -447,7 +468,7 @@ func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
 	w.processed.Add(int64(len(rawEvents)))
 	w.malformed.Add(int64(malformed))
 	for _, event := range normalized {
-		w.enqueue(event)
+		w.enqueue(event, nil)
 		w.queueDepth.Add(1)
 	}
 	writeJSON(rw, http.StatusAccepted, map[string]any{
@@ -498,32 +519,53 @@ func normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
 	return normalized, malformed
 }
 
-func (w *Worker) enqueue(event map[string]any) {
+// enqueue hands a normalized event to a producer queue for async batched
+// publish. If wg is non-nil, wg.Add(1) is called before the event is queued
+// and wg.Done() is called once that event has been through a completed
+// publish attempt (success or DLQ-recorded failure) — callers that need to
+// know "this event has at least been attempted" (e.g. before advancing the
+// consumer offset) should pass a WaitGroup and Wait() on it. Fire-and-forget
+// callers (the HTTP ingestion path) pass nil.
+func (w *Worker) enqueue(event map[string]any, wg *sync.WaitGroup) {
+	if wg != nil {
+		wg.Add(1)
+	}
 	idx := int(w.nextProducer.Add(1) % uint64(len(w.producerQueues)))
-	w.producerQueues[idx] <- event
+	w.producerQueues[idx] <- queuedEvent{event: event, wg: wg}
 }
 
-func (w *Worker) producerLoop(events <-chan map[string]any) {
+func (w *Worker) producerLoop(events <-chan queuedEvent) {
 	ticker := time.NewTicker(w.producerFlush)
 	defer ticker.Stop()
-	batch := make([]map[string]any, 0, w.producerBatch)
+	batch := make([]queuedEvent, 0, w.producerBatch)
 	flush := func() {
 		if len(batch) == 0 {
 			return
 		}
-		if err := w.publish(w.outputTopic, batch); err != nil {
+		payload := make([]map[string]any, 0, len(batch))
+		for _, qe := range batch {
+			payload = append(payload, qe.event)
+		}
+		if err := w.publish(w.outputTopic, payload); err != nil {
 			w.publishErrors.Add(1)
-			_ = w.publish(w.dlqTopic, []map[string]any{{"error": err.Error(), "count": len(batch)}})
+			// Include the actual events, not just a count — a count-only DLQ
+			// record can't be replayed; the events would be silently lost.
+			_ = w.publish(w.dlqTopic, []map[string]any{{"error": err.Error(), "count": len(batch), "events": payload}})
 		} else {
 			w.forwarded.Add(int64(len(batch)))
 		}
 		w.queueDepth.Add(-int64(len(batch)))
-		batch = make([]map[string]any, 0, w.producerBatch)
+		for _, qe := range batch {
+			if qe.wg != nil {
+				qe.wg.Done()
+			}
+		}
+		batch = make([]queuedEvent, 0, w.producerBatch)
 	}
 	for {
 		select {
-		case event := <-events:
-			batch = append(batch, event)
+		case qe := <-events:
+			batch = append(batch, qe)
 			if len(batch) >= w.producerBatch {
 				flush()
 			}
