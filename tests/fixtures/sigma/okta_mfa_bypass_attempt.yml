@@ -1,0 +1,21 @@
+title: Okta MFA Bypass Attempt
+id: a1b2c3d4-e5f6-4789-a012-b3c4d5e6f789
+status: experimental
+description: Detects repeated MFA challenge failures for a single user in Okta
+references:
+    - https://attack.mitre.org/techniques/T1621/
+author: Community
+date: 2023/05/10
+tags:
+    - attack.credential_access
+    - attack.t1621
+logsource:
+    product: okta
+    service: okta
+detection:
+    selection:
+        eventType: 'user.mfa.okta_verify.deny_push'
+    condition: selection
+falsepositives:
+    - Unknown
+level: medium

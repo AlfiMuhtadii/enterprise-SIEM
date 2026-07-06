@@ -32,7 +32,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ARCH-DISCOVERY** | [Enterprise infra — promoted 2026-07-06] Static hostnames only; multi-node needs DNS/service discovery + internal LB. Belongs with a real multi-node deploy (ties ENT-REL-SIMULATED-HA / HA-DRILL-01) | `docker-compose*.yml`, deploy manifests | Medium | Proposed (staged — infra) |
 | **AI-KB-SEMANTIC** | [Enterprise AI — promoted 2026-07-06] Qdrant + cosine ranking path exists (`SocKnowledgeRetriever::retrieveQdrant`); only a live transformer embedding model is missing (currently offline pseudo-embeddings). Needs a bundled/served embedding model — conflicts with offline-first default, so gate behind a flag | `app/Support/SocKnowledgeRetriever.php`, embedding service | Medium | Proposed (staged — needs ML infra) |
 | **AI-KB-FEED-INGEST** | [Enterprise AI — promoted 2026-07-06] No live MITRE/RSS threat-intel feed ingest into the KB. Re-scope as a bundled offline dataset import to preserve offline-first posture rather than a live network dependency | `app/Services/*`, KB seeding | Low | Proposed (staged) |
-| **CAP-DETECT-AS-CODE-SIGMA** | [Power — detection coverage multiplier] No Sigma / detection-as-code import — the 133-rule registry is hand-authored. Add a Sigma YAML → detection-registry compiler (field-mapping to normalized schema) so community/vendor rulesets can be ingested. Shadow-first, soak-gated before any active promotion (no boundary crossed) | `docs/detection/rules/registry.v1.json`, new `app/Services/SigmaImportService.php`, `scripts/` | High | Proposed |
+| **CAP-DETECT-AS-CODE-SIGMA** (compiler done — metadata/catalog import only, see reduced scope note) | [Power — detection coverage multiplier] `SigmaImportService` + `detection:import-sigma` artisan command compile SigmaHQ YAML into shadow-only registry entries (domain/severity/MITRE/field-mapping), always `status=shadow`, never `staged_active`. **Reduced scope, discovered during research**: `registry.v1.json` is a metadata/governance catalog everywhere in this codebase — no existing rule's detection logic is driven by the JSON (all 133 are hand-coded Go/Python) — so this compiler produces a catalog entry with the original Sigma `detection:` block preserved for later hand-implementation, not auto-generated executable detection logic. That gap is consistent with how every other rule already works, not a shortfall unique to this importer | `app/Services/SigmaImportService.php`, `app/Console/Commands/DetectionImportSigmaCommand.php` | High | Proposed (reduced) |
 | **CAP-TI-STIX-TAXII** | [Power — real TI platform] Current IOC path is a static lookup; no STIX 2.1 / TAXII 2.1 inbound client, no IOC lifecycle (confidence decay, expiry, source provenance). Add a bundled/offline-first TAXII poller + IOC lifecycle so threat-intel is first-class, not a flat list. Advisory enrichment only | new `services/ti-connector` or `app/Services/ThreatIntel*`, `ioc_*` tables | High | Proposed |
 | **CAP-MSSP-TENANCY** | [Power — MSSP/enterprise multi-tenant] No parent/child tenant hierarchy or MSSP analyst roles; tenancy is flat. Add tenant hierarchy + cross-tenant rollup views for an MSSP operating multiple customers (advisory, read-only rollups, RLS-enforced — depends on ENT-TENANCY-NO-DB-ENFORCEMENT). No autonomous cross-tenant action | `app/Services/TenantBoundaryService.php`, new `tenant_hierarchy` table, RBAC | High | Proposed |
 | **CAP-DECEPTION-HONEYTOKEN** | [Power — defensive deception] No honeytoken/canary detection. Add advisory detection when a seeded honeytoken (fake cred/file/URL/DNS name) is touched in telemetry — high-signal, low-FP. Purely detective (no offensive deployment, no active response) | new `app/Services/HoneytokenService.php`, detection rules (shadow), `services/correlation-worker` | Medium | Proposed |
@@ -397,6 +397,40 @@ Import community/vendor Sigma YAML rules into `registry.v1.json` via a field-map
 (Sigma logsource/fields → the normalized telemetry schema). Turns a hand-authored 133-rule set into
 one that can absorb thousands of open rules. **Safety:** imported rules land as `shadow`, subject to
 the same domain-specific 6h soak gate before any `staged_active` promotion — the hard gate is untouched.
+- **Progress (2026-07-11):** Done, with an honest scope correction discovered during research.
+  New `App\Services\SigmaImportService`: `parse()` (Symfony YAML, already a transitive Laravel
+  dependency, no new composer package) + `compile()` producing a full `registry.v1.json` entry —
+  domain inferred from Sigma `logsource.product/category/service` (lookup table, e.g.
+  `product: okta` → `identity`, `product: aws` → `cloud`, `category: process_creation` → `endpoint`),
+  `severity` from `level` (`informational` → platform's `info`), `mitre_attack` from `tags:
+  [attack.txxxx]` (prefix-stripped, uppercased), `shadow_only`/`output_topic` auto-set correctly
+  for protected domains (`endpoint`/`threat-intel`/`network`), `confidence` fixed at the
+  validator's 0.65 floor, `rule_id` slugified from `title` with dedup-on-collision. **Always**
+  emits `status: "shadow"` — never `staged_active` (that needs a real domain-specific 6h soak
+  PASS, which an import can never provide). New `detection:import-sigma {files*} {--dry-run}
+  {--registry=}` artisan command wraps it (the `--registry=` override exists purely for test
+  isolation — never touches the real file during tests).
+  **Scope correction (important):** research before implementing found that `registry.v1.json`
+  is a metadata/governance catalog everywhere in this codebase — every one of the existing 133
+  rules has its actual match logic hand-coded in Go (`internal/shadowrules`) or Python
+  (`scripts/xdr_correlation_detector.py`), never driven by the registry JSON itself, which has
+  no field-condition/expression language at all. So this compiler produces a **catalog entry**
+  (MITRE mapping, severity, suppression scaffolding, field-mapping hints) with the original Sigma
+  `detection:` block preserved verbatim in a new `sigma_source` field for later hand-implementation
+  — it does not, and structurally cannot without inventing a whole new generic rule-expression
+  engine (a much bigger, separate task), auto-generate executable shadow-detection logic. This
+  is consistent with how every other rule in the registry already works, not a shortfall unique
+  to Sigma import — but it does mean "ingest thousands of open rules" overstates what happens
+  today: it bootstraps the *catalog/governance* side of onboarding a ruleset quickly, not live
+  detection coverage.
+  Verified end-to-end against 2 real fixture rules (`tests/fixtures/sigma/`, a Windows/
+  `process_creation` PowerShell-encoded-command rule and an Okta MFA-bypass rule) — compiled,
+  written to a full copy of the real 133-rule registry, and passed
+  `xdr_rule_registry_validate.py`'s all-21-checks gate at 135 rules (then reverted — the demo
+  import was not left in the production registry; see REVIEW_COMPLETED.md). +15 tests (11 unit
+  `SigmaImportServiceTest`, 4 feature `DetectionImportSigmaCommandTest` — including one that
+  shells out to the real Python validator against an isolated temp registry copy, so the
+  validator's own exit code is the source of truth, not just this compiler's self-assessment).
 
 ## Proposed Task: CAP-TI-STIX-TAXII — First-class threat-intel platform (STIX 2.1 / TAXII 2.1)
 Replace the flat IOC lookup with a real TI layer: a TAXII 2.1 poller (bundled/offline-first feeds by
