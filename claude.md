@@ -56,7 +56,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 4687 passed, zero failures (dedicated detector_test DB; RefreshDatabase auto-migrates)
+php artisan test         → 4709 passed, zero failures (dedicated detector_test DB; RefreshDatabase auto-migrates)
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=133  checks=21/21
 fleet simulation         → 8/8 passed
@@ -382,7 +382,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan test
 ```
 
-Current: **4687 tests**, all green.
+Current: **4709 tests**, all green.
 
 ### Test database — dedicated, isolated (do NOT use the app DB)
 
@@ -395,14 +395,24 @@ always wins over `.env` — so a test run can never touch or wipe real data.
   `migrate:fresh` **once** at suite start (in a static-guarded transaction) and rolls back each
   test. So a manual `migrate:fresh` is **NOT** needed and must not be used — it is redundant
   (double-migrates) and, historically, destructive because tests used to share the app DB.
-- **No schema dump (`php artisan schema:dump`) — tried and reverted:** the generated
-  `pgsql-schema.sql` puts each table's serial-column default (`ALTER TABLE ... ALTER COLUMN id
-  SET DEFAULT nextval(...)`) in a separate section after all `CREATE TABLE` statements; loading
-  it via `RefreshDatabase` applied those defaults inconsistently, and multiple tables (e.g.
-  `live_pilot_runs`) ended up with `id` accepting no default, causing 74 NOT NULL violations
-  across the suite. Plain migration-by-migration `migrate:fresh` remains the only reliable path
-  until this is root-caused — do not regenerate a schema dump without re-verifying the full
-  suite against a freshly recreated `detector_test` first.
+- **Schema dump (`database/schema/pgsql-schema.sql`) — root-caused and working:** an earlier
+  attempt failed (74 NOT NULL violations on `id` columns, e.g. `live_pilot_runs`) because
+  `schema:dump` was run against the long-lived **dev** `detector` database, not a guaranteed-
+  clean one — `schema:dump` targets whatever `DB_DATABASE` the connection currently has, and
+  `pg_dump` faithfully reproduces whatever drift that DB had accumulated (e.g. from an
+  out-of-band `psql` session or a raw-SQL migration run oddly). Root cause confirmed by
+  regenerating the dump from a **freshly `migrate:fresh`'d `detector_test`**
+  (`DB_DATABASE=detector_test php artisan schema:dump`) and mechanically verifying parity (468
+  `bigint id NOT NULL` tables, 468 matching `SET DEFAULT nextval` statements, zero missing) —
+  then replaying Laravel's exact `psql --file=` load mechanism into a disposable database and
+  confirming every `id` column, including `live_pilot_runs`, got its default correctly. Full
+  suite from an *empty* `detector_test` (schema dump auto-loaded by `RefreshDatabase`, no
+  manual migration): **4687 passed, 0 failures.** `RefreshDatabase` picks this file up
+  automatically — no config change needed to use it.
+  **Rule for regenerating this dump in the future:** always run `schema:dump` against a
+  database you *just* ran `migrate:fresh` against (never the ambient dev `detector` DB, which
+  can drift), and re-run the full suite once against a freshly recreated `detector_test`
+  before trusting a regenerated dump.
 - **Faster runs — parallel:** `brianium/paratest` is a committed dev dependency; with a
   per-worker DB there is no shared-DB collision, so parallel is safe and preferred:
   ```powershell

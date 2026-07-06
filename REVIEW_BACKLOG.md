@@ -14,7 +14,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-REL-SIMULATED-HA** | [Enterprise BLOCKER] HA/scale/DR "PASS" is computed, not measured on real cluster (SIM-LAYER Track B + HA-DRILL-01). "Too heavy for laptop" invalid at enterprise bar — run on real staging before any availability claim | `app/Services/EnterpriseScaleHaService.php` et al., `docker-compose.ha.yml` | High | Proposed (re-open Track B + HA-DRILL-01) |
 | **ENT-DETECT-ML-NOT-LIVE** (investigated — original proposed fix is wrong integration point) | [Enterprise product-claim BLOCKER] Model scores **HTTP-request** features (`status`/`latency_ms`/`has_sql_keywords`/...), confirmed identical to `security_events` (Laravel's `SecurityRequestLogger`), NOT correlation-worker's identity/cloud/SaaS telemetry — wiring it into correlation-worker as originally proposed would score data it was never trained on. The real rule+ML hybrid already exists as working code (`scripts/realtime_detector_consumer.py`) but isn't in `docker-compose.yml` at all, and it writes directly to the **active** `security_alerts` table with no soak gate — deploying it live as-is risks silently activating an unvalidated new alert domain | `scripts/realtime_detector_consumer.py`, `docker-compose.yml`, `app/Http/Middleware/SecurityRequestLogger.php` | High | Deferred — needs advisory-first soak plan, see detail section |
 | **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning done; SBOM/scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions (`==`) and Go services have zero external deps (no `go.sum` needed) — that part was already fine. The real gap was all 6 Dockerfiles floating on mutable tags (`python:3.12-slim`, `golang:1.26-alpine`, `alpine:3.22`); now pinned to resolved digests (`@sha256:...`, fetched live from the Docker Hub registry API). Still missing: SBOM generation (syft/cyclonedx), image vuln scan gate (trivy), signed builds (cosign) — none of these tools are available in this environment | `services/*/Dockerfile`, CI | Medium | Proposed (reduced) |
-| **IDENTITY-SSO-MFA** | [Enterprise BLOCKER — re-ranked] No SSO (SAML/OIDC) or MFA on the privileged SOC console that approves response commands — SOC2 CC6.1 | `app/Http/Controllers/Auth/*`, `config/auth.php`, `routes/auth.php` | High | Proposed |
+| **IDENTITY-SSO-MFA** (TOTP MFA done; SSO/SAML/OIDC federation remains) | [Enterprise BLOCKER — re-ranked] Per-user opt-in TOTP now implemented (`TotpService`, RFC 6238, dependency-free — verified against the RFC's own published test vector, not just self-consistency). Login gates on a 6-digit code when a user has enabled it; existing password-only login is unaffected for everyone else. Still missing: real SSO/SAML/OIDC federation to a corporate IdP (Okta/Azure AD) — needs a real external IdP to configure and test against, which this environment doesn't have; enforcing MFA as *mandatory* for specific roles/routes (`soc:response.*`/`soc:admin.*`) is also still a policy decision, not yet wired | `app/Services/TotpService.php`, `app/Http/Controllers/Auth/MfaController.php`, `app/Http/Controllers/Auth/AuthenticatedSessionController.php`, `routes/auth.php` | High | Proposed (reduced) |
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
@@ -23,13 +23,27 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **DATA-TIERING** (phase 1 done — archive-before-delete; warm/cold tiers remain) | [Capability] `SecurityRetentionCommand` now archives every pruned row to gzip JSONL (`SecurityRetentionArchiveService`) before deleting — data is no longer simply gone, just no longer hot/queryable. Still missing: warm tier (ClickHouse, months-scale searchable), cold tier (object storage archival/restore), and this local-gzip archive isn't itself searchable — needs live ClickHouse/S3-compatible infra to build and verify further | `app/Services/SecurityRetentionArchiveService.php`, `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed (reduced) |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
-| **TEST-NO-SCHEMA-DUMP** | [Test infra — attempted, reverted] `php artisan schema:dump` was tried: the generated dump puts each table's serial-column default in an `ALTER TABLE` section after all `CREATE TABLE` statements, and `RefreshDatabase` loading it applied those defaults inconsistently — 74 tests failed with NOT NULL violations on `id` (e.g. `live_pilot_runs`) against a freshly recreated `detector_test`. Fully reverted (dump file deleted, no `--prune` was ever used so no migrations were lost; a cautionary note is now in `claude.md`/`docs/guides/TESTING.md` so this isn't re-attempted blindly). Needs root-causing the partial-load behavior (or an alternative bootstrap speedup) before retrying | `database/schema/`, `claude.md`, `docs/guides/TESTING.md` | Medium | Proposed (attempted, reverted) |
+| **ARCH-KAFKA-NATIVE** | [Enterprise throughput — promoted from footnote 2026-07-06] Go workers talk to Redpanda via Pandaproxy HTTP REST (serialization + no compression + per-op TCP) instead of native binary Kafka (franz-go/sarama, port 9092). At enterprise throughput this is a real latency/CPU ceiling, not a demo nicety. GATE: live-pipeline verifier + offset-recovery/poison-DLQ regression per CLAUDE.md | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go` | High | Proposed (staged — needs live-pipeline validation) |
+| **PERF-REST-POLL** | [Enterprise throughput — promoted 2026-07-06] Consumer loops long-poll Pandaproxy REST `/records`; native Kafka consumer removes the REST round-trip overhead. Bundle with ARCH-KAFKA-NATIVE (same transport rewrite). GATE: live-pipeline verifier | `services/{normalizer-worker,correlation-worker}/main.go` | Medium | Proposed (staged) |
+| **PERF-REST-REBALANCE** | [Enterprise reliability — promoted 2026-07-06] Stable consumer instance IDs to avoid REST rebalance storms on restart; touches the hardened consumer-offset-recovery path (see CONSUMER-GROUP-EPHEMERAL, done). GATE: live-pipeline verifier | `services/{alert-writer,incident-builder}-service/main.py`, Go workers | Medium | Proposed (staged) |
+| **PERF-GO-LIMITER** | [Enterprise hot-path — promoted 2026-07-06] Channel+ticker token bucket (IG-2) → atomic time-delta limiter to cut per-request contention at high sustained RPS. Low-risk but must not regress the recently hardened IG-2/IG-DOS/RATE-LIMIT-DOS logic. GATE: Go race tests (needs gcc) | `services/ingestion-gateway/main.go` | Medium | Proposed (staged) |
+| **PERF-GO-OVERCONCURRENT** | [Enterprise hot-path — promoted 2026-07-06] `normalizeBatch` allocates goroutines+channels per poll batch → GC churn at high RPS; reuse a bounded worker pool. GATE: Go bench + race tests | `services/normalizer-worker/main.go` | Medium | Proposed (staged) |
+| **ARCH-DB-SPLIT** | [Enterprise scale — promoted 2026-07-06] Alert/telemetry write-path lands on OLTP Postgres; route high-volume telemetry to ClickHouse (OLAP) and reserve PG for relational/SOC state so dashboards don't contend with ingest. Infra redesign — needs live ClickHouse + load test | `services/alert-writer-service/main.py`, ClickHouse, PG | High | Proposed (staged — infra) |
+| **ARCH-DISCOVERY** | [Enterprise infra — promoted 2026-07-06] Static hostnames only; multi-node needs DNS/service discovery + internal LB. Belongs with a real multi-node deploy (ties ENT-REL-SIMULATED-HA / HA-DRILL-01) | `docker-compose*.yml`, deploy manifests | Medium | Proposed (staged — infra) |
+| **AI-KB-SEMANTIC** | [Enterprise AI — promoted 2026-07-06] Qdrant + cosine ranking path exists (`SocKnowledgeRetriever::retrieveQdrant`); only a live transformer embedding model is missing (currently offline pseudo-embeddings). Needs a bundled/served embedding model — conflicts with offline-first default, so gate behind a flag | `app/Support/SocKnowledgeRetriever.php`, embedding service | Medium | Proposed (staged — needs ML infra) |
+| **AI-KB-FEED-INGEST** | [Enterprise AI — promoted 2026-07-06] No live MITRE/RSS threat-intel feed ingest into the KB. Re-scope as a bundled offline dataset import to preserve offline-first posture rather than a live network dependency | `app/Services/*`, KB seeding | Low | Proposed (staged) |
+| **CAP-DETECT-AS-CODE-SIGMA** | [Power — detection coverage multiplier] No Sigma / detection-as-code import — the 133-rule registry is hand-authored. Add a Sigma YAML → detection-registry compiler (field-mapping to normalized schema) so community/vendor rulesets can be ingested. Shadow-first, soak-gated before any active promotion (no boundary crossed) | `docs/detection/rules/registry.v1.json`, new `app/Services/SigmaImportService.php`, `scripts/` | High | Proposed |
+| **CAP-TI-STIX-TAXII** | [Power — real TI platform] Current IOC path is a static lookup; no STIX 2.1 / TAXII 2.1 inbound client, no IOC lifecycle (confidence decay, expiry, source provenance). Add a bundled/offline-first TAXII poller + IOC lifecycle so threat-intel is first-class, not a flat list. Advisory enrichment only | new `services/ti-connector` or `app/Services/ThreatIntel*`, `ioc_*` tables | High | Proposed |
+| **CAP-MSSP-TENANCY** | [Power — MSSP/enterprise multi-tenant] No parent/child tenant hierarchy or MSSP analyst roles; tenancy is flat. Add tenant hierarchy + cross-tenant rollup views for an MSSP operating multiple customers (advisory, read-only rollups, RLS-enforced — depends on ENT-TENANCY-NO-DB-ENFORCEMENT). No autonomous cross-tenant action | `app/Services/TenantBoundaryService.php`, new `tenant_hierarchy` table, RBAC | High | Proposed |
+| **CAP-DECEPTION-HONEYTOKEN** | [Power — defensive deception] No honeytoken/canary detection. Add advisory detection when a seeded honeytoken (fake cred/file/URL/DNS name) is touched in telemetry — high-signal, low-FP. Purely detective (no offensive deployment, no active response) | new `app/Services/HoneytokenService.php`, detection rules (shadow), `services/correlation-worker` | Medium | Proposed |
+| **CAP-MITRE-COVERAGE-NAV** | [Power — detection posture visibility] MITRE tagging exists (ATTR-001) but no ATT&CK coverage heatmap / Navigator-layer export over the 133-rule registry. Add a technique-coverage analytics view + `layer.json` export so gaps are visible. Read-only analytics | `app/Services/AlertMitreService.php`, new coverage controller/view, registry | Medium | Proposed |
+| **CAP-DETECT-BACKTEST** | [Power — detection engineering] Extend the existing replay layer into a historical backtest: run a candidate/new detection against N-days of retained normalized telemetry and report an advisory "would-have-fired" count + sample matches, before committing to a soak. Replay-safe, advisory-only, no active alerts written | `app/Http/Controllers/Detection/DetectionRuleController.php`, `detection_replay_results`, replay engine | High | Proposed |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
 >
-> **Deferred — enterprise roadmap, staged (2026-07-01):** hot-path Go (`PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`), core-pipeline rearchitecture (`PERF-REST-POLL`, `PERF-REST-REBALANCE`, `ARCH-KAFKA-NATIVE`, `ARCH-DB-SPLIT`), infra (`ARCH-MTLS-SEC`, `ARCH-DISCOVERY`), AI live-model (`AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`) → in-scope for enterprise but each needs a dedicated validated effort. See REVIEW_REJECTED.md §2 (BATCH-DEFER-2026-07-01).
+> **Promoted from footnote → actionable rows (2026-07-06):** the BATCH-DEFER-2026-07-01 cluster is now open task rows above (`ARCH-KAFKA-NATIVE`, `PERF-REST-POLL`, `PERF-REST-REBALANCE`, `PERF-GO-LIMITER`, `PERF-GO-OVERCONCURRENT`, `ARCH-DB-SPLIT`, `ARCH-DISCOVERY`, `AI-KB-SEMANTIC`, `AI-KB-FEED-INGEST`; `ARCH-MTLS-SEC` is covered by `ENT-SEC-NO-TLS-INTERNAL`). They remain **staged** — each carries its CLAUDE.md validation gate (live-pipeline verifier for hot-path/transport, Go race tests, or real infra) and must not be batched. This makes them visible/triage-able instead of hidden in a note.
 
 ---
 
@@ -50,6 +64,28 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   `soc:response.*` and `soc:admin.*` routes. Keep the demo password login as fallback so
   the thesis defense walkthrough is unaffected.
 - **Safety:** Pure auth hardening; no forbidden boundary touched.
+- **Progress (2026-07-11):** TOTP half done, dependency-free (no `laravel/fortify`/
+  `pragmarx/google2fa` needed — implemented RFC 6238 directly against stdlib `hash_hmac`,
+  ~100 lines). New `TotpService`: `generateSecret()`, `provisioningUri()` (standard
+  `otpauth://` URI, compatible with any authenticator app), `verify()` (±1 period drift
+  tolerance). **Verified against the RFC's own published test vector** (not just
+  generate-then-verify self-consistency, which would pass even with a subtly wrong HMAC/
+  truncation): RFC 6238 Appendix B's secret/counter/SHA1 combination independently
+  cross-checked in Python, confirmed the RFC's published 8-digit code, then confirmed this
+  service's 6-digit truncation matches the last 6 digits of that same value. New `users`
+  columns `mfa_secret` (encrypted at rest via Laravel's `encrypted` cast), `mfa_enabled`,
+  `mfa_confirmed_at`. New `MfaController` (`setup`/`enable`/`disable`/`challenge`/`verify`)
+  and a 2-step login: `AuthenticatedSessionController::store()` now checks
+  `$user->mfa_enabled` after password auth succeeds — if enabled, immediately reverts the
+  `Auth::attempt()` login and redirects to a code-entry step; only a verified code completes
+  `Auth::login()`. Per-user opt-in (`mfa_enabled` defaults `false`), so the demo/walkthrough
+  password-only login is completely unaffected unless a user explicitly enables MFA on their
+  own account. +21 tests (10 `TotpServiceTest` incl. the RFC vector check, 11 `MfaTest`
+  covering the full enable/disable/challenge flow plus the "unaffected without MFA" case).
+  **Not done**: real SSO/SAML/OIDC federation (needs an actual external IdP to configure and
+  test against — out of reach in this environment) and *mandatory* enforcement on specific
+  roles/routes (a policy decision for later, not a technical blocker — the capability exists,
+  nothing currently requires any user to turn it on).
 
 ## Proposed Task: OBS-OTEL-TRACING — Standards-based distributed tracing across polyglot services
 
@@ -345,3 +381,45 @@ non-duplicate against REVIEW_ALL / REVIEW_REJECTED / REVIEW_COMPLETED. None cros
 Change. Batch 18/19 note: CONSUMER-GROUP-EPHEMERAL and NORM-ASYNC-COMMIT-LOSS both completed — see
 REVIEW_COMPLETED.md.
 
+
+---
+
+# Capability / Power Expansion (2026-07-06)
+
+Genuinely-absent enterprise XDR capabilities that increase detection/response/analyst power.
+Verified non-duplicate (grep: no Sigma import, no STIX/TAXII client, zero MSSP/honeytoken code,
+MITRE only tagged not coverage-mapped). **Every item stays inside CLAUDE.md Forbidden Changes** —
+all are advisory / shadow / approval-gated, none add autonomous containment, offensive endpoint
+capability, or bypass a soak gate. Each still needs Claude validation before implementation.
+
+## Proposed Task: CAP-DETECT-AS-CODE-SIGMA — Sigma → detection-registry compiler
+Import community/vendor Sigma YAML rules into `registry.v1.json` via a field-mapping compiler
+(Sigma logsource/fields → the normalized telemetry schema). Turns a hand-authored 133-rule set into
+one that can absorb thousands of open rules. **Safety:** imported rules land as `shadow`, subject to
+the same domain-specific 6h soak gate before any `staged_active` promotion — the hard gate is untouched.
+
+## Proposed Task: CAP-TI-STIX-TAXII — First-class threat-intel platform (STIX 2.1 / TAXII 2.1)
+Replace the flat IOC lookup with a real TI layer: a TAXII 2.1 poller (bundled/offline-first feeds by
+default), STIX 2.1 object parsing, and IOC lifecycle (source provenance, confidence decay, expiry).
+**Safety:** enrichment/advisory only — feeds detection scoring, never triggers response.
+
+## Proposed Task: CAP-MSSP-TENANCY — Parent/child tenant hierarchy + MSSP analyst roles
+Add a tenant hierarchy (an MSSP parent overseeing many customer tenants) with cross-tenant **read-only**
+rollup dashboards and MSSP-scoped RBAC roles. **Safety:** depends on ENT-TENANCY-NO-DB-ENFORCEMENT (RLS)
+so cross-tenant visibility is DB-enforced; rollups are advisory/read-only, no autonomous cross-tenant action.
+
+## Proposed Task: CAP-DECEPTION-HONEYTOKEN — Honeytoken/canary detection (advisory)
+Seed honeytokens (fake credentials, files, URLs, DNS names) and raise a high-signal advisory finding when
+one is touched in telemetry. **Safety:** purely **detective** — no offensive deployment onto third-party
+systems, no active response; findings follow the existing advisory/shadow path.
+
+## Proposed Task: CAP-MITRE-COVERAGE-NAV — ATT&CK coverage heatmap + Navigator export
+Aggregate the existing per-rule MITRE tags (ATTR-001) into a technique-coverage matrix, render a heatmap,
+and export an ATT&CK Navigator `layer.json` so coverage gaps are visible to detection engineers.
+**Safety:** read-only analytics over the registry; no behavior change.
+
+## Proposed Task: CAP-DETECT-BACKTEST — Historical "would-have-fired" backtest for candidate rules
+Extend the replay layer: run a candidate detection against N-days of retained normalized telemetry and
+report an advisory would-have-fired count + sample matches, so a rule's quality is known **before** a soak.
+**Safety:** replay-safe, advisory-only, writes to `detection_replay_results` (append-only) — never emits
+active alerts or incidents.

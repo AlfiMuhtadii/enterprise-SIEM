@@ -22,7 +22,7 @@ class DocumentationFreezeTest extends TestCase
     public function test_readme_mentions_php_test_count(): void
     {
         $content = file_get_contents(base_path('README.md'));
-        $this->assertStringContainsString('4687', $content);
+        $this->assertStringContainsString('4709', $content);
     }
 
     public function test_readme_mentions_hunt_domains(): void
@@ -177,6 +177,12 @@ class DocumentationFreezeTest extends TestCase
     {
         $content = file_get_contents(base_path('bootstrap-dev.ps1'));
         $this->assertStringContainsString('Reset', $content);
+    }
+
+    /** TEST-NO-SCHEMA-DUMP: RefreshDatabase auto-loads this instead of running every migration. */
+    public function test_schema_dump_exists(): void
+    {
+        $this->assertFileExists(base_path('database/schema/pgsql-schema.sql'));
     }
 
     // -----------------------------------------------------------------------

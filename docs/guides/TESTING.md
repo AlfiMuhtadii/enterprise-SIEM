@@ -31,11 +31,21 @@ database (`detector`). You never need `migrate:fresh` — the suite manages its 
   `php artisan migrate:fresh` before the suite is redundant (double-migration) and is no longer
   part of the workflow.
 
-**Do not add a `php artisan schema:dump`.** It was tried — the generated dump applies each
-table's serial-column default in a separate section after all `CREATE TABLE` statements, and
-`RefreshDatabase` loading it applies those defaults inconsistently (several tables ended up with
-no default on `id`, causing NOT NULL violations across ~74 tests). Plain migration-by-migration
-`migrate:fresh` is the only currently-reliable path — see `claude.md`'s test-database section.
+**`database/schema/pgsql-schema.sql` speeds up the initial `migrate:fresh`** `RefreshDatabase`
+runs at suite start — it replays the whole schema as one `psql --file=` script instead of
+running 147+ migrations individually, and `RefreshDatabase` picks it up automatically with no
+config change. An earlier attempt at this failed (74 NOT NULL violations on `id` columns) because
+the dump was generated against the long-lived dev `detector` database, which had drifted from a
+clean state — `pg_dump` faithfully reproduced that drift. **If you regenerate this file**, always
+run `schema:dump` against a database you just ran `migrate:fresh` against:
+```powershell
+dropdb detector_test; createdb detector_test
+php artisan migrate:fresh --force --database=pgsql   # or: DB_DATABASE=detector_test php artisan migrate:fresh --force
+DB_DATABASE=detector_test php artisan schema:dump
+```
+Never regenerate it against the ambient dev `detector` DB, and re-run the full suite once against
+a freshly recreated `detector_test` before trusting the new dump — see `claude.md`'s
+test-database section for the full root-cause writeup.
 
 Historically the suite shared the app DB, which is why the old instructions prefixed every run
 with `migrate:fresh --force` (a band-aid that also destroyed dev data). That is fixed.
