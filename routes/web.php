@@ -101,6 +101,7 @@ use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
 use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\SiemSearchController;
+use App\Http\Controllers\Detection\MitreCoverageController;
 use App\Http\Controllers\DataResidencyController;
 use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
@@ -1187,6 +1188,15 @@ Route::middleware(['auth', 'soc:advisory.review'])->prefix('advisory')->group(fu
     Route::post('/findings/{findingId}/review', [AdvisoryFindingsController::class, 'review'])->name('advisory.findings.review');
 });
 
+// MSSP tenant hierarchy — parent/child rollups, advisory read-only, no autonomous cross-tenant action
+Route::middleware(['auth', 'soc:mssp.rollup.view'])->prefix('mssp')->group(function () {
+    Route::get('/rollup', [\App\Http\Controllers\MsspTenantController::class, 'rollup'])->name('mssp.rollup');
+});
+Route::middleware(['auth', 'soc:mssp.hierarchy.manage'])->prefix('mssp')->group(function () {
+    Route::post('/link', [\App\Http\Controllers\MsspTenantController::class, 'linkChild'])->name('mssp.link');
+    Route::post('/unlink', [\App\Http\Controllers\MsspTenantController::class, 'unlinkChild'])->name('mssp.unlink');
+});
+
 // Honeytoken deception — seeded fake indicators, advisory-only, no offensive deployment
 Route::middleware(['auth', 'soc:honeytoken.view'])->prefix('honeytoken')->group(function () {
     Route::get('/', [\App\Http\Controllers\SocHoneytokenController::class, 'index'])->name('honeytoken.index');
@@ -1241,6 +1251,12 @@ Route::middleware(['auth', 'soc:assetinventory.manage'])->group(function () {
 // SIEM Search — read-only free-form search over raw telemetry/alerts, no mutation
 Route::middleware(['auth', 'soc:search.view'])->group(function () {
     Route::get('/siem-search',                                 [SiemSearchController::class, 'index'])->name('siem-search.index');
+});
+
+// MITRE ATT&CK detection-coverage — read-only analytics + Navigator layer export
+Route::middleware(['auth', 'soc:mitrecoverage.view'])->group(function () {
+    Route::get('/mitre-coverage',                              [MitreCoverageController::class, 'index'])->name('mitre-coverage.index');
+    Route::get('/mitre-coverage/navigator.json',              [MitreCoverageController::class, 'navigator'])->name('mitre-coverage.navigator');
 });
 
 // Data Residency / GDPR Erasure — per-tenant retention policy + erasure request lifecycle.

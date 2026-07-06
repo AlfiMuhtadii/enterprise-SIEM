@@ -10,7 +10,7 @@ class Rbac
     {
         $role = $user?->role ?: 'viewer';
 
-        $validRoles = ['admin', 'analyst', 'viewer', 'scenario_operator', 'detection_engineer'];
+        $validRoles = ['admin', 'analyst', 'viewer', 'scenario_operator', 'detection_engineer', 'mssp_analyst'];
         return in_array($role, $validRoles, true) ? $role : 'viewer';
     }
 

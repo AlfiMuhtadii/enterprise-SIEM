@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2HNiKvayGdPJ3VWQhrM8g9ahdgEC0Uwao2UFIxMTwx9ySvbWXyxH7O9WyZf1NrA
+\restrict ryeuA5fwge0NgPq99lgACN3cmDcMg4kb7Jcva1VXgmKmxz6GsS6Lb4JK7SZoiL7
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -17675,6 +17675,43 @@ ALTER SEQUENCE public.tenant_graph_isolation_reports_id_seq OWNED BY public.tena
 
 
 --
+-- Name: tenant_hierarchy; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenant_hierarchy (
+    id bigint NOT NULL,
+    parent_tenant_id character varying(255) NOT NULL,
+    child_tenant_id character varying(255) NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    linked_by bigint,
+    unlinked_by bigint,
+    linked_at timestamp(0) without time zone,
+    unlinked_at timestamp(0) without time zone,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone
+);
+
+
+--
+-- Name: tenant_hierarchy_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tenant_hierarchy_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tenant_hierarchy_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tenant_hierarchy_id_seq OWNED BY public.tenant_hierarchy.id;
+
+
+--
 -- Name: tenant_isolation_audits; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -18091,6 +18128,39 @@ CREATE SEQUENCE public.tenant_strict_mode_gate_results_id_seq
 --
 
 ALTER SEQUENCE public.tenant_strict_mode_gate_results_id_seq OWNED BY public.tenant_strict_mode_gate_results.id;
+
+
+--
+-- Name: tenants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tenants (
+    id bigint NOT NULL,
+    tenant_id character varying(255) NOT NULL,
+    name character varying(255),
+    status character varying(255) DEFAULT 'active'::character varying NOT NULL,
+    created_at timestamp(0) without time zone,
+    updated_at timestamp(0) without time zone
+);
+
+
+--
+-- Name: tenants_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tenants_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tenants_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tenants_id_seq OWNED BY public.tenants.id;
 
 
 --
@@ -22049,6 +22119,13 @@ ALTER TABLE ONLY public.tenant_graph_isolation_reports ALTER COLUMN id SET DEFAU
 
 
 --
+-- Name: tenant_hierarchy id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_hierarchy ALTER COLUMN id SET DEFAULT nextval('public.tenant_hierarchy_id_seq'::regclass);
+
+
+--
 -- Name: tenant_isolation_audits id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -22123,6 +22200,13 @@ ALTER TABLE ONLY public.tenant_strict_mode_assessments ALTER COLUMN id SET DEFAU
 --
 
 ALTER TABLE ONLY public.tenant_strict_mode_gate_results ALTER COLUMN id SET DEFAULT nextval('public.tenant_strict_mode_gate_results_id_seq'::regclass);
+
+
+--
+-- Name: tenants id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants ALTER COLUMN id SET DEFAULT nextval('public.tenants_id_seq'::regclass);
 
 
 --
@@ -28735,6 +28819,22 @@ ALTER TABLE ONLY public.tenant_graph_isolation_reports
 
 
 --
+-- Name: tenant_hierarchy tenant_hierarchy_parent_tenant_id_child_tenant_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_hierarchy
+    ADD CONSTRAINT tenant_hierarchy_parent_tenant_id_child_tenant_id_unique UNIQUE (parent_tenant_id, child_tenant_id);
+
+
+--
+-- Name: tenant_hierarchy tenant_hierarchy_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_hierarchy
+    ADD CONSTRAINT tenant_hierarchy_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: tenant_isolation_audits tenant_isolation_audits_audit_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -28900,6 +29000,22 @@ ALTER TABLE ONLY public.tenant_strict_mode_assessments
 
 ALTER TABLE ONLY public.tenant_strict_mode_gate_results
     ADD CONSTRAINT tenant_strict_mode_gate_results_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenants tenants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tenants tenants_tenant_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenants
+    ADD CONSTRAINT tenants_tenant_id_unique UNIQUE (tenant_id);
 
 
 --
@@ -35384,6 +35500,13 @@ CREATE INDEX telemetry_events_xdr_user_ts_idx ON public.telemetry_events USING b
 
 
 --
+-- Name: tenant_hierarchy_is_active_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tenant_hierarchy_is_active_index ON public.tenant_hierarchy USING btree (is_active);
+
+
+--
 -- Name: tenant_isolation_validation_runs_check_type_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -36852,6 +36975,22 @@ ALTER TABLE ONLY public.soar_simulation_results
 
 
 --
+-- Name: tenant_hierarchy tenant_hierarchy_child_tenant_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_hierarchy
+    ADD CONSTRAINT tenant_hierarchy_child_tenant_id_foreign FOREIGN KEY (child_tenant_id) REFERENCES public.tenants(tenant_id);
+
+
+--
+-- Name: tenant_hierarchy tenant_hierarchy_parent_tenant_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tenant_hierarchy
+    ADD CONSTRAINT tenant_hierarchy_parent_tenant_id_foreign FOREIGN KEY (parent_tenant_id) REFERENCES public.tenants(tenant_id);
+
+
+--
 -- Name: threat_hunt_queries threat_hunt_queries_hunt_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -36901,13 +37040,13 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2HNiKvayGdPJ3VWQhrM8g9ahdgEC0Uwao2UFIxMTwx9ySvbWXyxH7O9WyZf1NrA
+\unrestrict ryeuA5fwge0NgPq99lgACN3cmDcMg4kb7Jcva1VXgmKmxz6GsS6Lb4JK7SZoiL7
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict B3t9VSP9p4WlbWphzO30lDrYFD7yCusf6k8UPRBM3acYYKl3vssrD3yajb7J2Pb
+\restrict JBQaINUhZ46Xn8bU6v4zlwm9O4DhCjtiVf5m4jPdoNRkcd3i7hO110OjHdLeBRB
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -37071,6 +37210,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 140	2026_07_09_010001_create_data_residency_erasure_tables	1
 141	2026_07_11_010001_add_mfa_columns_to_users_table	2
 142	2026_07_12_010001_create_honeytoken_tables	3
+143	2026_07_13_010001_create_tenant_hierarchy_tables	4
 \.
 
 
@@ -37078,12 +37218,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 142, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 143, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict B3t9VSP9p4WlbWphzO30lDrYFD7yCusf6k8UPRBM3acYYKl3vssrD3yajb7J2Pb
+\unrestrict JBQaINUhZ46Xn8bU6v4zlwm9O4DhCjtiVf5m4jPdoNRkcd3i7hO110OjHdLeBRB
 
