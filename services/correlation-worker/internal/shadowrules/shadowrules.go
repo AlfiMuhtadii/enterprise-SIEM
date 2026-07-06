@@ -684,3 +684,229 @@ func ruleCrossDomainAttackProgression(events []map[string]any) []EndpointAlert {
 	}
 	return alerts
 }
+
+// ---------------------------------------------------------------------------
+// Streaming endpoint shadow rules — Phase 1
+// Advisory-only. Publishes to xdr.alerts.shadow.endpoint only.
+// No autonomous containment. No kernel telemetry.
+// ---------------------------------------------------------------------------
+
+func CorrelateEndpointShadowStreaming(events []map[string]any) []EndpointAlert {
+	if len(events) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, ruleStreamRapidShellChain(events)...)
+	alerts = append(alerts, ruleStreamRapidPersistenceCreation(events)...)
+	alerts = append(alerts, ruleStreamBurstOutboundActivity(events)...)
+	alerts = append(alerts, ruleStreamShortLivedSuspiciousProcess(events)...)
+	alerts = append(alerts, ruleStreamRapidExecutionBeaconPattern(events)...)
+	return alerts
+}
+
+func ruleStreamRapidShellChain(events []map[string]any) []EndpointAlert {
+	// Detect ≥3 shell execution events within a single batch for the same host.
+	// Advisory-only — no autonomous response.
+	hostShellCounts := map[string][]map[string]any{}
+	shellNames := map[string]bool{"bash": true, "sh": true, "zsh": true, "cmd": true, "powershell": true,
+		"python": true, "python3": true, "perl": true, "ruby": true, "wscript": true, "cscript": true}
+
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		evType := EpStr(ev, "event_type")
+		if evType != "process_started" && evType != "shell_execution_detected" {
+			continue
+		}
+		proc := strings.ToLower(EpStr(ev, "process_name"))
+		if !shellNames[proc] && evType != "shell_execution_detected" {
+			continue
+		}
+		host := EpStr(ev, "host_id")
+		if host == "" {
+			host = EpStr(ev, "hostname")
+		}
+		if host != "" {
+			hostShellCounts[host] = append(hostShellCounts[host], ev)
+		}
+	}
+
+	var alerts []EndpointAlert
+	for host, evs := range hostShellCounts {
+		if len(evs) < 3 {
+			continue
+		}
+		a := MakeEndpointAlert("stream_rapid_shell_chain", "v1",
+			"Rapid Shell Execution Chain Detected in Streaming Telemetry", "high", 0.78, evs[0])
+		a.Evidence["host"]          = host
+		a.Evidence["shell_count"]   = len(evs)
+		a.Evidence["advisory"]      = "streaming_shadow_only"
+		a.Evidence["no_autonomous"] = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleStreamRapidPersistenceCreation(events []map[string]any) []EndpointAlert {
+	// Detect ≥3 persistence creation/modification events in one batch.
+	hostPersistCounts := map[string][]map[string]any{}
+
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		evType := EpStr(ev, "event_type")
+		if evType != "persistence_item_created" && evType != "persistence_item_modified" {
+			continue
+		}
+		host := EpStr(ev, "host_id")
+		if host == "" {
+			host = EpStr(ev, "hostname")
+		}
+		if host != "" {
+			hostPersistCounts[host] = append(hostPersistCounts[host], ev)
+		}
+	}
+
+	var alerts []EndpointAlert
+	for host, evs := range hostPersistCounts {
+		if len(evs) < 3 {
+			continue
+		}
+		a := MakeEndpointAlert("stream_rapid_persistence_creation", "v1",
+			"Rapid Persistence Creation Detected in Streaming Telemetry", "high", 0.80, evs[0])
+		a.Evidence["host"]            = host
+		a.Evidence["persistence_count"] = len(evs)
+		a.Evidence["advisory"]        = "streaming_shadow_only"
+		a.Evidence["no_autonomous"]   = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleStreamBurstOutboundActivity(events []map[string]any) []EndpointAlert {
+	// Detect ≥10 outbound connection events from the same host in one batch.
+	hostConnCounts := map[string][]map[string]any{}
+
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" {
+			continue
+		}
+		if EpStr(ev, "event_type") != "outbound_connection_opened" {
+			continue
+		}
+		host := EpStr(ev, "host_id")
+		if host == "" {
+			host = EpStr(ev, "hostname")
+		}
+		if host != "" {
+			hostConnCounts[host] = append(hostConnCounts[host], ev)
+		}
+	}
+
+	var alerts []EndpointAlert
+	for host, evs := range hostConnCounts {
+		if len(evs) < 10 {
+			continue
+		}
+		destSet := map[string]bool{}
+		for _, ev := range evs {
+			if d := EpStr(ev, "connection_dest"); d != "" {
+				destSet[d] = true
+			}
+		}
+		a := MakeEndpointAlert("stream_burst_outbound_activity", "v1",
+			"Burst Outbound Connection Activity Detected in Streaming Telemetry", "medium", 0.70, evs[0])
+		a.Evidence["host"]              = host
+		a.Evidence["connection_count"]  = len(evs)
+		a.Evidence["unique_dests"]      = len(destSet)
+		a.Evidence["advisory"]          = "streaming_shadow_only"
+		a.Evidence["no_autonomous"]     = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleStreamShortLivedSuspiciousProcess(events []map[string]any) []EndpointAlert {
+	// Detect processes that start AND terminate in the same batch with suspicious names.
+	suspiciousNames := map[string]bool{
+		"nc": true, "ncat": true, "nmap": true, "wget": true, "curl": true,
+		"certutil": true, "bitsadmin": true, "mshta": true, "wscript": true, "cscript": true,
+	}
+
+	// Map pid@host → started event
+	startedProcs := map[string]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" || EpStr(ev, "event_type") != "process_started" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process_name"))
+		if !suspiciousNames[name] {
+			continue
+		}
+		pid  := EpStr(ev, "process_pid")
+		host := EpStr(ev, "host_id")
+		if pid != "" && host != "" {
+			startedProcs[pid+"@"+host] = ev
+		}
+	}
+	if len(startedProcs) == 0 {
+		return nil
+	}
+
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" || EpStr(ev, "event_type") != "process_terminated" {
+			continue
+		}
+		pid  := EpStr(ev, "process_pid")
+		host := EpStr(ev, "host_id")
+		key  := pid + "@" + host
+		if startEv, ok := startedProcs[key]; ok {
+			a := MakeEndpointAlert("stream_short_lived_suspicious_process", "v1",
+				"Short-Lived Suspicious Process Detected in Streaming Telemetry", "medium", 0.72, startEv)
+			a.Evidence["host"]         = host
+			a.Evidence["process_name"] = EpStr(startEv, "process_name")
+			a.Evidence["process_pid"]  = pid
+			a.Evidence["advisory"]     = "streaming_shadow_only"
+			a.Evidence["no_autonomous"]= true
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleStreamRapidExecutionBeaconPattern(events []map[string]any) []EndpointAlert {
+	// Detect ≥4 process_started events for the same process name from the same host in one batch.
+	// Consistent count suggests beaconing pattern.
+	type hostProc struct{ host, proc string }
+	counts := map[hostProc]int{}
+
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") != "endpoint" || EpStr(ev, "event_type") != "process_started" {
+			continue
+		}
+		host := EpStr(ev, "host_id")
+		proc := strings.ToLower(EpStr(ev, "process_name"))
+		if host != "" && proc != "" {
+			counts[hostProc{host, proc}]++
+		}
+	}
+
+	var alerts []EndpointAlert
+	for key, count := range counts {
+		if count < 4 {
+			continue
+		}
+		a := MakeEndpointAlert("stream_rapid_execution_beacon_pattern", "v1",
+			"Rapid Execution Beacon Pattern Detected in Streaming Telemetry", "medium", 0.68, map[string]any{})
+		a.Evidence["host"]           = key.host
+		a.Evidence["process_name"]   = key.proc
+		a.Evidence["execution_count"]= count
+		a.Evidence["advisory"]       = "streaming_shadow_only"
+		a.Evidence["no_autonomous"]  = true
+		alerts = append(alerts, a)
+	}
+	return alerts
+}

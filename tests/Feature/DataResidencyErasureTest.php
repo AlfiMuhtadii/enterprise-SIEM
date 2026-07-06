@@ -234,7 +234,7 @@ class DataResidencyErasureTest extends TestCase
         $this->seedAlert('t1', now()->subDays(50));
         $this->service->setRetentionPolicy('t1', null, 30, null, 'admin@example.com');
 
-        $this->artisan('security:retention --alerts-days=90')->assertSuccessful();
+        $this->artisan('security:retention --alerts-days=90 --no-archive')->assertSuccessful();
 
         $this->assertDatabaseMissing('security_alerts', ['tenant_id' => 't1']);
     }
@@ -243,7 +243,7 @@ class DataResidencyErasureTest extends TestCase
     {
         $this->seedAlert('t1', now()->subDays(50));
 
-        $this->artisan('security:retention --alerts-days=90')->assertSuccessful();
+        $this->artisan('security:retention --alerts-days=90 --no-archive')->assertSuccessful();
 
         $this->assertDatabaseHas('security_alerts', ['tenant_id' => 't1']);
     }
@@ -252,7 +252,7 @@ class DataResidencyErasureTest extends TestCase
     {
         $this->seedIncident('t1', now()->subDays(200));
 
-        $this->artisan('security:retention --incidents-days=180')->assertSuccessful();
+        $this->artisan('security:retention --incidents-days=180 --no-archive')->assertSuccessful();
 
         $this->assertDatabaseMissing('security_incidents', ['tenant_id' => 't1']);
     }
@@ -261,7 +261,7 @@ class DataResidencyErasureTest extends TestCase
     {
         $this->seedIncident('t1', now()->subDays(10));
 
-        $this->artisan('security:retention --incidents-days=180')->assertSuccessful();
+        $this->artisan('security:retention --incidents-days=180 --no-archive')->assertSuccessful();
 
         $this->assertDatabaseHas('security_incidents', ['tenant_id' => 't1']);
     }
@@ -283,7 +283,7 @@ class DataResidencyErasureTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->artisan('security:retention --alerts-days=90')->assertSuccessful();
+        $this->artisan('security:retention --alerts-days=90 --no-archive')->assertSuccessful();
 
         $this->assertDatabaseMissing('security_alerts', ['alert_id' => 'legacy-alert']);
     }

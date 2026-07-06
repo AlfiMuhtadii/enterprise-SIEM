@@ -56,7 +56,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 4681 passed, zero failures (dedicated detector_test DB; RefreshDatabase auto-migrates)
+php artisan test         → 4687 passed, zero failures (dedicated detector_test DB; RefreshDatabase auto-migrates)
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=133  checks=21/21
 fleet simulation         → 8/8 passed
@@ -382,7 +382,7 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 php artisan test
 ```
 
-Current: **4681 tests**, all green.
+Current: **4687 tests**, all green.
 
 ### Test database — dedicated, isolated (do NOT use the app DB)
 

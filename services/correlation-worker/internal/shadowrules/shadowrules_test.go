@@ -182,3 +182,53 @@ func TestCorrelateEndpointShadowCrossDomainAggregates(t *testing.T) {
 		}
 	}
 }
+
+func TestCorrelateEndpointShadowStreamingEmptyEvents(t *testing.T) {
+	if got := CorrelateEndpointShadowStreaming(nil); got != nil {
+		t.Errorf("expected nil for empty events, got %v", got)
+	}
+}
+
+func shellEvent(host string) map[string]any {
+	return map[string]any{
+		"telemetry_type": "endpoint",
+		"event_type":     "process_started",
+		"process_name":   "bash",
+		"host_id":        host,
+	}
+}
+
+func TestRuleStreamRapidShellChainFiresOnThreeOrMore(t *testing.T) {
+	events := []map[string]any{
+		shellEvent("host-1"), shellEvent("host-1"), shellEvent("host-1"),
+	}
+	alerts := ruleStreamRapidShellChain(events)
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert for 3 shell events on the same host, got %d", len(alerts))
+	}
+	if alerts[0].Evidence["no_autonomous"] != true {
+		t.Error("expected no_autonomous=true in evidence — advisory-only streaming rule")
+	}
+}
+
+func TestRuleStreamRapidShellChainNoFireBelowThreshold(t *testing.T) {
+	events := []map[string]any{shellEvent("host-1"), shellEvent("host-1")}
+	if alerts := ruleStreamRapidShellChain(events); len(alerts) != 0 {
+		t.Errorf("expected 0 alerts below the 3-event threshold, got %d", len(alerts))
+	}
+}
+
+func TestCorrelateEndpointShadowStreamingAggregates(t *testing.T) {
+	events := []map[string]any{
+		shellEvent("host-1"), shellEvent("host-1"), shellEvent("host-1"),
+	}
+	alerts := CorrelateEndpointShadowStreaming(events)
+	if len(alerts) == 0 {
+		t.Fatal("expected at least one alert from the aggregated streaming rule set")
+	}
+	for _, a := range alerts {
+		if a.Evidence["advisory"] != "streaming_shadow_only" {
+			t.Errorf("expected every streaming alert to be tagged advisory=streaming_shadow_only, rule=%s", a.RuleID)
+		}
+	}
+}
