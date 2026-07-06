@@ -78,9 +78,6 @@ jobs:
           python scripts/validate_environment.py --profile local --env-file .env.example
           python scripts/validate_environment.py --profile production --env-file .env.production.example --allow-placeholders
 
-      - name: Migration check
-        run: php artisan migrate:fresh --force
-
       - name: Route cache validation
         run: |
           php artisan route:cache

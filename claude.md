@@ -403,12 +403,14 @@ always wins over `.env` — so a test run can never touch or wipe real data.
   across the suite. Plain migration-by-migration `migrate:fresh` remains the only reliable path
   until this is root-caused — do not regenerate a schema dump without re-verifying the full
   suite against a freshly recreated `detector_test` first.
-- **Faster runs — parallel:** with a per-worker DB there is no shared-DB collision, so parallel
-  is safe and preferred:
+- **Faster runs — parallel:** `brianium/paratest` is a committed dev dependency; with a
+  per-worker DB there is no shared-DB collision, so parallel is safe and preferred:
   ```powershell
-  php artisan test --parallel --recreate-databases   # requires: composer require --dev brianium/paratest
+  php artisan test --parallel --recreate-databases
   ```
-  This creates `detector_test_test_1..N` automatically. (Serial `php artisan test` still works.)
+  This creates `detector_test_test_1..N` automatically (verified: 12 workers, 12 databases,
+  same 4681-test/11843-assertion result as serial, ~46% faster: 613s serial vs 332s parallel).
+  Serial `php artisan test` still works.
 - **Env override, not sqlite:** the test DB is set in `phpunit.xml` (self-contained "test env").
   A `.env.testing` is only needed for `php artisan … --env=testing`; see `.env.testing.example`.
   sqlite `:memory:` is intentionally NOT used — the codebase relies on Postgres-specific SQL

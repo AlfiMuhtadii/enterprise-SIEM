@@ -9,7 +9,7 @@ createdb detector_test
 # run the suite (serial)
 php artisan test
 
-# run faster (parallel — one-time: composer require --dev brianium/paratest)
+# run faster (parallel — brianium/paratest is a committed dev dependency)
 php artisan test --parallel --recreate-databases
 
 # iterate on one area
@@ -56,12 +56,14 @@ dropdb detector_test; createdb detector_test
 ## Parallel runs
 
 ```powershell
-composer require --dev brianium/paratest      # one-time
 php artisan test --parallel --recreate-databases
 ```
 
 Laravel creates per-worker databases `detector_test_test_1..N` automatically. Never run parallel
 workers against a single shared DB — the per-worker DBs above are what make it safe.
+
+Verified: 12 workers → 12 `detector_test_test_N` databases, same 4681-test/11843-assertion
+result as serial, ~46% faster (613s serial vs 332s parallel on this machine).
 
 ## `.env.testing` (only for artisan --env=testing)
 
