@@ -12,7 +12,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-SEC-NO-TLS-INTERNAL** | [Enterprise BLOCKER] No TLS/mTLS on any internal hop (Pandaproxy/OpenSearch plaintext HTTP, Postgres no sslmode, static bearer tokens) — supersedes deferred ARCH-MTLS-SEC; mandatory at enterprise bar | `services/*`, `app/Services/InternalAuthService.php`, DB DSNs | High | Proposed (re-open ARCH-MTLS-SEC) |
 | **ENT-TENANCY-NO-DB-ENFORCEMENT** | [Enterprise BLOCKER] Isolation is app-layer `where('tenant_id')` only (ASSET-TENANT-OVERWRITE proves it leaks); no DB RLS. Supersedes deferred TENANT-ENFORCE-RLS — mandatory for multi-tenant SaaS | `app/Services/TenantBoundaryService.php`, Postgres RLS | High | Proposed (re-open TENANT-ENFORCE-RLS) |
 | **ENT-REL-SIMULATED-HA** | [Enterprise BLOCKER] HA/scale/DR "PASS" is computed, not measured on real cluster (SIM-LAYER Track B + HA-DRILL-01). "Too heavy for laptop" invalid at enterprise bar — run on real staging before any availability claim | `app/Services/EnterpriseScaleHaService.php` et al., `docker-compose.ha.yml` | High | Proposed (re-open Track B + HA-DRILL-01) |
-| **ENT-DETECT-ML-NOT-LIVE** | [Enterprise product-claim BLOCKER] "Hybrid rule+ML" is a headline claim but live path is rule-only; model is offline-scripts only. Serve as shadow/advisory scorer at minimum | `services/correlation-worker/main.go`, `scripts/train_ai_detector.py`, `storage/app/ai_detector_model.pkl` | High | Proposed (re-rank ML-SERVE-ONLINE) |
+| **ENT-DETECT-ML-NOT-LIVE** (investigated — original proposed fix is wrong integration point) | [Enterprise product-claim BLOCKER] Model scores **HTTP-request** features (`status`/`latency_ms`/`has_sql_keywords`/...), confirmed identical to `security_events` (Laravel's `SecurityRequestLogger`), NOT correlation-worker's identity/cloud/SaaS telemetry — wiring it into correlation-worker as originally proposed would score data it was never trained on. The real rule+ML hybrid already exists as working code (`scripts/realtime_detector_consumer.py`) but isn't in `docker-compose.yml` at all, and it writes directly to the **active** `security_alerts` table with no soak gate — deploying it live as-is risks silently activating an unvalidated new alert domain | `scripts/realtime_detector_consumer.py`, `docker-compose.yml`, `app/Http/Middleware/SecurityRequestLogger.php` | High | Deferred — needs advisory-first soak plan, see detail section |
 | **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning done; SBOM/scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions (`==`) and Go services have zero external deps (no `go.sum` needed) — that part was already fine. The real gap was all 6 Dockerfiles floating on mutable tags (`python:3.12-slim`, `golang:1.26-alpine`, `alpine:3.22`); now pinned to resolved digests (`@sha256:...`, fetched live from the Docker Hub registry API). Still missing: SBOM generation (syft/cyclonedx), image vuln scan gate (trivy), signed builds (cosign) — none of these tools are available in this environment | `services/*/Dockerfile`, CI | Medium | Proposed (reduced) |
 | **IDENTITY-SSO-MFA** | [Enterprise BLOCKER — re-ranked] No SSO (SAML/OIDC) or MFA on the privileged SOC console that approves response commands — SOC2 CC6.1 | `app/Http/Controllers/Auth/*`, `config/auth.php`, `routes/auth.php` | High | Proposed |
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
@@ -94,6 +94,31 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   domain-specific 6h soak gate. Distinct from ML-DRIFT-03 (retraining/drift), which remains
   deferred as resource-heavy.
 - **Safety:** Advisory/shadow scoring only — no autonomous response; respects soak gates.
+- **Investigated 2026-07-10 — proposed fix above is based on a wrong integration point,
+  re-scoped/deferred rather than implemented:** `train_ai_detector.py`'s feature vector
+  (`status`, `latency_ms`, `has_sql_keywords`, `has_script_payload`, `path_len`,
+  `is_admin_path`, `failed_1m/5m/10m`, `req_1m/5m`, ...) is verified to be **HTTP-request**
+  features — confirmed identical to what `app/Http/Middleware/SecurityRequestLogger.php`
+  captures into the `security_events` table (Laravel's own local SIEM-lite pipeline). This
+  model was never intended to score `correlation-worker`'s normalized identity/cloud/SaaS
+  telemetry (structurally different fields — `user`/`action`/`cloud_account` vs.
+  `status`/`path`/`latency_ms`); wiring it into correlation-worker as proposed would produce
+  scores on data the model was never trained on, which is worse than no ML claim at all.
+  The **real** rule+ML hybrid for `security_events` already exists as working code —
+  `scripts/realtime_detector_consumer.py` (confirmed: a genuine Pandaproxy consumer with a
+  `while True` loop, loads the `.pkl`, combines rule thresholds + ML prediction) — but it is
+  **not wired into `docker-compose.yml` at all** (grep confirms zero references), so nothing
+  keeps it running; a developer must launch it by hand. Also confirmed it writes directly to
+  `security_alerts` (line ~845) and `security_responses` (line ~868) — the **active** alert
+  path, with no advisory/shadow gate. Making this genuinely live (not just "restore the
+  script") means either (a) deploying it as a real docker-compose service that starts writing
+  active alerts for a domain (web-request/HTTP-attack detection) that is not part of the
+  documented active identity/cloud/SaaS scope and has never been soak-validated — a real risk
+  of breaching the Forbidden Changes list's spirit on domain promotion — or (b) redirecting
+  its output to an advisory-only table first (matching the `advisory_findings`
+  shadow-alert-consumer pattern used elsewhere) and soak-validating before any promotion,
+  which is a properly-sized dedicated task, not a quick wire-up. **Deferred, not implemented
+  this pass** — needs an explicit decision on (a) vs. (b) plus a soak plan before code changes.
 
 ## Proposed Task: TECH-EOL-UPGRADE — Runtime/framework are at or past end-of-life
 
