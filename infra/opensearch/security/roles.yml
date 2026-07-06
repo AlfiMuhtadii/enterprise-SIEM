@@ -1,0 +1,30 @@
+# ENT-SEC-OPENSEARCH-OPEN: least-privilege roles for the two application
+# accounts. Neither service uses the built-in `admin` superuser in
+# production. This file is committed (no secrets) and bind-mounted read-only
+# into the OpenSearch container's security config directory, where it is
+# loaded once on first boot (when the security index does not yet exist).
+_meta:
+  type: "roles"
+  config_version: 2
+
+# alert-writer-service: only needs to index new alert documents into
+# xdr-alerts*. "INDEX" (not "WRITE") deliberately excludes delete permission
+# — the service never deletes alerts.
+xdr_alert_writer_role:
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "xdr-alerts*"
+      allowed_actions:
+        - "INDEX"
+
+# Laravel (SiemSearchService / XdrStorageValidateCommand): only needs to
+# search/read xdr-alerts* and check cluster health for the storage validator.
+xdr_reader_role:
+  cluster_permissions:
+    - "CLUSTER_MONITOR"
+  index_permissions:
+    - index_patterns:
+        - "xdr-alerts*"
+      allowed_actions:
+        - "READ"

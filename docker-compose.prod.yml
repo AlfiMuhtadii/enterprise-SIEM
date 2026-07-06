@@ -84,6 +84,21 @@ services:
       # ENT-SEC-NO-TLS-INTERNAL. See docs/operations/PRODUCTION_DEPLOYMENT_PROFILE.md.
       plugins.security.disabled: "false"
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?OPENSEARCH_INITIAL_ADMIN_PASSWORD must be set to a strong value in production — see .env.production.example}
+      # Audit logging (advisory trail, internal sink — no external syslog
+      # needed for a single-node deployment). REST layer only: transport-layer
+      # audit is very high-volume on every internal call and not needed here.
+      plugins.security.audit.type: internal_opensearch
+      plugins.security.audit.enable_rest: "true"
+      plugins.security.audit.enable_transport: "false"
+      plugins.security.audit.resolve_bulk_requests: "false"
+      plugins.security.audit.log_request_body: "false"
+      plugins.security.audit.config.disabled_rest_categories: "AUTHENTICATED,GRANTED_PRIVILEGES"
+    volumes:
+      # ENT-SEC-OPENSEARCH-OPEN: least-privilege RBAC — loaded once on first
+      # boot (when the security index does not yet exist). internal_users.yml
+      # is gitignored and must be generated from internal_users.yml.example;
+      # roles.yml/roles_mapping.yml are committed (no secrets).
+      - ./infra/opensearch/security:/usr/share/opensearch/config/opensearch-security:ro
     restart: always
     deploy:
       resources:
@@ -166,9 +181,12 @@ services:
       # ENT-SEC-OPENSEARCH-OPEN: security plugin enabled in production — connect
       # over https and authenticate; verify=false is required against the
       # bundled self-signed demo cert (see opensearch service comment above).
+      # Least-privilege: this service authenticates as xdr_alert_writer
+      # (index-only role), a distinct account from Laravel's read-only
+      # xdr_reader — never the admin superuser (see infra/opensearch/security/).
       XDR_OPENSEARCH_URL: https://opensearch:9200
-      XDR_OPENSEARCH_USER: ${XDR_OPENSEARCH_USER:?XDR_OPENSEARCH_USER must be set in production — see .env.production.example}
-      XDR_OPENSEARCH_PASSWORD: ${XDR_OPENSEARCH_PASSWORD:?XDR_OPENSEARCH_PASSWORD must be set to a strong value in production — see .env.production.example}
+      XDR_OPENSEARCH_USER: ${XDR_OPENSEARCH_WRITER_USER:?XDR_OPENSEARCH_WRITER_USER must be set in production — see .env.production.example}
+      XDR_OPENSEARCH_PASSWORD: ${XDR_OPENSEARCH_WRITER_PASSWORD:?XDR_OPENSEARCH_WRITER_PASSWORD must be set to a strong value in production — see .env.production.example}
       XDR_OPENSEARCH_VERIFY_TLS: "false"
     restart: always
 

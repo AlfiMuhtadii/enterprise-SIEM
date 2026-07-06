@@ -8,6 +8,8 @@
 .env
 .env.backup
 .env.production
+# ENT-SEC-OPENSEARCH-OPEN: real password hashes — see internal_users.yml.example
+/infra/opensearch/security/internal_users.yml
 .phpunit.result.cache
 Homestead.json
 Homestead.yaml

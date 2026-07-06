@@ -42,6 +42,7 @@ def _secure_env(**overrides) -> dict:
         "CLICKHOUSE_PASSWORD":                 "g" * 32,
         "GF_SECURITY_ADMIN_PASSWORD":          "h" * 32,
         "XDR_OPENSEARCH_PASSWORD":             "i" * 32,
+        "XDR_OPENSEARCH_WRITER_PASSWORD":      "j" * 32,
     }
     base.update(overrides)
     return base
@@ -617,17 +618,96 @@ class TestOpensearchSecurityEnabled(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Tests: PDP-17 — OpenSearch least-privilege RBAC (ENT-SEC-OPENSEARCH-OPEN)
+# ---------------------------------------------------------------------------
+
+def _write_rbac_files(security_dir: Path, mapping_extra: str = "") -> None:
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "roles.yml").write_text("_meta:\n  type: roles\n", encoding="utf-8")
+    (security_dir / "internal_users.yml.example").write_text("_meta:\n  type: internalusers\n", encoding="utf-8")
+    mapping = (
+        "_meta:\n  type: rolesmapping\n"
+        "xdr_alert_writer_role:\n  users:\n    - xdr_alert_writer\n"
+        "xdr_reader_role:\n  users:\n    - xdr_reader\n"
+        + mapping_extra
+    )
+    (security_dir / "roles_mapping.yml").write_text(mapping, encoding="utf-8")
+
+
+class TestOpensearchRbacLeastPrivilege(unittest.TestCase):
+    def test_passes_against_real_repo_rbac_files(self):
+        r = pdp.check_opensearch_rbac_least_privilege(pdp.PROJECT_ROOT, "production")
+        self.assertEqual(pdp.PASS, r["status"])
+        self.assertEqual("PDP-17", r["check_id"])
+
+    def test_fails_when_rbac_files_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = pdp.check_opensearch_rbac_least_privilege(Path(tmp), "production")
+            self.assertEqual(pdp.FAIL, r["status"])
+            self.assertIn("Missing RBAC config file", r["detail"])
+
+    def test_fails_when_mapping_grants_admin_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_rbac_files(
+                root / "infra" / "opensearch" / "security",
+                mapping_extra="admin:\n  users:\n    - xdr_alert_writer\n",
+            )
+            r = pdp.check_opensearch_rbac_least_privilege(root, "production")
+            self.assertEqual(pdp.FAIL, r["status"])
+            self.assertIn("admin", r["detail"])
+
+    def test_fails_when_mapping_grants_all_access_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_rbac_files(
+                root / "infra" / "opensearch" / "security",
+                mapping_extra="all_access:\n  users:\n    - xdr_reader\n",
+            )
+            r = pdp.check_opensearch_rbac_least_privilege(root, "production")
+            self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_passes_with_clean_rbac_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_rbac_files(root / "infra" / "opensearch" / "security")
+            r = pdp.check_opensearch_rbac_least_privilege(root, "production")
+            self.assertEqual(pdp.PASS, r["status"])
+
+    def test_does_not_false_positive_on_comment_mentioning_admin(self):
+        # The real roles_mapping.yml's header comment legitimately says
+        # "never to admin/all_access" while explaining the file's purpose —
+        # that must not itself trigger a FAIL.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            security_dir = root / "infra" / "opensearch" / "security"
+            _write_rbac_files(security_dir)
+            mapping_path = security_dir / "roles_mapping.yml"
+            mapping_path.write_text(
+                "# never maps a user to admin or all_access\n" + mapping_path.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            r = pdp.check_opensearch_rbac_least_privilege(root, "production")
+            self.assertEqual(pdp.PASS, r["status"])
+
+    def test_warns_in_local_profile_when_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = pdp.check_opensearch_rbac_least_privilege(Path(tmp), "local")
+            self.assertEqual(pdp.WARN, r["status"])
+
+
+# ---------------------------------------------------------------------------
 # Tests: run_all_checks (integration)
 # ---------------------------------------------------------------------------
 
 class TestRunAllChecks(unittest.TestCase):
-    def test_returns_16_checks(self):
+    def test_returns_17_checks(self):
         args = _args(profile="local")
         checks = pdp.run_all_checks(
             args, root=pdp.PROJECT_ROOT,
             env=_secure_env(), compose_data=_secure_compose(),
         )
-        self.assertEqual(16, len(checks))
+        self.assertEqual(17, len(checks))
 
     def test_all_check_ids_present(self):
         args = _args(profile="local")
@@ -636,7 +716,7 @@ class TestRunAllChecks(unittest.TestCase):
             env=_secure_env(), compose_data=_secure_compose(),
         )
         ids = {c["check_id"] for c in checks}
-        for n in range(1, 17):
+        for n in range(1, 18):
             self.assertIn(f"PDP-{n:02d}", ids)
 
     def test_overall_pass_with_secure_config(self):
@@ -753,7 +833,7 @@ class TestMainExitCode(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("overall", data)
             self.assertIn("checks", data)
-            self.assertEqual(16, len(data["checks"]))
+            self.assertEqual(17, len(data["checks"]))
         finally:
             os.unlink(tmp)
 

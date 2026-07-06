@@ -1,0 +1,18 @@
+# ENT-SEC-OPENSEARCH-OPEN: maps the two application usernames (defined in the
+# operator-generated internal_users.yml — see internal_users.yml.example) to
+# their least-privilege role, never to `all_access`/`admin`. This file is
+# committed (no secrets — usernames and role names only) and bind-mounted
+# read-only alongside roles.yml.
+_meta:
+  type: "rolesmapping"
+  config_version: 2
+
+xdr_alert_writer_role:
+  reserved: false
+  users:
+    - "xdr_alert_writer"
+
+xdr_reader_role:
+  reserved: false
+  users:
+    - "xdr_reader"

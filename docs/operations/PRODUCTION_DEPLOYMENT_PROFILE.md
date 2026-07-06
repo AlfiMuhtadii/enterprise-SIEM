@@ -107,7 +107,7 @@ bindings and restricts administrative interfaces to localhost:
 |---|---|---|
 | PostgreSQL | `5432` public | **removed** — docker exec or bastion only |
 | ClickHouse | `8123`, `9000` public | **removed** |
-| OpenSearch | `9200`, `9600` public | **removed**; security plugin also enabled (auth + demo-cert TLS) — see PDP-16 below |
+| OpenSearch | `9200`, `9600` public | **removed**; security plugin also enabled (least-privilege auth + demo-cert TLS) — see PDP-16/17 below |
 | Qdrant | `6333`, `6334` public | **removed** |
 | Grafana | `3000` public | `127.0.0.1:3000` — SSH tunnel |
 | Redpanda Pandaproxy | `8082` public | `127.0.0.1:8082` — SSH tunnel |
@@ -276,7 +276,7 @@ Options:
   --quiet      suppress console output
 ```
 
-Checks PDP-01 through PDP-16. Exit 0=PASS, 1=FAIL, 2=ERROR.
+Checks PDP-01 through PDP-17. Exit 0=PASS, 1=FAIL, 2=ERROR.
 
 | Check | Description | Severity (production) |
 |---|---|---|
@@ -296,6 +296,7 @@ Checks PDP-01 through PDP-16. Exit 0=PASS, 1=FAIL, 2=ERROR.
 | PDP-14 | No active scanning / autonomous remediation | FAIL |
 | PDP-15 | Datastore credentials fail closed (no weak defaults) | FAIL |
 | PDP-16 | OpenSearch security plugin enabled in production | FAIL |
+| PDP-17 | OpenSearch least-privilege RBAC configured | FAIL |
 
 PDP-15 (ENT-SEC-WEAK-DEFAULT-SECRETS): the base `docker-compose.yml` falls
 back to well-known weak defaults for datastore credentials
@@ -312,21 +313,44 @@ OpenSearch with `plugins.security.disabled: "true"` for local/demo
 convenience — unauthenticated, plain HTTP. `docker-compose.prod.yml`
 overrides this to `"false"`, which also switches OpenSearch to its bundled
 self-signed demo certificate for the HTTP layer (i.e. `https://` with an
-unverified cert). `alert-writer-service` and Laravel (`SiemSearchService`,
-`XdrStorageValidateCommand`) authenticate via `XDR_OPENSEARCH_USER`/
-`XDR_OPENSEARCH_PASSWORD` (must match the OpenSearch `admin` user and
-`OPENSEARCH_INITIAL_ADMIN_PASSWORD`) and skip cert verification via
+unverified cert), and enables REST-layer audit logging to the internal
+`.opensearch-auditlog-*` index (`plugins.security.audit.type:
+internal_opensearch`; transport-layer audit and request-body logging are
+left off — high-volume/noisy on a single node and not needed for an
+advisory trail). `alert-writer-service` and Laravel (`SiemSearchService`,
+`XdrStorageValidateCommand`) skip cert verification via
 `XDR_OPENSEARCH_VERIFY_TLS=false` against that demo cert.
 
+PDP-17 (ENT-SEC-OPENSEARCH-OPEN, RBAC): neither application service uses the
+built-in `admin` superuser. `infra/opensearch/security/roles.yml` and
+`roles_mapping.yml` (committed, no secrets) define two least-privilege
+roles — `xdr_alert_writer_role` (index-only into `xdr-alerts*`, via the
+`INDEX` action group, which deliberately excludes delete) for
+alert-writer-service, and `xdr_reader_role` (`READ` + `CLUSTER_MONITOR`) for
+Laravel. `internal_users.yml.example` is the committed template; the real
+`internal_users.yml` (holding bcrypt password hashes) is gitignored like
+`.env` and must be generated from the template with
+`plugins/opensearch-security/tools/hash.sh` before deploying. All three
+files are bind-mounted read-only into
+`/usr/share/opensearch/config/opensearch-security/`, where OpenSearch loads
+them once on first boot (when the security index doesn't yet exist).
+alert-writer-service authenticates via `XDR_OPENSEARCH_WRITER_USER`/
+`XDR_OPENSEARCH_WRITER_PASSWORD` (mapped to `xdr_alert_writer`); Laravel
+keeps the existing `XDR_OPENSEARCH_USER`/`XDR_OPENSEARCH_PASSWORD` names,
+now pointed at `xdr_reader` instead of `admin`.
+
 **Known interim gap:** the demo certificate is self-signed and unverified —
-this closes the "unauthenticated" half of ENT-SEC-OPENSEARCH-OPEN (RBAC via
-the built-in `admin` user) and encrypts the wire, but does not yet give a
-properly trusted/rotatable certificate chain. Real PKI/mTLS for this and
+enabling the plugin plus least-privilege RBAC closes the "unauthenticated"
+half of ENT-SEC-OPENSEARCH-OPEN and encrypts the wire, but does not yet give
+a properly trusted/rotatable certificate chain. Real PKI/mTLS for this and
 every other internal hop (Pandaproxy, Postgres) is tracked separately by
 ENT-SEC-NO-TLS-INTERNAL. This change was validated statically (`docker
 compose config` against both the base file alone and the base+prod overlay,
 with all required vars set and unset) — the Docker daemon was not running
 in the environment this was implemented in, so a live container boot has
-not been verified; run
+not been verified, and the RBAC bootstrap-on-first-boot behavior in
+particular has not been exercised against a real OpenSearch instance; run
 `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d opensearch alert-writer-service`
-to confirm before relying on this in a real deployment.
+(after generating a real `internal_users.yml`) to confirm both the security
+plugin and the RBAC roles actually take effect before relying on this in a
+real deployment.

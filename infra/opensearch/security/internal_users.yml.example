@@ -1,0 +1,31 @@
+# ENT-SEC-OPENSEARCH-OPEN: template for the two application accounts.
+#
+# Copy this file to `internal_users.yml` (same directory) before deploying —
+# the real file is gitignored, like `.env`, because it holds password hashes.
+#
+# The `hash` field below is a valid bcrypt hash for the literal placeholder
+# password "REPLACE-BEFORE-DEPLOY" — it will bootstrap successfully but MUST
+# be regenerated for a real password before any real deployment. Generate a
+# real hash from inside the running container:
+#
+#   docker compose exec opensearch bash -c \
+#     "plugins/opensearch-security/tools/hash.sh -p '<your-strong-password>'"
+#
+# Then set the matching plaintext password as XDR_OPENSEARCH_WRITER_PASSWORD
+# (for xdr_alert_writer) / XDR_OPENSEARCH_PASSWORD (for xdr_reader) in the
+# real .env so alert-writer-service and Laravel can authenticate with it.
+_meta:
+  type: "internalusers"
+  config_version: 2
+
+xdr_alert_writer:
+  hash: "$2y$12$JKr5jKI91J4gzRXX1w4X6.iN..CJnTUOQ6mSPmutO3oO1QlGvgZmG"
+  reserved: false
+  backend_roles: []
+  description: "alert-writer-service — index-only into xdr-alerts (xdr_alert_writer_role)"
+
+xdr_reader:
+  hash: "$2y$12$JKr5jKI91J4gzRXX1w4X6.iN..CJnTUOQ6mSPmutO3oO1QlGvgZmG"
+  reserved: false
+  backend_roles: []
+  description: "Laravel SiemSearchService / XdrStorageValidateCommand — read-only (xdr_reader_role)"

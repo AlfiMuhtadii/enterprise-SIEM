@@ -23,6 +23,7 @@ Checks:
   PDP-14  No active scanning / autonomous remediation flags enabled
   PDP-15  Datastore credentials fail closed (ENT-SEC-WEAK-DEFAULT-SECRETS)
   PDP-16  OpenSearch security plugin enabled in production (ENT-SEC-OPENSEARCH-OPEN)
+  PDP-17  OpenSearch least-privilege RBAC configured, not shared admin (ENT-SEC-OPENSEARCH-OPEN)
 
 Severity per profile:
   local      → WARN for production-only missing items
@@ -115,7 +116,7 @@ _DATASTORE_CREDENTIAL_KEYS = {
 # Env-file keys (production env file, not compose) holding the same credentials.
 _DATASTORE_CREDENTIAL_ENV_KEYS = [
     "DB_PASSWORD", "CLICKHOUSE_PASSWORD", "GF_SECURITY_ADMIN_PASSWORD",
-    "XDR_OPENSEARCH_PASSWORD",
+    "XDR_OPENSEARCH_PASSWORD", "XDR_OPENSEARCH_WRITER_PASSWORD",
 ]
 
 # Critical services that must have restart: always in production.
@@ -699,6 +700,57 @@ def check_opensearch_security_enabled(compose_data: dict, profile: str) -> dict:
     )
 
 
+# Reserved/superuser role names that an application account must never map to.
+_OPENSEARCH_SUPERUSER_ROLES = {"admin", "all_access"}
+
+
+def check_opensearch_rbac_least_privilege(root: Path, profile: str) -> dict:
+    """ENT-SEC-OPENSEARCH-OPEN: alert-writer-service and Laravel must
+    authenticate as dedicated least-privilege accounts (xdr_alert_writer,
+    xdr_reader), never the built-in admin superuser. Checks the committed
+    RBAC config (roles.yml, roles_mapping.yml) exists and that neither app
+    role name nor app username is mapped to a reserved superuser role.
+    internal_users.yml itself is gitignored (holds password hashes) — its
+    .example template is checked for existence instead."""
+    security_dir = root / "infra" / "opensearch" / "security"
+    roles_path = security_dir / "roles.yml"
+    mapping_path = security_dir / "roles_mapping.yml"
+    users_example_path = security_dir / "internal_users.yml.example"
+
+    missing = [str(p) for p in (roles_path, mapping_path, users_example_path) if not p.exists()]
+    if missing:
+        sev = _severity(profile, WARN, FAIL, FAIL)
+        return _check(
+            "PDP-17", "OpenSearch least-privilege RBAC configured",
+            False, sev, f"Missing RBAC config file(s): {missing}",
+            "Add infra/opensearch/security/{roles.yml,roles_mapping.yml,internal_users.yml.example}.",
+        )
+
+    mapping_text = mapping_path.read_text(encoding="utf-8")
+    violations = []
+    for reserved in _OPENSEARCH_SUPERUSER_ROLES:
+        # A naive `reserved in text` substring check would also match this
+        # file's own comment sentences (which legitimately mention "admin"
+        # while explaining what NOT to do) — require it as a YAML mapping key
+        # (top-level role name) to only catch a real role assignment.
+        if re.search(rf"(?m)^{re.escape(reserved)}\s*:", mapping_text):
+            violations.append(f"roles_mapping.yml maps the reserved '{reserved}' role")
+
+    passed = len(violations) == 0
+    sev = _severity(profile, WARN, FAIL, FAIL)
+    detail = (
+        "xdr_alert_writer/xdr_reader are mapped to dedicated least-privilege roles, not admin/all_access."
+        if passed
+        else f"Superuser role mapping found: {violations}"
+    )
+    return _check(
+        "PDP-17", "OpenSearch least-privilege RBAC configured",
+        passed, sev, detail,
+        "Ensure roles_mapping.yml maps xdr_alert_writer/xdr_reader only to "
+        "xdr_alert_writer_role/xdr_reader_role, never admin or all_access.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
@@ -751,6 +803,7 @@ def run_all_checks(
     results.append(check_no_active_scanning(compose_data, env, profile))
     results.append(check_datastore_credentials_fail_closed(compose_data, env, profile))
     results.append(check_opensearch_security_enabled(compose_data, profile))
+    results.append(check_opensearch_rbac_least_privilege(root, profile))
 
     return results
 
