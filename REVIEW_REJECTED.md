@@ -63,6 +63,17 @@ Findings that are false positives, not applicable to the architecture, or where 
 
 ---
 
+### TEST-PER-TEST-SEED: "16 classes seed in setUp → heavy DemoSocSeeder re-runs per test method"
+
+- **Category**: Test Infra / False Premise
+- **Severity**: N/A
+- **Source**: REVIEW_BACKLOG.md (Gemini proposal)
+- **Finding**: Claims 16 test classes call `DemoSocSeeder` (218 lines) in `setUp()`, so the full seeder re-runs before every single test method across those classes.
+- **Rejection reason**: The premise is false and directly contradicted by the current codebase. `grep -rl "DemoSocSeeder" tests/Feature/*.php` returns exactly **one** file, `tests/Feature/DemoPackageTest.php` — not 16. That file itself has exactly **one** test method (`test_demo_seed_creates_reviewer_data`), which calls `$this->seed(DemoSocSeeder::class)` **once**, inside the test body — not in a `setUp()` override, so it doesn't even run before other tests in that class (there are none). There is no per-test-method re-seeding happening anywhere in the suite today. (All other `DemoSocSeeder` hits project-wide are stale build artifacts under `dist/*/database/seeders/` and a `.claude/worktrees/` copy — not live test code.) Implementing a "minimal per-test fixture / seed-once" refactor for this would be solving a problem that doesn't exist, with real risk of introducing test coupling or state-leakage bugs for zero benefit. Verified 2026-07-06.
+- **Status**: **REJECTED**
+
+---
+
 ## Section 2 — Deferred
 
 Valid enterprise-relevant findings that are not causing harm at current scale but must be addressed before high-traffic or multi-tenant production deployment.
