@@ -281,6 +281,132 @@ class TestEventLoopNormalPolling(unittest.TestCase):
         self.assertEqual(len(error_dlq), 0, "No DLQ errors during normal polling")
 
 
+class TestConsumerGroupStability(unittest.TestCase):
+    """CONSUMER-GROUP-EPHEMERAL: group name must be stable across restarts/
+    reconnects, changing only when the previous committed offset is invalid
+    (offset_out_of_range) — otherwise Redpanda would reprocess the full
+    topic history on every reconnect instead of resuming."""
+
+    @staticmethod
+    def _group_from_url(url: str) -> str:
+        return url.split("/consumers/")[1].split("/")[0]
+
+    def test_group_stable_across_consecutive_error_recreation(self):
+        """3 consecutive non-offset errors trigger recreation, but must reuse the same group."""
+        create_calls: list = []
+        poll_count = [0]
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                create_calls.append(url)
+                mock_resp.json.return_value = {
+                    "base_uri": f"http://localhost:8082/consumers/g/instances/n{len(create_calls)}"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            poll_count[0] += 1
+            if poll_count[0] <= 3:
+                raise RuntimeError("transient_connection_error")
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", return_value=MagicMock()), \
+             patch.object(aw.time, "sleep", return_value=None):
+            aw.event_loop()
+
+        self.assertGreaterEqual(len(create_calls), 2,
+                                "Consumer must be recreated after 3 consecutive errors")
+        groups = {self._group_from_url(u) for u in create_calls}
+        self.assertEqual(len(groups), 1,
+                         f"Group name must stay stable across non-offset-error recreation, got: {groups}")
+
+    def test_group_changes_only_on_offset_error(self):
+        """offset_out_of_range must produce a genuinely different group name."""
+        create_calls: list = []
+        offset_err = _make_offset_err()
+        poll_count = [0]
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                create_calls.append(url)
+                mock_resp.json.return_value = {
+                    "base_uri": f"http://localhost:8082/consumers/g/instances/n{len(create_calls)}"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            poll_count[0] += 1
+            if poll_count[0] == 1:
+                raise offset_err
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", return_value=MagicMock()), \
+             patch.object(aw.time, "sleep", return_value=None):
+            aw.event_loop()
+
+        self.assertGreaterEqual(len(create_calls), 2)
+        groups = [self._group_from_url(u) for u in create_calls]
+        self.assertNotEqual(groups[0], groups[1], "Group name must change on offset_out_of_range")
+        self.assertTrue(groups[1].startswith(groups[0] + "-reset-"),
+                        f"New group should be derived from the stable base, got: {groups}")
+
+    def test_initial_group_has_no_timestamp_suffix(self):
+        """The default/stable group must have no ms-timestamp suffix."""
+        create_calls: list = []
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                create_calls.append(url)
+                mock_resp.json.return_value = {
+                    "base_uri": "http://localhost:8082/consumers/g/instances/n1"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.time, "sleep", return_value=None):
+            aw.event_loop()
+
+        self.assertEqual(len(create_calls), 1)
+        group = self._group_from_url(create_calls[0])
+        self.assertEqual(group, "alert-writer-v1",
+                         f"Default stable group must have no timestamp suffix, got: {group}")
+
+
 class TestHttpSessionPooling(unittest.TestCase):
     """PERF-PYTHON-HTTP: outbound HTTP must go through a reused Session."""
 

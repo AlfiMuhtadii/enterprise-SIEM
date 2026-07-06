@@ -23,7 +23,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
-| **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
 | **TEST-NO-SCHEMA-DUMP** | [Test infra — attempted, reverted] `php artisan schema:dump` was tried: the generated dump puts each table's serial-column default in an `ALTER TABLE` section after all `CREATE TABLE` statements, and `RefreshDatabase` loading it applied those defaults inconsistently — 74 tests failed with NOT NULL violations on `id` (e.g. `live_pilot_runs`) against a freshly recreated `detector_test`. Fully reverted (dump file deleted, no `--prune` was ever used so no migrations were lost; a cautionary note is now in `claude.md`/`docs/guides/TESTING.md` so this isn't re-attempted blindly). Needs root-causing the partial-load behavior (or an alternative bootstrap speedup) before retrying | `database/schema/`, `claude.md`, `docs/guides/TESTING.md` | Medium | Proposed (attempted, reverted) |
 | **TEST-PER-TEST-SEED** | [Test infra] 16 classes seed in setUp → heavy DemoSocSeeder (218 lines) re-runs per test method. Use minimal per-test fixtures or seed-once read-only | 16 `tests/Feature/*Test.php`, `database/seeders/DemoSocSeeder.php` | Low | Proposed |
 
@@ -235,24 +234,12 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Safety:** Real validation harness only; advisory-only records preserved; no autonomous action;
   append-only tables untouched.
 
-## Proposed Task: CONSUMER-GROUP-EPHEMERAL — Stable consumer group + offset commits (Medium)
-
-Fresh ms-timestamp group + `earliest` on every start/recovery reprocesses full topic history each restart.
-Stable group id + explicit commits; recreate identity only on offset_out_of_range. Enterprise-relevant
-reliability — per classification rules must not be Rejected. See REVIEW_ALL Batch 18.
-
 ---
 
 # Claude QC Deep Dive (2026-07-06)
 
 Deeper findings from Claude (source: `REVIEW_ALL.md` — Review Batch 19, CLAUDE-QC-DEEP-DIVE). Verified
 non-duplicate against REVIEW_ALL / REVIEW_REJECTED / REVIEW_COMPLETED. None crosses a CLAUDE.md Forbidden
-Change. Batch 18 note: 10/11 findings already implemented (commits 15e25ef..2a7766f); only
-CONSUMER-GROUP-EPHEMERAL still open.
-
-## Proposed Task: NORM-ASYNC-COMMIT-LOSS — Offset committed before async producer publishes (Medium)
-Normalizer relies on Pandaproxy fetch-time auto-commit while the producer flushes asynchronously; a crash
-between offset-advance and flush drops up to `queueCapacity` (200k) queued events with no replay. Fix:
-disable auto-commit and commit input offset only after `producerLoop` confirms publish (mirror the
-commit-after-write already used for poison isolation). See REVIEW_ALL Batch 19.
+Change. Batch 18/19 note: CONSUMER-GROUP-EPHEMERAL and NORM-ASYNC-COMMIT-LOSS both completed — see
+REVIEW_COMPLETED.md.
 

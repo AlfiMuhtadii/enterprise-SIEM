@@ -488,13 +488,20 @@ def event_loop() -> None:
     offset_reset = os.getenv("XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET", "earliest")
     _MAX_ERRORS_BEFORE_RECREATE = 3
 
-    def _new_ids() -> tuple[str, str]:
-        ts = int(time.time() * 1000)
-        g = f"{os.getenv('XDR_INCIDENT_BUILDER_GROUP', 'incident-builder-v1')}-{ts}"
-        n = f"incident-builder-{ts}"
-        return g, n
+    # Stable group name: reused across restarts and across non-offset-error
+    # reconnects, so Redpanda resumes from the last committed offset instead
+    # of reprocessing the full topic history every time (CONSUMER-GROUP-EPHEMERAL).
+    def _stable_group() -> str:
+        return os.getenv("XDR_INCIDENT_BUILDER_GROUP", "incident-builder-v1")
 
-    group, name = _new_ids()
+    def _new_instance_id() -> str:
+        return f"incident-builder-{int(time.time() * 1000)}"
+
+    def _fresh_group_for_offset_reset() -> str:
+        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
+
+    group = _stable_group()
+    name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
 
@@ -555,7 +562,9 @@ def event_loop() -> None:
                 )
                 if base_uri:
                     consumer_delete(base_uri)
-                group, name = _new_ids()
+                if is_offset_err:
+                    group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
                 consecutive_errors = 0
                 try:
                     base_uri = _setup_consumer(group, name)

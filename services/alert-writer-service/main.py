@@ -539,14 +539,26 @@ def event_loop() -> None:
     offset_reset = os.getenv("XDR_ALERT_WRITER_AUTO_OFFSET_RESET", "earliest")
     _MAX_ERRORS_BEFORE_RECREATE = 3
 
-    # Use ms-resolution timestamp so rapid restarts get distinct group names.
-    def _new_ids() -> tuple[str, str]:
-        ts = int(time.time() * 1000)
-        g = f"{os.getenv('XDR_ALERT_WRITER_GROUP', 'alert-writer-v1')}-{ts}"
-        n = f"alert-writer-{ts}"
-        return g, n
+    # Stable group name: reused across restarts and across non-offset-error
+    # reconnects, so Redpanda resumes from the last committed offset instead
+    # of reprocessing the full topic history every time (CONSUMER-GROUP-EPHEMERAL).
+    # Only offset_out_of_range gets a genuinely fresh group (see below) — that
+    # is the one case where the previously-committed offset is invalid and a
+    # clean group is actually needed to re-apply auto.offset.reset.
+    def _stable_group() -> str:
+        return os.getenv("XDR_ALERT_WRITER_GROUP", "alert-writer-v1")
 
-    group, name = _new_ids()
+    # Instance name stays ms-based and is regenerated on every (re)connect —
+    # distinct from the group, this only avoids Pandaproxy instance-id
+    # collisions and has no bearing on offset history.
+    def _new_instance_id() -> str:
+        return f"alert-writer-{int(time.time() * 1000)}"
+
+    def _fresh_group_for_offset_reset() -> str:
+        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
+
+    group = _stable_group()
+    name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
 
@@ -607,7 +619,9 @@ def event_loop() -> None:
                 )
                 if base_uri:
                     consumer_delete(base_uri)
-                group, name = _new_ids()
+                if is_offset_err:
+                    group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
                 consecutive_errors = 0
                 try:
                     base_uri = _setup_consumer(group, name)
@@ -880,14 +894,19 @@ def shadow_event_loop(source_topic: str) -> None:
     offset_reset = "earliest"
     _MAX_ERRORS = 3
 
-    def _new_ids() -> tuple[str, str]:
-        ts  = int(time.time() * 1000)
-        safe = source_topic.replace(".", "-").replace(":", "-")
-        g   = f"shadow-consumer-{safe}-{ts}"
-        n   = f"shadow-{safe}-{ts}"
-        return g, n
+    safe_topic = source_topic.replace(".", "-").replace(":", "-")
 
-    group, name = _new_ids()
+    def _stable_group() -> str:
+        return f"shadow-consumer-{safe_topic}"
+
+    def _new_instance_id() -> str:
+        return f"shadow-{safe_topic}-{int(time.time() * 1000)}"
+
+    def _fresh_group_for_offset_reset() -> str:
+        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
+
+    group = _stable_group()
+    name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
 
@@ -934,7 +953,9 @@ def shadow_event_loop(source_topic: str) -> None:
                 log.warning(f"[shadow-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
-                group, name = _new_ids()
+                if is_offset_err:
+                    group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
                 consecutive_errors = 0
                 try:
                     base_uri = _setup(group, name)
@@ -1106,13 +1127,17 @@ def dlq_consumer_event_loop() -> None:
     offset_reset = "earliest"
     _MAX_ERRORS  = 3
 
-    def _new_ids() -> tuple[str, str]:
-        ts = int(time.time() * 1000)
-        g  = f"dlq-consumer-v1-{ts}"
-        n  = f"dlq-consumer-{ts}"
-        return g, n
+    def _stable_group() -> str:
+        return "dlq-consumer-v1"
 
-    group, name = _new_ids()
+    def _new_instance_id() -> str:
+        return f"dlq-consumer-{int(time.time() * 1000)}"
+
+    def _fresh_group_for_offset_reset() -> str:
+        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
+
+    group = _stable_group()
+    name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
 
@@ -1159,7 +1184,9 @@ def dlq_consumer_event_loop() -> None:
                 log.warning(f"[dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
-                group, name = _new_ids()
+                if is_offset_err:
+                    group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
                 consecutive_errors = 0
                 try:
                     base_uri = _setup(group, name)
@@ -1237,14 +1264,19 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
     offset_reset = "earliest"
     _MAX_ERRORS  = 3
 
-    def _new_ids() -> tuple[str, str]:
-        ts   = int(time.time() * 1000)
-        safe = source_topic.replace(".", "-").replace(":", "-")
-        g    = f"pipeline-dlq-consumer-{safe}-{ts}"
-        n    = f"pipeline-dlq-{safe}-{ts}"
-        return g, n
+    safe_topic = source_topic.replace(".", "-").replace(":", "-")
 
-    group, name = _new_ids()
+    def _stable_group() -> str:
+        return f"pipeline-dlq-consumer-{safe_topic}"
+
+    def _new_instance_id() -> str:
+        return f"pipeline-dlq-{safe_topic}-{int(time.time() * 1000)}"
+
+    def _fresh_group_for_offset_reset() -> str:
+        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
+
+    group = _stable_group()
+    name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
 
@@ -1291,7 +1323,9 @@ def pipeline_dlq_consumer_event_loop(source_topic: str) -> None:
                 log.warning(f"[pipeline-dlq-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
                 if base_uri:
                     consumer_delete(base_uri)
-                group, name = _new_ids()
+                if is_offset_err:
+                    group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
                 consecutive_errors = 0
                 try:
                     base_uri = _setup(group, name)
