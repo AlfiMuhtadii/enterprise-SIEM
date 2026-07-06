@@ -323,6 +323,7 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
         Route::get('/false-positives',  [DetectionLifecycleController::class, 'falsePositives'])->name('detection.lifecycle.false-positives');
         Route::get('/suppressions',     [DetectionLifecycleController::class, 'suppressions'])->name('detection.lifecycle.suppressions');
         Route::get('/attack-map',       [DetectionLifecycleController::class, 'attackMap'])->name('detection.lifecycle.attack-map');
+        Route::get('/attack-map/navigator-layer.json', [DetectionLifecycleController::class, 'downloadNavigatorLayer'])->name('detection.lifecycle.attack-map.navigator-layer');
         Route::get('/promotions',       [DetectionLifecycleController::class, 'promotions'])->name('detection.lifecycle.promotions');
         Route::get('/quality',          [DetectionLifecycleController::class, 'qualityDashboard'])->name('detection.lifecycle.quality');
     });

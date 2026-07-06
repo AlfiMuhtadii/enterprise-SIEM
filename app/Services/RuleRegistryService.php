@@ -113,6 +113,57 @@ class RuleRegistryService
         return array_values($techniques);
     }
 
+    /**
+     * CAP-MITRE-COVERAGE-NAV: builds a MITRE ATT&CK Navigator layer (format
+     * v4.5 — https://github.com/mitre-attack/attack-navigator) from the
+     * coverage map, scoring both parent and sub-techniques independently
+     * (many rules list both, e.g. ["T1078","T1078.004"], and Navigator
+     * scores each techniqueID separately — it cross-references the
+     * technique/tactic relationship from its own loaded ATT&CK data, so
+     * this layer only needs techniqueID + score, no tactic mapping here).
+     * Read-only: derived entirely from the coverage map, no writes.
+     */
+    public function navigatorLayer(array $coverageMap, string $domain = 'enterprise-attack'): array
+    {
+        $techniques = array_map(function (array $t) {
+            $ruleCount = count($t['rules']);
+            return [
+                'techniqueID' => $t['technique'],
+                'score' => $ruleCount,
+                'color' => '',
+                'comment' => $ruleCount.' rule(s): '.implode(', ', $t['rules']),
+                'enabled' => true,
+                'metadata' => [
+                    ['name' => 'domains', 'value' => implode(', ', $t['domains'])],
+                    ['name' => 'rule_count', 'value' => (string) $ruleCount],
+                ],
+                'showSubtechniques' => true,
+            ];
+        }, $coverageMap);
+
+        $maxScore = array_reduce($techniques, fn ($carry, $t) => max($carry, $t['score']), 0);
+
+        return [
+            'name' => 'Detector XDR — Rule Coverage',
+            'versions' => ['attack' => '14', 'navigator' => '4.9.1', 'layer' => '4.5'],
+            'domain' => $domain,
+            'description' => 'Detection rule coverage by MITRE ATT&CK technique, generated from docs/detection/rules/registry.v1.json. Advisory analytics only — read-only, no autonomous action.',
+            'sorting' => 3,
+            'layout' => ['layout' => 'side', 'showID' => true, 'showName' => true],
+            'gradient' => [
+                'colors' => ['#ffffff', '#66b1ff'],
+                'minValue' => 0,
+                'maxValue' => max(1, $maxScore),
+            ],
+            'legendItems' => [],
+            'showTacticRowBackground' => false,
+            'tacticRowBackground' => '#dddddd',
+            'selectTechniquesAcrossTactics' => true,
+            'selectSubtechniquesWithParent' => false,
+            'techniques' => $techniques,
+        ];
+    }
+
     public function validatePromotion(array $rule, string $targetStage): array
     {
         $current = $rule['db_state']->stage;

@@ -22,7 +22,14 @@
                 @endforelse
             </div>
             <div class="glass-card p-4 space-y-2">
-                <h3 class="text-sm font-semibold text-purple-200">Registry Coverage (from registry.v1.json)</h3>
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-purple-200">Registry Coverage (from registry.v1.json)</h3>
+                    <a href="{{ route('detection.lifecycle.attack-map.navigator-layer') }}"
+                       class="rounded border border-cyan-200/20 bg-cyan-100/10 px-2 py-1 text-xs text-cyan-50 hover:bg-cyan-100/20">
+                        Download Navigator layer.json
+                    </a>
+                </div>
+                <p class="text-xs text-muted-ui">{{ count($mitre) }} technique(s) covered — showing first 15. Import the downloaded layer into <span class="mono-ui">mitre-attack.github.io/attack-navigator</span> for the full interactive matrix.</p>
                 @forelse(array_slice($mitre, 0, 15) as $tech)
                 <div class="flex justify-between text-xs text-gray-300 border-b border-gray-700/40 pb-1">
                     <span class="font-mono text-purple-300">{{ $tech['technique'] }}</span>

@@ -74,6 +74,22 @@ class DetectionLifecycleController extends Controller
         return view('detection.attack-map', compact('mappings', 'coverage', 'mitre'));
     }
 
+    /**
+     * CAP-MITRE-COVERAGE-NAV: downloads a MITRE ATT&CK Navigator layer.json
+     * built from the current rule registry's coverage map. Read-only —
+     * this endpoint performs no writes and triggers no autonomous action.
+     */
+    public function downloadNavigatorLayer(): \Illuminate\Http\Response
+    {
+        $mitre = $this->registry->mitreCoverageMap($this->registry->allRules());
+        $layer = $this->registry->navigatorLayer($mitre);
+
+        return response(json_encode($layer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), 200, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="detector-xdr-attack-navigator-layer.json"',
+        ]);
+    }
+
     public function promotions(): View
     {
         $pending  = $this->engineering->getPendingPromotionRequests();
