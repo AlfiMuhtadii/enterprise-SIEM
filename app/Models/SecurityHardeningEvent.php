@@ -13,6 +13,7 @@ class SecurityHardeningEvent extends Model
     public const EVENT_SECRET_WARNING     = 'secret_warning';
     public const EVENT_STARTUP_VALIDATION = 'startup_validation';
     public const EVENT_AUDIT_VIOLATION    = 'audit_violation_attempt';
+    public const EVENT_SECRET_ROTATION    = 'secret_rotation';
 
     public const EVENT_TYPES = [
         self::EVENT_AUTH_FAILURE,
@@ -20,6 +21,7 @@ class SecurityHardeningEvent extends Model
         self::EVENT_SECRET_WARNING,
         self::EVENT_STARTUP_VALIDATION,
         self::EVENT_AUDIT_VIOLATION,
+        self::EVENT_SECRET_ROTATION,
     ];
 
     protected $fillable = [

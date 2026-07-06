@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\SecretProvider;
+use App\Services\Secrets\SecretProviderManager;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(SecretProvider::class, fn () => new SecretProviderManager());
     }
 
     /**

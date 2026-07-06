@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SecurityHardeningEvent;
+use App\Services\Secrets\VaultSecretProvider;
 
 class SecretsValidationService
 {
@@ -64,11 +65,28 @@ class SecretsValidationService
             $warnings[] = 'SOC_WEBHOOK_SECRET is not set — webhook delivery authentication is disabled';
         }
 
+        // SECRETS-VAULT: report which secret-provider backend is active, and
+        // warn (never error — a transient Vault outage must not block boot)
+        // when the configured backend is unreachable.
+        $backend = (string) config('secrets.backend', 'env');
+        if ($backend === 'vault') {
+            $vault = new VaultSecretProvider(
+                (string) config('secrets.vault.addr', ''),
+                (string) config('secrets.vault.token', ''),
+                (string) config('secrets.vault.secret_path', ''),
+                (int) config('secrets.vault.timeout_seconds', 5),
+            );
+            if (!$vault->isReachable()) {
+                $warnings[] = 'XDR_SECRET_BACKEND=vault but Vault is unreachable or misconfigured — falling back to env/APP_KEY where applicable';
+            }
+        }
+
         return [
-            'ok'         => empty($errors),
-            'errors'     => $errors,
-            'warnings'   => $warnings,
-            'checked_at' => now()->toIso8601String(),
+            'ok'             => empty($errors),
+            'errors'         => $errors,
+            'warnings'       => $warnings,
+            'secret_backend' => $backend,
+            'checked_at'     => now()->toIso8601String(),
         ];
     }
 

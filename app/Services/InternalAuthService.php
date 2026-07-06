@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\SecretProvider;
 use App\Models\SecurityHardeningEvent;
 
 /**
@@ -24,6 +25,14 @@ class InternalAuthService
         $s = config('xdr.internal_auth_secret', '');
         if ($s !== '') {
             return $s;
+        }
+        // SECRETS-VAULT: consult the pluggable secret provider (default 'env'
+        // backend reads the same XDR_INTERNAL_AUTH_SECRET var and is a no-op
+        // here; a 'vault' backend gives this a real second source before
+        // falling back to APP_KEY).
+        $provider = app(SecretProvider::class)->get('XDR_INTERNAL_AUTH_SECRET', '');
+        if ($provider !== '') {
+            return $provider;
         }
         // Fall back to APP_KEY, stripping the base64: prefix if present.
         $key = config('app.key', '');

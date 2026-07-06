@@ -261,7 +261,7 @@ Supported domains: 179 total (see `ThreatHuntingService::supportedDomains()`)
 
 Service: `App\Services\AssetContextService` — Model: `App\Models\AssetInventory` + `App\Models\AssetCriticality`
 
-Advisory alert-enrichment metadata only. `asset_criticality` ranks the analyst queue — it is never read by any response/execution path (`ADVISORY_ONLY = true`, `NO_AUTO_RESPONSE = true`).
+Advisory alert-enrichment metadata only. `asset_criticality` is surfaced for analyst triage context (display-only — it does not order or filter any incident/alert listing) and is never read by any response/execution path (`ADVISORY_ONLY = true`, `NO_AUTO_RESPONSE = true`).
 
 - `asset_inventory` (mutable): hostname, ip_address, owner, environment, asset_type, source (manual|csv_import). Unique on `external_id`.
 - `asset_criticality` (mutable): one row per asset, `criticality_tier` (crown_jewel|high|medium|low), FK to `asset_inventory.id`.
@@ -383,6 +383,17 @@ Service-to-service tokens: `InternalAuthService::signToken(serviceId)` → base6
 Event envelope signatures: `InternalAuthService::signEvent(event)` → `sha256=HMAC(event_id|event_type|occurred_at|trace_id)`
 Middleware: `InternalServiceAuthMiddleware` on `/api/internal/*`
 Failure: logged to `security_hardening_events`, never throws, never corrupts pipeline
+
+**Secret-provider abstraction (SECRETS-VAULT):** `App\Contracts\SecretProvider`, bound to
+`App\Services\Secrets\SecretProviderManager` in `AppServiceProvider`. Backend selected via
+`config('secrets.backend')` (`env` default, `vault` for HashiCorp Vault KV-v2). `InternalAuthService::secret()`
+consults the provider only as a fallback layer between `config('xdr.internal_auth_secret')` (primary,
+config-cache-safe, unchanged) and the `APP_KEY` fallback — a Vault outage never blocks boot or a request.
+Rotate via `php artisan security:rotate-internal-token` (`--dry-run` to preview); `env` backend prints the
+generated value for manual `.env` update (a process cannot mutate its parent shell's environment), `vault`
+backend writes it directly. Every attempt is recorded as `SecurityHardeningEvent::EVENT_SECRET_ROTATION`.
+`php artisan security:validate-secrets` reports the active backend and warns if `vault` is unreachable.
+Full runbook: `docs/security/SECRET_ROTATION_RUNBOOK.md`.
 
 ---
 

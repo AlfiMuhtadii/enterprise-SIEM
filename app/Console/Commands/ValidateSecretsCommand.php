@@ -16,6 +16,8 @@ class ValidateSecretsCommand extends Command
             ? $secrets->validateAndRecord()
             : $secrets->validate();
 
+        $this->line('secret_backend=' . ($result['secret_backend'] ?? 'env'));
+
         if (!empty($result['errors'])) {
             foreach ($result['errors'] as $error) {
                 $this->error('[ERROR] ' . $error);
