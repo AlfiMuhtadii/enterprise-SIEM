@@ -495,6 +495,6 @@ class EnterprisePilotReadinessMatrixTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(179, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(181, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 }

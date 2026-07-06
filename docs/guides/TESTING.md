@@ -31,6 +31,12 @@ database (`detector`). You never need `migrate:fresh` — the suite manages its 
   `php artisan migrate:fresh` before the suite is redundant (double-migration) and is no longer
   part of the workflow.
 
+**Do not add a `php artisan schema:dump`.** It was tried — the generated dump applies each
+table's serial-column default in a separate section after all `CREATE TABLE` statements, and
+`RefreshDatabase` loading it applies those defaults inconsistently (several tables ended up with
+no default on `id`, causing NOT NULL violations across ~74 tests). Plain migration-by-migration
+`migrate:fresh` is the only currently-reliable path — see `claude.md`'s test-database section.
+
 Historically the suite shared the app DB, which is why the old instructions prefixed every run
 with `migrate:fresh --force` (a band-aid that also destroyed dev data). That is fixed.
 

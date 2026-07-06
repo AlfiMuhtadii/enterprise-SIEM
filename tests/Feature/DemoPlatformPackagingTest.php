@@ -238,9 +238,9 @@ class DemoPlatformPackagingTest extends TestCase
     public function test_threat_hunting_domain_count_is_164(): void
     {
         $this->assertCount(
-            179,
+            181,
             \App\Services\ThreatHuntingService::SUPPORTED_DOMAINS,
-            'Should have 179 threat hunting domains after ASSET-INVENTORY'
+            'Should have 181 threat hunting domains after DATA-RESIDENCY-ERASURE'
         );
     }
 

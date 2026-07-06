@@ -435,7 +435,7 @@ class SecurityHardeningEvidenceFreezeTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count_is_177(): void
     {
-        $this->assertCount(179, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(181, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_freeze_domains_in_threat_hunting(): void

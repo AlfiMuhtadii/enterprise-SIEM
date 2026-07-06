@@ -101,6 +101,7 @@ use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
 use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\SiemSearchController;
+use App\Http\Controllers\DataResidencyController;
 use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
 use App\Http\Controllers\RedpandaHealthController;
@@ -1230,6 +1231,18 @@ Route::middleware(['auth', 'soc:assetinventory.manage'])->group(function () {
 // SIEM Search — read-only free-form search over raw telemetry/alerts, no mutation
 Route::middleware(['auth', 'soc:search.view'])->group(function () {
     Route::get('/siem-search',                                 [SiemSearchController::class, 'index'])->name('siem-search.index');
+});
+
+// Data Residency / GDPR Erasure — per-tenant retention policy + erasure request lifecycle.
+// Real deletion happens only via `php artisan data-erasure:execute`, never HTTP.
+Route::middleware(['auth', 'soc:erasure.request'])->group(function () {
+    Route::get('/data-residency',                              [DataResidencyController::class, 'index'])->name('data-residency.index');
+    Route::post('/data-residency/erasure',                     [DataResidencyController::class, 'requestErasure'])->name('data-residency.erasure.request');
+});
+Route::middleware(['auth', 'soc:retention.manage'])->group(function () {
+    Route::post('/data-residency/policy',                      [DataResidencyController::class, 'updatePolicy'])->name('data-residency.policy.update');
+    Route::post('/data-residency/erasure/{requestId}/approve',  [DataResidencyController::class, 'approveErasure'])->name('data-residency.erasure.approve');
+    Route::post('/data-residency/erasure/{requestId}/reject',   [DataResidencyController::class, 'rejectErasure'])->name('data-residency.erasure.reject');
 });
 
 Route::middleware(['auth', 'soc:pilot.readiness.view'])->group(function () {

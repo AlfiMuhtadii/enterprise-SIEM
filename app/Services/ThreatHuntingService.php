@@ -262,6 +262,9 @@ class ThreatHuntingService
         // Asset Inventory / CMDB — ASSET-INVENTORY
         'asset_inventory',
         'asset_criticality',
+        // Data Residency / GDPR Erasure — DATA-RESIDENCY-ERASURE
+        'tenant_retention_policies',
+        'data_erasure_requests',
     ];
 
     private const DOMAIN_FIELDS = [
@@ -1410,6 +1413,14 @@ class ThreatHuntingService
             'criticality_tier' => ['='],
             'tenant_id'        => ['='],
         ],
+        'tenant_retention_policies' => [
+            'tenant_id' => ['='],
+        ],
+        'data_erasure_requests' => [
+            'tenant_id'    => ['='],
+            'status'       => ['='],
+            'requested_by' => ['='],
+        ],
     ];
 
     private const DOMAIN_MODEL_MAP = [
@@ -1607,6 +1618,9 @@ class ThreatHuntingService
         // Asset Inventory / CMDB — ASSET-INVENTORY
         'asset_inventory'   => \App\Models\AssetInventory::class,
         'asset_criticality' => \App\Models\AssetCriticality::class,
+        // Data Residency / GDPR Erasure — DATA-RESIDENCY-ERASURE
+        'tenant_retention_policies' => \App\Models\TenantRetentionPolicy::class,
+        'data_erasure_requests'     => \App\Models\DataErasureRequest::class,
     ];
 
     private const DOMAIN_TIME_COLUMN = [

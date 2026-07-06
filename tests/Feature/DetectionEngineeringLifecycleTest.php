@@ -601,7 +601,7 @@ class DetectionEngineeringLifecycleTest extends TestCase
 
     public function test_hunt_domains_total_is_50(): void
     {
-        $this->assertCount(179, ThreatHuntingService::SUPPORTED_DOMAINS);
+        $this->assertCount(181, ThreatHuntingService::SUPPORTED_DOMAINS);
     }
 
     public function test_detection_rule_versions_domain_supports_field_queries(): void

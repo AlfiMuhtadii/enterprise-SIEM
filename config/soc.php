@@ -86,6 +86,9 @@ return [
             'assetinventory.view',
             'assetinventory.manage',
             'search.view',
+            'retention.manage',
+            'erasure.request',
+            'erasure.approve',
         ],
         'analyst' => [
             'dashboard.view',
@@ -124,6 +127,7 @@ return [
             'assetinventory.view',
             'assetinventory.manage',
             'search.view',
+            'erasure.request',
         ],
         'viewer' => [
             'dashboard.view',

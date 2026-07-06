@@ -325,7 +325,7 @@ class AssetInventoryTest extends TestCase
 
     public function test_total_hunt_domains_is_179(): void
     {
-        $this->assertCount(179, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(181, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_hunt_asset_inventory_domain(): void

@@ -469,7 +469,7 @@ class EnterpriseDeploymentHardeningTest extends TestCase
 
     public function test_threat_hunting_supported_domains_count(): void
     {
-        $this->assertCount(179, app(ThreatHuntingService::class)->supportedDomains());
+        $this->assertCount(181, app(ThreatHuntingService::class)->supportedDomains());
     }
 
     public function test_deployment_integrity_reports_domain_supported(): void

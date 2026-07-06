@@ -99,6 +99,7 @@ Route prefix        Module                          Permission gate
 /advisory           Shadow Alert Advisory Findings      soc:advisory.view
 /asset-inventory    Asset Inventory / CMDB              soc:assetinventory.view (soc:assetinventory.manage for mutations)
 /siem-search        SIEM Search (read-only)             soc:search.view
+/data-residency     Data Residency / GDPR Erasure       soc:erasure.request (soc:retention.manage for policy/approve/reject)
 ```
 
 ---
@@ -253,7 +254,7 @@ Pivot types: `host`, `process`, `persistence`, `trace`, `entity`
 
 All hunts are append-only records (`threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`). No destructive operations.
 
-Supported domains: 179 total (see `ThreatHuntingService::supportedDomains()`)
+Supported domains: 181 total (see `ThreatHuntingService::supportedDomains()`)
 
 ---
 
@@ -293,6 +294,35 @@ Read-only free-form search over raw alert telemetry. No mutation, no autonomous 
   broad single-character queries.
 - RBAC: `soc:search.view` (admin/analyst/viewer — read-only, granted broadly like other `.view` abilities).
 - UI: `/siem-search` (single GET route, server-rendered — no separate JSON API).
+
+---
+
+## Data Residency / GDPR Erasure
+
+Service: `App\Services\DataResidencyErasureService` — Models: `App\Models\TenantRetentionPolicy`,
+`App\Models\DataErasureRequest`, `App\Models\DataErasureAuditEvent` (append-only)
+
+- **Per-tenant retention**: `tenant_retention_policies` overrides the global `security:retention`
+  defaults (events 30d / alerts 90d / incidents 180d) per tenant. `security_events` has no
+  `tenant_id` column (documented gap — `TenantBoundaryService::UNISOLATED_TABLES`) so it is
+  always pruned globally; `security_alerts`/`security_incidents` are pruned per-tenant, with
+  legacy `tenant_id IS NULL` rows falling back to the global default. `security_incidents` was
+  previously never pruned at all — this closes that gap.
+- **Erasure request lifecycle**: `pending` → `approved`/`rejected` → `executed`. Self-approval
+  is blocked (approver must differ from requester). Approving a request only changes its
+  status — **real deletion happens exclusively via `php artisan data-erasure:execute
+  {request_id}`**, never over HTTP, matching the platform's existing destructive-operation
+  posture (`php artisan dlq:replay`). A request-level `dry_run` flag (default `true`) makes
+  execution count-only (no approval required, nothing deleted) vs. real deletion (`dry_run`
+  must be `false` AND status `approved`).
+- Erasure execution is tenant-scoped and only ever touches `security_alerts`/
+  `security_incidents` (the two tables with `tenant_id`) — never `security_events`.
+- Every request/approve/reject/dry-run/execute action is recorded in the append-only
+  `data_erasure_audit_events` table.
+- RBAC: `soc:erasure.request` (admin/analyst — view the page, submit requests),
+  `soc:retention.manage` (admin only — edit tenant retention policy, approve/reject requests).
+- Hunt domains: `tenant_retention_policies`, `data_erasure_requests`.
+- UI: `/data-residency`.
 
 ---
 
@@ -414,6 +444,7 @@ These tables MUST NOT be updated or deleted by any platform code:
 | `threat_hunts` | Hunt session records |
 | `threat_hunt_queries` | Structured query params per hunt |
 | `threat_hunt_results` | Result snapshots per hunt |
+| `data_erasure_audit_events` | Erasure request/approve/reject/execute audit trail |
 
 ---
 

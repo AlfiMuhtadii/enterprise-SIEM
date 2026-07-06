@@ -12,8 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Daily TTL cleanup for local SIEM-lite storage.
-        $schedule->command('security:retention --events-days=30 --alerts-days=90')->daily();
+        // Daily TTL cleanup for local SIEM-lite storage (per-tenant overrides via tenant_retention_policies).
+        $schedule->command('security:retention --events-days=30 --alerts-days=90 --incidents-days=180')->daily();
         $schedule->command('ops:heartbeat')->everyMinute();
         $schedule->command('soc:sla-escalate')->everyFifteenMinutes();
         $schedule->command('soc:notify-critical --minutes=15')->everyFifteenMinutes();
