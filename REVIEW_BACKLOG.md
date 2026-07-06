@@ -18,7 +18,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
-| **CODE-STRUCT-DECOMPOSE** (4 of ~5 seams done) | [Structure/Maintainability] `correlation-worker/main.go` now 1963 lines (was 2950) after extracting IOC lookup+cache, endpoint-alert foundation + network shadow rules, cross-domain shadow correlation, and streaming shadow rules into `internal/shadowrules` (own package, own tests, zero behavior change). Remaining: core endpoint rules (`ruleParentChildProcess` et al., ~750 lines, still in `main.go`) and Pandaproxy transport (`internal/kafka`); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
+| **CODE-STRUCT-DECOMPOSE** (correlation-worker rule engine fully decomposed; Pandaproxy transport + normalizer/alert-writer remain) | [Structure/Maintainability] `correlation-worker/main.go` now 1165 lines (was 2950, a 60% reduction) — the entire endpoint/network shadow-rule engine (IOC cache, all 44 `rule*`/`correlate*` functions, all static lookup tables) now lives in `internal/shadowrules` + `internal/ioc`, both with their own tests. What remains in `main.go` is Worker/HTTP/Pandaproxy transport, the active identity/cloud correlation path (`correlate`/`correlateIdentityCloud` — a distinct concern, not part of this decomposition), and 4 thin IOC-bridging functions (`ruleIOCIPMatch`/`ruleIOCDomainMatch`/`ruleIOCHashMatch`/`correlateEndpointShadowAll`) intentionally left as composition-root glue since they're the one place that combines both sub-packages. Remaining: Pandaproxy consume/produce transport (`internal/kafka`, a separate concern from the rule engine); normalizer-worker (1181 lines) and alert-writer-service (1277 lines) untouched entirely | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
 | **DATA-TIERING** (phase 1 done — archive-before-delete; warm/cold tiers remain) | [Capability] `SecurityRetentionCommand` now archives every pruned row to gzip JSONL (`SecurityRetentionArchiveService`) before deleting — data is no longer simply gone, just no longer hot/queryable. Still missing: warm tier (ClickHouse, months-scale searchable), cold tier (object storage archival/restore), and this local-gzip archive isn't itself searchable — needs live ClickHouse/S3-compatible infra to build and verify further | `app/Services/SecurityRetentionArchiveService.php`, `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed (reduced) |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
@@ -201,10 +201,31 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   (`CorrelateEndpointShadowCrossDomain` empty/aggregate cases, `ruleCrossDomainIdentityEndpoint`
   fire/no-fire). `main.go` 2438→2185 lines; `internal/shadowrules/shadowrules.go` now 686 lines.
   `go build`/`go vet`/`go test ./...` clean across all 3 packages. **Not run**: live-pipeline
-  verifier / `docker build` (daemon unavailable, same standing limitation). Remaining seams:
-  core endpoint rules + streaming rules (~950 lines, could extend `internal/shadowrules` or
-  split further), Pandaproxy transport (`internal/kafka`); normalizer/alert-writer decomposition
-  untouched.
+  verifier / `docker build` (daemon unavailable, same standing limitation).
+- **Progress (2026-07-11):** Seam 4 — streaming shadow rules moved (fully self-contained, no
+  shared-table surprises this time). Seam 5 — core endpoint rules (`ruleParentChildProcess`,
+  `rulePowershellEncoded`, `ruleSuspiciousTempFile`, `ruleFailedLoginBurst`, `ruleSuspiciousDNS`,
+  `ruleSuspiciousOutbound`, `ruleScheduledTaskPersistence`, `ruleNewServicePersistence`,
+  `ruleC2BeaconPattern`) plus their static tables, exported as `shadowrules.RuleXxx` since
+  they're still called from `correlateEndpointShadow` at that point. Seam 6 — behavioral
+  visibility + behavioral analytics + threat-hunting-behavioral rules (13 more functions) *and*
+  the `correlateEndpointShadow` aggregator itself moved together (it had zero remaining
+  dependency on `Worker`/IOC once its sub-groups were all in `shadowrules`), exported as
+  `CorrelateEndpointShadow`. One extraction-script bug caught immediately by `go build:
+  undefined: shadowrules` — internal references to the already-moved `LinuxShellNames`/
+  `DownloaderNames`/`LolbinNames` tables still had a leftover `shadowrules.` prefix from when
+  they lived in a different package; fixed directly (13 occurrences). +9 more tests across
+  seams 4-6 (`ruleParentChildProcess`, `ruleFailedLoginBurst`, `ruleParentChildChain`,
+  `CorrelateEndpointShadow` empty/filter/aggregate cases). **Result: `main.go` 2185→1165 lines
+  (a 60% reduction from the original 2950)** — the entire endpoint/network shadow-rule engine
+  now lives in `internal/shadowrules`/`internal/ioc`. What's left in `main.go` is transport
+  (Worker/HTTP/Pandaproxy), the active identity/cloud correlation path (out of scope for this
+  item), and 4 thin IOC-bridging functions kept as intentional composition-root glue. `go
+  build`/`go vet`/`go test ./...` clean across all 3 packages throughout. **Not run**: live-
+  pipeline verifier / `docker build` — same standing limitation every pass this session.
+  Considering this backlog item's rule-engine scope **effectively closed**; remaining work
+  (Pandaproxy transport decomposition, normalizer-worker, alert-writer-service) is different
+  enough in shape that it's tracked as ongoing rather than "more seams of the same kind."
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 

@@ -910,3 +910,815 @@ func ruleStreamRapidExecutionBeaconPattern(events []map[string]any) []EndpointAl
 	}
 	return alerts
 }
+
+// EndpointAlert, epStr, epInt64, makeEndpointAlert moved to
+// internal/shadowrules (CODE-STRUCT-DECOMPOSE, seam 2).
+
+
+var suspiciousParentNames = map[string]bool{
+	"winword.exe": true, "excel.exe": true, "powerpnt.exe": true,
+	"outlook.exe": true, "msdt.exe": true, "mspub.exe": true,
+}
+
+var suspiciousChildNames = map[string]bool{
+	"cmd.exe": true, "powershell.exe": true, "wscript.exe": true,
+	"cscript.exe": true, "mshta.exe": true, "regsvr32.exe": true,
+	"rundll32.exe": true, "certutil.exe": true,
+}
+
+var powershellEncodedIndicators = []string{" -enc ", " -e ", "-encodedcommand", "/enc ", "/e "}
+
+var executableExtensions = []string{".exe", ".dll", ".bat", ".ps1", ".vbs", ".js", ".hta", ".scr"}
+
+var tempPathPatterns = []string{`\temp\`, `\tmp\`, `\appdata\local\temp\`, "/tmp/", "/temp/"}
+
+var internalIPPrefixes = []string{
+	"10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.",
+	"172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.",
+	"172.29.", "172.30.", "172.31.", "192.168.", "127.", "169.254.",
+}
+
+var commonServicePorts = map[int64]bool{
+	22: true, 25: true, 53: true, 80: true, 110: true, 143: true,
+	443: true, 587: true, 993: true, 995: true, 3389: true, 8080: true, 8443: true,
+}
+
+const failedLoginBurstThreshold = 3
+const dnsDomainLengthThreshold = 40
+const c2BeaconMinConnections = 3
+
+var scheduledTaskProcessNames = map[string]bool{
+	"schtasks.exe": true, "at.exe": true, "taskeng.exe": true,
+}
+
+var serviceCreateProcessNames = map[string]bool{
+	"sc.exe": true,
+}
+
+func RuleParentChildProcess(events []map[string]any) []EndpointAlert {
+	pidToName := map[int64]string{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		pid := EpInt64(ev, "process", "pid")
+		name := strings.ToLower(EpStr(ev, "process", "name"))
+		if pid > 0 && name != "" {
+			pidToName[pid] = name
+		}
+	}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		child := strings.ToLower(EpStr(ev, "process", "name"))
+		if !suspiciousChildNames[child] {
+			continue
+		}
+		ppid := EpInt64(ev, "process", "ppid")
+		parentName := pidToName[ppid]
+		if !suspiciousParentNames[parentName] {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_parent_child_process", "v1", "Suspicious Parent-Child Process", "high", 0.80, ev)
+		a.Evidence["parent_process"] = parentName
+		a.Evidence["child_process"] = child
+		a.Evidence["ppid"] = ppid
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RulePowershellEncoded(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process", "name"))
+		if name != "powershell.exe" && name != "pwsh.exe" {
+			continue
+		}
+		cmdLine := strings.ToLower(EpStr(ev, "process", "command_line"))
+		matched := false
+		for _, indicator := range powershellEncodedIndicators {
+			if strings.Contains(cmdLine, indicator) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		a := MakeEndpointAlert("powershell_encoded_command", "v1", "PowerShell Encoded Command Execution", "high", 0.85, ev)
+		a.Evidence["command_line"] = EpStr(ev, "process", "command_line")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleSuspiciousTempFile(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "file_write" {
+			continue
+		}
+		filePath := strings.ToLower(EpStr(ev, "file", "path"))
+		op := strings.ToLower(EpStr(ev, "file", "operation"))
+		if op != "create" && op != "modify" && op != "overwrite" {
+			continue
+		}
+		inTemp := false
+		for _, pat := range tempPathPatterns {
+			if strings.Contains(filePath, pat) {
+				inTemp = true
+				break
+			}
+		}
+		if !inTemp {
+			continue
+		}
+		hasExec := false
+		for _, ext := range executableExtensions {
+			if strings.HasSuffix(filePath, ext) {
+				hasExec = true
+				break
+			}
+		}
+		if !hasExec {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_temp_file_write", "v1", "Executable Written to Temporary Directory", "high", 0.78, ev)
+		a.Evidence["file_path"] = EpStr(ev, "file", "path")
+		a.Evidence["operation"] = op
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleFailedLoginBurst(events []map[string]any) []EndpointAlert {
+	type loginKey struct{ host, user string }
+	failedByKey := map[loginKey][]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "login_event" {
+			continue
+		}
+		action := strings.ToLower(EpStr(ev, "auth", "action"))
+		if action != "login_failed" && action != "mfa_failed" {
+			continue
+		}
+		key := loginKey{EpStr(ev, "host"), EpStr(ev, "user")}
+		failedByKey[key] = append(failedByKey[key], ev)
+	}
+	var alerts []EndpointAlert
+	for key, failedEvents := range failedByKey {
+		if len(failedEvents) < failedLoginBurstThreshold {
+			continue
+		}
+		a := MakeEndpointAlert("failed_login_burst", "v1", "Failed Login Burst", "medium", 0.72, failedEvents[0])
+		a.Host = key.host
+		a.User = key.user
+		a.Evidence["failed_count"] = len(failedEvents)
+		a.Evidence["threshold"] = failedLoginBurstThreshold
+		ids := make([]string, 0, len(failedEvents))
+		for _, ev := range failedEvents {
+			if id := EpStr(ev, "normalized_event_id"); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		a.EvidenceIDs = ids
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleSuspiciousDNS(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "dns_query" {
+			continue
+		}
+		domain := strings.ToLower(EpStr(ev, "dns", "domain"))
+		if domain == "" {
+			continue
+		}
+		reason := ""
+		if len(domain) > dnsDomainLengthThreshold {
+			reason = "high_length_possible_dga"
+		} else {
+			digits := 0
+			for _, c := range domain {
+				if c >= '0' && c <= '9' {
+					digits++
+				}
+			}
+			if len(domain) > 0 && float64(digits)/float64(len(domain)) > 0.40 {
+				reason = "high_numeric_density"
+			}
+		}
+		if reason == "" {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_dns_query", "v1", "Suspicious DNS Query", "medium", 0.68, ev)
+		a.Evidence["domain"] = domain
+		a.Evidence["reason"] = reason
+		a.Evidence["domain_length"] = len(domain)
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleSuspiciousOutbound(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		dstIP := EpStr(ev, "network", "destination_ip")
+		dstPort := EpInt64(ev, "network", "destination_port")
+		if dstIP == "" || dstPort == 0 {
+			continue
+		}
+		isInternal := false
+		for _, prefix := range internalIPPrefixes {
+			if strings.HasPrefix(dstIP, prefix) {
+				isInternal = true
+				break
+			}
+		}
+		if isInternal {
+			continue
+		}
+		if commonServicePorts[dstPort] {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_outbound_connection", "v1", "Suspicious Outbound Network Connection", "medium", 0.65, ev)
+		a.Evidence["destination_ip"] = dstIP
+		a.Evidence["destination_port"] = dstPort
+		a.Evidence["protocol"] = EpStr(ev, "network", "protocol")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleScheduledTaskPersistence(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		evType := EpStr(ev, "event_type")
+		if evType != "process_start" && evType != "scheduled_task_create" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process", "name"))
+		cmdLine := strings.ToLower(EpStr(ev, "process", "command_line"))
+		isScheduled := scheduledTaskProcessNames[name] ||
+			(name == "schtasks.exe" && (strings.Contains(cmdLine, "/create") || strings.Contains(cmdLine, "-create"))) ||
+			evType == "scheduled_task_create"
+		if !isScheduled {
+			continue
+		}
+		a := MakeEndpointAlert("scheduled_task_persistence", "v1", "Scheduled Task Persistence", "high", 0.75, ev)
+		a.Evidence["process_name"] = EpStr(ev, "process", "name")
+		a.Evidence["command_line"] = EpStr(ev, "process", "command_line")
+		a.Evidence["task_name"] = EpStr(ev, "scheduled_task", "name")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleNewServicePersistence(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		evType := EpStr(ev, "event_type")
+		if evType != "process_start" && evType != "service_install" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process", "name"))
+		cmdLine := strings.ToLower(EpStr(ev, "process", "command_line"))
+		isServiceCreate := (serviceCreateProcessNames[name] && (strings.Contains(cmdLine, "create") || strings.Contains(cmdLine, "config"))) ||
+			evType == "service_install"
+		if !isServiceCreate {
+			continue
+		}
+		a := MakeEndpointAlert("new_service_persistence", "v1", "New Service Installed", "high", 0.78, ev)
+		a.Evidence["process_name"] = EpStr(ev, "process", "name")
+		a.Evidence["command_line"] = EpStr(ev, "process", "command_line")
+		a.Evidence["service_name"] = EpStr(ev, "service", "name")
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func RuleC2BeaconPattern(events []map[string]any) []EndpointAlert {
+	type connKey struct{ host, dst string; port int64 }
+	byKey := map[connKey][]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		dstIP := EpStr(ev, "network", "destination_ip")
+		dstPort := EpInt64(ev, "network", "destination_port")
+		if dstIP == "" || dstPort == 0 {
+			continue
+		}
+		internal := false
+		for _, prefix := range internalIPPrefixes {
+			if strings.HasPrefix(dstIP, prefix) {
+				internal = true
+				break
+			}
+		}
+		if internal {
+			continue
+		}
+		key := connKey{EpStr(ev, "host"), dstIP, dstPort}
+		byKey[key] = append(byKey[key], ev)
+	}
+	var alerts []EndpointAlert
+	for key, evs := range byKey {
+		if len(evs) < c2BeaconMinConnections {
+			continue
+		}
+		a := MakeEndpointAlert("c2_beacon_pattern", "v1", "Possible C2 Beacon Pattern", "high", 0.72, evs[0])
+		a.Host = key.host
+		a.Evidence["destination_ip"] = key.dst
+		a.Evidence["destination_port"] = key.port
+		a.Evidence["connection_count"] = len(evs)
+		a.Evidence["threshold"] = c2BeaconMinConnections
+		ids := make([]string, 0, len(evs))
+		for _, ev := range evs {
+			if id := EpStr(ev, "normalized_event_id"); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		a.EvidenceIDs = ids
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+// ---------------------------------------------------------------------------
+// Behavioral visibility rules — Phase 1 (2026-05-18)
+// Shadow-only; consume enriched endpoint telemetry from behavioral agent.
+// ---------------------------------------------------------------------------
+
+var webServerProcessNames = map[string]bool{
+	"nginx": true, "apache": true, "apache2": true, "httpd": true,
+	"gunicorn": true, "uwsgi": true, "php-fpm": true, "tomcat": true,
+	"mysqld": true, "postgres": true, "mongod": true, "redis-server": true,
+}
+
+// linuxShellNames moved to internal/LinuxShellNames (CODE-STRUCT-DECOMPOSE, seam 3).
+
+const longLivedThresholdSeconds = 3600 // 1 hour
+
+func ruleParentChildChain(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		childName := strings.ToLower(EpStr(ev, "process_name"))
+		parentName := strings.ToLower(EpStr(ev, "parent_process_name"))
+		if !LinuxShellNames[childName] {
+			continue
+		}
+		if !webServerProcessNames[parentName] {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_parent_child_chain", "v1",
+			"Suspicious Parent-Child Process Chain (Behavioral)", "high", 0.78, ev)
+		a.Evidence["parent_process_name"] = parentName
+		a.Evidence["child_process"] = childName
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleShellChain(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		childName := strings.ToLower(EpStr(ev, "process_name"))
+		parentName := strings.ToLower(EpStr(ev, "parent_process_name"))
+		if !LinuxShellNames[childName] {
+			continue
+		}
+		if !LinuxShellNames[parentName] {
+			continue
+		}
+		if childName == parentName {
+			continue // ignore same-shell (e.g. sh → sh in scripts)
+		}
+		a := MakeEndpointAlert("suspicious_shell_chain", "v1",
+			"Suspicious Shell-to-Shell Execution Chain", "high", 0.75, ev)
+		a.Evidence["parent_shell"] = parentName
+		a.Evidence["child_shell"] = childName
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleLongLivedProcess(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		processName := strings.ToLower(EpStr(ev, "process_name"))
+		if !LinuxShellNames[processName] {
+			continue
+		}
+		dur := EpInt64(ev, "duration_seconds")
+		if dur < longLivedThresholdSeconds {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_long_lived_process", "v1",
+			"Suspicious Long-Lived Interactive Process", "medium", 0.65, ev)
+		a.Evidence["process_name"] = processName
+		a.Evidence["duration_seconds"] = dur
+		a.Evidence["threshold_seconds"] = longLivedThresholdSeconds
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func rulePersistenceEntry(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		evType := EpStr(ev, "event_type")
+		if evType != "service_install" && evType != "scheduled_task_create" {
+			continue
+		}
+		itemKey := EpStr(ev, "persistence_item_key")
+		if itemKey == "" {
+			itemKey = EpStr(ev, "service_name")
+		}
+		if itemKey == "" {
+			itemKey = EpStr(ev, "task_name")
+		}
+		a := MakeEndpointAlert("suspicious_persistence_entry", "v1",
+			"New or Unexpected Persistence Entry", "high", 0.72, ev)
+		a.Evidence["event_type"] = evType
+		a.Evidence["item_key"] = itemKey
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+// ---------------------------------------------------------------------------
+// Behavioral analytics rules — Phase 1 (2026-05-18)
+// Shadow-only; advisory findings only. No active containment.
+// ---------------------------------------------------------------------------
+
+// downloaderNames, lolbinNames moved to internal/shadowrules (CODE-STRUCT-DECOMPOSE, seam 3).
+
+const chainScoreThreshold = 0.50
+
+func ruleExecutionChain(events []map[string]any) []EndpointAlert {
+	// Build pid → name map
+	pidToNameAnalytics := map[int64]string{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		pid := EpInt64(ev, "pid")
+		if pid > 0 {
+			pidToNameAnalytics[pid] = strings.ToLower(EpStr(ev, "process_name"))
+		}
+	}
+
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process_name"))
+		if !LinuxShellNames[name] {
+			continue
+		}
+		// Check if ancestry includes a downloader
+		ppid := EpInt64(ev, "ppid")
+		parentName := pidToNameAnalytics[ppid]
+		if !DownloaderNames[parentName] && !LinuxShellNames[parentName] {
+			continue
+		}
+
+		score := 0.60
+		if DownloaderNames[parentName] {
+			score += 0.20
+		}
+		if score < chainScoreThreshold {
+			continue
+		}
+		a := MakeEndpointAlert("suspicious_execution_chain", "v1",
+			"Suspicious Process Execution Chain", "high", score, ev)
+		a.Evidence["chain"] = parentName + " → " + name
+		a.Evidence["score"] = score
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleBeaconPatternAnalytics(events []map[string]any) []EndpointAlert {
+	type destKey struct{ ip string; port int64 }
+	procDests := map[string]map[destKey]int{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		proc := strings.ToLower(EpStr(ev, "process_name"))
+		ip   := EpStr(ev, "remote_ip")
+		port := EpInt64(ev, "remote_port")
+		if ip == "" || proc == "" {
+			continue
+		}
+		if procDests[proc] == nil {
+			procDests[proc] = map[destKey]int{}
+		}
+		procDests[proc][destKey{ip, port}]++
+	}
+
+	var alerts []EndpointAlert
+	for proc, dests := range procDests {
+		for dk, cnt := range dests {
+			if cnt < 3 {
+				continue
+			}
+			// Find a representative event
+			var repEv map[string]any
+			for _, ev := range events {
+				if EpStr(ev, "event_type") == "network_connection" &&
+					strings.ToLower(EpStr(ev, "process_name")) == proc &&
+					EpStr(ev, "remote_ip") == dk.ip {
+					repEv = ev
+					break
+				}
+			}
+			if repEv == nil {
+				continue
+			}
+			a := MakeEndpointAlert("suspicious_beacon_pattern", "v1",
+				"Suspicious Beacon-like Outbound Pattern", "high", 0.75, repEv)
+			a.Evidence["process"]          = proc
+			a.Evidence["destination"]      = fmt.Sprintf("%s:%d", dk.ip, dk.port)
+			a.Evidence["connection_count"] = cnt
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func ruleLolbinUsage(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process_name"))
+		if !LolbinNames[name] {
+			continue
+		}
+		parentName := strings.ToLower(EpStr(ev, "parent_process_name"))
+
+		confidence := 0.60
+		if webServerProcessNames[parentName] {
+			confidence += 0.15
+		}
+		cmdLine := strings.ToLower(EpStr(ev, "command_line"))
+		if strings.Contains(cmdLine, "base64") {
+			confidence += 0.15
+		}
+		a := MakeEndpointAlert("suspicious_lolbin_usage", "v1",
+			"Living-off-the-Land Binary (LOLBin) Usage", "medium", confidence, ev)
+		a.Evidence["lolbin"]         = name
+		a.Evidence["parent_process"] = parentName
+		a.Evidence["confidence"]     = confidence
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func rulePersistenceCorrelationAnalytics(events []map[string]any) []EndpointAlert {
+	var persistEvents, shellEvents, networkEvents []map[string]any
+	for _, ev := range events {
+		evType := EpStr(ev, "event_type")
+		if evType == "service_install" || evType == "scheduled_task_create" {
+			persistEvents = append(persistEvents, ev)
+		} else if evType == "process_start" && LinuxShellNames[strings.ToLower(EpStr(ev, "process_name"))] {
+			shellEvents = append(shellEvents, ev)
+		} else if evType == "network_connection" {
+			networkEvents = append(networkEvents, ev)
+		}
+	}
+	if len(persistEvents) == 0 || len(shellEvents) == 0 || len(networkEvents) == 0 {
+		return nil
+	}
+	// Emit one finding for the combination
+	a := MakeEndpointAlert("suspicious_persistence_correlation", "v1",
+		"Persistence + Active Shell + Outbound Correlation", "high", 0.72, persistEvents[0])
+	a.Evidence["persistence_events"] = len(persistEvents)
+	a.Evidence["shell_events"]       = len(shellEvents)
+	a.Evidence["network_events"]     = len(networkEvents)
+	return []EndpointAlert{a}
+}
+
+func ruleRareParentChildAnalytics(events []map[string]any) []EndpointAlert {
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		parent := strings.ToLower(EpStr(ev, "parent_process_name"))
+		child  := strings.ToLower(EpStr(ev, "process_name"))
+		if !webServerProcessNames[parent] {
+			continue
+		}
+		if !LinuxShellNames[child] {
+			continue
+		}
+		a := MakeEndpointAlert("rare_parent_child_process", "v1",
+			"Rare Parent-Child Process Relationship", "high", 0.82, ev)
+		a.Evidence["parent"] = parent
+		a.Evidence["child"]  = child
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+// ---------------------------------------------------------------------------
+// Threat hunting behavioral rules — Phase 1 (2026-05-18)
+// ---------------------------------------------------------------------------
+
+func ruleRepeatedBehavioralChain(events []map[string]any) []EndpointAlert {
+	// Detect same parent→child chain appearing multiple times in the batch
+	type chainKey struct{ parent, child string }
+	chainCounts := map[chainKey]int{}
+	chainEvs    := map[chainKey]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		parent := strings.ToLower(EpStr(ev, "parent_process_name"))
+		child  := strings.ToLower(EpStr(ev, "process_name"))
+		if !LinuxShellNames[child] && !DownloaderNames[child] {
+			continue
+		}
+		k := chainKey{parent, child}
+		chainCounts[k]++
+		if chainCounts[k] == 1 {
+			chainEvs[k] = ev
+		}
+	}
+	var alerts []EndpointAlert
+	for k, cnt := range chainCounts {
+		if cnt < 2 {
+			continue
+		}
+		a := MakeEndpointAlert("repeated_behavioral_chain", "v1",
+			"Repeated Behavioral Execution Chain Pattern", "high", 0.75, chainEvs[k])
+		a.Evidence["parent"]       = k.parent
+		a.Evidence["child"]        = k.child
+		a.Evidence["repeat_count"] = cnt
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleMultiHostBeaconPattern(events []map[string]any) []EndpointAlert {
+	// Detect same destination targeted by multiple hosts
+	type destKey struct{ ip string; port int64 }
+	destHosts := map[destKey]map[string]bool{}
+	destEvs   := map[destKey]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "network_connection" {
+			continue
+		}
+		ip   := EpStr(ev, "remote_ip")
+		port := EpInt64(ev, "remote_port")
+		host := EpStr(ev, "host")
+		if ip == "" || host == "" {
+			continue
+		}
+		k := destKey{ip, port}
+		if destHosts[k] == nil {
+			destHosts[k] = map[string]bool{}
+		}
+		destHosts[k][host] = true
+		if _, exists := destEvs[k]; !exists {
+			destEvs[k] = ev
+		}
+	}
+	var alerts []EndpointAlert
+	for k, hosts := range destHosts {
+		if len(hosts) < 2 {
+			continue
+		}
+		a := MakeEndpointAlert("multi_host_beacon_pattern", "v1",
+			"Multi-Host Beacon Pattern to Same Destination", "critical", 0.82, destEvs[k])
+		a.Evidence["destination"] = fmt.Sprintf("%s:%d", k.ip, k.port)
+		a.Evidence["host_count"]  = len(hosts)
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func ruleRepeatedLolbinSequence(events []map[string]any) []EndpointAlert {
+	lolbinCounts := map[string]int{}
+	lolbinEvs    := map[string]map[string]any{}
+	for _, ev := range events {
+		if EpStr(ev, "event_type") != "process_start" {
+			continue
+		}
+		name := strings.ToLower(EpStr(ev, "process_name"))
+		if !LolbinNames[name] {
+			continue
+		}
+		lolbinCounts[name]++
+		if lolbinCounts[name] == 1 {
+			lolbinEvs[name] = ev
+		}
+	}
+	var alerts []EndpointAlert
+	for name, cnt := range lolbinCounts {
+		if cnt < 3 {
+			continue
+		}
+		a := MakeEndpointAlert("repeated_lolbin_sequence", "v1",
+			"Repeated LOLBin Execution Sequence", "high", 0.72, lolbinEvs[name])
+		a.Evidence["lolbin"]       = name
+		a.Evidence["repeat_count"] = cnt
+		alerts = append(alerts, a)
+	}
+	return alerts
+}
+
+func rulePersistenceReactivation(events []map[string]any) []EndpointAlert {
+	// Detect persistence item key appearing in both service_install and a later snapshot's service_install
+	seenPersist := map[string]int{}
+	var alerts []EndpointAlert
+	for _, ev := range events {
+		evType := EpStr(ev, "event_type")
+		if evType != "service_install" && evType != "scheduled_task_create" {
+			continue
+		}
+		key := EpStr(ev, "service_name")
+		if key == "" {
+			key = EpStr(ev, "task_name")
+		}
+		if key == "" {
+			continue
+		}
+		seenPersist[key]++
+		if seenPersist[key] == 2 {
+			a := MakeEndpointAlert("persistence_reactivation_pattern", "v1",
+				"Persistence Item Reactivation Pattern", "high", 0.70, ev)
+			a.Evidence["item_key"]     = key
+			a.Evidence["event_type"]   = evType
+			a.Evidence["repeat_count"] = seenPersist[key]
+			alerts = append(alerts, a)
+		}
+	}
+	return alerts
+}
+
+func CorrelateEndpointShadow(events []map[string]any) []EndpointAlert {
+	endpointEvents := make([]map[string]any, 0, len(events))
+	for _, ev := range events {
+		if EpStr(ev, "telemetry_type") == "endpoint" {
+			endpointEvents = append(endpointEvents, ev)
+		}
+	}
+	if len(endpointEvents) == 0 {
+		return nil
+	}
+	var alerts []EndpointAlert
+	alerts = append(alerts, RuleParentChildProcess(endpointEvents)...)
+	alerts = append(alerts, RulePowershellEncoded(endpointEvents)...)
+	alerts = append(alerts, RuleSuspiciousTempFile(endpointEvents)...)
+	alerts = append(alerts, RuleFailedLoginBurst(endpointEvents)...)
+	alerts = append(alerts, RuleSuspiciousDNS(endpointEvents)...)
+	alerts = append(alerts, RuleSuspiciousOutbound(endpointEvents)...)
+	alerts = append(alerts, RuleScheduledTaskPersistence(endpointEvents)...)
+	alerts = append(alerts, RuleNewServicePersistence(endpointEvents)...)
+	alerts = append(alerts, RuleC2BeaconPattern(endpointEvents)...)
+	// Phase 1 behavioral visibility rules (2026-05-18)
+	alerts = append(alerts, ruleParentChildChain(endpointEvents)...)
+	alerts = append(alerts, ruleShellChain(endpointEvents)...)
+	alerts = append(alerts, ruleLongLivedProcess(endpointEvents)...)
+	alerts = append(alerts, rulePersistenceEntry(endpointEvents)...)
+	// Phase 1 behavioral analytics rules (2026-05-18)
+	alerts = append(alerts, ruleExecutionChain(endpointEvents)...)
+	alerts = append(alerts, ruleBeaconPatternAnalytics(endpointEvents)...)
+	alerts = append(alerts, ruleLolbinUsage(endpointEvents)...)
+	alerts = append(alerts, rulePersistenceCorrelationAnalytics(endpointEvents)...)
+	alerts = append(alerts, ruleRareParentChildAnalytics(endpointEvents)...)
+	// Threat hunting behavioral rules (2026-05-18)
+	alerts = append(alerts, ruleRepeatedBehavioralChain(endpointEvents)...)
+	alerts = append(alerts, ruleMultiHostBeaconPattern(endpointEvents)...)
+	alerts = append(alerts, ruleRepeatedLolbinSequence(endpointEvents)...)
+	alerts = append(alerts, rulePersistenceReactivation(endpointEvents)...)
+	return DedupeEndpointAlerts(alerts)
+}

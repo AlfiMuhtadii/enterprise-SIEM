@@ -232,3 +232,118 @@ func TestCorrelateEndpointShadowStreamingAggregates(t *testing.T) {
 		}
 	}
 }
+
+func TestRuleParentChildProcessFiresOnSuspiciousPair(t *testing.T) {
+	events := []map[string]any{
+		{
+			"event_type": "process_start",
+			"process":    map[string]any{"pid": float64(100), "name": "winword.exe"},
+		},
+		{
+			"event_type": "process_start",
+			"process":    map[string]any{"pid": float64(200), "ppid": float64(100), "name": "cmd.exe"},
+		},
+	}
+	alerts := RuleParentChildProcess(events)
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert for winword.exe spawning cmd.exe, got %d", len(alerts))
+	}
+	if alerts[0].RuleID != "suspicious_parent_child_process" {
+		t.Errorf("expected rule ID suspicious_parent_child_process, got %q", alerts[0].RuleID)
+	}
+	if alerts[0].Evidence["parent_process"] != "winword.exe" || alerts[0].Evidence["child_process"] != "cmd.exe" {
+		t.Errorf("unexpected evidence: %v", alerts[0].Evidence)
+	}
+}
+
+func TestRuleParentChildProcessNoFireOnBenignPair(t *testing.T) {
+	events := []map[string]any{
+		{
+			"event_type": "process_start",
+			"process":    map[string]any{"pid": float64(100), "name": "explorer.exe"},
+		},
+		{
+			"event_type": "process_start",
+			"process":    map[string]any{"pid": float64(200), "ppid": float64(100), "name": "notepad.exe"},
+		},
+	}
+	if alerts := RuleParentChildProcess(events); len(alerts) != 0 {
+		t.Errorf("expected 0 alerts for a benign parent-child pair, got %d", len(alerts))
+	}
+}
+
+func TestRuleFailedLoginBurstFiresAtThreshold(t *testing.T) {
+	events := make([]map[string]any, 0, 3)
+	for i := 0; i < 3; i++ {
+		events = append(events, map[string]any{
+			"event_type": "login_event",
+			"host":       "host-1",
+			"user":       "alice",
+			"auth":       map[string]any{"action": "login_failed"},
+		})
+	}
+	alerts := RuleFailedLoginBurst(events)
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert at the failed-login-burst threshold, got %d", len(alerts))
+	}
+	if alerts[0].Evidence["failed_count"] != 3 {
+		t.Errorf("expected failed_count=3, got %v", alerts[0].Evidence["failed_count"])
+	}
+}
+
+func TestRuleParentChildChainFiresOnWebServerSpawningShell(t *testing.T) {
+	events := []map[string]any{
+		{"event_type": "process_start", "process_name": "bash", "parent_process_name": "nginx"},
+	}
+	alerts := ruleParentChildChain(events)
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert for nginx spawning bash, got %d", len(alerts))
+	}
+	if alerts[0].RuleID != "suspicious_parent_child_chain" {
+		t.Errorf("expected rule ID suspicious_parent_child_chain, got %q", alerts[0].RuleID)
+	}
+}
+
+func TestRuleParentChildChainNoFireOnNonWebServerParent(t *testing.T) {
+	events := []map[string]any{
+		{"event_type": "process_start", "process_name": "bash", "parent_process_name": "explorer"},
+	}
+	if alerts := ruleParentChildChain(events); len(alerts) != 0 {
+		t.Errorf("expected 0 alerts for a non-web-server parent, got %d", len(alerts))
+	}
+}
+
+func TestCorrelateEndpointShadowEmptyEvents(t *testing.T) {
+	if got := CorrelateEndpointShadow(nil); got != nil {
+		t.Errorf("expected nil for empty events, got %v", got)
+	}
+}
+
+func TestCorrelateEndpointShadowFiltersToEndpointTelemetryOnly(t *testing.T) {
+	events := []map[string]any{
+		{"telemetry_type": "dns", "event_type": "process_start", "process_name": "bash", "parent_process_name": "nginx"},
+	}
+	if got := CorrelateEndpointShadow(events); got != nil {
+		t.Errorf("expected nil when no events have telemetry_type=endpoint, got %v", got)
+	}
+}
+
+func TestCorrelateEndpointShadowAggregatesCoreAndBehavioralRules(t *testing.T) {
+	events := []map[string]any{
+		{
+			"telemetry_type":      "endpoint",
+			"event_type":          "process_start",
+			"process_name":        "bash",
+			"parent_process_name": "nginx",
+		},
+	}
+	alerts := CorrelateEndpointShadow(events)
+	if len(alerts) == 0 {
+		t.Fatal("expected at least one alert from the aggregated core+behavioral rule set")
+	}
+	for _, a := range alerts {
+		if !a.ShadowMode {
+			t.Errorf("expected every endpoint shadow alert to have ShadowMode=true, rule=%s", a.RuleID)
+		}
+	}
+}
