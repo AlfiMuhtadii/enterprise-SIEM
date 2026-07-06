@@ -276,7 +276,7 @@ Options:
   --quiet      suppress console output
 ```
 
-Checks PDP-01 through PDP-14. Exit 0=PASS, 1=FAIL, 2=ERROR.
+Checks PDP-01 through PDP-15. Exit 0=PASS, 1=FAIL, 2=ERROR.
 
 | Check | Description | Severity (production) |
 |---|---|---|
@@ -294,3 +294,14 @@ Checks PDP-01 through PDP-14. Exit 0=PASS, 1=FAIL, 2=ERROR.
 | PDP-12 | Backup/report/log paths documented | WARN |
 | PDP-13 | Accepted and deferred risks referenced | WARN |
 | PDP-14 | No active scanning / autonomous remediation | FAIL |
+| PDP-15 | Datastore credentials fail closed (no weak defaults) | FAIL |
+
+PDP-15 (ENT-SEC-WEAK-DEFAULT-SECRETS): the base `docker-compose.yml` falls
+back to well-known weak defaults for datastore credentials
+(`${DB_PASSWORD:-postgres}`, `${CLICKHOUSE_PASSWORD:-detector}`,
+`${GF_SECURITY_ADMIN_PASSWORD:-admin}`). `docker-compose.prod.yml` overrides
+`postgres`, `clickhouse`, and `grafana` with `${VAR:?message}` fail-closed
+syntax so a production deploy refuses to start rather than silently
+accepting the dev defaults if the operator forgets to set them. The check
+also verifies the production env file doesn't leave these on a placeholder
+value.

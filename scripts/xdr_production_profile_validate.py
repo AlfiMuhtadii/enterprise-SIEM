@@ -21,6 +21,7 @@ Checks:
   PDP-12  Backup / report / log paths documented
   PDP-13  Accepted risks and deferred risks referenced in docs
   PDP-14  No active scanning / autonomous remediation flags enabled
+  PDP-15  Datastore credentials fail closed (ENT-SEC-WEAK-DEFAULT-SECRETS)
 
 Severity per profile:
   local      → WARN for production-only missing items
@@ -98,6 +99,19 @@ _DATASTORE_SERVICES = {"postgres", "clickhouse", "opensearch", "qdrant"}
 
 # Well-known ports for datastores that should never be public.
 _DATASTORE_CONTAINER_PORTS = {"5432", "8123", "9000", "9200", "9600", "6333", "6334"}
+
+# ENT-SEC-WEAK-DEFAULT-SECRETS: container-side credential env keys that the
+# base docker-compose.yml falls back to a well-known weak default for
+# (${VAR:-postgres} etc.) — docker-compose.prod.yml must override each with
+# fail-closed ${VAR:?message} syntax rather than inheriting the weak default.
+_DATASTORE_CREDENTIAL_KEYS = {
+    "postgres": ["POSTGRES_PASSWORD"],
+    "clickhouse": ["CLICKHOUSE_PASSWORD"],
+    "grafana": ["GF_SECURITY_ADMIN_USER", "GF_SECURITY_ADMIN_PASSWORD"],
+}
+
+# Env-file keys (production env file, not compose) holding the same credentials.
+_DATASTORE_CREDENTIAL_ENV_KEYS = ["DB_PASSWORD", "CLICKHOUSE_PASSWORD", "GF_SECURITY_ADMIN_PASSWORD"]
 
 # Critical services that must have restart: always in production.
 _RESTART_SERVICES = {
@@ -601,6 +615,53 @@ def check_no_active_scanning(compose_data: dict, env: dict, profile: str) -> dic
     )
 
 
+def check_datastore_credentials_fail_closed(compose_data: dict, env: dict, profile: str) -> dict:
+    """ENT-SEC-WEAK-DEFAULT-SECRETS: the base docker-compose.yml falls back to
+    well-known weak defaults (postgres/detector/admin) for datastore
+    credentials. docker-compose.prod.yml must override each with fail-closed
+    ${VAR:?message} syntax — a missing override, or one that still resolves
+    to a placeholder/weak value, means a production deploy can silently
+    succeed with the dev defaults."""
+    services = compose_data.get("services") or {}
+    violations: list[str] = []
+
+    for svc_name, keys in _DATASTORE_CREDENTIAL_KEYS.items():
+        svc = services.get(svc_name) or {}
+        svc_env = svc.get("environment") or {}
+        for key in keys:
+            raw = str(svc_env.get(key, "")).strip()
+            if raw == "":
+                violations.append(
+                    f"{svc_name}.{key} not overridden in docker-compose.prod.yml "
+                    "(base compose's weak default still applies)"
+                )
+            elif ":?" not in raw:
+                violations.append(
+                    f"{svc_name}.{key}={raw!r} does not fail closed "
+                    "(expected ${VAR:?message} syntax)"
+                )
+
+    for key in _DATASTORE_CREDENTIAL_ENV_KEYS:
+        val = env.get(key, "").strip()
+        if val in _BAD_SECRETS or val.startswith("REPLACE_WITH_"):
+            violations.append(f"env.{key}={val!r} is a placeholder/default value")
+
+    passed = len(violations) == 0
+    sev = _severity(profile, WARN, FAIL, FAIL)
+    detail = (
+        "Datastore credentials fail closed and are not left on placeholder values."
+        if passed
+        else f"Weak-default/placeholder datastore credentials found: {violations}"
+    )
+    return _check(
+        "PDP-15", "Datastore credentials fail closed (no weak defaults)",
+        passed, sev, detail,
+        "Override POSTGRES_PASSWORD/CLICKHOUSE_PASSWORD/GF_SECURITY_ADMIN_* in "
+        "docker-compose.prod.yml with ${VAR:?message} syntax, and set strong "
+        "values (not placeholders) in the production env file.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
@@ -651,6 +712,7 @@ def run_all_checks(
     results.append(check_backup_docs(root, profile))
     results.append(check_risk_docs(root, profile))
     results.append(check_no_active_scanning(compose_data, env, profile))
+    results.append(check_datastore_credentials_fail_closed(compose_data, env, profile))
 
     return results
 

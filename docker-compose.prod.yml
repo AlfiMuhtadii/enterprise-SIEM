@@ -49,6 +49,11 @@ services:
   # ---------------------------------------------------------------------------
   postgres:
     ports: !reset []
+    environment:
+      # Fail-closed: base docker-compose.yml falls back to the well-known
+      # ${DB_PASSWORD:-postgres} default — refuse to start in production
+      # rather than silently accepting it (ENT-SEC-WEAK-DEFAULT-SECRETS).
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set to a strong value in production — see .env.production.example}
     restart: always
     deploy:
       resources:
@@ -58,6 +63,8 @@ services:
 
   clickhouse:
     ports: !reset []
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set to a strong value in production — see .env.production.example}
     restart: always
     deploy:
       resources:
@@ -90,6 +97,9 @@ services:
     ports: !reset
       # Grafana UI — localhost-only; access via SSH tunnel (ssh -L 3000:localhost:3000)
       - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:?GF_SECURITY_ADMIN_USER must be set in production — see .env.production.example}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD must be set to a strong value in production — see .env.production.example}
     volumes:
       # Production: provisioning and dashboards are read-only to prevent drift
       - ./infra/analytics/grafana/provisioning:/etc/grafana/provisioning:ro

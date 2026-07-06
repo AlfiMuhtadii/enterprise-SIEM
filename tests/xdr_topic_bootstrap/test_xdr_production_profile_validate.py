@@ -38,6 +38,9 @@ def _secure_env(**overrides) -> dict:
         "XDR_ALERT_WRITER_INTERNAL_TOKEN":     "c" * 64,
         "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN": "d" * 64,
         "XDR_CORRELATION_INTERNAL_TOKEN":      "e" * 64,
+        "DB_PASSWORD":                         "f" * 32,
+        "CLICKHOUSE_PASSWORD":                 "g" * 32,
+        "GF_SECURITY_ADMIN_PASSWORD":          "h" * 32,
     }
     base.update(overrides)
     return base
@@ -53,10 +56,15 @@ def _secure_compose() -> dict:
             },
             "postgres": {
                 "ports": [],
+                "environment": {"POSTGRES_PASSWORD": "${DB_PASSWORD:?DB_PASSWORD must be set}"},
                 "restart": "always",
                 "healthcheck": {"test": ["CMD", "pg_isready"]},
             },
-            "clickhouse": {"ports": [], "restart": "always"},
+            "clickhouse": {
+                "ports": [],
+                "environment": {"CLICKHOUSE_PASSWORD": "${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}"},
+                "restart": "always",
+            },
             "opensearch": {
                 "ports": [],
                 "restart": "always",
@@ -69,6 +77,10 @@ def _secure_compose() -> dict:
             },
             "grafana": {
                 "ports": ["127.0.0.1:3000:3000"],
+                "environment": {
+                    "GF_SECURITY_ADMIN_USER": "${GF_SECURITY_ADMIN_USER:?GF_SECURITY_ADMIN_USER must be set}",
+                    "GF_SECURITY_ADMIN_PASSWORD": "${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD must be set}",
+                },
                 "volumes": [
                     "./infra/analytics/grafana/provisioning:/etc/grafana/provisioning:ro",
                     "./infra/analytics/grafana/dashboards:/var/lib/grafana/dashboards:ro",
@@ -128,6 +140,16 @@ class TestConstants(unittest.TestCase):
         self.assertIn("local", pdp.PROFILES)
         self.assertIn("staging", pdp.PROFILES)
         self.assertIn("production", pdp.PROFILES)
+
+    def test_datastore_credential_keys_cover_postgres_clickhouse_grafana(self):
+        self.assertIn("postgres", pdp._DATASTORE_CREDENTIAL_KEYS)
+        self.assertIn("clickhouse", pdp._DATASTORE_CREDENTIAL_KEYS)
+        self.assertIn("grafana", pdp._DATASTORE_CREDENTIAL_KEYS)
+
+    def test_datastore_credential_env_keys_cover_db_clickhouse_grafana(self):
+        self.assertIn("DB_PASSWORD", pdp._DATASTORE_CREDENTIAL_ENV_KEYS)
+        self.assertIn("CLICKHOUSE_PASSWORD", pdp._DATASTORE_CREDENTIAL_ENV_KEYS)
+        self.assertIn("GF_SECURITY_ADMIN_PASSWORD", pdp._DATASTORE_CREDENTIAL_ENV_KEYS)
 
 
 # ---------------------------------------------------------------------------
@@ -504,17 +526,67 @@ class TestNoActiveScanning(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Tests: PDP-15 — datastore credentials fail closed (ENT-SEC-WEAK-DEFAULT-SECRETS)
+# ---------------------------------------------------------------------------
+
+class TestDatastoreCredentialsFailClosed(unittest.TestCase):
+    def test_passes_with_secure_compose_and_env(self):
+        r = pdp.check_datastore_credentials_fail_closed(_secure_compose(), _secure_env(), "production")
+        self.assertEqual(pdp.PASS, r["status"])
+        self.assertEqual("PDP-15", r["check_id"])
+
+    def test_fails_when_postgres_password_not_overridden(self):
+        compose = _secure_compose()
+        del compose["services"]["postgres"]["environment"]
+        r = pdp.check_datastore_credentials_fail_closed(compose, _secure_env(), "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+        self.assertIn("postgres.POSTGRES_PASSWORD", r["detail"])
+
+    def test_fails_when_override_does_not_fail_closed(self):
+        compose = _secure_compose()
+        compose["services"]["clickhouse"]["environment"]["CLICKHOUSE_PASSWORD"] = "${CLICKHOUSE_PASSWORD:-detector}"
+        r = pdp.check_datastore_credentials_fail_closed(compose, _secure_env(), "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+        self.assertIn("does not fail closed", r["detail"])
+
+    def test_fails_when_grafana_admin_password_missing(self):
+        compose = _secure_compose()
+        del compose["services"]["grafana"]["environment"]["GF_SECURITY_ADMIN_PASSWORD"]
+        r = pdp.check_datastore_credentials_fail_closed(compose, _secure_env(), "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_fails_when_db_password_env_is_placeholder(self):
+        env = _secure_env(DB_PASSWORD="REPLACE_WITH_STRONG_PASSWORD")
+        r = pdp.check_datastore_credentials_fail_closed(_secure_compose(), env, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_fails_when_clickhouse_password_env_is_weak_default(self):
+        env = _secure_env(CLICKHOUSE_PASSWORD="detector")
+        r = pdp.check_datastore_credentials_fail_closed(_secure_compose(), env, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_fails_when_grafana_password_env_is_weak_default(self):
+        env = _secure_env(GF_SECURITY_ADMIN_PASSWORD="admin")
+        r = pdp.check_datastore_credentials_fail_closed(_secure_compose(), env, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_warns_in_local_profile(self):
+        r = pdp.check_datastore_credentials_fail_closed({}, {}, "local")
+        self.assertEqual(pdp.WARN, r["status"])
+
+
+# ---------------------------------------------------------------------------
 # Tests: run_all_checks (integration)
 # ---------------------------------------------------------------------------
 
 class TestRunAllChecks(unittest.TestCase):
-    def test_returns_14_checks(self):
+    def test_returns_15_checks(self):
         args = _args(profile="local")
         checks = pdp.run_all_checks(
             args, root=pdp.PROJECT_ROOT,
             env=_secure_env(), compose_data=_secure_compose(),
         )
-        self.assertEqual(14, len(checks))
+        self.assertEqual(15, len(checks))
 
     def test_all_check_ids_present(self):
         args = _args(profile="local")
@@ -523,7 +595,7 @@ class TestRunAllChecks(unittest.TestCase):
             env=_secure_env(), compose_data=_secure_compose(),
         )
         ids = {c["check_id"] for c in checks}
-        for n in range(1, 15):
+        for n in range(1, 16):
             self.assertIn(f"PDP-{n:02d}", ids)
 
     def test_overall_pass_with_secure_config(self):
@@ -640,7 +712,7 @@ class TestMainExitCode(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("overall", data)
             self.assertIn("checks", data)
-            self.assertEqual(14, len(data["checks"]))
+            self.assertEqual(15, len(data["checks"]))
         finally:
             os.unlink(tmp)
 

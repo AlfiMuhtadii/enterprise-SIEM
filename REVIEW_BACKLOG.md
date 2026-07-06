@@ -9,10 +9,17 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 | Task ID | Title | File / Component | Priority | Status |
 |---|---|---|---|---|
-| **IDENTITY-SSO-MFA** | [Enterprise-XDR] No enterprise SSO (SAML/OIDC) or MFA for analyst authentication — session/password only | `app/Http/Controllers/Auth/*`, `config/auth.php`, `routes/auth.php` | High | Proposed |
-| **OBS-OTEL-TRACING** | [Enterprise-XDR] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent) | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | Medium | Proposed |
-| **ML-SERVE-ONLINE** | [Enterprise-XDR] Trained multiclass LR model is offline-script-only; not deployed as an online inference service in the live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | Medium-High | Proposed |
-| **SECRETS-VAULT** | [Enterprise-XDR] No centralized secrets manager (Vault/KMS); all service/DB/HMAC secrets resolved from `.env`/env vars | `config/*`, `docker-compose*.yml`, `services/*`, `app/Services/InternalAuthService.php` | Medium | Proposed |
+| **META-DOC-MISREPRESENT** | [Governance — do first] Docs frame product as academic/demo (`CLAUDE.md`, `docs/thesis/*`, prod-compose header "does NOT claim commercial readiness") — contradicts enterprise/international target; gates re-classification of all deferred items | `CLAUDE.md`, `docs/thesis/*`, `docs/guides/LIMITATIONS_AND_CLAIMS.md`, `docker-compose.prod.yml`, `docs/operations/PRODUCTION_DEPLOYMENT_PROFILE.md` | High | Proposed |
+| **ENT-SEC-OPENSEARCH-OPEN** | [Enterprise BLOCKER] OpenSearch runs `plugins.security.disabled=true` incl. prod overlay → unauth+unencrypted store of alert evidence+PII; fails SOC2 CC6 / ISO A.8 / GDPR Art.32. Enable security plugin+TLS+RBAC+audit; prod-profile validator must fail on disabled security | `docker-compose.yml`, `docker-compose.prod.yml`, `services/alert-writer-service/main.py`, `scripts/xdr_production_profile_validate.py` | **Critical** | Proposed |
+| **ENT-SEC-NO-TLS-INTERNAL** | [Enterprise BLOCKER] No TLS/mTLS on any internal hop (Pandaproxy/OpenSearch plaintext HTTP, Postgres no sslmode, static bearer tokens) — supersedes deferred ARCH-MTLS-SEC; mandatory at enterprise bar | `services/*`, `app/Services/InternalAuthService.php`, DB DSNs | High | Proposed (re-open ARCH-MTLS-SEC) |
+| **ENT-TENANCY-NO-DB-ENFORCEMENT** | [Enterprise BLOCKER] Isolation is app-layer `where('tenant_id')` only (ASSET-TENANT-OVERWRITE proves it leaks); no DB RLS. Supersedes deferred TENANT-ENFORCE-RLS — mandatory for multi-tenant SaaS | `app/Services/TenantBoundaryService.php`, Postgres RLS | High | Proposed (re-open TENANT-ENFORCE-RLS) |
+| **ENT-REL-SIMULATED-HA** | [Enterprise BLOCKER] HA/scale/DR "PASS" is computed, not measured on real cluster (SIM-LAYER Track B + HA-DRILL-01). "Too heavy for laptop" invalid at enterprise bar — run on real staging before any availability claim | `app/Services/EnterpriseScaleHaService.php` et al., `docker-compose.ha.yml` | High | Proposed (re-open Track B + HA-DRILL-01) |
+| **ENT-DETECT-ML-NOT-LIVE** | [Enterprise product-claim BLOCKER] "Hybrid rule+ML" is a headline claim but live path is rule-only; model is offline-scripts only. Serve as shadow/advisory scorer at minimum | `services/correlation-worker/main.go`, `scripts/train_ai_detector.py`, `storage/app/ai_detector_model.pkl` | High | Proposed (re-rank ML-SERVE-ONLINE) |
+| **ENT-SDLC-NO-SUPPLYCHAIN** | [Enterprise SDLC] No dep pinning/lock, no SBOM, no image scan, no signed builds — required for international procurement / EU CRA. Pin+lock, syft/cyclonedx SBOM, trivy scan gate, cosign sign | `services/*/requirements.txt`, `services/*/Dockerfile`, CI | Medium | Proposed |
+| **DATA-RESIDENCY-ERASURE** | [Compliance] No data-residency, configurable retention, or GDPR right-to-erasure — only fixed 30/90-day prune. Add per-tenant retention + erasure workflow | `app/Console/Commands/SecurityRetentionCommand.php`, retention config | High | Proposed |
+| **IDENTITY-SSO-MFA** | [Enterprise BLOCKER — re-ranked] No SSO (SAML/OIDC) or MFA on the privileged SOC console that approves response commands — SOC2 CC6.1 | `app/Http/Controllers/Auth/*`, `config/auth.php`, `routes/auth.php` | High | Proposed |
+| **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
+| **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
 | **CODE-STRUCT-DECOMPOSE** | [Structure/Maintainability] `correlation-worker/main.go` is 2944 lines in one file (normalizer 1181, alert-writer 1277) — no package decomposition; hurts testability at enterprise scale | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
@@ -20,6 +27,11 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
 | **CONSUMER-GROUP-EPHEMERAL** | [Scalability] Fresh ms-timestamp consumer group + `earliest` on every start/recovery → full topic history reprocessed each restart; use stable group + offset commits, recreate identity only on offset_out_of_range | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | Medium | Proposed |
+| **NORM-ASYNC-COMMIT-LOSS** | [Reliability] Normalizer relies on Pandaproxy fetch-time auto-commit while producing async → up to 200k queued events lost on crash between offset-advance and flush; commit only after producer confirms publish | `services/normalizer-worker/main.go` | Medium | Proposed |
+| **TEST-NO-PARALLEL** | [Test infra] No paratest; tests serial only because of single shared DB. Now that `detector_test` is isolated, `php artisan test --parallel` (per-worker DBs) = biggest speedup; flip CLAUDE.md "no parallel" rule | `composer.json`, CLAUDE.md | High | Proposed |
+| **TEST-NO-SCHEMA-DUMP** | [Test infra] No schema dump → 139 migrations run every fresh; mandated manual `migrate:fresh` doubles it (redundant with RefreshDatabase). Add `schema:dump --prune`; drop manual prefix after TEST-UNTRAITED | `database/schema/`, CLAUDE.md | Medium | Proposed |
+| **TEST-UNTRAITED** | [Test infra] 7 test files use no DB trait → any DB writes commit + leak across runs (the flakiness migrate:fresh papers over). Audit + add RefreshDatabase/DatabaseTransactions or confirm DB-free | `tests/Feature/{DocumentationFreeze,EndpointAgentStatusHelper,IntegrationConfigCache,InternalAuthConfigMapping,XdrRuleRegistryValidator}Test.php` | Medium | Proposed |
+| **TEST-PER-TEST-SEED** | [Test infra] 16 classes seed in setUp → heavy DemoSocSeeder (218 lines) re-runs per test method. Use minimal per-test fixtures or seed-once read-only | 16 `tests/Feature/*Test.php`, `database/seeders/DemoSocSeeder.php` | Low | Proposed |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
@@ -90,26 +102,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   domain-specific 6h soak gate. Distinct from ML-DRIFT-03 (retraining/drift), which remains
   deferred as resource-heavy.
 - **Safety:** Advisory/shadow scoring only — no autonomous response; respects soak gates.
-
-## Proposed Task: SECRETS-VAULT — Centralized secrets manager instead of `.env`/env-var secrets
-
-- **Priority:** Medium
-- **Component:** `config/*`, `docker-compose*.yml`, `app/Services/InternalAuthService.php`,
-  `services/*`
-- **Finding:** All secrets — DB credentials, `XDR_INTERNAL_AUTH_SECRET`, per-service internal
-  tokens, agent HMAC secrets, LLM API keys — resolve from `.env`/environment variables. No
-  integration with a secrets manager (HashiCorp Vault, AWS Secrets Manager, K8s
-  sealed-secrets); grep for `vault|kms|secretsmanager` finds nothing. INFRA-2 (done) only
-  moved *hardcoded compose* secrets into `.env`; it did not add a vault, and there is no
-  rotation mechanism for internal service tokens.
-- **Why enterprise-relevant:** Plain env-var secrets with no rotation/audit are below
-  enterprise bar (SOC 2 CC6). Related to ARCH-MTLS-SEC (deferred) but distinct: mTLS covers
-  transport identity; this covers secret storage/rotation/lifecycle.
-- **Proposed fix:** Add a pluggable secret-provider abstraction (env driver default for demo;
-  Vault/KMS driver behind `XDR_SECRET_BACKEND`), route `InternalAuthService` and service-token
-  reads through it, and add a `security:rotate-internal-token` command + rotation runbook.
-  Keep the env driver default so the demo is unchanged.
-- **Safety:** Config/security hardening only; no forbidden boundary touched.
 
 ## Proposed Task: TECH-EOL-UPGRADE — Runtime/framework are at or past end-of-life
 
@@ -254,3 +246,19 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 Fresh ms-timestamp group + `earliest` on every start/recovery reprocesses full topic history each restart.
 Stable group id + explicit commits; recreate identity only on offset_out_of_range. Enterprise-relevant
 reliability — per classification rules must not be Rejected. See REVIEW_ALL Batch 18.
+
+---
+
+# Claude QC Deep Dive (2026-07-06)
+
+Deeper findings from Claude (source: `REVIEW_ALL.md` — Review Batch 19, CLAUDE-QC-DEEP-DIVE). Verified
+non-duplicate against REVIEW_ALL / REVIEW_REJECTED / REVIEW_COMPLETED. None crosses a CLAUDE.md Forbidden
+Change. Batch 18 note: 10/11 findings already implemented (commits 15e25ef..2a7766f); only
+CONSUMER-GROUP-EPHEMERAL still open.
+
+## Proposed Task: NORM-ASYNC-COMMIT-LOSS — Offset committed before async producer publishes (Medium)
+Normalizer relies on Pandaproxy fetch-time auto-commit while the producer flushes asynchronously; a crash
+between offset-advance and flush drops up to `queueCapacity` (200k) queued events with no replay. Fix:
+disable auto-commit and commit input offset only after `producerLoop` confirms publish (mirror the
+commit-after-write already used for poison isolation). See REVIEW_ALL Batch 19.
+
