@@ -8,6 +8,9 @@ use Tests\TestCase;
 /**
  * Refinement: shared online/offline computation extracted from the SOC dashboard,
  * API, agent and endpoint controllers (previously duplicated 5+ times).
+ *
+ * TEST-UNTRAITED: audited — intentionally DB-free (pure static-method
+ * assertions on EndpointAgentService::computeStatus()). No DB trait needed.
  */
 class EndpointAgentStatusHelperTest extends TestCase
 {

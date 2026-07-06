@@ -4,6 +4,10 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 
+/**
+ * TEST-UNTRAITED: audited — intentionally DB-free (file-existence and
+ * string-content assertions over docs/fixtures only). No DB trait needed.
+ */
 class DocumentationFreezeTest extends TestCase
 {
     // -----------------------------------------------------------------------

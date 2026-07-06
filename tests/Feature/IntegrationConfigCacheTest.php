@@ -11,6 +11,9 @@ use Tests\TestCase;
 /**
  * ENV-CACHE-DRIFT-BATCH — integration adapters + TrustProxies/force_https now read
  * config (config-cache-safe) rather than env() directly.
+ *
+ * TEST-UNTRAITED: audited — intentionally DB-free (config mutation, adapter
+ * instantiation, and source-file content assertions only). No DB trait needed.
  */
 class IntegrationConfigCacheTest extends TestCase
 {

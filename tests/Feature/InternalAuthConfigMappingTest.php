@@ -5,6 +5,10 @@ namespace Tests\Feature;
 use App\Services\InternalAuthService;
 use Tests\TestCase;
 
+/**
+ * TEST-UNTRAITED: audited — intentionally DB-free (config mutation +
+ * InternalAuthService static sign/verify calls only). No DB trait needed.
+ */
 class InternalAuthConfigMappingTest extends TestCase
 {
     /** ENV-CACHE-DRIFT: xdr.internal_auth_secret key must exist in config/xdr.php */
