@@ -89,6 +89,8 @@ return [
             'retention.manage',
             'erasure.request',
             'erasure.approve',
+            'honeytoken.view',
+            'honeytoken.manage',
         ],
         'analyst' => [
             'dashboard.view',
@@ -128,6 +130,7 @@ return [
             'assetinventory.manage',
             'search.view',
             'erasure.request',
+            'honeytoken.view',
         ],
         'viewer' => [
             'dashboard.view',
@@ -150,6 +153,7 @@ return [
             'ai.knowledge.view',
             'assetinventory.view',
             'search.view',
+            'honeytoken.view',
         ],
         'scenario_operator' => [
             'dashboard.view',
@@ -189,6 +193,8 @@ return [
             'dlq.review',
             'shadow.soak.view',
             'shadow.soak.run',
+            'honeytoken.view',
+            'honeytoken.manage',
         ],
     ],
 ];

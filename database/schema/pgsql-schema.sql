@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict c313bWfckWOC69Zn0Zz0yfOe76b6bP86f1jcpCU8zT6bhAm2nDQTZVWtsSeOEzf
+\restrict 2HNiKvayGdPJ3VWQhrM8g9ahdgEC0Uwao2UFIxMTwx9ySvbWXyxH7O9WyZf1NrA
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -7649,6 +7649,81 @@ CREATE SEQUENCE public.ha_validation_runs_id_seq
 --
 
 ALTER SEQUENCE public.ha_validation_runs_id_seq OWNED BY public.ha_validation_runs.id;
+
+
+--
+-- Name: honeytoken_hits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.honeytoken_hits (
+    id bigint NOT NULL,
+    honeytoken_id character varying(255) NOT NULL,
+    alert_id character varying(96),
+    telemetry_event_id bigint,
+    matched_field character varying(80),
+    matched_value character varying(512),
+    matched_at timestamp(0) with time zone NOT NULL,
+    metadata json,
+    created_at timestamp(0) with time zone,
+    updated_at timestamp(0) with time zone
+);
+
+
+--
+-- Name: honeytoken_hits_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.honeytoken_hits_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: honeytoken_hits_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.honeytoken_hits_id_seq OWNED BY public.honeytoken_hits.id;
+
+
+--
+-- Name: honeytokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.honeytokens (
+    id bigint NOT NULL,
+    honeytoken_id character varying(255) NOT NULL,
+    token_type character varying(32) NOT NULL,
+    token_value character varying(512) NOT NULL,
+    label character varying(255),
+    tenant_id character varying(255),
+    is_active boolean DEFAULT true NOT NULL,
+    created_by character varying(120) DEFAULT 'system'::character varying NOT NULL,
+    metadata json,
+    created_at timestamp(0) with time zone,
+    updated_at timestamp(0) with time zone
+);
+
+
+--
+-- Name: honeytokens_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.honeytokens_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: honeytokens_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.honeytokens_id_seq OWNED BY public.honeytokens.id;
 
 
 --
@@ -20231,6 +20306,20 @@ ALTER TABLE ONLY public.ha_validation_runs ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
+-- Name: honeytoken_hits id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytoken_hits ALTER COLUMN id SET DEFAULT nextval('public.honeytoken_hits_id_seq'::regclass);
+
+
+--
+-- Name: honeytokens id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytokens ALTER COLUMN id SET DEFAULT nextval('public.honeytokens_id_seq'::regclass);
+
+
+--
 -- Name: idempotency_validation_records id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -24995,6 +25084,38 @@ ALTER TABLE ONLY public.ha_validation_runs
 
 ALTER TABLE ONLY public.ha_validation_runs
     ADD CONSTRAINT ha_validation_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: honeytoken_hits honeytoken_hits_honeytoken_id_alert_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytoken_hits
+    ADD CONSTRAINT honeytoken_hits_honeytoken_id_alert_id_unique UNIQUE (honeytoken_id, alert_id);
+
+
+--
+-- Name: honeytoken_hits honeytoken_hits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytoken_hits
+    ADD CONSTRAINT honeytoken_hits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: honeytokens honeytokens_honeytoken_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytokens
+    ADD CONSTRAINT honeytokens_honeytoken_id_unique UNIQUE (honeytoken_id);
+
+
+--
+-- Name: honeytokens honeytokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.honeytokens
+    ADD CONSTRAINT honeytokens_pkey PRIMARY KEY (id);
 
 
 --
@@ -31784,6 +31905,41 @@ CREATE INDEX governance_review_findings_trace_id_index ON public.governance_revi
 
 
 --
+-- Name: honeytoken_hits_honeytoken_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX honeytoken_hits_honeytoken_id_index ON public.honeytoken_hits USING btree (honeytoken_id);
+
+
+--
+-- Name: honeytoken_hits_matched_at_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX honeytoken_hits_matched_at_index ON public.honeytoken_hits USING btree (matched_at);
+
+
+--
+-- Name: honeytokens_is_active_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX honeytokens_is_active_index ON public.honeytokens USING btree (is_active);
+
+
+--
+-- Name: honeytokens_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX honeytokens_tenant_id_index ON public.honeytokens USING btree (tenant_id);
+
+
+--
+-- Name: honeytokens_token_type_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX honeytokens_token_type_index ON public.honeytokens USING btree (token_type);
+
+
+--
 -- Name: idempotency_validation_records_event_id_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -36745,13 +36901,13 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict c313bWfckWOC69Zn0Zz0yfOe76b6bP86f1jcpCU8zT6bhAm2nDQTZVWtsSeOEzf
+\unrestrict 2HNiKvayGdPJ3VWQhrM8g9ahdgEC0Uwao2UFIxMTwx9ySvbWXyxH7O9WyZf1NrA
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict 5b6OLNfeeVol1a09BtzyLNcWZ6sPzGju85LUYn9kmt4l7DM9Mda8Ry5ag1pknZz
+\restrict B3t9VSP9p4WlbWphzO30lDrYFD7yCusf6k8UPRBM3acYYKl3vssrD3yajb7J2Pb
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -36914,6 +37070,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 139	2026_07_08_010001_fix_asset_inventory_tenant_scoped_external_id	1
 140	2026_07_09_010001_create_data_residency_erasure_tables	1
 141	2026_07_11_010001_add_mfa_columns_to_users_table	2
+142	2026_07_12_010001_create_honeytoken_tables	3
 \.
 
 
@@ -36921,12 +37078,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 141, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 142, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5b6OLNfeeVol1a09BtzyLNcWZ6sPzGju85LUYn9kmt4l7DM9Mda8Ry5ag1pknZz
+\unrestrict B3t9VSP9p4WlbWphzO30lDrYFD7yCusf6k8UPRBM3acYYKl3vssrD3yajb7J2Pb
 

@@ -25,6 +25,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('soc:ai-evaluate --days=7')->daily();
         $schedule->command('soc:env-validate local')->dailyAt('01:10');
         $schedule->command('soc:retention-cost --days=30')->weekly();
+        $schedule->command('honeytoken:scan')->everyFifteenMinutes();
     }
 
     /**

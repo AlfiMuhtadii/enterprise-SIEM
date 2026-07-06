@@ -1187,6 +1187,15 @@ Route::middleware(['auth', 'soc:advisory.review'])->prefix('advisory')->group(fu
     Route::post('/findings/{findingId}/review', [AdvisoryFindingsController::class, 'review'])->name('advisory.findings.review');
 });
 
+// Honeytoken deception — seeded fake indicators, advisory-only, no offensive deployment
+Route::middleware(['auth', 'soc:honeytoken.view'])->prefix('honeytoken')->group(function () {
+    Route::get('/', [\App\Http\Controllers\SocHoneytokenController::class, 'index'])->name('honeytoken.index');
+});
+Route::middleware(['auth', 'soc:honeytoken.manage'])->prefix('honeytoken')->group(function () {
+    Route::post('/', [\App\Http\Controllers\SocHoneytokenController::class, 'store'])->name('honeytoken.store');
+    Route::post('/{honeytokenId}/deactivate', [\App\Http\Controllers\SocHoneytokenController::class, 'deactivate'])->name('honeytoken.deactivate');
+});
+
 // DLQ Review — normalization failure review, replay-request, and audit trail
 Route::middleware(['auth', 'soc:dlq.view'])->prefix('dlq')->group(function () {
     Route::get('/records',               [DlqController::class, 'index'])->name('dlq.records.index');
