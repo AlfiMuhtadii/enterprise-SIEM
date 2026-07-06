@@ -18,7 +18,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
-| **CODE-STRUCT-DECOMPOSE** (2 of ~5 seams done) | [Structure/Maintainability] `correlation-worker/main.go` now 2438 lines (was 2950) after extracting IOC lookup+cache (`internal/ioc`) and the endpoint-alert foundation + network shadow rules (`internal/shadowrules`), both own packages with own tests, zero behavior change. Remaining seams: core endpoint rules + cross-domain + streaming rules (still in `main.go`, ~1450 lines, could move into `internal/shadowrules` too), Pandaproxy transport (`internal/kafka`); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
+| **CODE-STRUCT-DECOMPOSE** (3 of ~5 seams done) | [Structure/Maintainability] `correlation-worker/main.go` now 2185 lines (was 2950) after extracting IOC lookup+cache, endpoint-alert foundation + network shadow rules, and cross-domain shadow correlation into `internal/shadowrules` (own package, own tests, zero behavior change; also moved 3 shared static tables — `LinuxShellNames`/`DownloaderNames`/`LolbinNames` — that turned out to be used by both the moved and not-yet-moved rule groups). Remaining seams: core endpoint rules + streaming rules (still in `main.go`, ~950 lines), Pandaproxy transport (`internal/kafka`); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
@@ -164,10 +164,22 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   `internal/shadowrules` automatically. `go build`/`go vet`/`go test ./...` clean across all 3
   packages (`main`, `internal/ioc`, `internal/shadowrules`). **Not run**: the live-pipeline
   verifier and an actual `docker build` (Docker daemon unavailable) — recommended before the
-  next deploy, especially given the Dockerfile bug this session already found once. Remaining
-  seams: core endpoint rules + cross-domain + streaming rules (~1450 lines, could extend
-  `internal/shadowrules` or split further), Pandaproxy transport (`internal/kafka`);
-  normalizer/alert-writer decomposition untouched.
+  next deploy, especially given the Dockerfile bug this session already found once.
+- **Progress (2026-07-10, later same day):** Seam 3 — cross-domain shadow correlation
+  (`correlateEndpointShadowCrossDomain` + 5 `ruleCrossDomain*`/`ruleCrossHost*` funcs) moved
+  into `internal/shadowrules` too. Discovered mid-move that this block (and several
+  not-yet-moved rule groups) share 3 static tables — `linuxShellNames`/`downloaderNames`/
+  `lolbinNames` — with the "core endpoint rules" group still in `main.go`; moved those 3 tables
+  to `internal/shadowrules` as exported vars (`LinuxShellNames`/`DownloaderNames`/`LolbinNames`)
+  and updated the ~11 remaining `main.go` usage sites to the qualified form, rather than leaving
+  a duplicate/diverging copy in each package. +4 tests for the cross-domain rules
+  (`CorrelateEndpointShadowCrossDomain` empty/aggregate cases, `ruleCrossDomainIdentityEndpoint`
+  fire/no-fire). `main.go` 2438→2185 lines; `internal/shadowrules/shadowrules.go` now 686 lines.
+  `go build`/`go vet`/`go test ./...` clean across all 3 packages. **Not run**: live-pipeline
+  verifier / `docker build` (daemon unavailable, same standing limitation). Remaining seams:
+  core endpoint rules + streaming rules (~950 lines, could extend `internal/shadowrules` or
+  split further), Pandaproxy transport (`internal/kafka`); normalizer/alert-writer decomposition
+  untouched.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 

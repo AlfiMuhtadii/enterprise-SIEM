@@ -134,3 +134,51 @@ func TestCorrelateNetworkShadowAllAggregatesAcrossRules(t *testing.T) {
 		}
 	}
 }
+
+func TestCorrelateEndpointShadowCrossDomainEmptyEvents(t *testing.T) {
+	if got := CorrelateEndpointShadowCrossDomain(nil); got != nil {
+		t.Errorf("expected nil for empty events, got %v", got)
+	}
+}
+
+func TestRuleCrossDomainIdentityEndpointFiresOnFailureThenShell(t *testing.T) {
+	events := []map[string]any{
+		{"telemetry_type": "identity", "event_type": "login_failed", "user": "alice"},
+		{"telemetry_type": "endpoint", "event_type": "process_start", "user": "alice", "process_name": "bash"},
+	}
+	alerts := ruleCrossDomainIdentityEndpoint(events)
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert for identity-failure-then-shell chain, got %d", len(alerts))
+	}
+	if alerts[0].RuleID != "identity_endpoint_execution_chain" {
+		t.Errorf("expected rule ID identity_endpoint_execution_chain, got %q", alerts[0].RuleID)
+	}
+	if alerts[0].Evidence["advisory"] != "cross_domain_shadow_only" {
+		t.Error("expected advisory=cross_domain_shadow_only in evidence")
+	}
+}
+
+func TestRuleCrossDomainIdentityEndpointNoFireWithoutPriorFailure(t *testing.T) {
+	events := []map[string]any{
+		{"telemetry_type": "endpoint", "event_type": "process_start", "user": "alice", "process_name": "bash"},
+	}
+	if alerts := ruleCrossDomainIdentityEndpoint(events); len(alerts) != 0 {
+		t.Errorf("expected 0 alerts without a prior identity failure, got %d", len(alerts))
+	}
+}
+
+func TestCorrelateEndpointShadowCrossDomainAggregates(t *testing.T) {
+	events := []map[string]any{
+		{"telemetry_type": "identity", "event_type": "login_failed", "user": "alice"},
+		{"telemetry_type": "endpoint", "event_type": "process_start", "user": "alice", "process_name": "bash"},
+	}
+	alerts := CorrelateEndpointShadowCrossDomain(events)
+	if len(alerts) == 0 {
+		t.Fatal("expected at least one alert from the aggregated cross-domain rule set")
+	}
+	for _, a := range alerts {
+		if a.Evidence["advisory"] != "cross_domain_shadow_only" {
+			t.Errorf("expected every cross-domain alert to be tagged advisory=cross_domain_shadow_only, rule=%s", a.RuleID)
+		}
+	}
+}

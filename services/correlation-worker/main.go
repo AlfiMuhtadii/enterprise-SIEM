@@ -1083,7 +1083,7 @@ func correlateEndpointShadowIOC(events []map[string]any, iocURL string) []shadow
 func correlateEndpointShadowAll(events []map[string]any, iocURL string) []shadowrules.EndpointAlert {
 	alerts := correlateEndpointShadow(events)
 	alerts = append(alerts, correlateEndpointShadowIOC(events, iocURL)...)
-	alerts = append(alerts, correlateEndpointShadowCrossDomain(events)...)
+	alerts = append(alerts, shadowrules.CorrelateEndpointShadowCrossDomain(events)...)
 	alerts = append(alerts, correlateEndpointShadowStreaming(events)...)
 	return shadowrules.DedupeEndpointAlerts(alerts)
 }
@@ -1454,11 +1454,7 @@ var webServerProcessNames = map[string]bool{
 	"mysqld": true, "postgres": true, "mongod": true, "redis-server": true,
 }
 
-var linuxShellNames = map[string]bool{
-	"bash": true, "sh": true, "zsh": true, "dash": true, "ksh": true, "tcsh": true, "fish": true,
-	"python": true, "python3": true, "python2": true, "perl": true, "ruby": true,
-	"curl": true, "wget": true,
-}
+// linuxShellNames moved to internal/shadowrules.LinuxShellNames (CODE-STRUCT-DECOMPOSE, seam 3).
 
 const longLivedThresholdSeconds = 3600 // 1 hour
 
@@ -1470,7 +1466,7 @@ func ruleParentChildChain(events []map[string]any) []shadowrules.EndpointAlert {
 		}
 		childName := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
 		parentName := strings.ToLower(shadowrules.EpStr(ev, "parent_process_name"))
-		if !linuxShellNames[childName] {
+		if !shadowrules.LinuxShellNames[childName] {
 			continue
 		}
 		if !webServerProcessNames[parentName] {
@@ -1493,10 +1489,10 @@ func ruleShellChain(events []map[string]any) []shadowrules.EndpointAlert {
 		}
 		childName := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
 		parentName := strings.ToLower(shadowrules.EpStr(ev, "parent_process_name"))
-		if !linuxShellNames[childName] {
+		if !shadowrules.LinuxShellNames[childName] {
 			continue
 		}
-		if !linuxShellNames[parentName] {
+		if !shadowrules.LinuxShellNames[parentName] {
 			continue
 		}
 		if childName == parentName {
@@ -1518,7 +1514,7 @@ func ruleLongLivedProcess(events []map[string]any) []shadowrules.EndpointAlert {
 			continue
 		}
 		processName := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if !linuxShellNames[processName] {
+		if !shadowrules.LinuxShellNames[processName] {
 			continue
 		}
 		dur := shadowrules.EpInt64(ev, "duration_seconds")
@@ -1563,16 +1559,7 @@ func rulePersistenceEntry(events []map[string]any) []shadowrules.EndpointAlert {
 // Shadow-only; advisory findings only. No active containment.
 // ---------------------------------------------------------------------------
 
-var downloaderNames = map[string]bool{
-	"curl": true, "wget": true,
-}
-
-var lolbinNames = map[string]bool{
-	"curl": true, "wget": true, "bash": true, "sh": true,
-	"python": true, "python3": true, "python2": true, "perl": true,
-	"nc": true, "netcat": true, "ncat": true, "base64": true,
-	"systemctl": true, "crontab": true, "dd": true, "awk": true,
-}
+// downloaderNames, lolbinNames moved to internal/shadowrules (CODE-STRUCT-DECOMPOSE, seam 3).
 
 const chainScoreThreshold = 0.50
 
@@ -1595,18 +1582,18 @@ func ruleExecutionChain(events []map[string]any) []shadowrules.EndpointAlert {
 			continue
 		}
 		name := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if !linuxShellNames[name] {
+		if !shadowrules.LinuxShellNames[name] {
 			continue
 		}
 		// Check if ancestry includes a downloader
 		ppid := shadowrules.EpInt64(ev, "ppid")
 		parentName := pidToNameAnalytics[ppid]
-		if !downloaderNames[parentName] && !linuxShellNames[parentName] {
+		if !shadowrules.DownloaderNames[parentName] && !shadowrules.LinuxShellNames[parentName] {
 			continue
 		}
 
 		score := 0.60
-		if downloaderNames[parentName] {
+		if shadowrules.DownloaderNames[parentName] {
 			score += 0.20
 		}
 		if score < chainScoreThreshold {
@@ -1677,7 +1664,7 @@ func ruleLolbinUsage(events []map[string]any) []shadowrules.EndpointAlert {
 			continue
 		}
 		name := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if !lolbinNames[name] {
+		if !shadowrules.LolbinNames[name] {
 			continue
 		}
 		parentName := strings.ToLower(shadowrules.EpStr(ev, "parent_process_name"))
@@ -1706,7 +1693,7 @@ func rulePersistenceCorrelationAnalytics(events []map[string]any) []shadowrules.
 		evType := shadowrules.EpStr(ev, "event_type")
 		if evType == "service_install" || evType == "scheduled_task_create" {
 			persistEvents = append(persistEvents, ev)
-		} else if evType == "process_start" && linuxShellNames[strings.ToLower(shadowrules.EpStr(ev, "process_name"))] {
+		} else if evType == "process_start" && shadowrules.LinuxShellNames[strings.ToLower(shadowrules.EpStr(ev, "process_name"))] {
 			shellEvents = append(shellEvents, ev)
 		} else if evType == "network_connection" {
 			networkEvents = append(networkEvents, ev)
@@ -1735,7 +1722,7 @@ func ruleRareParentChildAnalytics(events []map[string]any) []shadowrules.Endpoin
 		if !webServerProcessNames[parent] {
 			continue
 		}
-		if !linuxShellNames[child] {
+		if !shadowrules.LinuxShellNames[child] {
 			continue
 		}
 		a := shadowrules.MakeEndpointAlert("rare_parent_child_process", "v1",
@@ -1762,7 +1749,7 @@ func ruleRepeatedBehavioralChain(events []map[string]any) []shadowrules.Endpoint
 		}
 		parent := strings.ToLower(shadowrules.EpStr(ev, "parent_process_name"))
 		child  := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if !linuxShellNames[child] && !downloaderNames[child] {
+		if !shadowrules.LinuxShellNames[child] && !shadowrules.DownloaderNames[child] {
 			continue
 		}
 		k := chainKey{parent, child}
@@ -1832,7 +1819,7 @@ func ruleRepeatedLolbinSequence(events []map[string]any) []shadowrules.EndpointA
 			continue
 		}
 		name := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if !lolbinNames[name] {
+		if !shadowrules.LolbinNames[name] {
 			continue
 		}
 		lolbinCounts[name]++
@@ -1922,249 +1909,9 @@ func correlateEndpointShadow(events []map[string]any) []shadowrules.EndpointAler
 	return shadowrules.DedupeEndpointAlerts(alerts)
 }
 
-// ---------------------------------------------------------------------------
-// Cross-domain shadow correlation — Phase 1 (2026-05-18)
-// Correlates endpoint events with identity/cloud/SaaS events in the same batch.
-// All output → xdr.alerts.shadow.endpoint only. Advisory-only. No containment.
-// ---------------------------------------------------------------------------
+// Cross-domain shadow correlation moved to internal/shadowrules
+// (CODE-STRUCT-DECOMPOSE, seam 3). See shadowrules.CorrelateEndpointShadowCrossDomain.
 
-func correlateEndpointShadowCrossDomain(events []map[string]any) []shadowrules.EndpointAlert {
-	if len(events) == 0 {
-		return nil
-	}
-	var alerts []shadowrules.EndpointAlert
-	alerts = append(alerts, ruleCrossDomainIdentityEndpoint(events)...)
-	alerts = append(alerts, ruleCrossDomainIdentityPersistence(events)...)
-	alerts = append(alerts, ruleCrossDomainSaaSBeacon(events)...)
-	alerts = append(alerts, ruleCrossHostSharedDestinationLolbin(events)...)
-	alerts = append(alerts, ruleCrossDomainAttackProgression(events)...)
-	return alerts
-}
-
-func ruleCrossDomainIdentityEndpoint(events []map[string]any) []shadowrules.EndpointAlert {
-	// Detect identity auth failure followed by endpoint shell execution for the same user.
-	// Advisory-only: emits to shadow topic only.
-	identityFailureUsers := map[string]map[string]any{}
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "identity" {
-			continue
-		}
-		evType := shadowrules.EpStr(ev, "event_type")
-		if evType != "login_failed" && evType != "mfa_failed" {
-			continue
-		}
-		user := shadowrules.EpStr(ev, "user")
-		if user != "" {
-			identityFailureUsers[user] = ev
-		}
-	}
-	if len(identityFailureUsers) == 0 {
-		return nil
-	}
-	var alerts []shadowrules.EndpointAlert
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "endpoint" || shadowrules.EpStr(ev, "event_type") != "process_start" {
-			continue
-		}
-		user    := shadowrules.EpStr(ev, "user")
-		process := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		if user == "" || (!linuxShellNames[process] && !downloaderNames[process]) {
-			continue
-		}
-		if identityEv, ok := identityFailureUsers[user]; ok {
-			a := shadowrules.MakeEndpointAlert("identity_endpoint_execution_chain", "v1",
-				"Identity Failure Followed by Endpoint Shell Execution", "critical", 0.85, ev)
-			a.Evidence["actor"]            = user
-			a.Evidence["identity_event"]   = shadowrules.EpStr(identityEv, "event_type")
-			a.Evidence["endpoint_process"] = process
-			a.Evidence["advisory"]         = "cross_domain_shadow_only"
-			alerts = append(alerts, a)
-		}
-	}
-	return alerts
-}
-
-func ruleCrossDomainIdentityPersistence(events []map[string]any) []shadowrules.EndpointAlert {
-	// Detect identity privilege escalation followed by endpoint persistence entry.
-	privEscUsers := map[string]map[string]any{}
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "identity" {
-			continue
-		}
-		action := shadowrules.EpStr(ev, "action")
-		evType := shadowrules.EpStr(ev, "event_type")
-		if action != "privilege_escalation" && evType != "privilege_escalation" {
-			continue
-		}
-		user := shadowrules.EpStr(ev, "user")
-		if user != "" {
-			privEscUsers[user] = ev
-		}
-	}
-	if len(privEscUsers) == 0 {
-		return nil
-	}
-	var alerts []shadowrules.EndpointAlert
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "endpoint" {
-			continue
-		}
-		evType := shadowrules.EpStr(ev, "event_type")
-		if evType != "service_install" && evType != "scheduled_task_create" {
-			continue
-		}
-		user := shadowrules.EpStr(ev, "user")
-		if user == "" {
-			continue
-		}
-		if identityEv, ok := privEscUsers[user]; ok {
-			a := shadowrules.MakeEndpointAlert("identity_persistence_correlation", "v1",
-				"Identity Privilege Escalation Correlated with Endpoint Persistence", "high", 0.80, ev)
-			a.Evidence["actor"]             = user
-			a.Evidence["identity_action"]   = shadowrules.EpStr(identityEv, "action")
-			a.Evidence["persistence_event"] = evType
-			a.Evidence["advisory"]          = "cross_domain_shadow_only"
-			alerts = append(alerts, a)
-		}
-	}
-	return alerts
-}
-
-func ruleCrossDomainSaaSBeacon(events []map[string]any) []shadowrules.EndpointAlert {
-	// Detect SaaS anomaly activity correlated with endpoint outbound beacon from the same source IP.
-	saasSourceIPs := map[string]map[string]any{}
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "saas" {
-			continue
-		}
-		ip := shadowrules.EpStr(ev, "source_ip")
-		if ip != "" {
-			saasSourceIPs[ip] = ev
-		}
-	}
-	if len(saasSourceIPs) == 0 {
-		return nil
-	}
-	var alerts []shadowrules.EndpointAlert
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "endpoint" || shadowrules.EpStr(ev, "event_type") != "network_connection" {
-			continue
-		}
-		srcIP := shadowrules.EpStr(ev, "source_ip")
-		if srcIP == "" {
-			srcIP = shadowrules.EpStr(ev, "host")
-		}
-		if saasEv, ok := saasSourceIPs[srcIP]; ok {
-			a := shadowrules.MakeEndpointAlert("saas_endpoint_beacon_chain", "v1",
-				"SaaS Activity Correlated with Endpoint Beacon Pattern", "high", 0.77, ev)
-			a.Evidence["source_ip"]         = srcIP
-			a.Evidence["saas_event_type"]   = shadowrules.EpStr(saasEv, "event_type")
-			a.Evidence["endpoint_remote_ip"]= shadowrules.EpStr(ev, "remote_ip")
-			a.Evidence["advisory"]          = "cross_domain_shadow_only"
-			alerts = append(alerts, a)
-		}
-	}
-	return alerts
-}
-
-func ruleCrossHostSharedDestinationLolbin(events []map[string]any) []shadowrules.EndpointAlert {
-	// Detect multiple hosts using LOLBin processes to connect to the same destination.
-	hostLolbins := map[string]bool{}
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "endpoint" || shadowrules.EpStr(ev, "event_type") != "process_start" {
-			continue
-		}
-		name := strings.ToLower(shadowrules.EpStr(ev, "process_name"))
-		host := shadowrules.EpStr(ev, "host")
-		if lolbinNames[name] && host != "" {
-			hostLolbins[host] = true
-		}
-	}
-	if len(hostLolbins) == 0 {
-		return nil
-	}
-	type destKey struct {
-		ip   string
-		port int64
-	}
-	destHosts := map[destKey]map[string]bool{}
-	destEvs   := map[destKey]map[string]any{}
-	for _, ev := range events {
-		if shadowrules.EpStr(ev, "telemetry_type") != "endpoint" || shadowrules.EpStr(ev, "event_type") != "network_connection" {
-			continue
-		}
-		host := shadowrules.EpStr(ev, "host")
-		if !hostLolbins[host] {
-			continue
-		}
-		ip   := shadowrules.EpStr(ev, "remote_ip")
-		port := shadowrules.EpInt64(ev, "remote_port")
-		if ip == "" {
-			continue
-		}
-		k := destKey{ip, port}
-		if destHosts[k] == nil {
-			destHosts[k] = map[string]bool{}
-		}
-		destHosts[k][host] = true
-		if _, exists := destEvs[k]; !exists {
-			destEvs[k] = ev
-		}
-	}
-	var alerts []shadowrules.EndpointAlert
-	for k, hosts := range destHosts {
-		if len(hosts) < 2 {
-			continue
-		}
-		a := shadowrules.MakeEndpointAlert("multi_host_shared_destination", "v1",
-			"Multiple Hosts LOLBin Activity to Shared Destination", "critical", 0.88, destEvs[k])
-		a.Evidence["destination"] = fmt.Sprintf("%s:%d", k.ip, k.port)
-		a.Evidence["host_count"]  = len(hosts)
-		a.Evidence["advisory"]    = "cross_domain_shadow_only"
-		alerts = append(alerts, a)
-	}
-	return alerts
-}
-
-func ruleCrossDomainAttackProgression(events []map[string]any) []shadowrules.EndpointAlert {
-	// Detect same actor touching multiple telemetry domains including endpoint.
-	// Requires endpoint involvement + at least one other domain.
-	actorDomains := map[string]map[string]bool{}
-	actorEvs     := map[string]map[string]any{}
-	for _, ev := range events {
-		user    := shadowrules.EpStr(ev, "user")
-		telType := shadowrules.EpStr(ev, "telemetry_type")
-		if user == "" || telType == "" {
-			continue
-		}
-		if actorDomains[user] == nil {
-			actorDomains[user] = map[string]bool{}
-		}
-		actorDomains[user][telType] = true
-		if _, exists := actorEvs[user]; !exists {
-			actorEvs[user] = ev
-		}
-	}
-	var alerts []shadowrules.EndpointAlert
-	for actor, domains := range actorDomains {
-		if len(domains) < 2 || !domains["endpoint"] {
-			continue
-		}
-		domainList := make([]string, 0, len(domains))
-		for d := range domains {
-			domainList = append(domainList, d)
-		}
-		sort.Strings(domainList)
-		a := shadowrules.MakeEndpointAlert("cross_domain_attack_progression", "v1",
-			"Cross-Domain Attack Progression Detected", "critical", 0.82, actorEvs[actor])
-		a.Evidence["actor"]        = actor
-		a.Evidence["domains"]      = strings.Join(domainList, ",")
-		a.Evidence["domain_count"] = len(domains)
-		a.Evidence["advisory"]     = "cross_domain_shadow_only"
-		alerts = append(alerts, a)
-	}
-	return alerts
-}
 
 func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Request) {
 	started := time.Now()
