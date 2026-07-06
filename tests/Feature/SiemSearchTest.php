@@ -58,6 +58,30 @@ class SiemSearchTest extends TestCase
         $this->service->search('t1', 'a');
     }
 
+    /** SIEM-QUERYSTRING-DOS: no unbounded-length query reaches OpenSearch. */
+    public function test_query_above_max_length_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->service->search('t1', str_repeat('a', SiemSearchService::MAX_QUERY_LENGTH + 1));
+    }
+
+    /** SIEM-QUERYSTRING-DOS: simple_query_string has no leading-wildcard/regex DoS surface. */
+    public function test_opensearch_request_uses_simple_query_string_with_timeout(): void
+    {
+        Http::fake(['*' => Http::response(['hits' => ['hits' => []]], 200)]);
+
+        $this->service->search('t1', 'brute');
+
+        Http::assertSent(function ($request) {
+            $body = $request->data();
+            $hasSimpleQueryString = isset($body['query']['bool']['must'][0]['simple_query_string']);
+            $hasNoLegacyQueryString = !isset($body['query']['bool']['must'][0]['query_string']);
+            $hasTimeout = isset($body['timeout']);
+
+            return $hasSimpleQueryString && $hasNoLegacyQueryString && $hasTimeout;
+        });
+    }
+
     public function test_max_results_is_clamped_to_bound(): void
     {
         Http::fake(['*' => Http::response(['hits' => ['hits' => []]], 200)]);

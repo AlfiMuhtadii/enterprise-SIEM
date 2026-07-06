@@ -1,8 +1,8 @@
 # Hybrid Near Real-Time Web Attack Detection Platform
 
-**Academic Title:** Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture
+**Platform Title:** Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture
 
-A full-stack, enterprise-governed, AI-assisted XDR-like platform. Originally an academic research project, it is now positioned as an **enterprise demo** — production-discipline distributed architecture with a strangler-pattern migration from a monolith SOC to a polyglot microservice pipeline, hardened for enterprise operation (per-tenant DoS bounds, config-cache-safe configuration, hot-path IOC caching) while remaining advisory-only, replay-safe, and deterministic.
+A full-stack, enterprise-governed, AI-assisted XDR-like platform — production-discipline distributed architecture with a strangler-pattern migration from a monolith SOC to a polyglot microservice pipeline, hardened for enterprise operation (per-tenant DoS bounds, config-cache-safe configuration, hot-path IOC caching) while remaining advisory-only, replay-safe, and deterministic.
 
 ---
 
@@ -15,15 +15,15 @@ A full-stack, enterprise-governed, AI-assisted XDR-like platform. Originally an 
 | Correlation | Identity/cloud/SaaS: active (6h soak PASS); endpoint/DNS/proxy: shadow-only |
 | Threat Hunting | 179 query domains, advisory-only, append-only results |
 | Governance | 50+ governance subsystems: HA, compliance, SOAR, release governance, XDR maturity |
-| Test Coverage | 4618 PHP tests, 1556 Python tests, Go services green |
+| Test Coverage | 4647 PHP tests, 1556 Python tests, Go services green |
 | Validation | Rule registry 133/21 checks PASS; fleet sim 8/8; resilience 8/8 |
 
 ---
 
-## Quick Start (Demo)
+## Quick Start
 
 ```powershell
-# Windows — one-command demo bootstrap
+# Windows — one-command environment bootstrap
 .\bootstrap-dev.ps1
 
 # Then start the Laravel server
@@ -37,12 +37,12 @@ php artisan serve
 ```
 
 Open http://localhost:8000 and navigate to:
-- **Demo Dashboard** → http://localhost:8000/demo-platform
+- **Platform Dashboard** → http://localhost:8000/demo-platform
 - **Threat Hunting** → http://localhost:8000/threat-hunts
 - **XDR Maturity** → http://localhost:8000/xdr-maturity
 - **Grafana** → http://localhost:3000
 
-> **Advisory Only:** All demonstrations are synthetic, replay-safe, and bounded. No destructive exploitation or autonomous remediation is executed.
+> **Advisory Only:** All scenario runs are synthetic, replay-safe, and bounded. No destructive exploitation or autonomous remediation is executed.
 
 ---
 
@@ -125,7 +125,7 @@ The platform implements 50+ governance subsystems across these domains:
 
 ---
 
-## Demo Scenarios
+## Scenario Catalog
 
 | Scenario | Description |
 |---|---|
@@ -164,7 +164,7 @@ python scripts/xdr_resilience_validate.py
 python scripts/xdr_fleet_simulation_validate.py
 ```
 
-**Current baselines:** 4618 PHP tests, 1556 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
+**Current baselines:** 4647 PHP tests, 1556 Python tests, 133 rules (21/21 checks PASS), resilience 8/8, fleet sim 8/8.
 
 ---
 
@@ -173,8 +173,8 @@ python scripts/xdr_fleet_simulation_validate.py
 | Document | Path |
 |---|---|
 | Evaluator Quickstart | `docs/QUICKSTART_EVALUATOR.md` |
-| Demo Walkthrough | `docs/DEMO_WALKTHROUGH.md` |
-| Thesis Defense Guide | `docs/THESIS_DEFENSE_GUIDE.md` |
+| Scenario Walkthrough Guide | `docs/DEMO_WALKTHROUGH.md` |
+| Reviewer Q&A / Capability Guide | `docs/THESIS_DEFENSE_GUIDE.md` |
 | Interview Showcase Guide | `docs/INTERVIEW_SHOWCASE_GUIDE.md` |
 | Known Limitations | `docs/KNOWN_LIMITATIONS.md` |
 | Future Roadmap | `docs/FUTURE_ROADMAP.md` |
@@ -185,14 +185,14 @@ python scripts/xdr_fleet_simulation_validate.py
 | Architecture Changelog | `docs/architecture/ARCHITECTURE_CHANGELOG.md` |
 | Operational Posture | `docs/operations/OPERATIONAL_POSTURE.md` |
 | Validation Baselines | `docs/validation/VALIDATION_BASELINES.md` |
-| Thesis Positioning | `docs/thesis/THESIS_POSITIONING.md` |
-| Defense Preparation | `docs/thesis/DEFENSE_PREPARATION.md` |
+| Platform Positioning | `docs/thesis/THESIS_POSITIONING.md` |
+| Capability & Readiness Narrative | `docs/thesis/DEFENSE_PREPARATION.md` |
 
 ---
 
 ## What This Platform Is NOT
 
-This is an academic research platform, not a commercial product. It does not implement:
+This platform targets an enterprise-oriented operating posture; it is not a fully productized commercial offering. It does not implement:
 
 - Kernel EDR / kernel telemetry
 - Live host containment or isolation

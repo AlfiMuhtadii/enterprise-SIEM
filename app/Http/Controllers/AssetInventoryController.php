@@ -14,8 +14,8 @@ use Illuminate\View\View;
 /**
  * AssetInventoryController — asset/CMDB catalog UI.
  *
- * Advisory-only: asset criticality is used to rank the analyst queue, never
- * to trigger or gate any response action.
+ * Advisory-only: asset criticality is displayed for analyst triage context,
+ * never used to order/filter any listing or to trigger/gate a response action.
  */
 class AssetInventoryController extends Controller
 {

@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-cyan-100 leading-tight">Asset Inventory — CMDB & Advisory Criticality</h2>
-        <p class="text-xs text-amber-400/80 mt-1">Advisory alert-enrichment metadata only. Criticality ranks the analyst queue — it never triggers or gates any response action.</p>
+        <p class="text-xs text-amber-400/80 mt-1">Advisory alert-enrichment metadata only. Criticality is shown for analyst triage context — it never triggers or gates any response action.</p>
     </x-slot>
 
     @if (session('status'))
@@ -10,7 +10,7 @@
 
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-6">
         <div class="rounded border border-amber-400/30 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
-            advisory-only — asset criticality is used only to rank the analyst queue. No response coupling.
+            advisory-only — asset criticality is display-only triage context, not a queue-ordering signal. No response coupling.
         </div>
 
         <div class="grid gap-4 lg:grid-cols-4">

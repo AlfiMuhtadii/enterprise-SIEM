@@ -81,6 +81,19 @@ class AssetInventoryTest extends TestCase
         $this->assertSame(1, AssetInventory::where('external_id', 'ext-1')->count());
     }
 
+    /** ASSET-TENANT-OVERWRITE: same external_id under different tenants must not collide. */
+    public function test_register_asset_same_external_id_different_tenants_does_not_overwrite(): void
+    {
+        $tenantA = $this->service->registerAsset('tenant-a', 'a-host', '10.9.0.1', null, 'production', 'server', 'shared-ext-id');
+        $tenantB = $this->service->registerAsset('tenant-b', 'b-host', '10.9.0.2', null, 'staging', 'workstation', 'shared-ext-id');
+
+        $this->assertNotSame($tenantA->id, $tenantB->id);
+        $this->assertSame('tenant-a', $tenantA->fresh()->tenant_id);
+        $this->assertSame('a-host', $tenantA->fresh()->hostname);
+        $this->assertSame('tenant-b', $tenantB->fresh()->tenant_id);
+        $this->assertSame(2, AssetInventory::where('external_id', 'shared-ext-id')->count());
+    }
+
     // =========================================================================
     // setCriticality
     // =========================================================================

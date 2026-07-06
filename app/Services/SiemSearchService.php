@@ -19,13 +19,18 @@ class SiemSearchService
     public const DEFAULT_MAX_RESULTS = 100;
     public const MAX_QUERY_WINDOW_DAYS = 30;
     public const MIN_QUERY_LENGTH = 2;
+    public const MAX_QUERY_LENGTH = 256;
     public const OPENSEARCH_INDEX = 'xdr-alerts';
+    public const OPENSEARCH_QUERY_TIMEOUT = '2s';
 
     public function search(string $tenantId, string $query, ?int $maxResults = null, ?int $windowDays = null): array
     {
         $query = trim($query);
         if (mb_strlen($query) < self::MIN_QUERY_LENGTH) {
             throw new InvalidArgumentException('Query must be at least '.self::MIN_QUERY_LENGTH.' characters.');
+        }
+        if (mb_strlen($query) > self::MAX_QUERY_LENGTH) {
+            throw new InvalidArgumentException('Query must be at most '.self::MAX_QUERY_LENGTH.' characters.');
         }
 
         $maxResults = max(1, min($maxResults ?? self::DEFAULT_MAX_RESULTS, self::MAX_RESULTS));
@@ -48,10 +53,17 @@ class SiemSearchService
 
         $body = [
             'size' => $maxResults,
+            'timeout' => self::OPENSEARCH_QUERY_TIMEOUT,
             'query' => [
                 'bool' => [
+                    // simple_query_string never throws on malformed syntax and has no
+                    // leading-wildcard/regex DoS surface, unlike query_string — safe for
+                    // raw, unescaped analyst input (SIEM-QUERYSTRING-DOS).
                     'must' => [
-                        ['query_string' => ['query' => $query, 'default_operator' => 'AND']],
+                        ['simple_query_string' => [
+                            'query' => $query,
+                            'default_operator' => 'AND',
+                        ]],
                     ],
                     'filter' => [
                         ['term' => ['tenant_id' => $tenantId]],

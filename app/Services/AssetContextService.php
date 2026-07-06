@@ -11,8 +11,10 @@ use InvalidArgumentException;
 /**
  * ASSET-INVENTORY: asset/CMDB catalog + advisory business-criticality tiering.
  *
- * Advisory alert-enrichment metadata only — used to rank the analyst queue.
- * Never triggers, gates, or influences any response/execution path.
+ * Advisory alert-enrichment metadata only — surfaces asset context (owner,
+ * environment, business-criticality tier) for analyst triage; display-only,
+ * does not order or filter any incident/alert listing. Never triggers,
+ * gates, or influences any response/execution path.
  */
 class AssetContextService
 {
@@ -45,9 +47,8 @@ class AssetContextService
         $externalId = $externalId ?: 'asset-' . Str::uuid();
 
         return AssetInventory::updateOrCreate(
-            ['external_id' => $externalId],
+            ['tenant_id' => $tenantId, 'external_id' => $externalId],
             [
-                'tenant_id' => $tenantId,
                 'hostname' => $hostname,
                 'ip_address' => $ipAddress,
                 'owner' => $owner,
