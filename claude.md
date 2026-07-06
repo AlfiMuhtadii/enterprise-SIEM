@@ -56,7 +56,7 @@ After every change:
 
 ```
 docker compose config    → exit code 0, no errors
-php artisan test         → 4618 passed, zero failures (always prefix with migrate:fresh --force)
+php artisan test         → 4647 passed, zero failures (dedicated detector_test DB; RefreshDatabase auto-migrates)
 python endpoint agent    → 186 tests, 0 failures
 rule registry validator  → status=PASS  rules=133  checks=21/21
 fleet simulation         → 8/8 passed
@@ -89,7 +89,7 @@ Use fast iteration by default.
 ### At final verification
 
 - Run the full relevant suite once before a commit or milestone claim.
-- For PHP application changes: `php artisan test` (always prefix `migrate:fresh --force`).
+- For PHP application changes: `php artisan test` (runs against the dedicated `detector_test` DB; no `migrate:fresh` needed — see "Test database" under Standard Commands).
 - For Python changes: run the relevant Python unittest discovery or specific test module.
 - For Go changes: run the relevant Go test package.
 - For docker-compose/env changes: `docker compose config`.
@@ -152,9 +152,9 @@ When a task is NOT approved for immediate implementation, classify it into one o
 |---|---|
 | **Rejected** | False positive, not applicable, or implementation would introduce regression risk with zero functional or security benefit. Do NOT implement. |
 | **Deferred** | Valid finding, but not in scope for the current phase. Must be revisited before production/pilot deployment. |
-| **Accepted Risk** | Valid finding intentionally tolerated for local/demo operational posture. Document the condition under which it must be re-evaluated. |
+| **Accepted Risk** | Valid finding intentionally tolerated for the current operational posture. Document the condition under which it must be re-evaluated. |
 
-**Critical rule:** Enterprise-relevant reliability or production-hardening findings (concurrency, socket exhaustion, multi-tenant fairness, resource limits) must NEVER be classified as Rejected merely because academic/demo RPS is currently low. Those are Deferred.
+**Critical rule:** Enterprise-relevant reliability or production-hardening findings (concurrency, socket exhaustion, multi-tenant fairness, resource limits) must NEVER be classified as Rejected merely because current RPS is low. Those are Deferred.
 
 ### Workflow — one task per session step
 
@@ -207,11 +207,11 @@ Avoid:
 
 # Project
 
-**Academic title:** Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture.
+**Platform title:** Hybrid Near Real-Time Web Attack Detection Platform using Rule-Based Detection and Multiclass Logistic Regression within an Event-Driven Investigation Architecture.
 
-Distributed AI-assisted XDR-like platform with operational polyglot microservices.
+Distributed AI-assisted XDR-like platform with operational polyglot microservices, built toward an enterprise-scale operating posture.
 
-Academic scope is stable and defensible as of 2026-05-18. The platform continues to evolve under controlled architectural boundaries — endpoint behavioral analytics, threat hunting, and orchestration capabilities extend iteratively within the shadow/advisory posture. Focus is on demo stability, thesis defensibility, and documentation quality.
+Platform scope is stable and technically defensible as of 2026-05-18. The platform continues to evolve under controlled architectural boundaries — endpoint behavioral analytics, threat hunting, and orchestration capabilities extend iteratively within the shadow/advisory posture. Focus is on operational stability, technical defensibility, and documentation quality.
 
 identity/cloud/SaaS Go correlation: staged active (6h soak PASS, 2026-05-14).
 Endpoint behavioral analytics, orchestration, and threat hunting: shadow/advisory-only, non-destructive, no active containment, no autonomous response. Cutover not approved.
@@ -222,8 +222,8 @@ SOC Collaboration & Analyst Workflow: escalation routing, SLA tracking, watchlis
 
 Enterprise Integrations: inbound IdP events (Okta, Azure AD), SaaS audit logs (Office 365, GSuite), ticketing case links (Jira, ServiceNow), notification dispatch (Slack, PagerDuty) — advisory-only, no account suspension, no autonomous ticket closure, simulated delivery by default.
 
-Academic positioning: `docs/thesis/THESIS_POSITIONING.md`
-Defense preparation: `docs/thesis/DEFENSE_PREPARATION.md`
+Platform positioning & scope: `docs/thesis/THESIS_POSITIONING.md`
+Capability & readiness narrative: `docs/thesis/DEFENSE_PREPARATION.md`
 Diagrams: `docs/architecture/diagrams.md`
 Module inventory: `docs/architecture/FEATURE_REGISTRY.md`
 Implementation history: `docs/architecture/ARCHITECTURE_CHANGELOG.md`
@@ -379,10 +379,37 @@ For full env config and domain status table: `docs/operations/OPERATIONAL_POSTUR
 ## Laravel Tests (primary gate)
 
 ```powershell
-php artisan migrate:fresh --force && php artisan test
+php artisan test
 ```
 
-Current: **4618 tests**, all green. Always prefix with `migrate:fresh --force` to avoid intermittent `QueryException` failures from stale schema state. Do NOT run parallel processes against the same PostgreSQL test database.
+Current: **4647 tests**, all green.
+
+### Test database — dedicated, isolated (do NOT use the app DB)
+
+Tests run against a **dedicated `detector_test` Postgres database**, never the app/dev
+database (`detector`). `phpunit.xml` overrides `DB_DATABASE=detector_test`, and that override
+always wins over `.env` — so a test run can never touch or wipe real data.
+
+- **One-time setup:** `createdb detector_test` (or `psql -c "CREATE DATABASE detector_test;"`).
+- **Schema is auto-managed:** 140 of 147 test files use `RefreshDatabase`, which runs
+  `migrate:fresh` **once** at suite start (in a static-guarded transaction) and rolls back each
+  test. So a manual `migrate:fresh` is **NOT** needed and must not be used — it is redundant
+  (double-migrates) and, historically, destructive because tests used to share the app DB.
+- **Faster runs — parallel:** with a per-worker DB there is no shared-DB collision, so parallel
+  is safe and preferred:
+  ```powershell
+  php artisan test --parallel --recreate-databases   # requires: composer require --dev brianium/paratest
+  ```
+  This creates `detector_test_test_1..N` automatically. (Serial `php artisan test` still works.)
+- **Env override, not sqlite:** the test DB is set in `phpunit.xml` (self-contained "test env").
+  A `.env.testing` is only needed for `php artisan … --env=testing`; see `.env.testing.example`.
+  sqlite `:memory:` is intentionally NOT used — the codebase relies on Postgres-specific SQL
+  (`::jsonb`, `ILIKE`, `xmax`, `GREATEST`).
+
+If you hit an intermittent `QueryException` from stale schema, recreate the isolated DB
+(`dropdb detector_test && createdb detector_test`) — never point tests at the app DB.
+
+Do NOT run parallel workers against a **single shared** DB; the per-worker DBs above avoid that.
 
 Rule registry: **133 rules** (12 staged_active, 121 shadow). Run `python scripts/xdr_rule_registry_validate.py`.
 
