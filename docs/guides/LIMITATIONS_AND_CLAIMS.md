@@ -1,7 +1,7 @@
 # XDR Platform — Limitations and Corrected Claims
 
 **Date:** 2026-06-22
-**Status:** Authoritative. Read this before making any demo, thesis, or portfolio claim about the platform.
+**Status:** Authoritative. Read this before making any capability, walkthrough, or portfolio claim about the platform.
 
 This document records the exact boundaries between what the platform implements, what it simulates, and what it does not do. It is the result of a read-only code audit conducted on 2026-06-22 and supersedes any looser language in earlier demo guides.
 
@@ -153,7 +153,7 @@ No service in the codebase consumes `xdr.alerts.shadow.endpoint` or `xdr.alerts.
 The ML detector and the Go rule-based correlation engine are parallel, independent detection paths. The Go engine detects identity/cloud/SaaS threats via temporal correlation rules. The ML classifier detects HTTP-level attack patterns (brute-force, scanning, injection) against the Laravel application itself.
 
 **Correct claim:**
-> "The thesis title 'Multiclass Logistic Regression' refers to an HTTP request classifier applied to the Laravel application's own access logs. It is one detection component alongside the rule-based Go correlation engine. The two components operate on different data types, different tables, and through different pipelines. The ML model is trained on synthetic data labeled for academic demonstration purposes."
+> "The platform title's 'Multiclass Logistic Regression' phrase refers to an HTTP request classifier applied to the Laravel application's own access logs. It is one detection component alongside the rule-based Go correlation engine. The two components operate on different data types, different tables, and through different pipelines. The ML model is trained on synthetic data labeled for demonstration purposes."
 
 **Evidence:** `scripts/train_ai_detector.py:25-38`, `storage/app/security_dataset.csv:1-5`
 
@@ -173,7 +173,7 @@ The 4 `simulate_*` actions (`simulate_endpoint_isolation`, `simulate_credential_
 The remaining 6 actions (`notify_analyst`, `create_incident`, `create_ticket`, `enrich_ioc`, `request_approval`, `create_watchlist_entry`) are local database operations. There are no outbound HTTP calls in `SoarOrchestrationService`. No Slack message is sent, no Jira ticket is created, no endpoint agent receives a command.
 
 **Correct claim:**
-> "SOAR orchestration implements the governance framework (approval gates, simulation-first, audit trail, blast-radius scoring) as a complete workflow engine. All actions are local advisory operations. No external systems are called. This is by design for the academic scope."
+> "SOAR orchestration implements the governance framework (approval gates, simulation-first, audit trail, blast-radius scoring) as a complete workflow engine. All actions are local advisory operations. No external systems are called. This is by design for the current scope."
 
 **Evidence:** `app/Models/SoarPlaybook.php:31-50`, `app/Services/SoarOrchestrationService.php:182-197`
 
@@ -377,7 +377,7 @@ The proof is repeatable: each run uses a unique `event_id` (= `trace_id`, format
 
 **What this proof does NOT cover:**
 
-- Production-grade XDR readiness — this is a research/academic platform running on a single local machine
+- Production-grade XDR readiness — this validation ran on a single local machine, not a real multi-node deployment
 - Real malware detection — the scenario uses synthetic RFC 5737 addresses and a fictional user
 - Kernel EDR, host containment, or endpoint blocking — all endpoint response is advisory/simulation-only
 - Full NDR — DNS/proxy/firewall analytics are shadow-only with no active blocking
@@ -470,4 +470,4 @@ True Kafka consumer group lag = `committed_offset − high_watermark`, read from
 
 ---
 
-*This document is maintained alongside `docs/KNOWN_LIMITATIONS.md`. For academic scope boundaries see `docs/thesis/THESIS_POSITIONING.md`. For operational posture see `docs/operations/OPERATIONAL_POSTURE.md`.*
+*This document is maintained alongside `docs/KNOWN_LIMITATIONS.md`. For platform scope boundaries see `docs/thesis/THESIS_POSITIONING.md`. For operational posture see `docs/operations/OPERATIONAL_POSTURE.md`.*

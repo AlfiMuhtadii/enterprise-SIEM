@@ -236,7 +236,7 @@ Last updated: 2026-05-17
 - Metrics: recovery_duration_seconds, consumer_lag_peak, replay_idempotent, failed_signature_count
 - Reports written to `storage/resilience/`
 
-**Design tradeoff:** Simulation scenarios validate design capability, not live behavior. A "broker_restart" simulation validates that the reconnect loop code exists but does not actually restart Redpanda. This is appropriate for a research prototype where live chaos engineering would be destructive.
+**Design tradeoff:** Simulation scenarios validate design capability, not live behavior. A "broker_restart" simulation validates that the reconnect loop code exists but does not actually restart Redpanda. This is appropriate for the current phase, where live chaos engineering against a single-node deployment would be destructive — real multi-node chaos validation is tracked separately (see ENT-REL-SIMULATED-HA).
 
 **Limitations:** Simulation scenarios cannot detect regressions introduced by code changes that remove the reconnect loop. Active scenarios only cover a subset of all possible failure modes.
 

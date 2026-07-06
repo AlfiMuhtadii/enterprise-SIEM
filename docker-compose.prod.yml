@@ -5,8 +5,9 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile=strangler up -d
 #
 # Purpose:
-#   Hardens the dev-friendly docker-compose.yml for controlled production-pilot
-#   deployment.  Does NOT claim full HA, multi-region, or commercial readiness.
+#   Hardens the dev-friendly docker-compose.yml for single-region, single-node
+#   production deployment. Full HA and multi-region are tracked separately
+#   (see ENT-REL-SIMULATED-HA) — this overlay does not implement them yet.
 #   See docs/operations/PRODUCTION_DEPLOYMENT_PROFILE.md for posture and scope.
 #
 # Port security posture:

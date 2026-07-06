@@ -1,4 +1,4 @@
-# Defense Preparation — Examiner Q&A
+# Platform Positioning — Reviewer Q&A
 
 Last updated: 2026-05-17
 
@@ -65,7 +65,7 @@ Shadow-only is an explicit operational safety pattern, not a limitation of the d
 
 3. **Architectural enforcement**: The shadow boundary is enforced in code, not convention. The alert-writer service consumes only `xdr.alerts`. There is no configuration flag to change this without a code change — preventing accidental promotion.
 
-**Tradeoff:** Endpoint detection capability exists but is not surfaced as active SOC alerts. This is the correct tradeoff for a research prototype where operational safety gates are demonstrated but not fully executed.
+**Tradeoff:** Endpoint detection capability exists but is not surfaced as active SOC alerts. This is the correct tradeoff for the current phase, where operational safety gates are demonstrated but not yet cleared for every domain.
 
 ---
 
@@ -80,9 +80,9 @@ Multiclass logistic regression was chosen over more complex models for three rea
 
 2. **Training data efficiency**: Deep neural networks require large labeled datasets. For web attack detection, labeled datasets are limited and imbalanced. Logistic regression converges reliably on smaller datasets and is less prone to overfitting.
 
-3. **Baseline suitability**: In academic research, logistic regression is the appropriate baseline before claiming complex models are necessary. The research question is whether hybrid rule+ML detection outperforms rule-only — logistic regression provides a clean, defensible baseline.
+3. **Baseline suitability**: As a general modeling principle, logistic regression is the appropriate baseline before claiming complex models are necessary. The design question is whether hybrid rule+ML detection outperforms rule-only — logistic regression provides a clean, defensible baseline.
 
-**Tradeoff:** Logistic regression may miss non-linear attack patterns that decision trees or neural networks would capture. This is a known limitation acknowledged in the thesis.
+**Tradeoff:** Logistic regression may miss non-linear attack patterns that decision trees or neural networks would capture. This is a known, documented limitation.
 
 ---
 
@@ -114,7 +114,7 @@ The platform supports two evaluation approaches:
 
 The detection governance module tracks rules through lifecycle stages (draft → shadow → staged_active → deprecated) with MITRE ATT&CK mapping, confidence scores, and false positive notes.
 
-**What is NOT evaluated:** Precision/recall against a full ground-truth dataset of real attacks. This is a known academic limitation — the platform demonstrates detection architecture and workflow, not a rigorous empirical evaluation against a public benchmark.
+**What is NOT evaluated:** Precision/recall against a full ground-truth dataset of real attacks. This is a known, documented limitation — the platform demonstrates detection architecture and workflow, not a rigorous empirical evaluation against a public benchmark.
 
 ---
 
@@ -155,7 +155,7 @@ Autonomous response in a security context carries significant operational risk:
 
 1. **False positive cost**: An automated "isolate host" action on a false positive removes a legitimate user from the network. The cost of an incorrect automated response is potentially higher than the cost of a delayed manual response.
 
-2. **Academic scope**: This research demonstrates the architecture of an investigation and recommendation platform, not an autonomous response system. Implementing autonomous containment would require: endpoint agent kernel capabilities, network enforcement points, and a much higher bar of detection accuracy validation — all of which are out of academic scope.
+2. **Current scope**: This platform demonstrates the architecture of an investigation and recommendation platform, not an autonomous response system. Implementing autonomous containment would require: endpoint agent kernel capabilities, network enforcement points, and a much higher bar of detection accuracy validation — all of which are out of the current scope.
 
 3. **Analyst accountability**: In regulated environments, response actions must be attributed to a specific analyst decision. Advisory-only with documented approval preserves this chain of accountability.
 
@@ -180,7 +180,7 @@ The entity graph is implemented as a **projection layer** — it is derived from
 
 ### Q12: What are the main limitations of this work?
 
-**Answer (structured for thesis defense):**
+**Answer (structured for reviewer Q&A):**
 
 **Technical limitations:**
 - Endpoint detection is shadow-only (no active enforcement)
@@ -189,7 +189,7 @@ The entity graph is implemented as a **projection layer** — it is derived from
 - Telemetry limited to web HTTP + Linux /proc (no Windows, no kernel syscalls)
 - Recommendation engine is rule-based, not learning-based
 
-**Research limitations:**
+**Evaluation limitations:**
 - No empirical precision/recall evaluation against labeled ground-truth dataset
 - Detection thresholds are heuristically set, not optimized via cross-validation
 - ML component (logistic regression) evaluated on controlled telemetry, not adversarially generated attacks
@@ -197,28 +197,28 @@ The entity graph is implemented as a **projection layer** — it is derived from
 
 **Scope limitations:**
 - Not a full EDR — no kernel driver, no memory scanning
-- Not a production SIEM — no multi-tenancy, no compliance certifications
-- Not enterprise-grade — appropriate for research prototype scale
+- Not a production SIEM — no DB-level tenant isolation yet, no compliance certifications yet
+- Not fully enterprise-hardened yet — appropriate for the current deployment scale; enterprise hardening (HA, tenant isolation, TLS everywhere) is tracked separately, in progress
 
-**Honest framing:** These limitations are appropriate for a master's-level research prototype that demonstrates architectural patterns and workflow integration. The thesis contribution is the architecture and integration approach, not a claim of outperforming commercial tools.
+**Honest framing:** These limitations reflect the platform's current phase, which demonstrates architectural patterns and workflow integration. The technical contribution is the architecture and integration approach — it is not yet a claim of matching commercial tools at enterprise scale.
 
 ---
 
 ### Q13: How does this compare to existing tools like Splunk, Elastic SIEM, or Wazuh?
 
 **Answer:**
-This is a research prototype, not a product comparison:
+This is a platform under active enterprise hardening, not yet a like-for-like product comparison:
 
 | Aspect | This Platform | Commercial SIEM |
 |---|---|---|
-| Purpose | Research: demonstrate event-driven SOC architecture | Production: index logs, search, alerting |
+| Purpose | Demonstrate event-driven SOC architecture | Production: index logs, search, alerting |
 | Detection | Hybrid rule+ML with explainable entity graph | SPL/KQL queries or ML jobs |
 | Investigation | Structured workflow with audit trail and entity pivoting | Manual query building |
 | Replay safety | Explicit `ON CONFLICT DO NOTHING` idempotency | Varies by tool |
 | Response | Advisory-only recommendations | Limited or external SOAR integration |
-| Scale | Research prototype | Enterprise-grade |
+| Scale | Single-node, enterprise hardening in progress | Enterprise-grade |
 
-The research contribution is not "better than Splunk" — it is: "here is how a replay-safe, entity-graph-driven investigation workflow can be architecturally integrated with hybrid detection in an event-driven pipeline."
+The contribution is not "better than Splunk" — it is: "here is how a replay-safe, entity-graph-driven investigation workflow can be architecturally integrated with hybrid detection in an event-driven pipeline."
 
 ---
 
@@ -245,7 +245,7 @@ The research contribution is not "better than Splunk" — it is: "here is how a 
 > It ingests web and endpoint telemetry, correlates events using 12 detection rules and a logistic regression baseline, builds an entity graph for investigation pivoting, and guides analysts through a structured workflow from alert to investigation to advisory-only response documentation.
 
 **"Is this better than Splunk?"**
-> No — it's a research prototype demonstrating how event-driven architecture, replay-safe event sourcing, and entity graph pivoting can be integrated with hybrid detection. The contribution is architectural, not a product comparison.
+> No — it's a platform demonstrating how event-driven architecture, replay-safe event sourcing, and entity graph pivoting can be integrated with hybrid detection. The contribution is architectural; enterprise hardening (HA, tenant isolation, TLS) is tracked separately and in progress.
 
 **"Why not use an LLM for detection?"**
 > LLMs are generative — they produce plausible text, not reliable security alerts. Rule-based correlation and logistic regression produce auditable, reproducible, and explainable outputs. An LLM that hallucinates a false alert in a SOC context has real operational consequences.

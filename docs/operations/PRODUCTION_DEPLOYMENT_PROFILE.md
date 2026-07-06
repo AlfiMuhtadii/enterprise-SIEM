@@ -17,7 +17,7 @@ platform. It supplements the base `docker-compose.yml` with a hardening overlay
 - A hyperscale SIEM deployment
 
 **This IS:**
-- A controlled production-pilot posture for academic thesis demonstration
+- A controlled production-pilot posture for enterprise deployment evaluation
 - A hardened local/single-host deployment with reduced attack surface
 - A documented set of operational boundaries and accepted risks
 
