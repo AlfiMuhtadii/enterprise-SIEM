@@ -74,6 +74,15 @@ services:
 
   opensearch:
     ports: !reset []
+    environment:
+      # ENT-SEC-OPENSEARCH-OPEN: base docker-compose.yml disables the security
+      # plugin for local/demo convenience (unauthenticated, unencrypted) —
+      # production must explicitly enable it. Enabling it also switches the
+      # HTTP layer to the bundled self-signed demo cert (https); real,
+      # externally-verifiable certs are tracked separately by
+      # ENT-SEC-NO-TLS-INTERNAL. See docs/operations/PRODUCTION_DEPLOYMENT_PROFILE.md.
+      plugins.security.disabled: "false"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?OPENSEARCH_INITIAL_ADMIN_PASSWORD must be set to a strong value in production — see .env.production.example}
     restart: always
     deploy:
       resources:
@@ -153,6 +162,13 @@ services:
       XDR_DLQ_CONSUMER_ENABLED: "false"
       XDR_CORRELATION_DLQ_CONSUMER_ENABLED: "false"
       XDR_ALERT_WRITE_DLQ_CONSUMER_ENABLED: "false"
+      # ENT-SEC-OPENSEARCH-OPEN: security plugin enabled in production — connect
+      # over https and authenticate; verify=false is required against the
+      # bundled self-signed demo cert (see opensearch service comment above).
+      XDR_OPENSEARCH_URL: https://opensearch:9200
+      XDR_OPENSEARCH_USER: ${XDR_OPENSEARCH_USER:?XDR_OPENSEARCH_USER must be set in production — see .env.production.example}
+      XDR_OPENSEARCH_PASSWORD: ${XDR_OPENSEARCH_PASSWORD:?XDR_OPENSEARCH_PASSWORD must be set to a strong value in production — see .env.production.example}
+      XDR_OPENSEARCH_VERIFY_TLS: "false"
     restart: always
 
   incident-builder-service:

@@ -81,6 +81,9 @@ class SiemSearchService
             if ($user !== '') {
                 $http = $http->withBasicAuth($user, (string) config('xdr.infrastructure.opensearch.password'));
             }
+            if (!config('xdr.infrastructure.opensearch.verify_tls', true)) {
+                $http = $http->withOptions(['verify' => false]);
+            }
             $response = $http->post("{$url}/".self::OPENSEARCH_INDEX.'/_search', $body);
             if (!$response->successful()) {
                 return null;

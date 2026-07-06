@@ -22,6 +22,7 @@ Checks:
   PDP-13  Accepted risks and deferred risks referenced in docs
   PDP-14  No active scanning / autonomous remediation flags enabled
   PDP-15  Datastore credentials fail closed (ENT-SEC-WEAK-DEFAULT-SECRETS)
+  PDP-16  OpenSearch security plugin enabled in production (ENT-SEC-OPENSEARCH-OPEN)
 
 Severity per profile:
   local      → WARN for production-only missing items
@@ -108,10 +109,14 @@ _DATASTORE_CREDENTIAL_KEYS = {
     "postgres": ["POSTGRES_PASSWORD"],
     "clickhouse": ["CLICKHOUSE_PASSWORD"],
     "grafana": ["GF_SECURITY_ADMIN_USER", "GF_SECURITY_ADMIN_PASSWORD"],
+    "opensearch": ["OPENSEARCH_INITIAL_ADMIN_PASSWORD"],
 }
 
 # Env-file keys (production env file, not compose) holding the same credentials.
-_DATASTORE_CREDENTIAL_ENV_KEYS = ["DB_PASSWORD", "CLICKHOUSE_PASSWORD", "GF_SECURITY_ADMIN_PASSWORD"]
+_DATASTORE_CREDENTIAL_ENV_KEYS = [
+    "DB_PASSWORD", "CLICKHOUSE_PASSWORD", "GF_SECURITY_ADMIN_PASSWORD",
+    "XDR_OPENSEARCH_PASSWORD",
+]
 
 # Critical services that must have restart: always in production.
 _RESTART_SERVICES = {
@@ -656,9 +661,41 @@ def check_datastore_credentials_fail_closed(compose_data: dict, env: dict, profi
     return _check(
         "PDP-15", "Datastore credentials fail closed (no weak defaults)",
         passed, sev, detail,
-        "Override POSTGRES_PASSWORD/CLICKHOUSE_PASSWORD/GF_SECURITY_ADMIN_* in "
-        "docker-compose.prod.yml with ${VAR:?message} syntax, and set strong "
-        "values (not placeholders) in the production env file.",
+        "Override POSTGRES_PASSWORD/CLICKHOUSE_PASSWORD/GF_SECURITY_ADMIN_*/"
+        "OPENSEARCH_INITIAL_ADMIN_PASSWORD in docker-compose.prod.yml with "
+        "${VAR:?message} syntax, and set strong values (not placeholders) in "
+        "the production env file.",
+    )
+
+
+def check_opensearch_security_enabled(compose_data: dict, profile: str) -> dict:
+    """ENT-SEC-OPENSEARCH-OPEN: the base docker-compose.yml disables OpenSearch's
+    security plugin (plugins.security.disabled: "true") for local/demo
+    convenience — unauthenticated, unencrypted. docker-compose.prod.yml must
+    explicitly override this to "false". This check only inspects
+    docker-compose.prod.yml in isolation (matching how PDP-15 treats a
+    missing override as the violation) since the real production deploy
+    always layers this file on top of the base compose file."""
+    services = compose_data.get("services") or {}
+    svc = services.get("opensearch") or {}
+    svc_env = svc.get("environment") or {}
+    raw = str(svc_env.get("plugins.security.disabled", "")).strip().lower()
+
+    passed = raw == "false"
+    sev = _severity(profile, WARN, FAIL, FAIL)
+    if passed:
+        detail = "OpenSearch security plugin explicitly enabled in the production overlay."
+    elif raw == "":
+        detail = "docker-compose.prod.yml does not override plugins.security.disabled — the base compose's disabled setting applies unchanged."
+    else:
+        detail = f"docker-compose.prod.yml sets plugins.security.disabled={raw!r} instead of \"false\"."
+
+    return _check(
+        "PDP-16", "OpenSearch security plugin enabled in production",
+        passed, sev, detail,
+        "Set opensearch.environment['plugins.security.disabled'] to \"false\" "
+        "in docker-compose.prod.yml and provide OPENSEARCH_INITIAL_ADMIN_PASSWORD "
+        "/ XDR_OPENSEARCH_USER / XDR_OPENSEARCH_PASSWORD.",
     )
 
 
@@ -713,6 +750,7 @@ def run_all_checks(
     results.append(check_risk_docs(root, profile))
     results.append(check_no_active_scanning(compose_data, env, profile))
     results.append(check_datastore_credentials_fail_closed(compose_data, env, profile))
+    results.append(check_opensearch_security_enabled(compose_data, profile))
 
     return results
 

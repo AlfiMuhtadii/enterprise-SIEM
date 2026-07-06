@@ -80,6 +80,14 @@ return [
             'user' => env('XDR_OPENSEARCH_USER', ''),
             'password' => env('XDR_OPENSEARCH_PASSWORD', ''),
             'timeout_seconds' => (int) env('XDR_OPENSEARCH_TIMEOUT_SECONDS', 5),
+            // ENT-SEC-OPENSEARCH-OPEN: OpenSearch's security plugin ships with a
+            // bundled self-signed demo certificate for the HTTP layer — real,
+            // externally-verifiable certs are tracked separately by
+            // ENT-SEC-NO-TLS-INTERNAL. Until then, verification must stay off
+            // when connecting over https to the demo cert, or every request
+            // fails with an SSL trust error. Defaults to verifying (safe) so
+            // this only turns off when explicitly configured.
+            'verify_tls' => filter_var(env('XDR_OPENSEARCH_VERIFY_TLS', true), FILTER_VALIDATE_BOOL),
         ],
         'qdrant' => [
             'url' => env('XDR_QDRANT_URL', env('SOC_QDRANT_BASE_URL', 'http://127.0.0.1:6333')),

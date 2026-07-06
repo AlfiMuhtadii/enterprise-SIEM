@@ -35,6 +35,9 @@ class XdrStorageValidateCommand extends Command
                     if (config('xdr.infrastructure.opensearch.user')) {
                         $request = $request->withBasicAuth(config('xdr.infrastructure.opensearch.user'), config('xdr.infrastructure.opensearch.password'));
                     }
+                    if (!config('xdr.infrastructure.opensearch.verify_tls', true)) {
+                        $request = $request->withOptions(['verify' => false]);
+                    }
                     $response = $request->get(rtrim(config('xdr.infrastructure.opensearch.url'), '/').'/_cluster/health');
                     $status = $response->successful() ? 'healthy' : 'degraded';
                     $metrics['http_status'] = $response->status();

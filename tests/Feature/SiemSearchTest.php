@@ -129,6 +129,22 @@ class SiemSearchTest extends TestCase
         $this->assertSame(\App\Support\TraceRedactor::REDACTED, $row->evidence['password']);
     }
 
+    /** ENT-SEC-OPENSEARCH-OPEN: verify_tls config wiring. */
+    public function test_opensearch_verify_tls_defaults_true(): void
+    {
+        $this->assertTrue(config('xdr.infrastructure.opensearch.verify_tls'));
+    }
+
+    public function test_opensearch_verify_tls_disabled_does_not_break_search(): void
+    {
+        config(['xdr.infrastructure.opensearch.verify_tls' => false]);
+        Http::fake(['*' => Http::response(['hits' => ['hits' => []]], 200)]);
+
+        $result = $this->service->search('t1', 'brute');
+
+        $this->assertSame('opensearch', $result['source']);
+    }
+
     public function test_opensearch_failure_falls_back_to_postgres(): void
     {
         Http::fake(['*' => Http::response(null, 500)]);

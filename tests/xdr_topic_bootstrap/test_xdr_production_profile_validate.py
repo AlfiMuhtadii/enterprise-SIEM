@@ -41,6 +41,7 @@ def _secure_env(**overrides) -> dict:
         "DB_PASSWORD":                         "f" * 32,
         "CLICKHOUSE_PASSWORD":                 "g" * 32,
         "GF_SECURITY_ADMIN_PASSWORD":          "h" * 32,
+        "XDR_OPENSEARCH_PASSWORD":             "i" * 32,
     }
     base.update(overrides)
     return base
@@ -67,6 +68,10 @@ def _secure_compose() -> dict:
             },
             "opensearch": {
                 "ports": [],
+                "environment": {
+                    "plugins.security.disabled": "false",
+                    "OPENSEARCH_INITIAL_ADMIN_PASSWORD": "${OPENSEARCH_INITIAL_ADMIN_PASSWORD:?must be set}",
+                },
                 "restart": "always",
                 "healthcheck": {"test": ["CMD", "curl", "-fsS", "http://127.0.0.1:9200"]},
             },
@@ -574,19 +579,55 @@ class TestDatastoreCredentialsFailClosed(unittest.TestCase):
         r = pdp.check_datastore_credentials_fail_closed({}, {}, "local")
         self.assertEqual(pdp.WARN, r["status"])
 
+    def test_fails_when_opensearch_admin_password_not_overridden(self):
+        compose = _secure_compose()
+        del compose["services"]["opensearch"]["environment"]["OPENSEARCH_INITIAL_ADMIN_PASSWORD"]
+        r = pdp.check_datastore_credentials_fail_closed(compose, _secure_env(), "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_fails_when_opensearch_password_env_is_placeholder(self):
+        env = _secure_env(XDR_OPENSEARCH_PASSWORD="REPLACE_WITH_STRONG_OPENSEARCH_PASSWORD")
+        r = pdp.check_datastore_credentials_fail_closed(_secure_compose(), env, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+
+# ---------------------------------------------------------------------------
+# Tests: PDP-16 — OpenSearch security plugin enabled (ENT-SEC-OPENSEARCH-OPEN)
+# ---------------------------------------------------------------------------
+
+class TestOpensearchSecurityEnabled(unittest.TestCase):
+    def test_passes_when_explicitly_disabled_false(self):
+        r = pdp.check_opensearch_security_enabled(_secure_compose(), "production")
+        self.assertEqual(pdp.PASS, r["status"])
+        self.assertEqual("PDP-16", r["check_id"])
+
+    def test_fails_when_no_override_in_prod_compose(self):
+        r = pdp.check_opensearch_security_enabled({"services": {"opensearch": {}}}, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+        self.assertIn("does not override", r["detail"])
+
+    def test_fails_when_still_true(self):
+        compose = {"services": {"opensearch": {"environment": {"plugins.security.disabled": "true"}}}}
+        r = pdp.check_opensearch_security_enabled(compose, "production")
+        self.assertEqual(pdp.FAIL, r["status"])
+
+    def test_warns_in_local_profile(self):
+        r = pdp.check_opensearch_security_enabled({"services": {"opensearch": {}}}, "local")
+        self.assertEqual(pdp.WARN, r["status"])
+
 
 # ---------------------------------------------------------------------------
 # Tests: run_all_checks (integration)
 # ---------------------------------------------------------------------------
 
 class TestRunAllChecks(unittest.TestCase):
-    def test_returns_15_checks(self):
+    def test_returns_16_checks(self):
         args = _args(profile="local")
         checks = pdp.run_all_checks(
             args, root=pdp.PROJECT_ROOT,
             env=_secure_env(), compose_data=_secure_compose(),
         )
-        self.assertEqual(15, len(checks))
+        self.assertEqual(16, len(checks))
 
     def test_all_check_ids_present(self):
         args = _args(profile="local")
@@ -595,7 +636,7 @@ class TestRunAllChecks(unittest.TestCase):
             env=_secure_env(), compose_data=_secure_compose(),
         )
         ids = {c["check_id"] for c in checks}
-        for n in range(1, 16):
+        for n in range(1, 17):
             self.assertIn(f"PDP-{n:02d}", ids)
 
     def test_overall_pass_with_secure_config(self):
@@ -712,7 +753,7 @@ class TestMainExitCode(unittest.TestCase):
                 data = json.load(f)
             self.assertIn("overall", data)
             self.assertIn("checks", data)
-            self.assertEqual(15, len(data["checks"]))
+            self.assertEqual(16, len(data["checks"]))
         finally:
             os.unlink(tmp)
 

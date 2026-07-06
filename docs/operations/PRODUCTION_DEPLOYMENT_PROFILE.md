@@ -107,7 +107,7 @@ bindings and restricts administrative interfaces to localhost:
 |---|---|---|
 | PostgreSQL | `5432` public | **removed** — docker exec or bastion only |
 | ClickHouse | `8123`, `9000` public | **removed** |
-| OpenSearch | `9200`, `9600` public | **removed** |
+| OpenSearch | `9200`, `9600` public | **removed**; security plugin also enabled (auth + demo-cert TLS) — see PDP-16 below |
 | Qdrant | `6333`, `6334` public | **removed** |
 | Grafana | `3000` public | `127.0.0.1:3000` — SSH tunnel |
 | Redpanda Pandaproxy | `8082` public | `127.0.0.1:8082` — SSH tunnel |
@@ -276,7 +276,7 @@ Options:
   --quiet      suppress console output
 ```
 
-Checks PDP-01 through PDP-15. Exit 0=PASS, 1=FAIL, 2=ERROR.
+Checks PDP-01 through PDP-16. Exit 0=PASS, 1=FAIL, 2=ERROR.
 
 | Check | Description | Severity (production) |
 |---|---|---|
@@ -295,13 +295,38 @@ Checks PDP-01 through PDP-15. Exit 0=PASS, 1=FAIL, 2=ERROR.
 | PDP-13 | Accepted and deferred risks referenced | WARN |
 | PDP-14 | No active scanning / autonomous remediation | FAIL |
 | PDP-15 | Datastore credentials fail closed (no weak defaults) | FAIL |
+| PDP-16 | OpenSearch security plugin enabled in production | FAIL |
 
 PDP-15 (ENT-SEC-WEAK-DEFAULT-SECRETS): the base `docker-compose.yml` falls
 back to well-known weak defaults for datastore credentials
 (`${DB_PASSWORD:-postgres}`, `${CLICKHOUSE_PASSWORD:-detector}`,
-`${GF_SECURITY_ADMIN_PASSWORD:-admin}`). `docker-compose.prod.yml` overrides
-`postgres`, `clickhouse`, and `grafana` with `${VAR:?message}` fail-closed
-syntax so a production deploy refuses to start rather than silently
-accepting the dev defaults if the operator forgets to set them. The check
-also verifies the production env file doesn't leave these on a placeholder
-value.
+`${GF_SECURITY_ADMIN_PASSWORD:-admin}`, `${OPENSEARCH_INITIAL_ADMIN_PASSWORD:-DetectorAdmin123!}`).
+`docker-compose.prod.yml` overrides `postgres`, `clickhouse`, `grafana`, and
+`opensearch` with `${VAR:?message}` fail-closed syntax so a production
+deploy refuses to start rather than silently accepting the dev defaults if
+the operator forgets to set them. The check also verifies the production
+env file doesn't leave these on a placeholder value.
+
+PDP-16 (ENT-SEC-OPENSEARCH-OPEN): the base `docker-compose.yml` runs
+OpenSearch with `plugins.security.disabled: "true"` for local/demo
+convenience — unauthenticated, plain HTTP. `docker-compose.prod.yml`
+overrides this to `"false"`, which also switches OpenSearch to its bundled
+self-signed demo certificate for the HTTP layer (i.e. `https://` with an
+unverified cert). `alert-writer-service` and Laravel (`SiemSearchService`,
+`XdrStorageValidateCommand`) authenticate via `XDR_OPENSEARCH_USER`/
+`XDR_OPENSEARCH_PASSWORD` (must match the OpenSearch `admin` user and
+`OPENSEARCH_INITIAL_ADMIN_PASSWORD`) and skip cert verification via
+`XDR_OPENSEARCH_VERIFY_TLS=false` against that demo cert.
+
+**Known interim gap:** the demo certificate is self-signed and unverified —
+this closes the "unauthenticated" half of ENT-SEC-OPENSEARCH-OPEN (RBAC via
+the built-in `admin` user) and encrypts the wire, but does not yet give a
+properly trusted/rotatable certificate chain. Real PKI/mTLS for this and
+every other internal hop (Pandaproxy, Postgres) is tracked separately by
+ENT-SEC-NO-TLS-INTERNAL. This change was validated statically (`docker
+compose config` against both the base file alone and the base+prod overlay,
+with all required vars set and unset) — the Docker daemon was not running
+in the environment this was implemented in, so a live container boot has
+not been verified; run
+`docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d opensearch alert-writer-service`
+to confirm before relying on this in a real deployment.

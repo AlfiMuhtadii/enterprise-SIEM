@@ -306,6 +306,17 @@ def write_opensearch(alerts: List[AlertPayload]) -> int:
     url = os.getenv("XDR_OPENSEARCH_URL", "").rstrip("/")
     if not url:
         return 0
+    # ENT-SEC-OPENSEARCH-OPEN: send credentials when configured (the security
+    # plugin is enabled in production); local/demo with security disabled
+    # leaves these unset and auth is simply not sent, matching prior behavior.
+    os_user = os.getenv("XDR_OPENSEARCH_USER", "")
+    os_password = os.getenv("XDR_OPENSEARCH_PASSWORD", "")
+    auth = (os_user, os_password) if os_user else None
+    # OpenSearch's security plugin ships a self-signed demo cert for the HTTP
+    # layer; verification must stay off against that cert or every request
+    # fails with an SSL trust error. Real, verifiable certs are tracked
+    # separately (ENT-SEC-NO-TLS-INTERNAL). Defaults to verifying (safe).
+    verify = os.getenv("XDR_OPENSEARCH_VERIFY_TLS", "true").lower() in {"1", "true", "yes"}
     failures = 0
     for alert in alerts:
         fp = fingerprint(alert)
@@ -313,7 +324,10 @@ def write_opensearch(alerts: List[AlertPayload]) -> int:
         doc["alert_fingerprint"] = fp
         doc["indexed_at"] = now_iso()
         try:
-            resp = SESSION.put(f"{url}/xdr-alerts/_doc/{alert_id(alert, fp)}", json=doc, timeout=5)
+            resp = SESSION.put(
+                f"{url}/xdr-alerts/_doc/{alert_id(alert, fp)}",
+                json=doc, timeout=5, auth=auth, verify=verify,
+            )
             if resp.status_code >= 300:
                 failures += 1
         except Exception:
