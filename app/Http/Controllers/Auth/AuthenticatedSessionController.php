@@ -28,6 +28,17 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
+        // IDENTITY-SSO-MFA: per-user opt-in second factor. If this account has
+        // TOTP enabled, revert the password-only login Auth::attempt() just
+        // established and require a verified code before completing it.
+        $user = $request->user();
+        if ($user->mfa_enabled) {
+            Auth::guard('web')->logout();
+            $request->session()->put('mfa_pending_user_id', $user->id);
+
+            return redirect()->route('mfa.challenge');
+        }
+
         $request->session()->regenerate();
 
         SecurityLogger::log('auth_login_success', [

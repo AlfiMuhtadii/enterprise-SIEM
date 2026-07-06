@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -35,6 +36,15 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
                 ->name('password.store');
+
+    // IDENTITY-SSO-MFA: reached mid-login, after password succeeds but before
+    // Auth::login() completes — the user is logged out at this point, so
+    // 'guest' middleware is correct here, not 'auth'.
+    Route::get('mfa/challenge', [MfaController::class, 'challenge'])
+                ->name('mfa.challenge');
+
+    Route::post('mfa/challenge', [MfaController::class, 'verify'])
+                ->name('mfa.verify');
 });
 
 Route::middleware('auth')->group(function () {
@@ -58,4 +68,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
                 ->name('logout');
+
+    // IDENTITY-SSO-MFA: manage the account's own TOTP second factor.
+    Route::get('mfa/setup', [MfaController::class, 'setup'])->name('mfa.setup');
+    Route::post('mfa/enable', [MfaController::class, 'enable'])->name('mfa.enable');
+    Route::post('mfa/disable', [MfaController::class, 'disable'])->name('mfa.disable');
 });
