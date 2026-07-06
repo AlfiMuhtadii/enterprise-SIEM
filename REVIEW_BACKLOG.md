@@ -13,12 +13,12 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-TENANCY-NO-DB-ENFORCEMENT** | [Enterprise BLOCKER] Isolation is app-layer `where('tenant_id')` only (ASSET-TENANT-OVERWRITE proves it leaks); no DB RLS. Supersedes deferred TENANT-ENFORCE-RLS — mandatory for multi-tenant SaaS | `app/Services/TenantBoundaryService.php`, Postgres RLS | High | Proposed (re-open TENANT-ENFORCE-RLS) |
 | **ENT-REL-SIMULATED-HA** | [Enterprise BLOCKER] HA/scale/DR "PASS" is computed, not measured on real cluster (SIM-LAYER Track B + HA-DRILL-01). "Too heavy for laptop" invalid at enterprise bar — run on real staging before any availability claim | `app/Services/EnterpriseScaleHaService.php` et al., `docker-compose.ha.yml` | High | Proposed (re-open Track B + HA-DRILL-01) |
 | **ENT-DETECT-ML-NOT-LIVE** | [Enterprise product-claim BLOCKER] "Hybrid rule+ML" is a headline claim but live path is rule-only; model is offline-scripts only. Serve as shadow/advisory scorer at minimum | `services/correlation-worker/main.go`, `scripts/train_ai_detector.py`, `storage/app/ai_detector_model.pkl` | High | Proposed (re-rank ML-SERVE-ONLINE) |
-| **ENT-SDLC-NO-SUPPLYCHAIN** | [Enterprise SDLC] No dep pinning/lock, no SBOM, no image scan, no signed builds — required for international procurement / EU CRA. Pin+lock, syft/cyclonedx SBOM, trivy scan gate, cosign sign | `services/*/requirements.txt`, `services/*/Dockerfile`, CI | Medium | Proposed |
+| **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning done; SBOM/scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions (`==`) and Go services have zero external deps (no `go.sum` needed) — that part was already fine. The real gap was all 6 Dockerfiles floating on mutable tags (`python:3.12-slim`, `golang:1.26-alpine`, `alpine:3.22`); now pinned to resolved digests (`@sha256:...`, fetched live from the Docker Hub registry API). Still missing: SBOM generation (syft/cyclonedx), image vuln scan gate (trivy), signed builds (cosign) — none of these tools are available in this environment | `services/*/Dockerfile`, CI | Medium | Proposed (reduced) |
 | **IDENTITY-SSO-MFA** | [Enterprise BLOCKER — re-ranked] No SSO (SAML/OIDC) or MFA on the privileged SOC console that approves response commands — SOC2 CC6.1 | `app/Http/Controllers/Auth/*`, `config/auth.php`, `routes/auth.php` | High | Proposed |
 | **OBS-OTEL-TRACING** | [Enterprise-XDR — re-ranked High] No standards-based distributed tracing across polyglot services (OpenTelemetry / W3C traceparent); required for enterprise SLA support | `services/*/main.*`, `app/Http/Middleware/*`, ingestion→normalizer→correlation→alert-writer→incident-builder | High | Proposed |
 | **ML-SERVE-ONLINE** | [Enterprise-XDR] Superseded by ENT-DETECT-ML-NOT-LIVE (re-ranked to product-claim blocker); trained multiclass LR model is offline-script-only, not in live detection path | `scripts/train_ai_detector.py`, `scripts/realtime_detector_consumer.py`, `services/correlation-worker/main.go` | High | Proposed (see ENT-DETECT-ML-NOT-LIVE) |
 | **TECH-EOL-UPGRADE** | [Tech Currency] PHP `^8.1` (security EOL 2025-12), Laravel `^10.10` (EOL), Sanctum `^3.3` — running on end-of-life runtime/framework is not enterprise-supportable | `composer.json` | High | Proposed |
-| **CODE-STRUCT-DECOMPOSE** (1st seam done — `internal/ioc` extracted) | [Structure/Maintainability] `correlation-worker/main.go` now 2836 lines (was 2950) after extracting the IOC lookup+cache into `internal/ioc` (own package, own tests, zero behavior change). Remaining seams: `internal/rules` (rule evaluation), `internal/kafka` (Pandaproxy consume/produce), `internal/correlate` (cross-domain correlation); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
+| **CODE-STRUCT-DECOMPOSE** (2 of ~5 seams done) | [Structure/Maintainability] `correlation-worker/main.go` now 2438 lines (was 2950) after extracting IOC lookup+cache (`internal/ioc`) and the endpoint-alert foundation + network shadow rules (`internal/shadowrules`), both own packages with own tests, zero behavior change. Remaining seams: core endpoint rules + cross-domain + streaming rules (still in `main.go`, ~1450 lines, could move into `internal/shadowrules` too), Pandaproxy transport (`internal/kafka`); normalizer (1181) and alert-writer (1277) untouched | `services/correlation-worker/main.go`, `services/normalizer-worker/main.go`, `services/alert-writer-service/main.py` | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** | [Capability — MOST ABSENT] No generic log-ingestion/connector framework — no syslog receiver, no CEF/LEEF parser, no cloud-native log connectors (CloudTrail/GuardDuty/O365). The "X" breadth of XDR is missing; ingestion is only the signed HMAC gateway + a few hand-coded typed normalizers | `services/ingestion-gateway`, `services/normalizer-worker`, new `services/log-connector-*` | High | Proposed |
 | **DATA-TIERING** | [Capability — ABSENT] No tiered long-term searchable log storage (hot/warm/cold, archival to object storage). Only a 30/90-day prune exists — no retention beyond that, no cold tier | `app/Console/Commands/SecurityRetentionCommand.php`, ClickHouse, object storage | Medium | Proposed |
 | **META-MODULE-RATIONALIZE** | [Off-track / Scope creep] ~32 of 90 services are self-referential readiness/certification/maturity/evidence-freeze/soak-sim modules (incl. 4× StabilityEvidenceFreeze, overlapping soak services) — huge maintenance surface, not XDR capability | `app/Services/*Readiness*.php`, `*Certification*.php`, `*EvidenceFreeze*.php`, `*Soak*.php`, `*Maturity*.php` | Medium | Proposed |
@@ -135,17 +135,39 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   time, not a big-bang rewrite (respects the Architecture Direction Lock).
 - **Safety:** Structure only; detection behavior and event contracts must be byte-identical.
   Live-pipeline verifier required because this touches the correlation hot path.
-- **Progress (2026-07-09):** First seam done — IOC lookup+cache extracted to
+- **Progress (2026-07-09):** Seam 1 — IOC lookup+cache extracted to
   `internal/ioc` (own package: `Cache`, `Lookup`, `Severity`, `Confidence`, `Configure`; the
   3 call sites in `ruleIOCIPMatch`/`ruleIOCDomainMatch`/`ruleIOCHashMatch` now call
   `ioc.Lookup(...)` etc.). `ioc_cache_test.go`'s 5 tests moved into the new package
   (`internal/ioc/ioc_test.go`) unchanged in behavior, +2 new tests for `Severity`/`Confidence`
-  defaults. `go build`/`go vet`/`go test ./...` all clean for both packages;
-  `main.go` 2950→2836 lines. **Not run**: the live-pipeline verifier (needs Docker, unavailable
-  in this environment) — this was pure code movement with identical logic/tests, so risk is low,
-  but per CLAUDE.md's own note this touches the correlation hot path and should be confirmed with
-  a live run before the next deploy. Remaining seams (`internal/rules`, `internal/kafka`,
-  `internal/correlate`) and normalizer/alert-writer decomposition are still open.
+  defaults. `main.go` 2950→2836 lines.
+- **Progress (2026-07-10):** Seam 2 — the `EndpointAlert` foundation (`EndpointAlert` type,
+  `epStr`/`epInt64`/`makeEndpointAlert`/`dedupeEndpointAlerts`) plus the network shadow rules
+  (`correlateNetworkShadowAll` + 9 `ruleNetwork*` funcs, the most isolated rule group — zero
+  relation to the process/endpoint rule tables) extracted to `internal/shadowrules`, all
+  exported (`EpStr`, `EpInt64`, `MakeEndpointAlert`, `DedupeEndpointAlerts`,
+  `CorrelateNetworkShadowAll`). Since the foundation type is used by all 44 rule functions in
+  the file (not just the 9 that physically moved), every remaining rule signature in `main.go`
+  was mechanically updated to `shadowrules.EndpointAlert` — done via a one-off Python script
+  (deleted after use) for the ~40 call-site substitutions, not by hand, then verified by
+  `go build` (caught and fixed one double-prefix bug from an overlapping replace pattern:
+  `[]EndpointAlert{a}` → briefly `[]shadowrules.shadowrules.EndpointAlert{a}`, fixed to
+  `[]shadowrules.EndpointAlert{a}`). No tests existed for this code before (0 tests covered any
+  `rule*`/`correlate*` function or `EndpointAlert` construction) — added 9 new tests for the
+  foundation helpers + a representative slice of the network rules (not all 9 rules
+  individually — that's a larger, separate test-writing effort). `main.go` 2836→2438 lines;
+  `internal/shadowrules/shadowrules.go` 423 lines. Also fixed a real bug found while checking
+  Docker build parity: `services/correlation-worker/Dockerfile` only did `COPY main.go ./`,
+  which would have broken the build the moment `internal/ioc` was added in seam 1 (never caught
+  because the Docker daemon is unavailable in this environment) — added
+  `COPY internal ./internal`, which covers both `internal/ioc` and the new
+  `internal/shadowrules` automatically. `go build`/`go vet`/`go test ./...` clean across all 3
+  packages (`main`, `internal/ioc`, `internal/shadowrules`). **Not run**: the live-pipeline
+  verifier and an actual `docker build` (Docker daemon unavailable) — recommended before the
+  next deploy, especially given the Dockerfile bug this session already found once. Remaining
+  seams: core endpoint rules + cross-domain + streaming rules (~1450 lines, could extend
+  `internal/shadowrules` or split further), Pandaproxy transport (`internal/kafka`);
+  normalizer/alert-writer decomposition untouched.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 
