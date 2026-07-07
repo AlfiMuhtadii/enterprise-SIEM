@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict ryeuA5fwge0NgPq99lgACN3cmDcMg4kb7Jcva1VXgmKmxz6GsS6Lb4JK7SZoiL7
+\restrict GPe3Qy8ST4fAaopkoN24V9OQxhiqx7huqq408zQxpNbg6iUNSVdEHCkpyL2ecc4
 
--- Dumped from database version 17.7
+-- Dumped from database version 16.12 (Debian 16.12-1.pgdg13+1)
 -- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
@@ -3117,6 +3117,76 @@ CREATE SEQUENCE public.detection_attack_mappings_id_seq
 --
 
 ALTER SEQUENCE public.detection_attack_mappings_id_seq OWNED BY public.detection_attack_mappings.id;
+
+
+--
+-- Name: detection_backtest_matches; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.detection_backtest_matches (
+    id bigint NOT NULL,
+    match_id character varying(255) NOT NULL,
+    run_id character varying(255) NOT NULL,
+    rule_id character varying(120) NOT NULL,
+    actor_key character varying(255),
+    event_count integer DEFAULT 0 NOT NULL,
+    sample_events jsonb,
+    created_at timestamp(0) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: detection_backtest_matches_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.detection_backtest_matches_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: detection_backtest_matches_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.detection_backtest_matches_id_seq OWNED BY public.detection_backtest_matches.id;
+
+
+--
+-- Name: detection_backtest_runs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.detection_backtest_runs (
+    id bigint NOT NULL,
+    run_id character varying(255) NOT NULL,
+    rule_ids jsonb NOT NULL,
+    window_start timestamp(0) with time zone NOT NULL,
+    window_end timestamp(0) with time zone NOT NULL,
+    telemetry_event_count integer DEFAULT 0 NOT NULL,
+    triggered_by bigint,
+    created_at timestamp(0) with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: detection_backtest_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.detection_backtest_runs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: detection_backtest_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.detection_backtest_runs_id_seq OWNED BY public.detection_backtest_runs.id;
 
 
 --
@@ -19599,6 +19669,20 @@ ALTER TABLE ONLY public.detection_attack_mappings ALTER COLUMN id SET DEFAULT ne
 
 
 --
+-- Name: detection_backtest_matches id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_matches ALTER COLUMN id SET DEFAULT nextval('public.detection_backtest_matches_id_seq'::regclass);
+
+
+--
+-- Name: detection_backtest_runs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_runs ALTER COLUMN id SET DEFAULT nextval('public.detection_backtest_runs_id_seq'::regclass);
+
+
+--
 -- Name: detection_confidence_history id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -23552,6 +23636,38 @@ ALTER TABLE ONLY public.detection_attack_mappings
 
 ALTER TABLE ONLY public.detection_attack_mappings
     ADD CONSTRAINT detection_attack_mappings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: detection_backtest_matches detection_backtest_matches_match_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_matches
+    ADD CONSTRAINT detection_backtest_matches_match_id_unique UNIQUE (match_id);
+
+
+--
+-- Name: detection_backtest_matches detection_backtest_matches_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_matches
+    ADD CONSTRAINT detection_backtest_matches_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: detection_backtest_runs detection_backtest_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_runs
+    ADD CONSTRAINT detection_backtest_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: detection_backtest_runs detection_backtest_runs_run_id_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_runs
+    ADD CONSTRAINT detection_backtest_runs_run_id_unique UNIQUE (run_id);
 
 
 --
@@ -30229,6 +30345,20 @@ CREATE INDEX detection_attack_mappings_technique_id_index ON public.detection_at
 
 
 --
+-- Name: detection_backtest_matches_rule_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX detection_backtest_matches_rule_id_index ON public.detection_backtest_matches USING btree (rule_id);
+
+
+--
+-- Name: detection_backtest_matches_run_id_rule_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX detection_backtest_matches_run_id_rule_id_index ON public.detection_backtest_matches USING btree (run_id, rule_id);
+
+
+--
 -- Name: detection_false_positive_reports_alert_id_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -36223,6 +36353,22 @@ ALTER TABLE ONLY public.detection_attack_mappings
 
 
 --
+-- Name: detection_backtest_matches detection_backtest_matches_run_id_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_matches
+    ADD CONSTRAINT detection_backtest_matches_run_id_foreign FOREIGN KEY (run_id) REFERENCES public.detection_backtest_runs(run_id);
+
+
+--
+-- Name: detection_backtest_runs detection_backtest_runs_triggered_by_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.detection_backtest_runs
+    ADD CONSTRAINT detection_backtest_runs_triggered_by_foreign FOREIGN KEY (triggered_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: detection_false_positive_reports detection_false_positive_reports_reported_by_foreign; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -37040,15 +37186,15 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ryeuA5fwge0NgPq99lgACN3cmDcMg4kb7Jcva1VXgmKmxz6GsS6Lb4JK7SZoiL7
+\unrestrict GPe3Qy8ST4fAaopkoN24V9OQxhiqx7huqq408zQxpNbg6iUNSVdEHCkpyL2ecc4
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict JBQaINUhZ46Xn8bU6v4zlwm9O4DhCjtiVf5m4jPdoNRkcd3i7hO110OjHdLeBRB
+\restrict eo4OEwXUw58iIead5fvpXvy2PNdD7DEfmDj1kwROSoZhQSot34vrWSlmduOyPpl
 
--- Dumped from database version 17.7
+-- Dumped from database version 16.12 (Debian 16.12-1.pgdg13+1)
 -- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
@@ -37211,6 +37357,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 141	2026_07_11_010001_add_mfa_columns_to_users_table	2
 142	2026_07_12_010001_create_honeytoken_tables	3
 143	2026_07_13_010001_create_tenant_hierarchy_tables	4
+144	2026_07_14_010001_create_detection_backtest_tables	5
 \.
 
 
@@ -37218,12 +37365,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 143, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 144, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict JBQaINUhZ46Xn8bU6v4zlwm9O4DhCjtiVf5m4jPdoNRkcd3i7hO110OjHdLeBRB
+\unrestrict eo4OEwXUw58iIead5fvpXvy2PNdD7DEfmDj1kwROSoZhQSot34vrWSlmduOyPpl
 

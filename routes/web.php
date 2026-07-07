@@ -328,6 +328,12 @@ Route::middleware(['auth', 'soc:rules.govern'])->group(function () {
         Route::get('/promotions',       [DetectionLifecycleController::class, 'promotions'])->name('detection.lifecycle.promotions');
         Route::get('/quality',          [DetectionLifecycleController::class, 'qualityDashboard'])->name('detection.lifecycle.quality');
     });
+    // CAP-DETECT-BACKTEST: replay-safe historical backtest, BEFORE {ruleId} catch-all
+    Route::prefix('detection/backtest')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Detection\DetectionBacktestController::class, 'index'])->name('detection.backtest.index');
+        Route::post('/', [\App\Http\Controllers\Detection\DetectionBacktestController::class, 'store'])->name('detection.backtest.store');
+        Route::get('/{runId}', [\App\Http\Controllers\Detection\DetectionBacktestController::class, 'show'])->name('detection.backtest.show');
+    });
     // ENTERPRISE-045: promotion readiness BEFORE {ruleId} catch-all
     Route::get('/detection/promotion-readiness', [DetectionPromotionReadinessController::class, 'index'])->name('detection.promotion-readiness');
     // ENTERPRISE-047: shadow_ready promotion decisions BEFORE {ruleId} catch-all

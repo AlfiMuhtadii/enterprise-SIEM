@@ -33,8 +33,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **AI-KB-SEMANTIC** | [Enterprise AI — promoted 2026-07-06] Qdrant + cosine ranking path exists (`SocKnowledgeRetriever::retrieveQdrant`); only a live transformer embedding model is missing (currently offline pseudo-embeddings). Needs a bundled/served embedding model — conflicts with offline-first default, so gate behind a flag | `app/Support/SocKnowledgeRetriever.php`, embedding service | Medium | Proposed (staged — needs ML infra) |
 | **AI-KB-FEED-INGEST** | [Enterprise AI — promoted 2026-07-06] No live MITRE/RSS threat-intel feed ingest into the KB. Re-scope as a bundled offline dataset import to preserve offline-first posture rather than a live network dependency | `app/Services/*`, KB seeding | Low | Proposed (staged) |
 | **CAP-DETECT-AS-CODE-SIGMA** (compiler done — metadata/catalog import only, see reduced scope note) | [Power — detection coverage multiplier] `SigmaImportService` + `detection:import-sigma` artisan command compile SigmaHQ YAML into shadow-only registry entries (domain/severity/MITRE/field-mapping), always `status=shadow`, never `staged_active`. **Reduced scope, discovered during research**: `registry.v1.json` is a metadata/governance catalog everywhere in this codebase — no existing rule's detection logic is driven by the JSON (all 133 are hand-coded Go/Python) — so this compiler produces a catalog entry with the original Sigma `detection:` block preserved for later hand-implementation, not auto-generated executable detection logic. That gap is consistent with how every other rule already works, not a shortfall unique to this importer | `app/Services/SigmaImportService.php`, `app/Console/Commands/DetectionImportSigmaCommand.php` | High | Proposed (reduced) |
-| **CAP-TI-STIX-TAXII** | [Power — real TI platform] Current IOC path is a static lookup; no STIX 2.1 / TAXII 2.1 inbound client, no IOC lifecycle (confidence decay, expiry, source provenance). Add a bundled/offline-first TAXII poller + IOC lifecycle so threat-intel is first-class, not a flat list. Advisory enrichment only | new `services/ti-connector` or `app/Services/ThreatIntel*`, `ioc_*` tables | High | Proposed |
-| **CAP-DETECT-BACKTEST** | [Power — detection engineering] Extend the existing replay layer into a historical backtest: run a candidate/new detection against N-days of retained normalized telemetry and report an advisory "would-have-fired" count + sample matches, before committing to a soak. Replay-safe, advisory-only, no active alerts written | `app/Http/Controllers/Detection/DetectionRuleController.php`, `detection_replay_results`, replay engine | High | Proposed |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
@@ -429,10 +427,6 @@ the same domain-specific 6h soak gate before any `staged_active` promotion — t
   shells out to the real Python validator against an isolated temp registry copy, so the
   validator's own exit code is the source of truth, not just this compiler's self-assessment).
 
-## Proposed Task: CAP-TI-STIX-TAXII — First-class threat-intel platform (STIX 2.1 / TAXII 2.1)
-Replace the flat IOC lookup with a real TI layer: a TAXII 2.1 poller (bundled/offline-first feeds by
-default), STIX 2.1 object parsing, and IOC lifecycle (source provenance, confidence decay, expiry).
-**Safety:** enrichment/advisory only — feeds detection scoring, never triggers response.
 
 ## Proposed Task: CAP-MSSP-TENANCY — Parent/child tenant hierarchy + MSSP analyst roles
 Add a tenant hierarchy (an MSSP parent overseeing many customer tenants) with cross-tenant **read-only**
