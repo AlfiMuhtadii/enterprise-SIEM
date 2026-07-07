@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\EntityRiskScoringService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class EntityRiskApiController extends Controller
 {
-    public function __construct(private readonly EntityRiskScoringService $scorer) {}
+    public function __construct(
+        private readonly EntityRiskScoringService $scorer,
+        private readonly TenantContextAuthority $tenantAuthority,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -49,14 +53,16 @@ class EntityRiskApiController extends Controller
         ]);
     }
 
-    public function entityRisk(int $id): JsonResponse
+    public function entityRisk(Request $request, int $id): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
         $entity = DB::table('entities')->where('id', $id)->first();
-        if (!$entity) {
+        if (!$entity || ($tenantId !== null && $entity->tenant_id !== null && $entity->tenant_id !== $tenantId)) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
 
-        $result = $this->scorer->calculateRisk($id);
+        $result = $this->scorer->calculateRisk($id, $tenantId);
 
         return response()->json([
             'entity_id'   => $id,
@@ -66,10 +72,12 @@ class EntityRiskApiController extends Controller
         ]);
     }
 
-    public function riskHistory(int $id): JsonResponse
+    public function riskHistory(Request $request, int $id): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
         $entity = DB::table('entities')->where('id', $id)->first();
-        if (!$entity) {
+        if (!$entity || ($tenantId !== null && $entity->tenant_id !== null && $entity->tenant_id !== $tenantId)) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
 

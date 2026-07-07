@@ -112,12 +112,31 @@ class EntityRiskScoringService
      * Calculate risk for an entity. Deterministic — same data produces same score.
      * Does NOT write to DB. Call calculateAndPersist() to also store the result.
      *
-     * Returns empty array if entity not found.
+     * Returns empty array if entity not found, or if $tenantId is given and
+     * does not match the entity's own tenant_id (treated as not-found rather
+     * than leaking the entity's existence to another tenant).
+     *
+     * ENT-TENANCY-RISK-SCORING: $tenantId scopes the factor collectors that
+     * query tenant-tagged tables (security_alerts/security_incidents, both
+     * of which carry tenant_id). A number of the advisory amplification
+     * factor collectors below (cross-domain, active-response, UEBA,
+     * endpoint-operational, low-level-telemetry, investigation-graph, SOAR)
+     * query tables that do not have a tenant_id column at all yet
+     * (cross_domain_correlations, response_executions, endpoint_agents,
+     * baseline_anomaly_scores, investigation_*, soar_*) — those are each
+     * covered by their own dedicated tenant-isolation backlog items
+     * (ENT-TENANCY-RESPONSE-EXECUTION, ENT-TENANCY-UEBA, etc.) and are
+     * deliberately NOT touched here to keep this fix bounded to what the
+     * finding named and what's actually fixable without new migrations
+     * across a dozen unrelated tables.
      */
-    public function calculateRisk(int $entityId): array
+    public function calculateRisk(int $entityId, ?string $tenantId = null): array
     {
         $entity = DB::table('entities')->where('id', $entityId)->first();
         if (!$entity) {
+            return [];
+        }
+        if ($tenantId !== null && $entity->tenant_id !== null && $entity->tenant_id !== $tenantId) {
             return [];
         }
 
@@ -127,8 +146,8 @@ class EntityRiskScoringService
         $traceIds    = [];
 
         // Common factors — applicable to all entity types
-        $this->collectAlertFactors($entity, $factors, $alertIds, $traceIds);
-        $this->collectIncidentFactors($entity, $factors, $incidentIds, $traceIds);
+        $this->collectAlertFactors($entity, $factors, $alertIds, $traceIds, $tenantId);
+        $this->collectIncidentFactors($entity, $factors, $incidentIds, $traceIds, $tenantId);
         $this->collectTraceFrequency($entity, $factors, $traceIds);
         $this->collectRelationshipFactor($entity, $factors);
         $this->collectCrossDomainFactors($entity, $factors);    // advisory-only amplification
@@ -137,14 +156,14 @@ class EntityRiskScoringService
         // Type-specific factors
         switch ($entity->entity_type) {
             case 'user':
-                $this->collectUserFactors($entity, $factors, $alertIds, $traceIds);
+                $this->collectUserFactors($entity, $factors, $alertIds, $traceIds, $tenantId);
                 break;
             case 'host':
-                $this->collectHostFactors($entity, $factors);
+                $this->collectHostFactors($entity, $factors, $tenantId);
                 break;
             case 'ip':
             case 'domain':
-                $this->collectNetworkFactors($entity, $factors);
+                $this->collectNetworkFactors($entity, $factors, $tenantId);
                 break;
             case 'process':
                 $this->collectProcessFactors($entity, $factors);
@@ -175,9 +194,9 @@ class EntityRiskScoringService
      * Calculate risk and persist: updates entity current state, appends snapshot.
      * Snapshot is always INSERTed — append-only, replay-safe.
      */
-    public function calculateAndPersist(int $entityId): ?EntityRiskSnapshot
+    public function calculateAndPersist(int $entityId, ?string $tenantId = null): ?EntityRiskSnapshot
     {
-        $result = $this->calculateRisk($entityId);
+        $result = $this->calculateRisk($entityId, $tenantId);
         if (empty($result)) {
             return null;
         }
@@ -302,9 +321,10 @@ class EntityRiskScoringService
         object $entity,
         array  &$factors,
         array  &$alertIds,
-        array  &$traceIds
+        array  &$traceIds,
+        ?string $tenantId = null
     ): void {
-        $alerts = $this->alertsForEntity($entity);
+        $alerts = $this->alertsForEntity($entity, $tenantId);
         if ($alerts->isEmpty()) {
             return;
         }
@@ -341,9 +361,10 @@ class EntityRiskScoringService
         object $entity,
         array  &$factors,
         array  &$incidentIds,
-        array  &$traceIds
+        array  &$traceIds,
+        ?string $tenantId = null
     ): void {
-        $incidents = $this->incidentsForEntity($entity);
+        $incidents = $this->incidentsForEntity($entity, $tenantId);
         if ($incidents->isEmpty()) {
             return;
         }
@@ -400,11 +421,13 @@ class EntityRiskScoringService
         object $entity,
         array  &$factors,
         array  &$alertIds,
-        array  &$traceIds
+        array  &$traceIds,
+        ?string $tenantId = null
     ): void {
         $bursts = DB::table('security_alerts')
             ->where('actor_key', $entity->entity_key)
             ->where('alert_type', 'IDENTITY_MFA_FAILURE_BURST')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->get();
 
         if ($bursts->isNotEmpty()) {
@@ -420,7 +443,7 @@ class EntityRiskScoringService
         }
     }
 
-    private function collectHostFactors(object $entity, array &$factors): void
+    private function collectHostFactors(object $entity, array &$factors, ?string $tenantId = null): void
     {
         $persistenceTypes = [
             'ENDPOINT_SCHEDULED_TASK_PERSISTENCE',
@@ -430,6 +453,7 @@ class EntityRiskScoringService
         $persistence = DB::table('security_alerts')
             ->where('ip', $entity->entity_key)
             ->whereIn('alert_type', $persistenceTypes)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->count();
 
         if ($persistence > 0) {
@@ -441,6 +465,7 @@ class EntityRiskScoringService
         $c2Count = DB::table('security_alerts')
             ->where('ip', $entity->entity_key)
             ->where('alert_type', 'like', '%C2%')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->count();
 
         if ($c2Count > 0) {
@@ -452,7 +477,7 @@ class EntityRiskScoringService
         $this->collectShadowAdvisory($entity, $factors);
     }
 
-    private function collectNetworkFactors(object $entity, array &$factors): void
+    private function collectNetworkFactors(object $entity, array &$factors, ?string $tenantId = null): void
     {
         $c2Count = DB::table('security_alerts')
             ->where(function ($q) use ($entity) {
@@ -460,6 +485,7 @@ class EntityRiskScoringService
                   ->orWhere('actor_key', $entity->entity_key);
             })
             ->where('alert_type', 'like', '%C2%')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->count();
 
         if ($c2Count > 0) {
@@ -600,34 +626,31 @@ class EntityRiskScoringService
     // Data retrieval helpers
     // -------------------------------------------------------------------------
 
-    private function alertsForEntity(object $entity): Collection
+    private function alertsForEntity(object $entity, ?string $tenantId = null): Collection
     {
+        $scope = fn ($q) => $q->when($tenantId !== null, fn ($q2) => $q2->where('tenant_id', $tenantId));
+
         return match ($entity->entity_type) {
-            'user'  => DB::table('security_alerts')
-                ->where('actor_key', $entity->entity_key)
+            'user'  => $scope(DB::table('security_alerts')->where('actor_key', $entity->entity_key))
                 ->orderByDesc('detected_at')->limit(50)->get(),
-            'ip'    => DB::table('security_alerts')
-                ->where('ip', $entity->entity_key)
+            'ip'    => $scope(DB::table('security_alerts')->where('ip', $entity->entity_key))
                 ->orderByDesc('detected_at')->limit(50)->get(),
-            'host'  => DB::table('security_alerts')
-                ->where('ip', $entity->entity_key)
+            'host'  => $scope(DB::table('security_alerts')->where('ip', $entity->entity_key))
                 ->orderByDesc('detected_at')->limit(50)->get(),
-            'alert' => DB::table('security_alerts')
-                ->where('alert_id', $entity->entity_key)->get(),
-            'trace' => DB::table('security_alerts')
-                ->where('trace_id', $entity->entity_key)
+            'alert' => $scope(DB::table('security_alerts')->where('alert_id', $entity->entity_key))->get(),
+            'trace' => $scope(DB::table('security_alerts')->where('trace_id', $entity->entity_key))
                 ->orderByDesc('detected_at')->limit(50)->get(),
             default => collect(),
         };
     }
 
-    private function incidentsForEntity(object $entity): Collection
+    private function incidentsForEntity(object $entity, ?string $tenantId = null): Collection
     {
+        $scope = fn ($q) => $q->when($tenantId !== null, fn ($q2) => $q2->where('tenant_id', $tenantId));
+
         return match ($entity->entity_type) {
-            'incident' => DB::table('security_incidents')
-                ->where('incident_id', $entity->entity_key)->get(),
-            'trace'    => DB::table('security_incidents')
-                ->where('trace_id', $entity->entity_key)->limit(50)->get(),
+            'incident' => $scope(DB::table('security_incidents')->where('incident_id', $entity->entity_key))->get(),
+            'trace'    => $scope(DB::table('security_incidents')->where('trace_id', $entity->entity_key))->limit(50)->get(),
             default    => collect(),
         };
     }
