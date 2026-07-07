@@ -31,6 +31,7 @@ SESSION = requests.Session()
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
+from alert_identity import alert_id, fingerprint
 
 try:
     import psycopg
@@ -164,23 +165,6 @@ _SHADOW_TOPIC_TO_DOMAIN = {
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def fingerprint(alert: AlertPayload) -> str:
-    evidence_ids = alert.evidence.get("evidence_ids") or alert.evidence.get("event_ids") or []
-    if not isinstance(evidence_ids, list):
-        evidence_ids = [str(evidence_ids)]
-    material = "|".join([
-        alert.alert_type,
-        alert.severity,
-        alert.actor_key or alert.ip or "unknown",
-        ",".join(sorted(str(item) for item in evidence_ids)),
-    ])
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
-
-
-def alert_id(alert: AlertPayload, fp: str) -> str:
-    return alert.alert_id or "xdr-" + fp[:40]
 
 
 def connect_pg():
