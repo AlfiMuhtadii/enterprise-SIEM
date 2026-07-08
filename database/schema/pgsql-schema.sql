@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict GPe3Qy8ST4fAaopkoN24V9OQxhiqx7huqq408zQxpNbg6iUNSVdEHCkpyL2ecc4
+\restrict kVJICe81mgLPGCbiLLDFPIqiIh7j291A7V9YCy9AqdXkTO3WlLQ4iI15g9sd8iB
 
--- Dumped from database version 16.12 (Debian 16.12-1.pgdg13+1)
+-- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
@@ -6398,7 +6398,8 @@ CREATE TABLE public.entity_relationships (
     trace_id character varying(120),
     metadata jsonb,
     created_at timestamp(0) without time zone,
-    updated_at timestamp(0) without time zone
+    updated_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -24759,14 +24760,6 @@ ALTER TABLE ONLY public.entities
 
 
 --
--- Name: entities entities_type_key_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.entities
-    ADD CONSTRAINT entities_type_key_unique UNIQUE (entity_type, entity_key);
-
-
---
 -- Name: entity_behavior_baselines entity_behavior_baselines_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -31619,6 +31612,13 @@ CREATE INDEX entities_tenant_id_index ON public.entities USING btree (tenant_id)
 
 
 --
+-- Name: entities_type_key_tenant_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX entities_type_key_tenant_unique ON public.entities USING btree (entity_type, entity_key, COALESCE(tenant_id, '_none'::character varying));
+
+
+--
 -- Name: entity_behavior_baselines_entity_type_dimension_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -31679,6 +31679,13 @@ CREATE INDEX entity_relationships_last_seen_at_index ON public.entity_relationsh
 --
 
 CREATE INDEX entity_relationships_relationship_type_index ON public.entity_relationships USING btree (relationship_type);
+
+
+--
+-- Name: entity_relationships_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX entity_relationships_tenant_id_index ON public.entity_relationships USING btree (tenant_id);
 
 
 --
@@ -37186,15 +37193,15 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict GPe3Qy8ST4fAaopkoN24V9OQxhiqx7huqq408zQxpNbg6iUNSVdEHCkpyL2ecc4
+\unrestrict kVJICe81mgLPGCbiLLDFPIqiIh7j291A7V9YCy9AqdXkTO3WlLQ4iI15g9sd8iB
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict eo4OEwXUw58iIead5fvpXvy2PNdD7DEfmDj1kwROSoZhQSot34vrWSlmduOyPpl
+\restrict Rb6js4m5LDtgkEbgAwUM046lNVXgC4Gxed1zyVsudlcI3ncC2XmzlaPWNkSA5ar
 
--- Dumped from database version 16.12 (Debian 16.12-1.pgdg13+1)
+-- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
 
 SET statement_timeout = 0;
@@ -37358,6 +37365,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 142	2026_07_12_010001_create_honeytoken_tables	3
 143	2026_07_13_010001_create_tenant_hierarchy_tables	4
 144	2026_07_14_010001_create_detection_backtest_tables	5
+145	2026_07_15_010001_add_tenant_isolation_to_entity_graph	6
 \.
 
 
@@ -37365,12 +37373,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 144, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 145, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict eo4OEwXUw58iIead5fvpXvy2PNdD7DEfmDj1kwROSoZhQSot34vrWSlmduOyPpl
+\unrestrict Rb6js4m5LDtgkEbgAwUM046lNVXgC4Gxed1zyVsudlcI3ncC2XmzlaPWNkSA5ar
 

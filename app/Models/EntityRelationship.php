@@ -10,6 +10,7 @@ class EntityRelationship extends Model
     protected $fillable = [
         'source_entity_id',
         'target_entity_id',
+        'tenant_id',
         'relationship_type',
         'first_seen_at',
         'last_seen_at',

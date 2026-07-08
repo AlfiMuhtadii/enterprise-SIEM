@@ -10,6 +10,7 @@ class Entity extends Model
     protected $fillable = [
         'entity_type',
         'entity_key',
+        'tenant_id',
         'display_name',
         'first_seen_at',
         'last_seen_at',

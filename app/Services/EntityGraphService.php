@@ -12,9 +12,16 @@ use Illuminate\Support\Facades\DB;
 class EntityGraphService
 {
     /**
-     * Upsert an entity by (type, key). Append-safe — never overwrites history.
+     * Upsert an entity by (type, key, tenant). Append-safe — never overwrites history.
      * Increments observation_count on each subsequent call.
      * Updates first_seen_at only when seenAt is earlier; last_seen_at only when later.
+     *
+     * ENT-TENANCY-ENTITY-GRAPH: $tenantId is part of the lookup/creation key
+     * — a null tenant_id (legacy/unscoped) and each distinct non-null
+     * tenant_id are separate identity buckets, matching the DB-level
+     * entities_type_key_tenant_unique index (COALESCE(tenant_id, '_none')).
+     * tenant_id is set only on creation and never overwritten afterward,
+     * consistent with first_seen_at's immutable-once-set semantics.
      */
     public function upsertEntity(
         string  $type,
@@ -22,12 +29,13 @@ class EntityGraphService
         string  $displayName = '',
         ?string $seenAt = null,
         ?float  $riskScore = null,
-        array   $metadata = []
+        array   $metadata = [],
+        ?string $tenantId = null
     ): int {
         $seenAt = $seenAt ?? now()->toDateTimeString();
 
         $entity = Entity::firstOrCreate(
-            ['entity_type' => $type, 'entity_key' => $key],
+            ['entity_type' => $type, 'entity_key' => $key, 'tenant_id' => $tenantId],
             [
                 'display_name'      => $displayName ?: $key,
                 'first_seen_at'     => $seenAt,
@@ -69,6 +77,12 @@ class EntityGraphService
     /**
      * Upsert a relationship between two entities. Append-safe.
      * Increments observation_count instead of creating duplicate rows.
+     *
+     * ENT-TENANCY-ENTITY-GRAPH: $tenantId is included in the lookup so two
+     * tenants observing the same source/target entity pair get separate
+     * relationship rows rather than sharing one merged edge. No DB-level
+     * unique constraint exists on this table (uniqueness was already only
+     * app-enforced before this fix), so only the lookup query changes.
      */
     public function upsertRelationship(
         int     $sourceId,
@@ -79,13 +93,15 @@ class EntityGraphService
         ?string $sourceTable = null,
         ?string $sourceEventId = null,
         ?string $traceId = null,
-        float   $confidence = 1.0
+        float   $confidence = 1.0,
+        ?string $tenantId = null
     ): void {
         $seenAt = $seenAt ?? now()->toDateTimeString();
 
         $rel = EntityRelationship::where('source_entity_id', $sourceId)
             ->where('target_entity_id', $targetId)
             ->where('relationship_type', $type)
+            ->where('tenant_id', $tenantId)
             ->first();
 
         if ($rel) {
@@ -110,6 +126,7 @@ class EntityGraphService
         EntityRelationship::create([
             'source_entity_id'    => $sourceId,
             'target_entity_id'    => $targetId,
+            'tenant_id'           => $tenantId,
             'relationship_type'   => $type,
             'first_seen_at'       => $seenAt,
             'last_seen_at'        => $seenAt,
@@ -153,7 +170,7 @@ class EntityGraphService
     public function projectFromAlerts(int $limit = 500): int
     {
         $rows = DB::table('security_alerts')
-            ->select('alert_id', 'actor_key', 'ip', 'alert_type', 'severity', 'trace_id', 'detected_at')
+            ->select('alert_id', 'actor_key', 'ip', 'alert_type', 'severity', 'trace_id', 'detected_at', 'tenant_id')
             ->orderBy('detected_at')
             ->limit($limit)
             ->get();
@@ -162,9 +179,10 @@ class EntityGraphService
             $count = 0;
 
             foreach ($rows as $row) {
-                $seenAt  = $row->detected_at;
-                $traceId = $row->trace_id ?? null;
-                $risk    = match ($row->severity ?? 'medium') {
+                $seenAt   = $row->detected_at;
+                $traceId  = $row->trace_id ?? null;
+                $tenantId = $row->tenant_id ?? null;
+                $risk     = match ($row->severity ?? 'medium') {
                     'critical' => 9.0,
                     'high'     => 7.0,
                     'medium'   => 5.0,
@@ -172,7 +190,7 @@ class EntityGraphService
                 };
 
                 $alertEntityId = $this->upsertEntity(
-                    'alert', $row->alert_id, $row->alert_type ?? $row->alert_id, $seenAt, $risk
+                    'alert', $row->alert_id, $row->alert_type ?? $row->alert_id, $seenAt, $risk, [], $tenantId
                 );
                 $this->appendObservation(
                     $alertEntityId, 'alert_detected', $seenAt,
@@ -180,16 +198,16 @@ class EntityGraphService
                 );
 
                 if ($traceId) {
-                    $traceEntityId = $this->upsertEntity('trace', $traceId, $traceId, $seenAt);
+                    $traceEntityId = $this->upsertEntity('trace', $traceId, $traceId, $seenAt, null, [], $tenantId);
                     $this->upsertRelationship(
                         $alertEntityId, $traceEntityId, 'trace_contains_entity',
-                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId
+                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId, 1.0, $tenantId
                     );
                 }
 
                 if ($row->actor_key) {
                     $userId = $this->upsertEntity(
-                        'user', $row->actor_key, $row->actor_key, $seenAt, $risk
+                        'user', $row->actor_key, $row->actor_key, $seenAt, $risk, [], $tenantId
                     );
                     $this->appendObservation(
                         $userId, 'alert_actor', $seenAt,
@@ -197,19 +215,19 @@ class EntityGraphService
                     );
                     $this->upsertRelationship(
                         $alertEntityId, $userId, 'alert_involves_entity',
-                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId
+                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId, 1.0, $tenantId
                     );
                 }
 
                 if ($row->ip) {
-                    $ipId = $this->upsertEntity('ip', $row->ip, $row->ip, $seenAt, $risk);
+                    $ipId = $this->upsertEntity('ip', $row->ip, $row->ip, $seenAt, $risk, [], $tenantId);
                     $this->appendObservation(
                         $ipId, 'alert_source_ip', $seenAt,
                         'security_alerts', $row->alert_id, $traceId
                     );
                     $this->upsertRelationship(
                         $alertEntityId, $ipId, 'alert_involves_entity',
-                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId
+                        $seenAt, 'security_alerts', 'security_alerts', $row->alert_id, $traceId, 1.0, $tenantId
                     );
                 }
 
@@ -227,7 +245,7 @@ class EntityGraphService
     public function projectFromIncidents(int $limit = 200): int
     {
         $rows = DB::table('security_incidents')
-            ->select('incident_id', 'trace_id', 'first_seen_at', 'title')
+            ->select('incident_id', 'trace_id', 'first_seen_at', 'title', 'tenant_id')
             ->orderBy('first_seen_at')
             ->limit($limit)
             ->get();
@@ -236,11 +254,12 @@ class EntityGraphService
             $count = 0;
 
             foreach ($rows as $row) {
-                $seenAt  = $row->first_seen_at;
-                $traceId = $row->trace_id ?? null;
+                $seenAt   = $row->first_seen_at;
+                $traceId  = $row->trace_id ?? null;
+                $tenantId = $row->tenant_id ?? null;
 
                 $incidentEntityId = $this->upsertEntity(
-                    'incident', $row->incident_id, $row->title ?? $row->incident_id, $seenAt
+                    'incident', $row->incident_id, $row->title ?? $row->incident_id, $seenAt, null, [], $tenantId
                 );
                 $this->appendObservation(
                     $incidentEntityId, 'incident_created', $seenAt,
@@ -248,10 +267,10 @@ class EntityGraphService
                 );
 
                 if ($traceId) {
-                    $traceEntityId = $this->upsertEntity('trace', $traceId, $traceId, $seenAt);
+                    $traceEntityId = $this->upsertEntity('trace', $traceId, $traceId, $seenAt, null, [], $tenantId);
                     $this->upsertRelationship(
                         $incidentEntityId, $traceEntityId, 'trace_contains_entity',
-                        $seenAt, 'security_incidents', 'security_incidents', $row->incident_id, $traceId
+                        $seenAt, 'security_incidents', 'security_incidents', $row->incident_id, $traceId, 1.0, $tenantId
                     );
                 }
 

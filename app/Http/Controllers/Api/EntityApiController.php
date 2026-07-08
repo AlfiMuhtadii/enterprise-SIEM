@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\EntityGraphService;
+use App\Services\TenantContextAuthority;
 use App\Support\TraceRedactor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 class EntityApiController extends Controller
 {
-    public function __construct(private readonly EntityGraphService $graph) {}
+    public function __construct(
+        private readonly EntityGraphService $graph,
+        private readonly TenantContextAuthority $tenantAuthority,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -28,9 +32,9 @@ class EntityApiController extends Controller
         ]);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
-        $entity = $this->graph->getById($id);
+        $entity = $this->resolveEntity($request, $id);
         if (!$entity) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
@@ -38,9 +42,9 @@ class EntityApiController extends Controller
         return response()->json(['entity' => $entity]);
     }
 
-    public function timeline(int $id): JsonResponse
+    public function timeline(Request $request, int $id): JsonResponse
     {
-        $entity = $this->graph->getById($id);
+        $entity = $this->resolveEntity($request, $id);
         if (!$entity) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
@@ -54,9 +58,9 @@ class EntityApiController extends Controller
         ]);
     }
 
-    public function relationships(int $id): JsonResponse
+    public function relationships(Request $request, int $id): JsonResponse
     {
-        $entity = $this->graph->getById($id);
+        $entity = $this->resolveEntity($request, $id);
         if (!$entity) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
@@ -70,9 +74,9 @@ class EntityApiController extends Controller
         ]);
     }
 
-    public function alerts(int $id): JsonResponse
+    public function alerts(Request $request, int $id): JsonResponse
     {
-        $entity = $this->graph->getById($id);
+        $entity = $this->resolveEntity($request, $id);
         if (!$entity) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
@@ -86,9 +90,9 @@ class EntityApiController extends Controller
         ]);
     }
 
-    public function incidents(int $id): JsonResponse
+    public function incidents(Request $request, int $id): JsonResponse
     {
-        $entity = $this->graph->getById($id);
+        $entity = $this->resolveEntity($request, $id);
         if (!$entity) {
             return response()->json(['error' => 'entity_not_found'], 404);
         }
@@ -100,5 +104,27 @@ class EntityApiController extends Controller
             'count'     => $incidents->count(),
             'incidents' => $incidents,
         ]);
+    }
+
+    /**
+     * ENT-TENANCY-ENTITY-GRAPH: resolves the entity only if it belongs to
+     * the requesting tenant (or either side is null/legacy-unscoped),
+     * matching the same ownership-check convention used by
+     * EntityRiskApiController — an entity from another tenant is treated
+     * as not-found rather than exposed.
+     */
+    private function resolveEntity(Request $request, int $id): ?object
+    {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
+        $entity = $this->graph->getById($id);
+        if (!$entity) {
+            return null;
+        }
+        if ($tenantId !== null && $entity->tenant_id !== null && $entity->tenant_id !== $tenantId) {
+            return null;
+        }
+
+        return $entity;
     }
 }
