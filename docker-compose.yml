@@ -315,6 +315,26 @@ services:
       - redpanda
     restart: unless-stopped
 
+  log-connector-syslog:
+    build:
+      context: ./services/log-connector-syslog
+    container_name: detector-xdr-log-connector-syslog
+    profiles: ["strangler"]
+    environment:
+      # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
+      XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
+      XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
+      XDR_SYSLOG_UDP_ADDR: ":5140"
+      XDR_SYSLOG_TCP_ADDR: ":5140"
+      XDR_SYSLOG_METRICS_ADDR: ":8095"
+    ports:
+      - "5140:5140/udp"
+      - "5140:5140/tcp"
+      - "8095:8095"
+    depends_on:
+      - ingestion-gateway
+    restart: unless-stopped
+
   correlation-worker:
     build:
       context: ./services/correlation-worker

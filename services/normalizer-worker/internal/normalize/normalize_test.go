@@ -28,6 +28,7 @@ func TestEventDispatchesToEachTelemetryType(t *testing.T) {
 		"sysmon":            "sysmon-v1",
 		"powershell":        "powershell-v1",
 		"security_event":    "security-event-v1",
+		"syslog_cef":        "cef-syslog-v1",
 	}
 	for telemetryType, expectedVersion := range cases {
 		raw := map[string]any{"ts": "2026-01-01T00:00:00Z", "telemetry_type": telemetryType, "event_type": "x"}
@@ -146,6 +147,32 @@ func TestDnsProxyFirewallPreserveTraceAndTenant(t *testing.T) {
 		if out["trace_id"] != "trace-1" || out["tenant_id"] != "tenant-a" {
 			t.Fatalf("%s: expected trace_id/tenant_id preserved, got %v/%v", name, out["trace_id"], out["tenant_id"])
 		}
+	}
+}
+
+func TestCefSyslogMarksAdvisoryAndPreservesExtension(t *testing.T) {
+	raw := map[string]any{
+		"event_type": "suspicious_dns_query", "device_vendor": "Fortinet",
+		"source_ip": "10.0.0.5", "destination_ip": "203.0.113.9", "protocol": "UDP",
+		"action": "BLOCKED", "user": "alice",
+		"cef_extension": map[string]string{"spt": "51820"},
+	}
+	out, err := CefSyslog(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out["advisory_only"] != true {
+		t.Fatalf("expected cef syslog output to be advisory-only")
+	}
+	if out["telemetry_type"] != "syslog_cef" || out["device_vendor"] != "Fortinet" {
+		t.Fatalf("expected fields preserved, got %v", out)
+	}
+	if out["protocol"] != "udp" || out["action"] != "blocked" {
+		t.Fatalf("expected protocol/action lowercased, got %v/%v", out["protocol"], out["action"])
+	}
+	ext, ok := out["cef_extension"].(map[string]string)
+	if !ok || ext["spt"] != "51820" {
+		t.Fatalf("expected cef_extension preserved verbatim, got %v", out["cef_extension"])
 	}
 }
 

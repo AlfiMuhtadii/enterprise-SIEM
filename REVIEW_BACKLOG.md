@@ -282,6 +282,44 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   still flow through the existing normalize→correlate shadow path — no new active domain, soak
   gates unchanged.
 - **Safety:** Ingestion only; feeds the existing shadow pipeline; no active-domain expansion.
+- **Progress (2026-07-09):** Phase 1 done — syslog + CEF, the pair explicitly called out to
+  "cover most network/appliance vendors." New service `services/log-connector-syslog`: a
+  pure `internal/cef` package (`Parse()`) parses ArcSight CEF's 7 pipe-delimited header fields
+  plus its space-separated `key=value` extension, correctly honoring header `\|`/`\\` escaping
+  and extension `\=`/`\\`/`\n` escaping, and stripping either an RFC3164 or RFC5424 syslog
+  envelope preceding the `CEF:` marker (verified against fixtures of both). `main.go` runs UDP
+  and TCP listeners (newline-delimited framing; RFC6587 octet-counting framing intentionally
+  not supported — documented scope limit, not a silent gap), maps a parsed CEF message into the
+  existing generic `telemetry.raw` contract as `telemetry_type=syslog_cef` (promoting
+  `src/dst/spt/dpt/proto/act/suser` to the same top-level aliases the other normalizers already
+  recognize, while preserving the full extension verbatim under `cef_extension` so no
+  vendor-specific field is lost), and forwards batches to the existing `ingestion-gateway`
+  `/v1/ingest` endpoint signed with the exact same HMAC-SHA256 sigv2 scheme
+  (`sha256=HMAC(secret, ts + "." + body)`) the gateway itself verifies — no new trust path.
+  Lines that fail CEF parsing are **not dropped**: they forward as `telemetry_type=syslog_raw`
+  with the raw line preserved, so an unrecognized source is still visible for analyst review.
+  `normalizer-worker` gained a matching `CefSyslog()` handler (`internal/normalize/normalize.go`),
+  dispatched on `telemetry_type=syslog_cef`, marked `advisory_only: true`; `syslog_raw` needs no
+  new handler since the existing generic fallback envelope already covers it (ts/telemetry_type/
+  event_type are always populated by the connector). New service wired into `docker-compose.yml`
+  under the existing `strangler` profile (`docker compose config --quiet` exit 0), pointing at
+  `ingestion-gateway` by container DNS name. All events still land in the existing
+  normalize→correlate shadow path — no new active alert domain, no rule changes this pass.
+  +18 Go tests (10 `internal/cef` — bare/RFC3164-prefixed/RFC5424-prefixed CEF, no-extension,
+  escaped-pipe-in-header, escaped-equals-in-extension, non-CEF rejection, malformed-header
+  rejection, non-numeric-version rejection, multi-space extension values; 8 `main_test.go` —
+  field-promotion mapping, empty-Name fallback, raw-fallback envelope, dispatch+blank-line
+  skip, HMAC signature cross-checked against an independently recomputed reference value,
+  signed-forward-to-mock-ingestion-gateway via `httptest.Server`, non-2xx forward error
+  counting, batch-size-triggered flush) + 1 new `normalizer-worker` dispatch test +
+  `TestCefSyslogMarksAdvisoryAndPreservesExtension`. `go build`/`go vet`/`go test ./...` clean
+  for both `log-connector-syslog` and `normalizer-worker`. **Not done**: LEEF parser, a
+  config-driven parser registry for onboarding arbitrary sources without code, and cloud-native
+  connectors (CloudTrail/GuardDuty/O365/GCP) — CEF's syntax is materially different from LEEF's,
+  and a generic parser-registry DSL is a separable, larger design effort; both remain open scope
+  for a later phase. **Not run**: an actual `docker build`/live UDP-to-pipeline smoke test —
+  Docker daemon unavailable in this environment, the same standing limitation noted throughout
+  this session's other infra-adjacent work.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 

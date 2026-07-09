@@ -46,6 +46,9 @@ func Event(raw map[string]any) (map[string]any, error) {
 	if telemetryType == "security_event" {
 		return WindowsSecurityEvent(raw)
 	}
+	if telemetryType == "syslog_cef" {
+		return CefSyslog(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -368,6 +371,47 @@ func Firewall(raw map[string]any) (map[string]any, error) {
 		"user":                  first(raw, "user"),
 		"source_service":        first(raw, "source_service", "event_source", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
+	}, nil
+}
+
+// CefSyslog normalizes ArcSight CEF events forwarded by log-connector-syslog
+// (telemetry_type=syslog_cef). The connector already promotes common
+// extension fields to top-level aliases and preserves the full extension
+// verbatim, so this normalizer mainly folds those into the standard envelope
+// shape the other typed normalizers use. Advisory-only, feeds the existing
+// shadow pipeline — no new active alert domain.
+func CefSyslog(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "cef-syslog-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "syslog_cef",
+		"event_type":            first(raw, "event_type"),
+		"device_vendor":         first(raw, "device_vendor"),
+		"device_product":        first(raw, "device_product"),
+		"device_version":        first(raw, "device_version"),
+		"signature_id":          first(raw, "signature_id"),
+		"name":                  first(raw, "name"),
+		"severity":              first(raw, "severity"),
+		"source_ip":             first(raw, "source_ip", "src_ip", "client_ip"),
+		"destination_ip":        first(raw, "destination_ip", "dst_ip", "server_ip"),
+		"source_port":           first(raw, "source_port"),
+		"destination_port":      first(raw, "destination_port"),
+		"protocol":              strings.ToLower(first(raw, "protocol")),
+		"action":                strings.ToLower(first(raw, "action")),
+		"user":                  first(raw, "user"),
+		"message":               first(raw, "message"),
+		"cef_extension":         raw["cef_extension"],
+		"source_service":        first(raw, "event_source", "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
 		"tenant_id":             first(raw, "tenant_id"),
 		"demo_run_id":           first(raw, "demo_run_id"),
 		"source_event_id":       first(raw, "source_event_id"),
