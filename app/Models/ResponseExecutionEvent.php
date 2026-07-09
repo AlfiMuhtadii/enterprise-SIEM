@@ -25,7 +25,7 @@ class ResponseExecutionEvent extends Model
 
     protected $fillable = [
         'execution_id', 'event_type', 'from_state', 'to_state',
-        'actor_id', 'actor_name', 'details', 'trace_id',
+        'actor_id', 'actor_name', 'details', 'trace_id', 'tenant_id',
     ];
 
     protected $casts = [

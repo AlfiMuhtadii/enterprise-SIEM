@@ -41,7 +41,7 @@ class ActiveResponseExecutionService
      * Create a new response execution in draft state.
      * Validates action type, sets blast radius and safety scores.
      */
-    public function createExecution(array $data, User $creator): ResponseExecution
+    public function createExecution(array $data, User $creator, ?string $tenantId = null): ResponseExecution
     {
         $actionType = $data['action_type'] ?? '';
         if (!in_array($actionType, ResponseExecution::ALLOWED_ACTIONS, true)) {
@@ -50,7 +50,7 @@ class ActiveResponseExecutionService
 
         $requiresDual  = in_array($actionType, ResponseExecution::DUAL_APPROVAL_REQUIRED, true);
         $rollbackSupported = in_array($actionType, ResponseExecution::ROLLBACK_SUPPORTED_ACTIONS, true);
-        $blastRadius   = $this->calculateBlastRadius($actionType, $data['target_entity_key'] ?? '');
+        $blastRadius   = $this->calculateBlastRadius($actionType, $data['target_entity_key'] ?? '', $tenantId);
         $safetyScore   = $this->calculateSafetyScore($actionType, $blastRadius);
         $confidence    = $this->calculateConfidenceScore($actionType);
 
@@ -59,8 +59,9 @@ class ActiveResponseExecutionService
             'action_type'               => $actionType,
             'target_entity_type'        => $data['target_entity_type'] ?? '',
             'target_entity_key'         => substr($data['target_entity_key'] ?? '', 0, 255),
-            'target_entity_id'          => $this->resolveEntityId($data['target_entity_type'] ?? '', $data['target_entity_key'] ?? ''),
+            'target_entity_id'          => $this->resolveEntityId($data['target_entity_type'] ?? '', $data['target_entity_key'] ?? '', $tenantId),
             'created_by'                => $creator->id,
+            'tenant_id'                 => $tenantId,
             'status'                    => ResponseExecution::STATUS_DRAFT,
             'requires_dual_approval'    => $requiresDual,
             'approval_expires_at'       => now()->addHours(ResponseExecution::APPROVAL_EXPIRES_HOURS),
@@ -173,6 +174,7 @@ class ActiveResponseExecutionService
         $sim = ResponseExecutionSimulation::create([
             'simulation_id'        => ResponseExecutionSimulation::generateSimulationId(),
             'execution_id'         => $exec->id,
+            'tenant_id'            => $exec->tenant_id,
             'simulated_by'         => $actor->id,
             'blast_radius_entities'=> $blastEntities,
             'impacted_services'    => $impactedServices,
@@ -270,6 +272,7 @@ class ActiveResponseExecutionService
         $rollback = ResponseExecutionRollback::create([
             'rollback_id'       => ResponseExecutionRollback::generateRollbackId(),
             'execution_id'      => $exec->id,
+            'tenant_id'         => $exec->tenant_id,
             'rollback_type'     => ResponseExecutionRollback::TYPE_MANUAL,
             'initiated_by'      => $actor->id,
             'initiated_at'      => now(),
@@ -322,34 +325,53 @@ class ActiveResponseExecutionService
     // Query methods — read-only
     // -----------------------------------------------------------------------
 
-    public function getRecentExecutions(int $limit = 30): Collection
+    public function getRecentExecutions(int $limit = 30, ?string $tenantId = null): Collection
     {
         return ResponseExecution::with(['creator'])
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('created_at')
             ->limit($limit)
             ->get();
     }
 
-    public function getPendingApprovals(): Collection
+    public function getPendingApprovals(?string $tenantId = null): Collection
     {
         return ResponseExecution::where('status', ResponseExecution::STATUS_PENDING_APPROVAL)
             ->where(fn ($q) => $q->whereNull('approval_expires_at')->orWhere('approval_expires_at', '>', now()))
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->with(['creator'])
             ->orderBy('created_at')
             ->get();
     }
 
-    public function getExecution(string $executionId): ?ResponseExecution
+    /**
+     * ENT-TENANCY-RESPONSE-EXECUTION: returns null (treated as not-found) if
+     * $tenantId is given and the execution's own tenant_id is non-null and
+     * doesn't match — a null tenant_id on either side preserves legacy
+     * behavior, matching the same convention used by EntityRiskScoringService
+     * and EntityApiController's ownership checks.
+     */
+    public function getExecution(string $executionId, ?string $tenantId = null): ?ResponseExecution
     {
-        return ResponseExecution::where('execution_id', $executionId)
+        $exec = ResponseExecution::where('execution_id', $executionId)
             ->with(['creator', 'approver1', 'approver2', 'events', 'simulations', 'rollbacks', 'latestSimulation'])
             ->first();
+
+        if (!$exec) {
+            return null;
+        }
+        if ($tenantId !== null && $exec->tenant_id !== null && $exec->tenant_id !== $tenantId) {
+            return null;
+        }
+
+        return $exec;
     }
 
-    public function getRollbackCandidates(): Collection
+    public function getRollbackCandidates(?string $tenantId = null): Collection
     {
         return ResponseExecution::whereIn('status', [ResponseExecution::STATUS_EXECUTED, ResponseExecution::STATUS_ROLLBACK_READY])
             ->where('rollback_supported', true)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('execution_completed_at')
             ->get();
     }
@@ -358,12 +380,15 @@ class ActiveResponseExecutionService
     // Scoring — deterministic, explainable
     // -----------------------------------------------------------------------
 
-    public function calculateBlastRadius(string $actionType, string $targetKey): float
+    public function calculateBlastRadius(string $actionType, string $targetKey, ?string $tenantId = null): float
     {
         $severity = self::ACTION_SEVERITY[$actionType] ?? 0.5;
 
         // Entity observation count amplifies blast radius
-        $entity = DB::table('entities')->where('entity_key', $targetKey)->first();
+        $entity = DB::table('entities')
+            ->where('entity_key', $targetKey)
+            ->when($tenantId !== null, fn ($q) => $q->where(fn ($q2) => $q2->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
+            ->first();
         $obsCount = $entity ? min((int) ($entity->observation_count ?? 0), 50) : 0;
         $relCount  = $entity
             ? DB::table('entity_relationships')->where('source_entity_id', $entity->id)->orWhere('target_entity_id', $entity->id)->count()
@@ -399,7 +424,10 @@ class ActiveResponseExecutionService
 
     private function computeBlastRadiusEntities(ResponseExecution $exec): array
     {
-        $entity = DB::table('entities')->where('entity_key', $exec->target_entity_key)->first();
+        $entity = DB::table('entities')
+            ->where('entity_key', $exec->target_entity_key)
+            ->when($exec->tenant_id !== null, fn ($q) => $q->where(fn ($q2) => $q2->where('tenant_id', $exec->tenant_id)->orWhereNull('tenant_id')))
+            ->first();
         if (!$entity) {
             return [['entity_key' => $exec->target_entity_key, 'entity_type' => $exec->target_entity_type, 'direct' => true]];
         }
@@ -452,11 +480,12 @@ class ActiveResponseExecutionService
         return $warnings;
     }
 
-    private function resolveEntityId(string $type, string $key): ?int
+    private function resolveEntityId(string $type, string $key, ?string $tenantId = null): ?int
     {
         return DB::table('entities')
             ->where('entity_type', $type)
             ->where('entity_key', $key)
+            ->when($tenantId !== null, fn ($q) => $q->where(fn ($q2) => $q2->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
             ->value('id');
     }
 
@@ -470,6 +499,7 @@ class ActiveResponseExecutionService
     ): void {
         ResponseExecutionEvent::create([
             'execution_id' => $exec->id,
+            'tenant_id'    => $exec->tenant_id,
             'event_type'   => $eventType,
             'from_state'   => $fromState,
             'to_state'     => $toState,
@@ -497,12 +527,15 @@ class ActiveResponseExecutionService
         if (!$actor) {
             return;
         }
-        $actorEntityId = $graphService->upsertEntity('user', $actor->email ?? "user-{$actor->id}", $actor->name ?? $actor->email, now()->toDateTimeString());
+        $actorEntityId = $graphService->upsertEntity(
+            'user', $actor->email ?? "user-{$actor->id}", $actor->name ?? $actor->email,
+            now()->toDateTimeString(), null, [], $exec->tenant_id
+        );
         $graphService->upsertRelationship(
             $actorEntityId, $exec->target_entity_id,
             $relType,
             now()->toDateTimeString(), 'active_response_execution', 'response_executions',
-            $exec->execution_id, $exec->trace_id, 0.95
+            $exec->execution_id, $exec->trace_id, 0.95, $exec->tenant_id
         );
     }
 }

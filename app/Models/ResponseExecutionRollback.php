@@ -19,7 +19,7 @@ class ResponseExecutionRollback extends Model
 
     protected $fillable = [
         'rollback_id', 'execution_id', 'rollback_type', 'initiated_by',
-        'initiated_at', 'completed_at', 'status', 'rollback_evidence', 'trace_id',
+        'initiated_at', 'completed_at', 'status', 'rollback_evidence', 'trace_id', 'tenant_id',
     ];
 
     protected $casts = [

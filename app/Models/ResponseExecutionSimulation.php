@@ -13,7 +13,7 @@ class ResponseExecutionSimulation extends Model
         'simulation_id', 'execution_id', 'simulated_by',
         'blast_radius_entities', 'impacted_services',
         'rollback_available', 'estimated_impact_score',
-        'simulation_notes', 'warnings', 'trace_id',
+        'simulation_notes', 'warnings', 'trace_id', 'tenant_id',
     ];
 
     protected $casts = [

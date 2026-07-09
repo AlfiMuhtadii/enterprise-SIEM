@@ -111,7 +111,7 @@ class ResponseExecution extends Model
         'execution_started_at', 'execution_completed_at', 'execution_timeout_seconds',
         'rollback_supported', 'rollback_deadline_at',
         'blast_radius_score', 'execution_safety_score', 'execution_confidence_score',
-        'hunt_evidence', 'correlation_ids', 'rationale', 'notes', 'trace_id',
+        'hunt_evidence', 'correlation_ids', 'rationale', 'notes', 'trace_id', 'tenant_id',
     ];
 
     protected $casts = [

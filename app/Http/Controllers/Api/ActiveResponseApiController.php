@@ -5,21 +5,30 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ResponseExecution;
 use App\Services\ActiveResponseExecutionService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Active Response API — controlled manual execution only.
  * No autonomous execution. No mass fanout. All actions require approval.
+ *
+ * ENT-TENANCY-RESPONSE-EXECUTION: every read resolves tenant context and
+ * scopes by it, matching the web controller's equivalent gating.
  */
 class ActiveResponseApiController extends Controller
 {
-    public function __construct(private ActiveResponseExecutionService $svc) {}
+    public function __construct(
+        private ActiveResponseExecutionService $svc,
+        private TenantContextAuthority $tenantAuthority,
+    ) {}
 
     public function listExecutions(Request $request): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $status = $request->query('status', '');
-        $query  = ResponseExecution::orderByDesc('created_at');
+        $query  = ResponseExecution::orderByDesc('created_at')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId));
         if ($status && in_array($status, ResponseExecution::STATUSES, true)) {
             $query->where('status', $status);
         }
@@ -31,9 +40,10 @@ class ActiveResponseApiController extends Controller
         ]);
     }
 
-    public function getExecution(string $executionId): JsonResponse
+    public function getExecution(Request $request, string $executionId): JsonResponse
     {
-        $exec = $this->svc->getExecution($executionId);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $exec = $this->svc->getExecution($executionId, $tenantId);
         if (!$exec) {
             return response()->json(['error' => 'execution_not_found'], 404);
         }
@@ -51,17 +61,19 @@ class ActiveResponseApiController extends Controller
         ]);
     }
 
-    public function getPendingApprovals(): JsonResponse
+    public function getPendingApprovals(Request $request): JsonResponse
     {
-        $pending = $this->svc->getPendingApprovals();
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $pending = $this->svc->getPendingApprovals($tenantId);
         return response()->json([
             'pending_approvals' => $pending->map(fn ($e) => $this->summarize($e))->all(),
         ]);
     }
 
-    public function getSimulation(string $executionId): JsonResponse
+    public function getSimulation(Request $request, string $executionId): JsonResponse
     {
-        $exec = $this->svc->getExecution($executionId);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $exec = $this->svc->getExecution($executionId, $tenantId);
         if (!$exec) {
             return response()->json(['error' => 'execution_not_found'], 404);
         }

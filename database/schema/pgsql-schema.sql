@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kVJICe81mgLPGCbiLLDFPIqiIh7j291A7V9YCy9AqdXkTO3WlLQ4iI15g9sd8iB
+\restrict WxENZd0K8v5A9NDDDFpufFioSXrWQ4GFa8amGiyXaNkwnSQ4Gr6YbQjLESBF9Pf
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -12717,7 +12717,8 @@ CREATE TABLE public.response_execution_events (
     actor_name character varying(120),
     details jsonb DEFAULT '{}'::jsonb NOT NULL,
     trace_id character varying(120),
-    created_at timestamp(0) without time zone NOT NULL
+    created_at timestamp(0) without time zone NOT NULL,
+    tenant_id character varying(36)
 );
 
 
@@ -12755,7 +12756,8 @@ CREATE TABLE public.response_execution_rollbacks (
     status character varying(30) DEFAULT 'initiated'::character varying NOT NULL,
     rollback_evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
     trace_id character varying(120),
-    created_at timestamp(0) without time zone NOT NULL
+    created_at timestamp(0) without time zone NOT NULL,
+    tenant_id character varying(36)
 );
 
 
@@ -12794,7 +12796,8 @@ CREATE TABLE public.response_execution_simulations (
     simulation_notes text,
     warnings jsonb DEFAULT '[]'::jsonb NOT NULL,
     trace_id character varying(120),
-    created_at timestamp(0) without time zone NOT NULL
+    created_at timestamp(0) without time zone NOT NULL,
+    tenant_id character varying(36)
 );
 
 
@@ -12854,7 +12857,8 @@ CREATE TABLE public.response_executions (
     notes text,
     trace_id character varying(120),
     created_at timestamp(0) without time zone,
-    updated_at timestamp(0) without time zone
+    updated_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -33418,6 +33422,13 @@ CREATE INDEX response_execution_events_event_type_index ON public.response_execu
 
 
 --
+-- Name: response_execution_events_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX response_execution_events_tenant_id_index ON public.response_execution_events USING btree (tenant_id);
+
+
+--
 -- Name: response_execution_events_trace_id_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -33425,10 +33436,24 @@ CREATE INDEX response_execution_events_trace_id_index ON public.response_executi
 
 
 --
+-- Name: response_execution_rollbacks_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX response_execution_rollbacks_tenant_id_index ON public.response_execution_rollbacks USING btree (tenant_id);
+
+
+--
 -- Name: response_execution_rollbacks_trace_id_index; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX response_execution_rollbacks_trace_id_index ON public.response_execution_rollbacks USING btree (trace_id);
+
+
+--
+-- Name: response_execution_simulations_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX response_execution_simulations_tenant_id_index ON public.response_execution_simulations USING btree (tenant_id);
 
 
 --
@@ -33471,6 +33496,13 @@ CREATE INDEX response_executions_target_entity_key_index ON public.response_exec
 --
 
 CREATE INDEX response_executions_target_entity_type_index ON public.response_executions USING btree (target_entity_type);
+
+
+--
+-- Name: response_executions_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX response_executions_tenant_id_index ON public.response_executions USING btree (tenant_id);
 
 
 --
@@ -37193,13 +37225,13 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kVJICe81mgLPGCbiLLDFPIqiIh7j291A7V9YCy9AqdXkTO3WlLQ4iI15g9sd8iB
+\unrestrict WxENZd0K8v5A9NDDDFpufFioSXrWQ4GFa8amGiyXaNkwnSQ4Gr6YbQjLESBF9Pf
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict Rb6js4m5LDtgkEbgAwUM046lNVXgC4Gxed1zyVsudlcI3ncC2XmzlaPWNkSA5ar
+\restrict 8rFmCfNkhQUYycUqdNTAoIKxLu3vlOMHVCRxEhwOKPnq5sqGVH85AapKA1DVtBU
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -37366,6 +37398,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 143	2026_07_13_010001_create_tenant_hierarchy_tables	4
 144	2026_07_14_010001_create_detection_backtest_tables	5
 145	2026_07_15_010001_add_tenant_isolation_to_entity_graph	6
+146	2026_07_16_010001_add_tenant_id_to_response_execution_tables	7
 \.
 
 
@@ -37373,12 +37406,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 145, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 146, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Rb6js4m5LDtgkEbgAwUM046lNVXgC4Gxed1zyVsudlcI3ncC2XmzlaPWNkSA5ar
+\unrestrict 8rFmCfNkhQUYycUqdNTAoIKxLu3vlOMHVCRxEhwOKPnq5sqGVH85AapKA1DVtBU
 
