@@ -1,9 +1,10 @@
-// Command log-connector-syslog is a CONNECTOR-FRAMEWORK phase-1 ingestion
-// bridge: it accepts syslog (UDP/TCP), parses ArcSight CEF payloads (the
-// format most network/security appliances speak), and forwards every event
-// through the existing HMAC-signed ingestion-gateway /v1/ingest endpoint —
-// so onboarding a new syslog/CEF source requires no change to the Go
-// pipeline itself, only pointing the appliance at this connector.
+// Command log-connector-syslog is a CONNECTOR-FRAMEWORK ingestion bridge: it
+// accepts syslog (UDP/TCP), parses ArcSight CEF and IBM LEEF payloads (the
+// two formats most network/security appliances and SIEM-integrated systems
+// speak), and forwards every event through the existing HMAC-signed
+// ingestion-gateway /v1/ingest endpoint — so onboarding a new syslog/CEF/LEEF
+// source requires no change to the Go pipeline itself, only pointing the
+// appliance at this connector.
 //
 // All events still flow through the existing normalize -> correlate shadow
 // path; this connector adds no new active alert domain and performs no
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"detector-xdr-log-connector-syslog/internal/cef"
+	"detector-xdr-log-connector-syslog/internal/leef"
 )
 
 // Connector receives syslog lines over UDP/TCP, maps them into the
@@ -50,6 +52,7 @@ type Connector struct {
 
 	received      atomic.Int64
 	parsedCEF     atomic.Int64
+	parsedLEEF    atomic.Int64
 	parsedRaw     atomic.Int64
 	forwarded     atomic.Int64
 	forwardErrors atomic.Int64
@@ -87,6 +90,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"received":       c.received.Load(),
 			"parsed_cef":     c.parsedCEF.Load(),
+			"parsed_leef":    c.parsedLEEF.Load(),
 			"parsed_raw":     c.parsedRaw.Load(),
 			"forwarded":      c.forwarded.Load(),
 			"forward_errors": c.forwardErrors.Load(),
@@ -123,9 +127,12 @@ func (c *Connector) ingestLine(line string) {
 	if event == nil {
 		return
 	}
-	if event["telemetry_type"] == "syslog_cef" {
+	switch event["telemetry_type"] {
+	case "syslog_cef":
 		c.parsedCEF.Add(1)
-	} else {
+	case "syslog_leef":
+		c.parsedLEEF.Add(1)
+	default:
 		c.parsedRaw.Add(1)
 	}
 	c.mu.Lock()
@@ -215,20 +222,24 @@ func sign(secret string, ts int64, body []byte) string {
 }
 
 // processLine maps one raw syslog line into the generic telemetry.raw event
-// shape. A successfully parsed CEF payload becomes telemetry_type=syslog_cef;
+// shape. A successfully parsed CEF payload becomes telemetry_type=syslog_cef,
+// a successfully parsed LEEF payload becomes telemetry_type=syslog_leef;
 // anything else becomes telemetry_type=syslog_raw so no line is silently
 // dropped — an analyst can still see and search it even if this connector
-// doesn't understand its format. Returns nil for a blank line.
+// doesn't understand its format. Returns nil for a blank line. CEF is tried
+// first since "CEF:"/"LEEF:" markers are mutually exclusive by construction.
 func processLine(line string, tenantID string, now time.Time) map[string]any {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {
 		return nil
 	}
-	msg, err := cef.Parse(line)
-	if err != nil {
-		return mapRawToEvent(line, tenantID, now)
+	if msg, err := cef.Parse(line); err == nil {
+		return mapCEFToEvent(msg, tenantID, now)
 	}
-	return mapCEFToEvent(msg, tenantID, now)
+	if msg, err := leef.Parse(line); err == nil {
+		return mapLEEFToEvent(msg, tenantID, now)
+	}
+	return mapRawToEvent(line, tenantID, now)
 }
 
 // mapCEFToEvent promotes common CEF extension fields (src/dst/spt/dpt/proto/
@@ -269,9 +280,45 @@ func mapCEFToEvent(msg *cef.Message, tenantID string, now time.Time) map[string]
 	return event
 }
 
+// mapLEEFToEvent promotes common LEEF extension fields (src/dst/srcPort/
+// dstPort/proto/usrName/cat) to the same top-level aliases mapCEFToEvent
+// uses, while preserving every extension field verbatim under
+// leef_extension so no vendor-specific detail is lost.
+func mapLEEFToEvent(msg *leef.Message, tenantID string, now time.Time) map[string]any {
+	ext := msg.Extension
+	eventType := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(msg.EventID), " ", "_"))
+	if eventType == "" {
+		eventType = "leef_event"
+	}
+	event := map[string]any{
+		"ts":               now.UTC().Format(time.RFC3339),
+		"telemetry_type":   "syslog_leef",
+		"event_type":       eventType,
+		"event_source":     "syslog-leef",
+		"leef_version":     msg.Version,
+		"device_vendor":    msg.Vendor,
+		"device_product":   msg.Product,
+		"device_version":   msg.ProductVersion,
+		"signature_id":     msg.EventID,
+		"leef_extension":   ext,
+		"source_ip":        firstNonEmpty(ext["src"], ext["srcIP"]),
+		"destination_ip":   firstNonEmpty(ext["dst"], ext["dstIP"]),
+		"source_port":      firstNonEmpty(ext["srcPort"], ext["spt"]),
+		"destination_port": firstNonEmpty(ext["dstPort"], ext["dpt"]),
+		"protocol":         strings.ToLower(firstNonEmpty(ext["proto"], ext["protocol"])),
+		"action":           firstNonEmpty(ext["action"], ext["cat"]),
+		"user":             firstNonEmpty(ext["usrName"], ext["srcUser"], ext["duser"]),
+		"message":          ext["msg"],
+	}
+	if tenantID != "" {
+		event["tenant_id"] = tenantID
+	}
+	return event
+}
+
 // mapRawToEvent is the fallback envelope for a syslog line that is not valid
-// CEF (plain-text device logs, etc.) — the raw line is preserved verbatim
-// rather than dropped.
+// CEF/LEEF (plain-text device logs, etc.) — the raw line is preserved
+// verbatim rather than dropped.
 func mapRawToEvent(line string, tenantID string, now time.Time) map[string]any {
 	event := map[string]any{
 		"ts":             now.UTC().Format(time.RFC3339),

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"detector-xdr-log-connector-syslog/internal/cef"
+	"detector-xdr-log-connector-syslog/internal/leef"
 )
 
 func TestMapCEFToEventPromotesCommonFields(t *testing.T) {
@@ -60,6 +61,52 @@ func TestMapCEFToEventDefaultsEventTypeWhenNameEmpty(t *testing.T) {
 	}
 }
 
+func TestMapLEEFToEventPromotesCommonFields(t *testing.T) {
+	msg, err := leef.Parse("LEEF:2.0|Vendor|Firewall|1.0|100|^|src=10.0.0.5^dst=203.0.113.9^srcPort=51820^dstPort=53^proto=UDP^cat=blocked^usrName=alice")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	event := mapLEEFToEvent(msg, "tenant-a", now)
+
+	if event["telemetry_type"] != "syslog_leef" {
+		t.Fatalf("expected telemetry_type=syslog_leef, got %v", event["telemetry_type"])
+	}
+	if event["event_type"] != "100" {
+		t.Fatalf("expected event_type derived from LEEF EventID, got %v", event["event_type"])
+	}
+	if event["source_ip"] != "10.0.0.5" || event["destination_ip"] != "203.0.113.9" {
+		t.Fatalf("expected src/dst promoted, got %v/%v", event["source_ip"], event["destination_ip"])
+	}
+	if event["protocol"] != "udp" {
+		t.Fatalf("expected protocol lowercased, got %v", event["protocol"])
+	}
+	if event["action"] != "blocked" || event["user"] != "alice" {
+		t.Fatalf("expected cat/usrName promoted, got action=%v user=%v", event["action"], event["user"])
+	}
+	if event["tenant_id"] != "tenant-a" {
+		t.Fatalf("expected tenant_id preserved, got %v", event["tenant_id"])
+	}
+	ext, ok := event["leef_extension"].(map[string]string)
+	if !ok || ext["srcPort"] != "51820" {
+		t.Fatalf("expected full extension preserved verbatim, got %v", event["leef_extension"])
+	}
+}
+
+func TestMapLEEFToEventDefaultsEventTypeWhenEventIDEmpty(t *testing.T) {
+	msg, err := leef.Parse("LEEF:1.0|Vendor|Product|1.0||")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	event := mapLEEFToEvent(msg, "", time.Now())
+	if event["event_type"] != "leef_event" {
+		t.Fatalf("expected leef_event fallback, got %v", event["event_type"])
+	}
+	if _, hasTenant := event["tenant_id"]; hasTenant {
+		t.Fatalf("expected no tenant_id key when tenantID is empty")
+	}
+}
+
 func TestMapRawToEventPreservesLine(t *testing.T) {
 	event := mapRawToEvent("not a cef line at all", "tenant-b", time.Now())
 	if event["telemetry_type"] != "syslog_raw" || event["event_type"] != "unparsed" {
@@ -79,7 +126,12 @@ func TestProcessLineDispatchesAndSkipsBlank(t *testing.T) {
 	if out["telemetry_type"] != "syslog_cef" {
 		t.Fatalf("expected CEF dispatch, got %v", out["telemetry_type"])
 	}
-	rawLine := "plain syslog message, no CEF marker"
+	leefLine := "LEEF:1.0|V|P|1.0|100|src=1.2.3.4"
+	out = processLine(leefLine, "", time.Now())
+	if out["telemetry_type"] != "syslog_leef" {
+		t.Fatalf("expected LEEF dispatch, got %v", out["telemetry_type"])
+	}
+	rawLine := "plain syslog message, no CEF/LEEF marker"
 	out = processLine(rawLine, "", time.Now())
 	if out["telemetry_type"] != "syslog_raw" {
 		t.Fatalf("expected raw fallback dispatch, got %v", out["telemetry_type"])

@@ -61,6 +61,9 @@ func dispatch(raw map[string]any) (map[string]any, error) {
 	if telemetryType == "syslog_cef" {
 		return CefSyslog(raw)
 	}
+	if telemetryType == "syslog_leef" {
+		return LeefSyslog(raw)
+	}
 	return map[string]any{
 		"schema_version":  1,
 		"ts":              ts,
@@ -421,6 +424,40 @@ func CefSyslog(raw map[string]any) (map[string]any, error) {
 		"user":                  first(raw, "user"),
 		"message":               first(raw, "message"),
 		"cef_extension":         raw["cef_extension"],
+		"source_service":        first(raw, "event_source", "source_service", "vendor"),
+		"trace_id":              first(raw, "trace_id"),
+		"advisory_only":         true,
+		"tenant_id":             first(raw, "tenant_id"),
+		"demo_run_id":           first(raw, "demo_run_id"),
+		"source_event_id":       first(raw, "source_event_id"),
+		"scenario_id":           first(raw, "scenario_id"),
+	}, nil
+}
+
+func LeefSyslog(raw map[string]any) (map[string]any, error) {
+	eventID := first(raw, "event_id", "id")
+	return map[string]any{
+		"schema_version":        1,
+		"normalization_version": "leef-syslog-v1",
+		"normalized_event_id":   eventID,
+		"raw_event_id":          eventID,
+		"ts":                    first(raw, "ts", "timestamp", "occurred_at", "event_time"),
+		"telemetry_type":        "syslog_leef",
+		"event_type":            first(raw, "event_type"),
+		"device_vendor":         first(raw, "device_vendor"),
+		"device_product":        first(raw, "device_product"),
+		"device_version":        first(raw, "device_version"),
+		"signature_id":          first(raw, "signature_id"),
+		"severity":              first(raw, "severity"),
+		"source_ip":             first(raw, "source_ip", "src_ip", "client_ip"),
+		"destination_ip":        first(raw, "destination_ip", "dst_ip", "server_ip"),
+		"source_port":           first(raw, "source_port"),
+		"destination_port":      first(raw, "destination_port"),
+		"protocol":              strings.ToLower(first(raw, "protocol")),
+		"action":                strings.ToLower(first(raw, "action")),
+		"user":                  first(raw, "user"),
+		"message":               first(raw, "message"),
+		"leef_extension":        raw["leef_extension"],
 		"source_service":        first(raw, "event_source", "source_service", "vendor"),
 		"trace_id":              first(raw, "trace_id"),
 		"advisory_only":         true,

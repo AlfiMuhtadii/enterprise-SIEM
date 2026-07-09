@@ -33,6 +33,7 @@ func TestEventDispatchesToEachTelemetryType(t *testing.T) {
 		"powershell":        "powershell-v1",
 		"security_event":    "security-event-v1",
 		"syslog_cef":        "cef-syslog-v1",
+		"syslog_leef":       "leef-syslog-v1",
 	}
 	for telemetryType, expectedVersion := range cases {
 		raw := map[string]any{"ts": "2026-01-01T00:00:00Z", "telemetry_type": telemetryType, "event_type": "x"}
@@ -177,6 +178,32 @@ func TestCefSyslogMarksAdvisoryAndPreservesExtension(t *testing.T) {
 	ext, ok := out["cef_extension"].(map[string]string)
 	if !ok || ext["spt"] != "51820" {
 		t.Fatalf("expected cef_extension preserved verbatim, got %v", out["cef_extension"])
+	}
+}
+
+func TestLeefSyslogMarksAdvisoryAndPreservesExtension(t *testing.T) {
+	raw := map[string]any{
+		"event_type": "100", "device_vendor": "Vendor",
+		"source_ip": "10.0.0.5", "destination_ip": "203.0.113.9", "protocol": "UDP",
+		"action": "BLOCKED", "user": "alice",
+		"leef_extension": map[string]string{"srcPort": "51820"},
+	}
+	out, err := LeefSyslog(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out["advisory_only"] != true {
+		t.Fatalf("expected leef syslog output to be advisory-only")
+	}
+	if out["telemetry_type"] != "syslog_leef" || out["device_vendor"] != "Vendor" {
+		t.Fatalf("expected fields preserved, got %v", out)
+	}
+	if out["protocol"] != "udp" || out["action"] != "blocked" {
+		t.Fatalf("expected protocol/action lowercased, got %v/%v", out["protocol"], out["action"])
+	}
+	ext, ok := out["leef_extension"].(map[string]string)
+	if !ok || ext["srcPort"] != "51820" {
+		t.Fatalf("expected leef_extension preserved verbatim, got %v", out["leef_extension"])
 	}
 }
 

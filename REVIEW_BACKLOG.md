@@ -359,6 +359,36 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   for a later phase. **Not run**: an actual `docker build`/live UDP-to-pipeline smoke test —
   Docker daemon unavailable in this environment, the same standing limitation noted throughout
   this session's other infra-adjacent work.
+- **Progress (2026-07-10):** Phase 2 done — LEEF parser, the second format explicitly called
+  out as open scope after phase 1. New pure `internal/leef` package in the same
+  `services/log-connector-syslog` service (no new service needed): `Parse()` handles both
+  LEEF 1.0 (`LEEF:Ver|Vendor|Product|ProductVersion|EventID|Extension`, implicit tab-delimited
+  extension) and LEEF 2.0 (`LEEF:Ver|Vendor|Product|ProductVersion|EventID|Delimiter|Extension`,
+  explicit delimiter field — accepts a literal single character or a hex byte written as
+  `x09`/`0x09`, decoded via `strconv.ParseUint(..., 16, 8)`), honors `\|`/`\\` header escaping
+  and `\<delim>`/`\\` extension escaping, and strips a preceding syslog envelope the same way
+  `internal/cef` does. `main.go`'s `processLine()` now tries CEF first, then LEEF, then falls
+  back to `syslog_raw` (markers are mutually exclusive by construction, so trying both is safe
+  and cheap); a parsed LEEF message maps to `telemetry_type=syslog_leef`, promoting LEEF's
+  common extension field names (`src`/`dst`/`srcPort`/`dstPort`/`proto`/`usrName`/`cat`) to the
+  same top-level aliases the CEF path and other normalizers already use, while preserving the
+  full extension verbatim under `leef_extension`. `normalizer-worker` gained a matching
+  `LeefSyslog()` handler dispatched on `telemetry_type=syslog_leef`, `advisory_only: true`,
+  structurally identical to `CefSyslog()`. Connector `/metrics` gained a `parsed_leef` counter
+  alongside `parsed_cef`/`parsed_raw`. +23 new Go tests (13 `internal/leef` — LEEF 1.0 tab
+  delimiter, LEEF 2.0 literal delimiter, LEEF 2.0 `x09` and `0x09` hex delimiter forms, syslog
+  envelope stripping, escaped-pipe-in-header, escaped-delimiter-in-extension-value, no-extension,
+  non-LEEF rejection, unsupported-version rejection [only 1.x/2.x accepted], too-few-header-
+  fields for both v1 and v2 shapes, invalid-delimiter-field rejection; 4 `main_test.go` —
+  field-promotion mapping, empty-EventID fallback, `processLine` CEF-vs-LEEF-vs-raw 3-way
+  dispatch; 2 in `normalizer-worker`'s `normalize_test.go`). `go build`/`go vet`/`go test ./...`
+  clean across both services; every phase-1 CEF/raw test still passes unmodified (0
+  regressions). **Still open, unchanged from phase 1**: a config-driven parser registry for
+  onboarding arbitrary sources without a code change, and cloud-native connectors
+  (CloudTrail/GuardDuty/O365/GCP) — both remain separable, larger efforts for a later phase.
+  **Not run**: `docker build`/live UDP-to-pipeline smoke test — Docker daemon unavailable in
+  this environment, the same standing limitation noted throughout this session's other
+  infra-adjacent work.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 
