@@ -18,6 +18,7 @@ class BaselineObservation extends Model
         'observation_id',
         'entity_key',
         'entity_type',
+        'tenant_id',
         'dimension',
         'observed_value',
         'source_table',

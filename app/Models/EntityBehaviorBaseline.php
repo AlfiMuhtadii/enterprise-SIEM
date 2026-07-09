@@ -31,6 +31,7 @@ class EntityBehaviorBaseline extends Model
         'entity_id',
         'entity_type',
         'entity_key',
+        'tenant_id',
         'dimension',
         'baseline_mean',
         'baseline_median',
@@ -67,6 +68,8 @@ class EntityBehaviorBaseline extends Model
         if (!$this->peer_group_key) {
             return null;
         }
-        return PeerGroupProfile::where('peer_group_key', $this->peer_group_key)->first();
+        return PeerGroupProfile::where('peer_group_key', $this->peer_group_key)
+            ->where('tenant_id', $this->tenant_id)
+            ->first();
     }
 }

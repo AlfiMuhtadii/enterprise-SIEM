@@ -21,6 +21,7 @@ class PeerGroupProfile extends Model
 
     protected $fillable = [
         'peer_group_key',
+        'tenant_id',
         'group_type',
         'group_label',
         'criteria',
@@ -42,6 +43,8 @@ class PeerGroupProfile extends Model
 
     public function baselines()
     {
-        return EntityBehaviorBaseline::where('peer_group_key', $this->peer_group_key)->get();
+        return EntityBehaviorBaseline::where('peer_group_key', $this->peer_group_key)
+            ->where('tenant_id', $this->tenant_id)
+            ->get();
     }
 }

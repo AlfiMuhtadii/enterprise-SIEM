@@ -45,6 +45,7 @@ class BaselineAnomalyScore extends Model
         'score_id',
         'entity_key',
         'entity_type',
+        'tenant_id',
         'anomaly_type',
         'dimension',
         'observed_value',

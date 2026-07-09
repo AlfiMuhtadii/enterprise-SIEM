@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict WxENZd0K8v5A9NDDDFpufFioSXrWQ4GFa8amGiyXaNkwnSQ4Gr6YbQjLESBF9Pf
+\restrict x3mfsehKb3r2IZSOVKA3PlffJyHbQBwB2WpwtY540FEi6QEVYQncKgeSHMQAC4v
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -1537,7 +1537,8 @@ CREATE TABLE public.baseline_anomaly_scores (
     is_advisory boolean DEFAULT true NOT NULL,
     acted_on boolean DEFAULT false NOT NULL,
     scored_at timestamp(0) without time zone NOT NULL,
-    created_at timestamp(0) without time zone
+    created_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -1577,7 +1578,8 @@ CREATE TABLE public.baseline_observations (
     context json,
     advisory_only boolean DEFAULT true NOT NULL,
     observed_at timestamp(0) without time zone NOT NULL,
-    created_at timestamp(0) without time zone
+    created_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -6319,7 +6321,8 @@ CREATE TABLE public.entity_behavior_baselines (
     window_end timestamp(0) without time zone,
     computed_at timestamp(0) without time zone,
     created_at timestamp(0) without time zone,
-    updated_at timestamp(0) without time zone
+    updated_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -9969,7 +9972,8 @@ CREATE TABLE public.peer_group_profiles (
     advisory_only boolean DEFAULT true NOT NULL,
     computed_at timestamp(0) without time zone,
     created_at timestamp(0) without time zone,
-    updated_at timestamp(0) without time zone
+    updated_at timestamp(0) without time zone,
+    tenant_id character varying(36)
 );
 
 
@@ -26116,14 +26120,6 @@ ALTER TABLE ONLY public.password_reset_tokens
 
 
 --
--- Name: peer_group_profiles peer_group_profiles_peer_group_key_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.peer_group_profiles
-    ADD CONSTRAINT peer_group_profiles_peer_group_key_unique UNIQUE (peer_group_key);
-
-
---
 -- Name: peer_group_profiles peer_group_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -29188,14 +29184,6 @@ ALTER TABLE ONLY public.threat_iocs
 
 
 --
--- Name: entity_behavior_baselines ueba_baseline_entity_dimension_unique; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.entity_behavior_baselines
-    ADD CONSTRAINT ueba_baseline_entity_dimension_unique UNIQUE (entity_key, entity_type, dimension);
-
-
---
 -- Name: endpoint_persistence_items uq_agent_persistence_item; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -30108,6 +30096,20 @@ CREATE INDEX audit_export_requests_tenant_scope_index ON public.audit_export_req
 --
 
 CREATE INDEX backup_metadata_backup_type_index ON public.backup_metadata USING btree (backup_type);
+
+
+--
+-- Name: baseline_anomaly_scores_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX baseline_anomaly_scores_tenant_id_index ON public.baseline_anomaly_scores USING btree (tenant_id);
+
+
+--
+-- Name: baseline_observations_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX baseline_observations_tenant_id_index ON public.baseline_observations USING btree (tenant_id);
 
 
 --
@@ -31637,6 +31639,13 @@ CREATE INDEX entity_behavior_baselines_peer_group_key_index ON public.entity_beh
 
 
 --
+-- Name: entity_behavior_baselines_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX entity_behavior_baselines_tenant_id_index ON public.entity_behavior_baselines USING btree (tenant_id);
+
+
+--
 -- Name: entity_observations_observation_type_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -32964,6 +32973,20 @@ CREATE INDEX partition_pressure_snapshots_topic_index ON public.partition_pressu
 --
 
 CREATE INDEX peer_group_profiles_group_type_index ON public.peer_group_profiles USING btree (group_type);
+
+
+--
+-- Name: peer_group_profiles_key_tenant_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX peer_group_profiles_key_tenant_unique ON public.peer_group_profiles USING btree (peer_group_key, COALESCE(tenant_id, '_none'::character varying));
+
+
+--
+-- Name: peer_group_profiles_tenant_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX peer_group_profiles_tenant_id_index ON public.peer_group_profiles USING btree (tenant_id);
 
 
 --
@@ -35830,6 +35853,13 @@ CREATE INDEX threat_iocs_source_index ON public.threat_iocs USING btree (source)
 
 
 --
+-- Name: ueba_baseline_entity_dimension_tenant_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ueba_baseline_entity_dimension_tenant_unique ON public.entity_behavior_baselines USING btree (entity_key, entity_type, dimension, COALESCE(tenant_id, '_none'::character varying));
+
+
+--
 -- Name: user_tenant_memberships_is_active_index; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -37225,13 +37255,13 @@ CREATE POLICY xdr_tenant_isolation_security_incidents ON public.security_inciden
 -- PostgreSQL database dump complete
 --
 
-\unrestrict WxENZd0K8v5A9NDDDFpufFioSXrWQ4GFa8amGiyXaNkwnSQ4Gr6YbQjLESBF9Pf
+\unrestrict x3mfsehKb3r2IZSOVKA3PlffJyHbQBwB2WpwtY540FEi6QEVYQncKgeSHMQAC4v
 
 --
 -- PostgreSQL database dump
 --
 
-\restrict 8rFmCfNkhQUYycUqdNTAoIKxLu3vlOMHVCRxEhwOKPnq5sqGVH85AapKA1DVtBU
+\restrict QcddyUHjQLJr4yvmFV4VmmZbWKEHiXGYiFcAR5joxof34dOGeAktXF3CYckpckK
 
 -- Dumped from database version 17.7
 -- Dumped by pg_dump version 17.7
@@ -37399,6 +37429,7 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 144	2026_07_14_010001_create_detection_backtest_tables	5
 145	2026_07_15_010001_add_tenant_isolation_to_entity_graph	6
 146	2026_07_16_010001_add_tenant_id_to_response_execution_tables	7
+147	2026_07_17_010001_add_tenant_isolation_to_ueba	8
 \.
 
 
@@ -37406,12 +37437,12 @@ COPY public.migrations (id, migration, batch) FROM stdin;
 -- Name: migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.migrations_id_seq', 146, true);
+SELECT pg_catalog.setval('public.migrations_id_seq', 147, true);
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8rFmCfNkhQUYycUqdNTAoIKxLu3vlOMHVCRxEhwOKPnq5sqGVH85AapKA1DVtBU
+\unrestrict QcddyUHjQLJr4yvmFV4VmmZbWKEHiXGYiFcAR5joxof34dOGeAktXF3CYckpckK
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BaselineAnomalyScore;
 use App\Models\EntityBehaviorBaseline;
 use App\Models\PeerGroupProfile;
+use App\Services\TenantContextAuthority;
 use App\Services\UEBABaselineService;
 use Illuminate\Http\Request;
 
@@ -17,29 +18,40 @@ use Illuminate\Http\Request;
  *  No automatic enforcement is executed."
  *
  * No autonomous enforcement, no account suspension, no host isolation.
+ *
+ * ENT-TENANCY-UEBA: every view resolves tenant context and scopes by it —
+ * one tenant's behavioral baselines/anomaly scores/peer groups are never
+ * visible to another tenant's analysts.
  */
 class UEBAController extends Controller
 {
-    public function __construct(private readonly UEBABaselineService $uebaService) {}
+    public function __construct(
+        private readonly UEBABaselineService $uebaService,
+        private readonly TenantContextAuthority $tenantAuthority,
+    ) {}
 
     // -----------------------------------------------------------------------
     // 1. UEBA Dashboard — overview of anomaly volume and top anomalous entities
     // -----------------------------------------------------------------------
 
-    public function dashboard()
+    public function dashboard(Request $request)
     {
-        $topUsers   = $this->uebaService->getTopAnomalousEntities('user', 10);
-        $topHosts   = $this->uebaService->getTopAnomalousEntities('host', 10);
-        $volumeTrend = $this->uebaService->getAnomalyVolumeTrend(7);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $topUsers   = $this->uebaService->getTopAnomalousEntities('user', 10, $tenantId);
+        $topHosts   = $this->uebaService->getTopAnomalousEntities('host', 10, $tenantId);
+        $volumeTrend = $this->uebaService->getAnomalyVolumeTrend(7, $tenantId);
 
         $stats = [
-            'total_baselines'  => EntityBehaviorBaseline::count(),
-            'total_anomalies'  => BaselineAnomalyScore::where('scored_at', '>=', now()->subDays(7))->count(),
+            'total_baselines'  => EntityBehaviorBaseline::when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))->count(),
+            'total_anomalies'  => BaselineAnomalyScore::where('scored_at', '>=', now()->subDays(7))
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))->count(),
             'high_confidence'  => BaselineAnomalyScore::where('confidence', '>=', 0.75)
-                ->where('scored_at', '>=', now()->subDays(7))->count(),
-            'peer_groups'      => PeerGroupProfile::count(),
+                ->where('scored_at', '>=', now()->subDays(7))
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))->count(),
+            'peer_groups'      => PeerGroupProfile::when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))->count(),
             'anomaly_types'    => BaselineAnomalyScore::select('anomaly_type')
                 ->where('scored_at', '>=', now()->subDays(7))
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
                 ->distinct()->pluck('anomaly_type'),
         ];
 
@@ -52,12 +64,13 @@ class UEBAController extends Controller
 
     public function baselineProfile(Request $request)
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $entityKey  = $request->input('entity_key', '');
         $entityType = $request->input('entity_type', 'user');
 
         $profile = null;
         if ($entityKey) {
-            $profile = $this->uebaService->buildBaselineProfile($entityKey, $entityType);
+            $profile = $this->uebaService->buildBaselineProfile($entityKey, $entityType, $tenantId);
         }
 
         $entityTypes = EntityBehaviorBaseline::ENTITY_TYPES;
@@ -72,6 +85,7 @@ class UEBAController extends Controller
 
     public function anomalyExplorer(Request $request)
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $anomalyType = $request->input('anomaly_type');
         $entityType  = $request->input('entity_type');
         $minConf     = (float) $request->input('min_confidence', 0.0);
@@ -79,6 +93,7 @@ class UEBAController extends Controller
 
         $query = BaselineAnomalyScore::where('scored_at', '>=', now()->subDays($days))
             ->where('is_advisory', true)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('scored_at');
 
         if ($anomalyType) {
@@ -104,17 +119,21 @@ class UEBAController extends Controller
 
     public function peerGroupComparison(Request $request)
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $groupKey  = $request->input('peer_group_key');
         $groupType = $request->input('group_type');
 
-        $query = PeerGroupProfile::orderBy('group_type')->orderBy('group_label');
+        $query = PeerGroupProfile::orderBy('group_type')->orderBy('group_label')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId));
         if ($groupType) {
             $query->where('group_type', $groupType);
         }
         $groups = $query->limit(100)->get();
 
         $selectedGroup = $groupKey
-            ? PeerGroupProfile::where('peer_group_key', $groupKey)->first()
+            ? PeerGroupProfile::where('peer_group_key', $groupKey)
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->first()
             : null;
 
         $groupTypes = PeerGroupProfile::GROUP_TYPES;
@@ -128,6 +147,7 @@ class UEBAController extends Controller
 
     public function entityBaselineHistory(Request $request)
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $entityKey  = $request->input('entity_key', '');
         $entityType = $request->input('entity_type', 'user');
         $limit      = min((int) $request->input('limit', 100), 200);
@@ -135,9 +155,11 @@ class UEBAController extends Controller
         $history  = collect();
         $baselines = collect();
         if ($entityKey) {
-            $history   = $this->uebaService->getAnomalyHistory($entityKey, $entityType, $limit);
+            $history   = $this->uebaService->getAnomalyHistory($entityKey, $entityType, $limit, $tenantId);
             $baselines = EntityBehaviorBaseline::where('entity_key', $entityKey)
-                ->where('entity_type', $entityType)->get();
+                ->where('entity_type', $entityType)
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->get();
         }
 
         $entityTypes = EntityBehaviorBaseline::ENTITY_TYPES;
@@ -149,9 +171,10 @@ class UEBAController extends Controller
     // 6. Baseline Drift Monitor — entities with high baseline variance
     // -----------------------------------------------------------------------
 
-    public function baselineDriftMonitor()
+    public function baselineDriftMonitor(Request $request)
     {
-        $driftData   = $this->uebaService->getBaselineDriftSummary(100);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $driftData   = $this->uebaService->getBaselineDriftSummary(100, $tenantId);
         $dimensions  = EntityBehaviorBaseline::DIMENSIONS;
         $byDimension = [];
         foreach ($dimensions as $dim) {
@@ -167,6 +190,7 @@ class UEBAController extends Controller
 
     public function riskContribution(Request $request)
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $entityKey  = $request->input('entity_key', '');
         $entityType = $request->input('entity_type', 'user');
 
@@ -175,6 +199,7 @@ class UEBAController extends Controller
         if ($entityKey) {
             $recentScores = BaselineAnomalyScore::where('entity_key', $entityKey)
                 ->where('entity_type', $entityType)
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
                 ->where('scored_at', '>=', now()->subDays(7))
                 ->where('confidence', '>=', 0.75)
                 ->orderByDesc('scored_at')

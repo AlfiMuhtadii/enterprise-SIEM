@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BaselineAnomalyScore;
 use App\Models\EntityBehaviorBaseline;
 use App\Models\PeerGroupProfile;
+use App\Services\TenantContextAuthority;
 use App\Services\UEBABaselineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,10 +15,17 @@ use Illuminate\Http\Request;
  * UEBA Phase 1 JSON API — advisory-only behavioral analytics.
  * All responses include advisory_only=true.
  * No autonomous enforcement endpoints.
+ *
+ * ENT-TENANCY-UEBA: every read/write resolves tenant context and scopes by
+ * it, so one tenant's behavioral baselines/peer groups/anomaly scores are
+ * never visible to or mixed with another tenant's.
  */
 class UEBAApiController extends Controller
 {
-    public function __construct(private readonly UEBABaselineService $uebaService) {}
+    public function __construct(
+        private readonly UEBABaselineService $uebaService,
+        private readonly TenantContextAuthority $tenantAuthority,
+    ) {}
 
     public function baselineProfile(Request $request): JsonResponse
     {
@@ -26,9 +34,11 @@ class UEBAApiController extends Controller
             'entity_type' => 'required|in:user,host,ip,domain,process',
         ]);
 
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $profile = $this->uebaService->buildBaselineProfile(
             $request->input('entity_key'),
-            $request->input('entity_type')
+            $request->input('entity_type'),
+            $tenantId
         );
 
         return response()->json([
@@ -40,12 +50,14 @@ class UEBAApiController extends Controller
 
     public function anomalyScores(Request $request): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $entityKey  = $request->input('entity_key');
         $entityType = $request->input('entity_type');
         $days       = min((int) $request->input('days', 7), 30);
 
         $query = BaselineAnomalyScore::where('is_advisory', true)
             ->where('scored_at', '>=', now()->subDays($days))
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('scored_at')
             ->limit(200);
 
@@ -63,9 +75,12 @@ class UEBAApiController extends Controller
         ]);
     }
 
-    public function peerGroupProfile(string $peerGroupKey): JsonResponse
+    public function peerGroupProfile(Request $request, string $peerGroupKey): JsonResponse
     {
-        $group = PeerGroupProfile::where('peer_group_key', $peerGroupKey)->first();
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $group = PeerGroupProfile::where('peer_group_key', $peerGroupKey)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->first();
 
         if (!$group) {
             return response()->json(['ok' => false, 'error' => 'peer_group_not_found'], 404);
@@ -80,33 +95,37 @@ class UEBAApiController extends Controller
 
     public function topAnomalous(Request $request): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $entityType = $request->input('entity_type', '');
         $limit      = min((int) $request->input('limit', 20), 50);
 
         return response()->json([
             'ok'           => true,
             'advisory_only'=> true,
-            'entities'     => $this->uebaService->getTopAnomalousEntities($entityType, $limit),
+            'entities'     => $this->uebaService->getTopAnomalousEntities($entityType, $limit, $tenantId),
         ]);
     }
 
-    public function driftSummary(): JsonResponse
+    public function driftSummary(Request $request): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
         return response()->json([
             'ok'           => true,
             'advisory_only'=> true,
-            'drift'        => $this->uebaService->getBaselineDriftSummary(50),
+            'drift'        => $this->uebaService->getBaselineDriftSummary(50, $tenantId),
         ]);
     }
 
     public function anomalyVolumeTrend(Request $request): JsonResponse
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $days = min((int) $request->input('days', 7), 30);
 
         return response()->json([
             'ok'           => true,
             'advisory_only'=> true,
-            'trend'        => $this->uebaService->getAnomalyVolumeTrend($days),
+            'trend'        => $this->uebaService->getAnomalyVolumeTrend($days, $tenantId),
         ]);
     }
 
@@ -117,9 +136,11 @@ class UEBAApiController extends Controller
             'entity_type' => 'required|in:user,host,ip,domain,process',
         ]);
 
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $scores = $this->uebaService->detectAnomalies(
             $request->input('entity_key'),
-            $request->input('entity_type')
+            $request->input('entity_type'),
+            $tenantId
         );
 
         return response()->json([
@@ -140,10 +161,12 @@ class UEBAApiController extends Controller
             'dimension'   => 'required|in:' . implode(',', EntityBehaviorBaseline::DIMENSIONS),
         ]);
 
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $baseline = $this->uebaService->computeBaseline(
             $request->input('entity_key'),
             $request->input('entity_type'),
-            $request->input('dimension')
+            $request->input('dimension'),
+            $tenantId
         );
 
         return response()->json([

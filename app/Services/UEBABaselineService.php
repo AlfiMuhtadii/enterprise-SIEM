@@ -64,7 +64,7 @@ class UEBABaselineService
      * Uses observations from the last WINDOW_DAYS days.
      * Deterministic — same observations always produce same baseline.
      */
-    public function computeBaseline(string $entityKey, string $entityType, string $dimension): ?EntityBehaviorBaseline
+    public function computeBaseline(string $entityKey, string $entityType, string $dimension, ?string $tenantId = null): ?EntityBehaviorBaseline
     {
         if (!in_array($dimension, EntityBehaviorBaseline::DIMENSIONS, true)) {
             return null;
@@ -77,6 +77,7 @@ class UEBABaselineService
             ->where('entity_type', $entityType)
             ->where('dimension', $dimension)
             ->where('observed_at', '>=', $windowStart)
+            ->where('tenant_id', $tenantId)
             ->orderBy('observed_at')
             ->pluck('observed_value')
             ->map(fn ($v) => (float) $v)
@@ -92,12 +93,14 @@ class UEBABaselineService
         $existing = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
             ->where('dimension', $dimension)
+            ->where('tenant_id', $tenantId)
             ->first();
 
         $attributes = [
             'entity_id'        => $entityKey,
             'entity_type'      => $entityType,
             'entity_key'       => $entityKey,
+            'tenant_id'        => $tenantId,
             'dimension'        => $dimension,
             'baseline_mean'    => $stats['mean'],
             'baseline_median'  => $stats['median'],
@@ -133,12 +136,14 @@ class UEBABaselineService
         ?string $sourceTable   = null,
         ?string $sourceEventId = null,
         ?string $traceId       = null,
-        array   $context       = []
+        array   $context       = [],
+        ?string $tenantId      = null
     ): BaselineObservation {
         return BaselineObservation::create([
             'observation_id'  => (string) Str::uuid(),
             'entity_key'      => $entityKey,
             'entity_type'     => $entityType,
+            'tenant_id'       => $tenantId,
             'dimension'       => $dimension,
             'observed_value'  => $value,
             'source_table'    => $sourceTable,
@@ -171,11 +176,13 @@ class UEBABaselineService
         float   $observedValue,
         array   $evidenceRefs = [],
         array   $traceIds     = [],
-        ?string $traceId      = null
+        ?string $traceId      = null,
+        ?string $tenantId     = null
     ): ?BaselineAnomalyScore {
         $baseline = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
             ->where('dimension', $dimension)
+            ->where('tenant_id', $tenantId)
             ->first();
 
         if (!$baseline || $baseline->sample_count < self::MIN_SAMPLES_FOR_SCORING) {
@@ -198,6 +205,7 @@ class UEBABaselineService
             'score_id'           => (string) Str::uuid(),
             'entity_key'         => $entityKey,
             'entity_type'        => $entityType,
+            'tenant_id'          => $tenantId,
             'anomaly_type'       => $anomalyType,
             'dimension'          => $dimension,
             'observed_value'     => $observedValue,
@@ -225,14 +233,18 @@ class UEBABaselineService
         string $entityKey,
         string $entityType,
         string $dimension,
-        string $peerGroupKey
+        string $peerGroupKey,
+        ?string $tenantId = null
     ): ?BaselineAnomalyScore {
         $entityBaseline = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
             ->where('dimension', $dimension)
+            ->where('tenant_id', $tenantId)
             ->first();
 
-        $peerGroup = PeerGroupProfile::where('peer_group_key', $peerGroupKey)->first();
+        $peerGroup = PeerGroupProfile::where('peer_group_key', $peerGroupKey)
+            ->where('tenant_id', $tenantId)
+            ->first();
 
         if (!$entityBaseline || !$peerGroup || empty($peerGroup->dimension_stats)) {
             return null;
@@ -255,6 +267,7 @@ class UEBABaselineService
             'score_id'            => (string) Str::uuid(),
             'entity_key'          => $entityKey,
             'entity_type'         => $entityType,
+            'tenant_id'           => $tenantId,
             'anomaly_type'        => 'peer_group_behavior_deviation',
             'dimension'           => $dimension,
             'observed_value'      => $entityVal,
@@ -280,7 +293,7 @@ class UEBABaselineService
      * Returns collection of BaselineAnomalyScore (may be empty if no anomalies or insufficient data).
      * Advisory-only — never triggers enforcement.
      */
-    public function detectAnomalies(string $entityKey, string $entityType): Collection
+    public function detectAnomalies(string $entityKey, string $entityType, ?string $tenantId = null): Collection
     {
         $scores = collect();
 
@@ -288,7 +301,7 @@ class UEBABaselineService
         $observed = $this->collectCurrentObservations($entityKey, $entityType);
 
         foreach ($observed as $dimension => $value) {
-            $score = $this->scoreAnomaly($entityKey, $entityType, $dimension, $value);
+            $score = $this->scoreAnomaly($entityKey, $entityType, $dimension, $value, [], [], null, $tenantId);
             if ($score && abs($score->z_score ?? 0.0) >= self::ANOMALY_Z_THRESHOLD) {
                 $scores->push($score);
             }
@@ -297,13 +310,14 @@ class UEBABaselineService
         // Peer group deviation check
         $baseline = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
+            ->where('tenant_id', $tenantId)
             ->whereNotNull('peer_group_key')
             ->first();
 
         if ($baseline?->peer_group_key) {
             foreach (EntityBehaviorBaseline::DIMENSIONS as $dim) {
                 $pgScore = $this->scorePeerGroupDeviation(
-                    $entityKey, $entityType, $dim, $baseline->peer_group_key
+                    $entityKey, $entityType, $dim, $baseline->peer_group_key, $tenantId
                 );
                 if ($pgScore && ($pgScore->peer_group_deviation ?? 0.0) >= self::PEER_DEVIATION_THRESHOLD) {
                     $scores->push($pgScore);
@@ -322,14 +336,24 @@ class UEBABaselineService
      * Assign an entity to a deterministic peer group based on entity type and attributes.
      * No sensitive attribute inference — uses only public entity_type and metadata.
      */
-    public function assignPeerGroup(string $entityKey, string $entityType, array $attributes = []): ?PeerGroupProfile
+    /**
+     * ENT-TENANCY-UEBA: $tenantId is part of the peer group's identity, not
+     * just a tag. deriveGroupKey() intentionally still produces a global
+     * label like "user_role:admin" (kept human-readable/unchanged) — tenant
+     * separation is enforced by including tenant_id in the firstOrCreate
+     * lookup criteria, backed by the DB-level
+     * peer_group_profiles_key_tenant_unique expression index. Without this,
+     * two tenants' admin users would be assigned to the exact same peer
+     * group row and their behavioral baselines would be mixed together.
+     */
+    public function assignPeerGroup(string $entityKey, string $entityType, array $attributes = [], ?string $tenantId = null): ?PeerGroupProfile
     {
         $groupKey  = $this->deriveGroupKey($entityType, $attributes);
         $groupType = $this->entityTypeToGroupType($entityType);
         $label     = $this->deriveGroupLabel($entityType, $attributes);
 
         $group = PeerGroupProfile::firstOrCreate(
-            ['peer_group_key' => $groupKey],
+            ['peer_group_key' => $groupKey, 'tenant_id' => $tenantId],
             [
                 'group_type'       => $groupType,
                 'group_label'      => $label,
@@ -355,6 +379,7 @@ class UEBABaselineService
         // Update baselines to reference this peer group
         EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
+            ->where('tenant_id', $tenantId)
             ->update(['peer_group_key' => $groupKey]);
 
         return $group->fresh();
@@ -364,9 +389,11 @@ class UEBABaselineService
      * Recompute aggregate dimension stats for a peer group.
      * Deterministic — uses stored baselines of all members.
      */
-    public function computePeerGroupProfile(string $peerGroupKey): ?PeerGroupProfile
+    public function computePeerGroupProfile(string $peerGroupKey, ?string $tenantId = null): ?PeerGroupProfile
     {
-        $group = PeerGroupProfile::where('peer_group_key', $peerGroupKey)->first();
+        $group = PeerGroupProfile::where('peer_group_key', $peerGroupKey)
+            ->where('tenant_id', $tenantId)
+            ->first();
         if (!$group) {
             return null;
         }
@@ -380,6 +407,7 @@ class UEBABaselineService
         foreach (EntityBehaviorBaseline::DIMENSIONS as $dim) {
             $values = EntityBehaviorBaseline::whereIn('entity_key', $members)
                 ->where('dimension', $dim)
+                ->where('tenant_id', $tenantId)
                 ->whereNotNull('baseline_mean')
                 ->pluck('baseline_mean')
                 ->map(fn ($v) => (float) $v)
@@ -416,21 +444,25 @@ class UEBABaselineService
      * Build a complete advisory-only baseline profile for an entity.
      * Returns all dimensions with baselines, recent anomaly scores, and peer group.
      */
-    public function buildBaselineProfile(string $entityKey, string $entityType): array
+    public function buildBaselineProfile(string $entityKey, string $entityType, ?string $tenantId = null): array
     {
         $baselines = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->get();
 
         $recentScores = BaselineAnomalyScore::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('scored_at')
             ->limit(50)
             ->get();
 
         $peerGroupKey = $baselines->whereNotNull('peer_group_key')->first()?->peer_group_key;
         $peerGroup    = $peerGroupKey
-            ? PeerGroupProfile::where('peer_group_key', $peerGroupKey)->first()
+            ? PeerGroupProfile::where('peer_group_key', $peerGroupKey)
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->first()
             : null;
 
         return [
@@ -448,10 +480,11 @@ class UEBABaselineService
     /**
      * Retrieve recent anomaly history for an entity.
      */
-    public function getAnomalyHistory(string $entityKey, string $entityType, int $limit = 100): Collection
+    public function getAnomalyHistory(string $entityKey, string $entityType, int $limit = 100, ?string $tenantId = null): Collection
     {
         return BaselineAnomalyScore::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('scored_at')
             ->limit(min($limit, self::MAX_ANOMALY_HISTORY))
             ->get();
@@ -460,13 +493,14 @@ class UEBABaselineService
     /**
      * Get top anomalous entities by recent high-confidence anomaly scores.
      */
-    public function getTopAnomalousEntities(string $entityType = '', int $limit = 20): Collection
+    public function getTopAnomalousEntities(string $entityType = '', int $limit = 20, ?string $tenantId = null): Collection
     {
         $query = DB::table('baseline_anomaly_scores')
             ->select('entity_key', 'entity_type', DB::raw('count(*) as anomaly_count'), DB::raw('max(confidence) as max_confidence'), DB::raw('max(scored_at) as last_anomaly_at'))
             ->where('is_advisory', true)
             ->where('confidence', '>=', BaselineAnomalyScore::CONFIDENCE_MEDIUM)
             ->where('scored_at', '>=', now()->subDays(7))
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->groupBy('entity_key', 'entity_type')
             ->orderByDesc('anomaly_count')
             ->limit($limit);
@@ -481,12 +515,13 @@ class UEBABaselineService
     /**
      * Get baseline drift summary — entities whose baselines have shifted significantly.
      */
-    public function getBaselineDriftSummary(int $limit = 50): Collection
+    public function getBaselineDriftSummary(int $limit = 50, ?string $tenantId = null): Collection
     {
         return DB::table('entity_behavior_baselines')
             ->select('entity_key', 'entity_type', 'dimension', 'baseline_mean', 'baseline_stddev', 'sample_count', 'computed_at')
             ->whereNotNull('baseline_stddev')
             ->where('baseline_stddev', '>', 0)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('baseline_stddev')
             ->limit($limit)
             ->get();
@@ -495,11 +530,12 @@ class UEBABaselineService
     /**
      * Get anomaly volume grouped by hour for trend charts.
      */
-    public function getAnomalyVolumeTrend(int $days = 7): Collection
+    public function getAnomalyVolumeTrend(int $days = 7, ?string $tenantId = null): Collection
     {
         return DB::table('baseline_anomaly_scores')
             ->select(DB::raw("date_trunc('hour', scored_at) as hour"), DB::raw('count(*) as count'), 'anomaly_type')
             ->where('scored_at', '>=', now()->subDays($days))
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->groupBy(DB::raw("date_trunc('hour', scored_at)"), 'anomaly_type')
             ->orderBy(DB::raw("date_trunc('hour', scored_at)"))
             ->get();
@@ -624,6 +660,16 @@ class UEBABaselineService
      * Collect current observed metric values for an entity from recent activity.
      * Uses last 24h window for current-state comparison.
      * Degrades gracefully if a source table is unavailable or has no matching column.
+     *
+     * ENT-TENANCY-UEBA: deliberately NOT tenant-scoped. Its source tables
+     * (identity_provider_events, saas_audit_events, endpoint_agents,
+     * endpoint_process_entries, endpoint_behavioral_findings,
+     * endpoint_stream_events) have no tenant_id column at all — scoping
+     * this method would require new migrations across a half-dozen
+     * unrelated tables, out of bounds for this task. Documented residual
+     * gap: a same-keyed entity's "current" observation window can still
+     * include another tenant's activity, even though the resulting
+     * baseline/score persisted from it is correctly tenant-tagged.
      */
     private function collectCurrentObservations(string $entityKey, string $entityType): array
     {
