@@ -498,6 +498,34 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   scale searchable) and cold tier (object storage archival + restore); the local gzip archive
   from phase 1 is durable but not itself searchable, so it's a safety net, not yet a real
   "warm" tier.
+- **Progress (2026-07-10, phase 2):** Made the phase-1 archive actually searchable — a real,
+  bounded local read path, deliberately scoped as a stopgap rather than reattempting the "needs
+  live infra" ClickHouse warm tier (still out of reach in this environment; documented as still
+  open). New `ArchiveSearchService::search(table, tenantId, from, to, filters, limit)`: lists
+  candidate `.jsonl.gz` files under `{archiveDir}/{table}/{tenant-or-*}/`, **skips files whose
+  filename timestamp falls outside `[from, to]` without opening them** (the archive's existing
+  `{Y-m-d_His_u}.jsonl.gz` filename convention doubles as a coarse time index, so a date-ranged
+  search doesn't have to gunzip every file), then linearly scans the remaining files applying an
+  exact-match filter map against decoded JSONL rows. Explicitly bounded — `MAX_FILES_SCANNED=200`
+  / `MAX_ROWS_SCANNED=200000` / `MAX_RESULTS=500`, `truncated: true` reported whichever limit
+  hits first — this is a **local safety-net search, honestly labelled** (`is_local_archive_search:
+  true` in every response), not a real indexed warm tier; a genuine ClickHouse warm tier remains
+  the actual "not done" item, now more precisely scoped since the safety net itself is provably
+  searchable. New `security:archive-search` Artisan command (read-only, no mutation of archive or
+  live DB) — `{table} --tenant= --from= --to= --filter=field=value (repeatable) --limit=
+  --archive-dir=`, prints JSON results + a `files_scanned=… rows_scanned=… results=… truncated=…`
+  summary line, matching `SecurityRetentionCommand`'s existing `--archive-dir` convention/default
+  (`storage/app/archives`) so no new path convention was introduced. +11 tests
+  (`ArchiveSearchServiceTest`): basic search, exact-match filter hit/miss, tenant scoping
+  (single-tenant vs. all-tenants when `tenantId=null`), nonexistent-table-dir empty result,
+  `limit`-triggered truncation, date-range file-skip exclusion **and** inclusion (both directions
+  verified, not just the exclusion case), plus 2 command-level tests through the real Artisan
+  CLI (output-contains assertions on both the matched row and the `--filter` flag). Full
+  `php artisan test --parallel --recreate-databases` run confirmed green after adding this
+  (see CLAUDE.md's Laravel gate) — no existing file was modified, only additive new
+  Service/Command/Test, so zero regression risk to any other suite by construction. **Still
+  not done**: the real warm tier (ClickHouse) and cold tier (object storage archival/restore) —
+  unchanged from phase 1, both need live infra unavailable in this environment.
 
 ## Proposed Task: META-MODULE-RATIONALIZE — Consolidate the self-assessment / evidence-freeze sprawl
 
