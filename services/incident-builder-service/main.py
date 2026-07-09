@@ -26,6 +26,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 SESSION = requests.Session()
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
+import traceparent as tp
 
 try:
     import psycopg
@@ -68,12 +69,14 @@ class AlertPayload(BaseModel):
     score: Optional[float] = None
     evidence: Dict[str, Any] = Field(default_factory=dict)
     trace_id: Optional[str] = None
+    traceparent: Optional[str] = None
     tenant_id: Optional[str] = None
 
 
 class BuildRequest(BaseModel):
     alerts: List[AlertPayload]
     trace_id: Optional[str] = None
+    traceparent: Optional[str] = None
     source_topic: str = "xdr.alerts"
 
 
@@ -169,6 +172,9 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
     entities = sorted(set(item for alert in group for item in alert_entities(alert)))
     mitre = sorted(set(item for alert in group for item in (alert.evidence.get("mitre_attack") or [])))
     trace_id = next((a.trace_id for a in group if a.trace_id), None)
+    # OBS-OTEL-TRACING: mint a new child span for this hop (not a passthrough
+    # like trace_id) so a future OTLP collector sees a distinct incident-builder span.
+    traceparent = tp.propagate(next((a.traceparent for a in group if a.traceparent), None))
     tenant_id = next((a.tenant_id for a in group if a.tenant_id), None)
     timeline = []
     for alert in ordered:
@@ -197,6 +203,7 @@ def aggregate(group: List[AlertPayload], key: str) -> Dict[str, Any]:
         "xdr_domains": domains,
         "alert_ids": [a.alert_id for a in group],
         "trace_id": trace_id,
+        "traceparent": traceparent,
         "tenant_id": tenant_id,
     }
 
@@ -435,6 +442,8 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
                 row["alert_id"] = value.get("alert_id")
             if not row.get("trace_id") and isinstance(value, dict):
                 row["trace_id"] = value.get("trace_id")
+            if not row.get("traceparent") and isinstance(value, dict):
+                row["traceparent"] = value.get("traceparent")
             try:
                 alerts.append(AlertPayload(**row))
             except Exception as exc:
@@ -453,8 +462,10 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
     events = []
     for incident in result.get("incidents", []):
         inc_trace_id = incident.get("trace_id") or trace_id
+        inc_traceparent = incident.get("traceparent")
         payload = {
             "trace_id": inc_trace_id,
+            "traceparent": inc_traceparent,
             "incident": incident,
             "incident_id": incident.get("incident_id"),
             "updated_at": now_iso(),
@@ -465,6 +476,7 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
             payload=payload,
             source_service="incident-builder-service",
             trace_id=inc_trace_id,
+            traceparent=inc_traceparent,
             aggregate_type="incident",
             aggregate_id=payload["incident_id"],
             metadata={"source_topic": source_topic},

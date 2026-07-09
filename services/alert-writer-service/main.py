@@ -32,6 +32,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 from alert_identity import alert_id, fingerprint
+import traceparent as tp
 
 try:
     import psycopg
@@ -74,12 +75,14 @@ class AlertPayload(BaseModel):
     detector_name: str = "xdr-correlation"
     detector_version: str = "go-shadow"
     trace_id: Optional[str] = None
+    traceparent: Optional[str] = None
     tenant_id: Optional[str] = None
 
 
 class WriteRequest(BaseModel):
     alerts: List[AlertPayload]
     trace_id: Optional[str] = None
+    traceparent: Optional[str] = None
     source_topic: str = "xdr.alerts"
 
 
@@ -461,6 +464,7 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
             METRICS["dlq_count"] = len(DLQ)
             continue
         batch_trace_id = value.get("trace_id") if isinstance(value, dict) else None
+        batch_traceparent = value.get("traceparent") if isinstance(value, dict) else None
         rows = value.get("alerts") if isinstance(value, dict) else None
         if rows is None:
             rows = [value.get("alert")] if isinstance(value, dict) and "alert" in value else [value]
@@ -468,6 +472,8 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
             if isinstance(row, dict):
                 if not row.get("trace_id") and batch_trace_id:
                     row["trace_id"] = batch_trace_id
+                if not row.get("traceparent") and batch_traceparent:
+                    row["traceparent"] = batch_traceparent
                 try:
                     alerts.append(AlertPayload(**row))
                 except Exception as exc:
@@ -480,15 +486,24 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
     return alerts
 
 
-def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_topic: str) -> Dict[str, Any]:
+def process_alerts(
+    alerts: List[AlertPayload],
+    trace_id: Optional[str],
+    source_topic: str,
+    traceparent: Optional[str] = None,
+) -> Dict[str, Any]:
     result = _write_alerts_core(WriteRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
     created_topic = os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created")
     created_events = []
     for alert in alerts:
         fp = fingerprint(alert)
         alert_trace_id = alert.trace_id or trace_id
+        # OBS-OTEL-TRACING: each hop mints a new child span (not a passthrough
+        # like trace_id) so a future OTLP collector sees a distinct span per hop.
+        alert_traceparent = tp.propagate(alert.traceparent or traceparent)
         payload = {
             "trace_id": alert_trace_id,
+            "traceparent": alert_traceparent,
             "alert": alert.model_dump(),
             "alert_id": alert_id(alert, fp),
             "alert_fingerprint": fp,
@@ -500,6 +515,7 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
             payload=payload,
             source_service="alert-writer-service",
             trace_id=alert_trace_id,
+            traceparent=alert_traceparent,
             aggregate_type="alert",
             aggregate_id=payload["alert_id"],
             metadata={"source_topic": source_topic},
@@ -579,7 +595,8 @@ def event_loop() -> None:
                     f"  group={group}  topic={topic}"
                 )
                 batch_trace_id = next((a.trace_id for a in alerts if a.trace_id), None)
-                process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic)
+                batch_traceparent = next((a.traceparent for a in alerts if a.traceparent), None)
+                process_alerts(alerts, trace_id=batch_trace_id, source_topic=topic, traceparent=batch_traceparent)
         except Exception as exc:
             METRICS["consumer_errors"] += 1
             consecutive_errors += 1
@@ -755,7 +772,7 @@ def process(
 ) -> Dict[str, Any]:
     if not verify_internal_token(x_internal_service_token or ""):
         raise HTTPException(status_code=401, detail="unauthorized")
-    return process_alerts(request.alerts, request.trace_id, request.source_topic)
+    return process_alerts(request.alerts, request.trace_id, request.source_topic, request.traceparent)
 
 
 # ---------------------------------------------------------------------------

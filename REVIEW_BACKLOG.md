@@ -140,6 +140,47 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   **Not run**: a live end-to-end trace-id-continuity smoke test across the running pipeline —
   Docker daemon unavailable in this environment, the same standing limitation noted throughout
   this session's other infra-adjacent work.
+- **Progress (2026-07-10, later):** Phase 2 done — Python-side propagation across
+  `alert-writer-service` and `incident-builder-service`, extending the chain one hop further
+  (`correlation-worker` → `alert-writer-service` → `incident-builder-service`). New
+  `traceparent.py` module, byte-for-byte algorithmic mirror of the Go `internal/traceparent`
+  package (`generate()`/`parse()`/`new_child_span()`/`propagate()`, stdlib `re`+`secrets` only,
+  no OTel SDK), duplicated identically in both service directories — same precedent as
+  `xdr_event_contracts.py` already being duplicated across both (confirmed via `diff`, zero
+  drift). `AlertPayload`/`WriteRequest`/`BuildRequest` gained an optional `traceparent` field
+  alongside the existing `trace_id`. In `alert-writer-service`: `normalize_records()` backfills
+  `traceparent` from the batch envelope exactly like it already does for `trace_id`;
+  `process_alerts()` computes `tp.propagate(alert.traceparent or traceparent)` per alert — a
+  **new child span every hop**, not a passthrough like `trace_id` — and both the `alerts.created`
+  payload and its `envelope()` call carry it. In `incident-builder-service`: `aggregate()` (which
+  already derives `trace_id` as the first non-empty value among a group's contributing alerts)
+  now derives `traceparent` the same way, then propagates one new child span per aggregated
+  incident; `process_alerts()` reads it back off the incident dict into the `incidents.updated`
+  envelope. `xdr_event_contracts.py`'s `envelope()` gained an optional `traceparent` param,
+  included in the returned envelope dict — deliberately **excluded** from `stable_event_id()`'s
+  hash material, since a fresh span-id on every `propagate()` call would otherwise break
+  idempotent event-id generation for an identical replay. **Deliberately out of scope this
+  pass**: no Postgres column / persistence for `traceparent` on `security_alerts`/
+  `security_incidents` (unlike `trace_id`) — adding one would pull in a migration and the full
+  Laravel test gate for a field whose actual payoff is OTLP collector consumption from the live
+  event stream, not ad-hoc SQL querying; documented as future scope alongside the OTLP wiring
+  itself. +30 new Python tests: 28 direct-import pure-function tests for `traceparent.py`
+  (mirroring the Go test suite: generate/parse/reject-each-invalid-shape/child-span/propagate,
+  duplicated per service matching `test_alert_identity.py`'s direct-import precedent — no
+  fastapi/pydantic stubbing needed since the module has zero heavy deps) + 2 new
+  `aggregate()`-level wiring tests using `SimpleNamespace` fake alerts (duck-typed, bypassing
+  the heavy `BaseModel = object` stub the existing harness uses — same technique
+  `test_alert_identity.py`'s `make_alert()` helper already established) confirming trace-id
+  preserved / span-id changed end-to-end through the real aggregation function, not just the
+  isolated module. Per-directory suites clean: `tests/alert_writer` 82/82,
+  `tests/incident_builder` 52/52, zero regressions. **Note**: the combined top-level
+  `python -m unittest discover -s tests` run fails (1 failure + 77 errors) both **before and
+  after** this change (verified via `git stash`) — a pre-existing test-isolation issue between
+  same-named `main` modules across the `alert_writer`/`incident_builder` test directories when
+  discovered together, not something this task introduced; per-directory discovery (the pattern
+  CLAUDE.md's own Python test convention already uses for `tests/endpoint_agent`) is the
+  supported/passing invocation. **Still open**: Laravel-side exposure and the OTLP collector/SDK
+  wiring itself — this remains context-production-only, nothing consumes these spans yet.
 
 ## Proposed Task: ML-SERVE-ONLINE — Multiclass LR model is offline-only, not in the live detection path
 

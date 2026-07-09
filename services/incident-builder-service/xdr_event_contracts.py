@@ -37,6 +37,7 @@ def envelope(
     payload: Dict[str, Any],
     source_service: str,
     trace_id: Optional[str] = None,
+    traceparent: Optional[str] = None,
     aggregate_type: Optional[str] = None,
     aggregate_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
@@ -56,6 +57,10 @@ def envelope(
         "schema_version": SCHEMA_VERSION,
         "occurred_at": now_iso(),
         "trace_id": trace_id,
+        # traceparent is not part of stable_event_id's hash material: it mints a
+        # fresh span-id on every propagate() call, so including it would break
+        # idempotent event_id generation for an otherwise-identical replay.
+        "traceparent": traceparent,
         "source_service": source_service,
         "payload": payload,
         "metadata": meta,
