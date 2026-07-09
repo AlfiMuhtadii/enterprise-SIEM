@@ -1,0 +1,64 @@
+{
+  "type": "bundle",
+  "id": "bundle--0d3a2b1c-6f4e-4a2b-9c1d-8e7f6a5b4c3d",
+  "objects": [
+    {
+      "type": "indicator",
+      "spec_version": "2.1",
+      "id": "indicator--a1b2c3d4-0001-4a2b-9c1d-000000000001",
+      "created": "2026-07-01T00:00:00.000Z",
+      "modified": "2026-07-01T00:00:00.000Z",
+      "name": "Known C2 IPv4",
+      "pattern": "[ipv4-addr:value = '198.51.100.23']",
+      "pattern_type": "stix",
+      "valid_from": "2026-07-01T00:00:00Z",
+      "valid_until": "2027-07-01T00:00:00Z",
+      "confidence": 90,
+      "labels": ["malicious-activity"]
+    },
+    {
+      "type": "indicator",
+      "spec_version": "2.1",
+      "id": "indicator--a1b2c3d4-0002-4a2b-9c1d-000000000002",
+      "created": "2026-07-01T00:00:00.000Z",
+      "modified": "2026-07-01T00:00:00.000Z",
+      "name": "Phishing domain",
+      "pattern": "[domain-name:value = 'evil-Login.example']",
+      "pattern_type": "stix",
+      "confidence": 60,
+      "labels": ["malicious-activity"]
+    },
+    {
+      "type": "indicator",
+      "spec_version": "2.1",
+      "id": "indicator--a1b2c3d4-0003-4a2b-9c1d-000000000003",
+      "created": "2026-07-01T00:00:00.000Z",
+      "modified": "2026-07-01T00:00:00.000Z",
+      "name": "Malware payload SHA-256",
+      "pattern": "[file:hashes.'SHA-256' = 'AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899']",
+      "pattern_type": "stix",
+      "confidence": 95,
+      "labels": ["malicious-activity"]
+    },
+    {
+      "type": "indicator",
+      "spec_version": "2.1",
+      "id": "indicator--a1b2c3d4-0004-4a2b-9c1d-000000000004",
+      "created": "2026-07-01T00:00:00.000Z",
+      "modified": "2026-07-01T00:00:00.000Z",
+      "name": "Credential-harvest URL",
+      "pattern": "[url:value = 'http://evil-login.example/verify']",
+      "pattern_type": "stix",
+      "confidence": 30
+    },
+    {
+      "type": "malware",
+      "spec_version": "2.1",
+      "id": "malware--a1b2c3d4-0005-4a2b-9c1d-000000000005",
+      "created": "2026-07-01T00:00:00.000Z",
+      "modified": "2026-07-01T00:00:00.000Z",
+      "name": "Non-indicator object (skipped)",
+      "is_family": false
+    }
+  ]
+}
