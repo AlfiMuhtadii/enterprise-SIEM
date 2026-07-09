@@ -4,9 +4,21 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"detector-xdr-normalizer-worker/internal/traceparent"
 )
 
 func Event(raw map[string]any) (map[string]any, error) {
+	out, err := dispatch(raw)
+	if err != nil {
+		return nil, err
+	}
+	inboundTP, _ := raw["traceparent"].(string)
+	out["traceparent"] = traceparent.Propagate(inboundTP)
+	return out, nil
+}
+
+func dispatch(raw map[string]any) (map[string]any, error) {
 	ts := first(raw, "ts", "timestamp", "event_time")
 	telemetryType := strings.ToLower(fmt.Sprint(first(raw, "telemetry_type", "source_type", "category")))
 	eventType := strings.ToLower(fmt.Sprint(first(raw, "event_type", "action", "operation")))

@@ -101,6 +101,45 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   (compose `observability` profile, off by default), and map existing `trace_id` onto span
   context.
 - **Safety:** Observability only; append-only lineage guarantees unaffected.
+- **Progress (2026-07-10):** Phase 1 done — W3C Trace Context (level 1) generation, parsing,
+  and hop-to-hop propagation across the 3 Go pipeline services (`ingestion-gateway` →
+  `normalizer-worker` → `correlation-worker`), implemented **dependency-free** (stdlib
+  `crypto/rand`/`regexp` only, no OTel SDK) following this codebase's established pattern for
+  RFC-shaped protocol logic (see `TotpService`'s direct RFC 6238 implementation). New
+  `internal/traceparent` package (identical content in all 3 service modules — this codebase
+  has no shared Go workspace/module, so each service already duplicates small pure packages;
+  same precedent as `internal/cef`) exposes `Generate()` (fresh root: version `00`, 16-byte
+  trace-id, 8-byte span-id, sampled flag), `Parse()` (validates version/hex-length/non-zero
+  trace-id+span-id per the level-1 spec), `NewChildSpan()`, and `Propagate(inbound string)
+  string` (parse-or-generate-root, then mint a child span) — one function every hop calls.
+  **Deliberately additive, not a replacement**: investigated the existing `trace_id` field
+  first and found it is a free-form string used as an analyst-facing correlation tag across
+  ~90 services/tables, frequently domain-prefixed (`soc-`, `sla-`, `esc-`, `dlq-`, `trace-`,
+  ...) — reformatting it to strict W3C shape would be an invasive, high-risk rename touching
+  dozens of unrelated call sites for no benefit. Instead `traceparent` ships as a **new**
+  sibling field: `ingestion-gateway`'s `publish()` sets it (generate-if-absent, same shape as
+  the existing `newTraceID()` pattern) before every Pandaproxy produce; `normalizer-worker`'s
+  `Event()` dispatcher was restructured (direct per-type `return Foo(raw)` branches → capture
+  into `dispatch()` + a single post-processing propagation step) so propagation is applied once
+  generically instead of edited into all 13 per-telemetry-type normalizer functions;
+  `correlation-worker`'s `makeAlert()` picks the first non-empty `Traceparent` among
+  contributing events (mirroring its existing `TraceID` selection logic) and propagates a child
+  span onto the `Alert`. Confirmed (via research) that Pandaproxy's JSON v2 envelope does
+  support real Kafka headers but **nothing in this codebase uses them** — so `traceparent`
+  travels as a plain body field, consistent with how every other lineage field
+  (`trace_id`/`tenant_id`/`demo_run_id`) already travels, not as a header (avoids introducing
+  a second, inconsistent propagation mechanism). +37 new Go tests (11 per service's
+  `internal/traceparent` — generate/parse/reject-malformed/reject-all-zero/reject-uppercase/
+  child-span-preserves-trace-id/propagate-with-valid-or-missing-or-invalid-inbound — plus 2
+  `normalize_test.go` cases and 2 `main_test.go` `makeAlert` cases wiring it end-to-end).
+  `go build`/`go vet`/`go test ./...` clean across all 3 services; full existing suites
+  unaffected (0 regressions). **Not done**: Python services (`alert-writer-service`,
+  `incident-builder-service`) propagation, Laravel-side exposure, and — the actual payoff —
+  wiring to a real OTLP collector/OTel SDK so a tool like Tempo/Jaeger can stitch spans; this
+  phase only produces standards-shaped span context, it does not yet emit or collect spans.
+  **Not run**: a live end-to-end trace-id-continuity smoke test across the running pipeline —
+  Docker daemon unavailable in this environment, the same standing limitation noted throughout
+  this session's other infra-adjacent work.
 
 ## Proposed Task: ML-SERVE-ONLINE — Multiclass LR model is offline-only, not in the live detection path
 

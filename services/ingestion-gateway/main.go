@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"detector-xdr-ingestion-gateway/internal/traceparent"
 )
 
 var httpClient = &http.Client{
@@ -439,6 +441,8 @@ func (g *Gateway) publish(events []map[string]any) error {
 		if tid, _ := event["trace_id"].(string); tid == "" {
 			event["trace_id"] = newTraceID()
 		}
+		inboundTP, _ := event["traceparent"].(string)
+		event["traceparent"] = traceparent.Propagate(inboundTP)
 		records = append(records, map[string]any{"value": event})
 	}
 	payload, _ := json.Marshal(map[string]any{"records": records})

@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"detector-xdr-correlation-worker/internal/traceparent"
 )
 
 // ---------------------------------------------------------------------------
@@ -31,6 +33,38 @@ func TestMakeAlertNoDemoFields(t *testing.T) {
 	}
 	if _, ok := alert.Evidence["involved_users"]; !ok {
 		t.Error("involved_users must be present")
+	}
+}
+
+func TestMakeAlertPropagatesTraceparentAsChildSpan(t *testing.T) {
+	inbound := traceparent.Generate()
+	inboundParsed, _ := traceparent.Parse(inbound)
+	events := []Event{
+		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice", Traceparent: inbound},
+		{EventID: "ev-002", TelemetryType: "cloud", EventType: "access_key_created", User: "alice"},
+	}
+	alert := makeAlert("IDENTITY_MFA_THEN_KEY", "alice", events, 0.80)
+
+	outParsed, err := traceparent.Parse(alert.Traceparent)
+	if err != nil {
+		t.Fatalf("expected a valid alert traceparent, got %q: %v", alert.Traceparent, err)
+	}
+	if outParsed.TraceID != inboundParsed.TraceID {
+		t.Fatalf("expected trace-id preserved from contributing event, got %s vs %s", outParsed.TraceID, inboundParsed.TraceID)
+	}
+	if outParsed.SpanID == inboundParsed.SpanID {
+		t.Fatalf("expected a new span-id for the correlation-worker hop")
+	}
+}
+
+func TestMakeAlertGeneratesRootTraceparentWhenNoEventCarriesOne(t *testing.T) {
+	events := []Event{
+		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice"},
+	}
+	alert := makeAlert("IDENTITY_MFA_THEN_KEY", "alice", events, 0.80)
+
+	if _, err := traceparent.Parse(alert.Traceparent); err != nil {
+		t.Fatalf("expected a valid generated alert traceparent, got %q: %v", alert.Traceparent, err)
 	}
 }
 

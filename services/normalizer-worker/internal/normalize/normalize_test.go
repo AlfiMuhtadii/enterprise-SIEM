@@ -1,6 +1,10 @@
 package normalize
 
-import "testing"
+import (
+	"testing"
+
+	"detector-xdr-normalizer-worker/internal/traceparent"
+)
 
 func TestEventDispatchesToEndpoint(t *testing.T) {
 	raw := map[string]any{
@@ -173,6 +177,42 @@ func TestCefSyslogMarksAdvisoryAndPreservesExtension(t *testing.T) {
 	ext, ok := out["cef_extension"].(map[string]string)
 	if !ok || ext["spt"] != "51820" {
 		t.Fatalf("expected cef_extension preserved verbatim, got %v", out["cef_extension"])
+	}
+}
+
+func TestEventPropagatesTraceparentAsChildSpan(t *testing.T) {
+	inbound := traceparent.Generate()
+	inboundParsed, _ := traceparent.Parse(inbound)
+	raw := map[string]any{
+		"ts": "2026-01-01T00:00:00Z", "telemetry_type": "dns", "event_type": "query",
+		"traceparent": inbound,
+	}
+	out, err := Event(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outTP, _ := out["traceparent"].(string)
+	outParsed, err := traceparent.Parse(outTP)
+	if err != nil {
+		t.Fatalf("expected a valid outbound traceparent, got %q: %v", outTP, err)
+	}
+	if outParsed.TraceID != inboundParsed.TraceID {
+		t.Fatalf("expected trace-id preserved across normalization, got %s vs %s", outParsed.TraceID, inboundParsed.TraceID)
+	}
+	if outParsed.SpanID == inboundParsed.SpanID {
+		t.Fatalf("expected a new span-id for the normalizer hop")
+	}
+}
+
+func TestEventGeneratesRootTraceparentWhenAbsent(t *testing.T) {
+	raw := map[string]any{"ts": "2026-01-01T00:00:00Z", "telemetry_type": "dns", "event_type": "query"}
+	out, err := Event(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outTP, _ := out["traceparent"].(string)
+	if _, err := traceparent.Parse(outTP); err != nil {
+		t.Fatalf("expected a valid generated traceparent, got %q: %v", outTP, err)
 	}
 }
 

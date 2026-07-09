@@ -25,6 +25,7 @@ import (
 
 	"detector-xdr-correlation-worker/internal/ioc"
 	"detector-xdr-correlation-worker/internal/shadowrules"
+	"detector-xdr-correlation-worker/internal/traceparent"
 )
 
 var httpClient = &http.Client{
@@ -56,6 +57,7 @@ type Event struct {
 	RiskScore      float64 `json:"risk_score"`
 	EventSource    string  `json:"event_source"`
 	TraceID        string  `json:"trace_id"`
+	Traceparent    string  `json:"traceparent,omitempty"`
 	// Demo lineage fields — injected by demo_feed.py, omitted in non-demo events.
 	DemoRunID     string `json:"demo_run_id,omitempty"`
 	SourceEventID string `json:"source_event_id,omitempty"`
@@ -75,34 +77,35 @@ type Alert struct {
 	Evidence    map[string]any `json:"evidence,omitempty"`
 	ShadowMode  bool           `json:"shadow_mode"`
 	TraceID     string         `json:"trace_id,omitempty"`
+	Traceparent string         `json:"traceparent,omitempty"`
 	TenantID    string         `json:"tenant_id,omitempty"`
 }
 
 type Worker struct {
-	redpandaREST      string
-	inputTopic        string
-	outputTopic       string
-	dlqTopic          string
+	redpandaREST             string
+	inputTopic               string
+	outputTopic              string
+	dlqTopic                 string
 	correlationFailedTopic   string
 	shadowAlertsTopic        string
 	networkShadowAlertsTopic string
 	iocLookupURL             string
-	group             string
-	scope             string
-	processed atomic.Int64
-	alerts    atomic.Int64
-	latencyMS atomic.Int64
-	published atomic.Int64
-	publishErrors atomic.Int64
-	consumerPolls         atomic.Int64
-	consumerErrors        atomic.Int64
-	reconnectCount        atomic.Int64
-	pollErrorCount        atomic.Int64
-	consumerRecreateCount atomic.Int64
-	retryCount            atomic.Int64
-	shadowAlertsPublished atomic.Int64
-	dlqWritten            atomic.Int64
-	dlqWriteErrors        atomic.Int64
+	group                    string
+	scope                    string
+	processed                atomic.Int64
+	alerts                   atomic.Int64
+	latencyMS                atomic.Int64
+	published                atomic.Int64
+	publishErrors            atomic.Int64
+	consumerPolls            atomic.Int64
+	consumerErrors           atomic.Int64
+	reconnectCount           atomic.Int64
+	pollErrorCount           atomic.Int64
+	consumerRecreateCount    atomic.Int64
+	retryCount               atomic.Int64
+	shadowAlertsPublished    atomic.Int64
+	dlqWritten               atomic.Int64
+	dlqWriteErrors           atomic.Int64
 }
 
 func validateCorrelationSecrets() {
@@ -160,16 +163,16 @@ func main() {
 		envInt("XDR_IOC_CACHE_MAX", 10000),
 	)
 	w := &Worker{
-		redpandaREST:      env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
-		inputTopic:        env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
-		outputTopic:       env("XDR_ALERTS_TOPIC", "xdr.alerts"),
-		dlqTopic:          env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
+		redpandaREST:             env("XDR_REDPANDA_REST_URL", "http://127.0.0.1:8082"),
+		inputTopic:               env("XDR_NORMALIZED_TOPIC", "telemetry.normalized"),
+		outputTopic:              env("XDR_ALERTS_TOPIC", "xdr.alerts"),
+		dlqTopic:                 env("XDR_CORRELATION_DLQ_TOPIC", "xdr.alerts.dlq"),
 		correlationFailedTopic:   env("XDR_CORRELATION_FAILED_TOPIC", "xdr.correlation_failed"),
 		shadowAlertsTopic:        env("XDR_ENDPOINT_SHADOW_TOPIC", "xdr.alerts.shadow.endpoint"),
-		networkShadowAlertsTopic: env("XDR_NETWORK_SHADOW_TOPIC",   "xdr.alerts.shadow.network"),
-		iocLookupURL:      env("XDR_IOC_LOOKUP_URL", ""),
-		group:             env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
-		scope:             env("XDR_CORRELATION_SCOPE", "identity-cloud"),
+		networkShadowAlertsTopic: env("XDR_NETWORK_SHADOW_TOPIC", "xdr.alerts.shadow.network"),
+		iocLookupURL:             env("XDR_IOC_LOOKUP_URL", ""),
+		group:                    env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
+		scope:                    env("XDR_CORRELATION_SCOPE", "identity-cloud"),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
@@ -219,30 +222,32 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	writeJSON(rw, http.StatusOK, map[string]any{
-		"processed":     w.processed.Load(),
-		"alerts":        w.alerts.Load(),
-		"last_latency_ms": w.latencyMS.Load(),
-		"published":     w.published.Load(),
-		"publish_errors": w.publishErrors.Load(),
-		"consumer_polls":          w.consumerPolls.Load(),
-		"consumer_errors":         w.consumerErrors.Load(),
-		"reconnect_count":         w.reconnectCount.Load(),
-		"poll_error_count":        w.pollErrorCount.Load(),
-		"consumer_recreate_count": w.consumerRecreateCount.Load(),
-		"retry_count":             w.retryCount.Load(),
-		"shadow_alerts_published": w.shadowAlertsPublished.Load(),
-		"ioc_lookup_total":        ioc.LookupTotal.Load(),
-		"ioc_match_total":         ioc.MatchTotal.Load(),
-		"ioc_cache_hits":          ioc.CacheHits.Load(),
-		"dlq_written":             w.dlqWritten.Load(),
-		"dlq_write_errors":        w.dlqWriteErrors.Load(),
-		"input_topic":             w.inputTopic,
-		"output_topic":            w.outputTopic,
+		"processed":                w.processed.Load(),
+		"alerts":                   w.alerts.Load(),
+		"last_latency_ms":          w.latencyMS.Load(),
+		"published":                w.published.Load(),
+		"publish_errors":           w.publishErrors.Load(),
+		"consumer_polls":           w.consumerPolls.Load(),
+		"consumer_errors":          w.consumerErrors.Load(),
+		"reconnect_count":          w.reconnectCount.Load(),
+		"poll_error_count":         w.pollErrorCount.Load(),
+		"consumer_recreate_count":  w.consumerRecreateCount.Load(),
+		"retry_count":              w.retryCount.Load(),
+		"shadow_alerts_published":  w.shadowAlertsPublished.Load(),
+		"ioc_lookup_total":         ioc.LookupTotal.Load(),
+		"ioc_match_total":          ioc.MatchTotal.Load(),
+		"ioc_cache_hits":           ioc.CacheHits.Load(),
+		"dlq_written":              w.dlqWritten.Load(),
+		"dlq_write_errors":         w.dlqWriteErrors.Load(),
+		"input_topic":              w.inputTopic,
+		"output_topic":             w.outputTopic,
 		"correlation_failed_topic": w.correlationFailedTopic,
-		"goroutines":    runtime.NumGoroutine(),
-		"heap_alloc_mb": float64(mem.HeapAlloc) / 1024.0 / 1024.0,
+		"goroutines":               runtime.NumGoroutine(),
+		"heap_alloc_mb":            float64(mem.HeapAlloc) / 1024.0 / 1024.0,
 		"internal_auth_mode": func() string {
-			if envBool("XDR_ENFORCE_INTERNAL_AUTH", false) { return "enforced" }
+			if envBool("XDR_ENFORCE_INTERNAL_AUTH", false) {
+				return "enforced"
+			}
 			return "permissive"
 		}(),
 	})
@@ -409,8 +414,8 @@ func (w *Worker) consumeOnce() {
 
 func (w *Worker) consumerCreate(group string, name string) (string, error) {
 	payload, _ := json.Marshal(map[string]any{
-		"name": name,
-		"format": "json",
+		"name":              name,
+		"format":            "json",
 		"auto.offset.reset": "earliest",
 	})
 	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/consumers/%s", w.redpandaREST, group), bytes.NewReader(payload))
@@ -532,10 +537,10 @@ func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {
 	w.alerts.Add(int64(len(alerts)))
 	w.latencyMS.Store(elapsed)
 	writeJSON(rw, http.StatusOK, map[string]any{
-		"events": len(events),
-		"alerts": alerts,
+		"events":      len(events),
+		"alerts":      alerts,
 		"alert_count": len(alerts),
-		"latency_ms": elapsed,
+		"latency_ms":  elapsed,
 		"shadow_mode": true,
 	})
 }
@@ -825,6 +830,7 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 	domains := map[string]bool{}
 	ids := make([]string, 0, len(events))
 	traceID := ""
+	inboundTraceparent := ""
 	for _, ev := range events {
 		if ev.TelemetryType != "" {
 			domains[ev.TelemetryType] = true
@@ -834,6 +840,9 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		}
 		if traceID == "" && ev.TraceID != "" {
 			traceID = ev.TraceID
+		}
+		if inboundTraceparent == "" && ev.Traceparent != "" {
+			inboundTraceparent = ev.Traceparent
 		}
 	}
 	domainList := make([]string, 0, len(domains))
@@ -859,16 +868,16 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 	}
 	// Propagate demo lineage from contributing events when any event carries demo fields.
 	// Non-demo events have empty DemoRunID and are completely unaffected by this block.
-	demoRunIDs  := uniqueNonEmpty(events, func(ev Event) string { return ev.DemoRunID })
-	traceIDs    := uniqueNonEmpty(events, func(ev Event) string { return ev.TraceID })
+	demoRunIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.DemoRunID })
+	traceIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.TraceID })
 	srcEventIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.SourceEventID })
 	scenarioIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.ScenarioID })
-	tenantIDs   := uniqueNonEmpty(events, func(ev Event) string { return ev.TenantID })
+	tenantIDs := uniqueNonEmpty(events, func(ev Event) string { return ev.TenantID })
 	if len(demoRunIDs) > 0 {
 		evidence["demo_lineage_present"] = true
-		evidence["demo_run_ids"]         = demoRunIDs
-		evidence["trace_ids"]            = traceIDs
-		evidence["source_event_ids"]     = srcEventIDs
+		evidence["demo_run_ids"] = demoRunIDs
+		evidence["trace_ids"] = traceIDs
+		evidence["source_event_ids"] = srcEventIDs
 		if len(demoRunIDs) == 1 {
 			evidence["demo_run_id"] = demoRunIDs[0]
 		}
@@ -900,6 +909,7 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		Evidence:    evidence,
 		ShadowMode:  true,
 		TraceID:     traceID,
+		Traceparent: traceparent.Propagate(inboundTraceparent),
 		TenantID:    primaryTenantID,
 	}
 }
@@ -919,7 +929,6 @@ func uniqueNonEmpty(events []Event, pick func(Event) string) []string {
 	sort.Strings(out)
 	return out
 }
-
 
 func anyTelemetry(events []Event, telemetryType string) bool {
 	for _, ev := range events {
@@ -1100,20 +1109,16 @@ func correlateEndpointShadowAll(events []map[string]any, iocURL string) []shadow
 // internal/shadowrules (CODE-STRUCT-DECOMPOSE, seam 5), exported as
 // shadowrules.RuleParentChildProcess etc.
 
-
 // dedupeEndpointAlerts moved to internal/shadowrules.DedupeEndpointAlerts
 // (CODE-STRUCT-DECOMPOSE, seam 2).
-
 
 // Behavioral visibility, behavioral analytics, threat-hunting behavioral
 // rules, and the correlateEndpointShadow aggregator moved to
 // internal/shadowrules (CODE-STRUCT-DECOMPOSE, seam 6), exported as
 // shadowrules.CorrelateEndpointShadow.
 
-
 // Cross-domain shadow correlation moved to internal/shadowrules
 // (CODE-STRUCT-DECOMPOSE, seam 3). See shadowrules.CorrelateEndpointShadowCrossDomain.
-
 
 func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Request) {
 	started := time.Now()
@@ -1150,10 +1155,8 @@ func (w *Worker) correlateEndpointShadowHTTP(rw http.ResponseWriter, r *http.Req
 // Streaming endpoint shadow rules moved to internal/shadowrules
 // (CODE-STRUCT-DECOMPOSE, seam 4). See shadowrules.CorrelateEndpointShadowStreaming.
 
-
 // Network shadow rules (DNS/proxy/firewall) moved to internal/shadowrules
 // (CODE-STRUCT-DECOMPOSE, seam 2). See shadowrules.CorrelateNetworkShadowAll.
-
 
 func envBool(name string, fallback bool) bool {
 	value := strings.ToLower(strings.TrimSpace(env(name, "")))
@@ -1162,4 +1165,3 @@ func envBool(name string, fallback bool) bool {
 	}
 	return value == "1" || value == "true" || value == "yes"
 }
-
