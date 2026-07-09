@@ -593,6 +593,41 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   tests. Redirect the freed surface toward the real-capability tasks.
 - **Safety:** Refactor/consolidation only; append-only tables retained (deprecate = stop writing,
   not drop); full PHP suite must stay green.
+- **Progress (2026-07-10):** Deliberately did **not** attempt the literal "collapse V2/V3/V4
+  into a single versioned service" — investigated first and found the three are structurally
+  distinct, not near-duplicates: 12 vs. 22 vs. 16 gates over non-overlapping phase ranges
+  (E045-E048 / E049-E054 / E055-...), each with its own table set, command, and controller.
+  A real merge risks silently changing gate coverage or losing per-version evidence mid-merge —
+  exactly the "quiet regression from consolidation" this task must not introduce, and not
+  something to gamble on without the ability to run a live-pipeline verifier in this
+  environment. Implemented the safe, additive slice of the same underlying concern instead: a
+  **read-only overview facade**, `StabilityFreezeOverviewService::overview()`, that calls each
+  version's existing, unchanged `getLatestFreeze()` (V2/V3/V4 confirmed to already share a
+  consistent summary shape — `freeze_version`/`phase_range`/`pass_score`/`stability`/
+  `frozen_at`/`freeze_approved`) and reports `versions.{v2,v3,v4}` (each null if that version
+  has never run) plus `current` — the single most-recently-frozen run across all three by
+  `frozen_at`. **Directly addresses the credibility concern the finding itself named**
+  ("reviewers may read 'Final XDR Certification' as a real accreditation"): the overview's
+  `note` field explicitly states each version covers a different, non-overlapping phase range
+  and that `current` is "only the most recently run freeze... not a merged or superseding
+  status" — so a reader can no longer mistake v4's status for something that supersedes v2/v3's
+  separate, still-valid evidence. New `stability:freeze-overview` Artisan command (read-only,
+  writes nothing) renders a per-version table + the most-recent-overall line. Zero behavior
+  change to any existing freeze/command/controller — purely a new consumer of already-public
+  read methods. +9 tests (`StabilityFreezeOverviewTest`): all-null when nothing ever run,
+  always-advisory, single-version reporting, most-recent-wins-across-versions (using
+  `$this->travel()` to guarantee distinct `frozen_at` ordering rather than relying on wall-clock
+  timing), all-three-independently-reported, an explicit **write-guard test** asserting
+  `stability_freeze_runs`' row count is unchanged after calling `overview()` twice (the facade
+  must never persist), 2 command-level CLI tests. Full `php artisan test --parallel
+  --recreate-databases` run (see CLAUDE.md gate) confirmed green — zero regressions in the
+  underlying `StabilityEvidenceFreezeV2/V3/V4Test` suites (92 tests total, unmodified, still
+  passing) since none of their code was touched. **Broader audit/deprecation/soak-service-merge
+  scope from the original proposed fix remains not done** — this pass deliberately fixed the
+  one slice of the sprawl (`StabilityEvidenceFreeze` V2/V3/V4) that had a safe, additive
+  solution available without a live-pipeline verifier; the overlapping soak services
+  (`DomainSoakHarnessService`/`DomainSoakSimulationService`/`RealDomainSoakPlanService`/etc.)
+  and the ~32-service meta-module audit are a separate, larger effort.
 
 ## Proposed Task: SIM-LAYER-REALITY-GATE (Track B) — Back the key HA/scale/chaos/soak simulators with real infra
 
