@@ -13,6 +13,7 @@ import (
 
 	"detector-xdr-log-connector-syslog/internal/cef"
 	"detector-xdr-log-connector-syslog/internal/leef"
+	"detector-xdr-log-connector-syslog/internal/registry"
 )
 
 func TestMapCEFToEventPromotesCommonFields(t *testing.T) {
@@ -107,6 +108,103 @@ func TestMapLEEFToEventDefaultsEventTypeWhenEventIDEmpty(t *testing.T) {
 	}
 }
 
+func TestMapRegistryToEventPromotesFieldMapAndPreservesExtension(t *testing.T) {
+	def := registry.SourceDefinition{
+		Name:           "generic_fw",
+		Marker:         "APPFW:",
+		TelemetryType:  "syslog_generic_kv",
+		EventTypeField: "act",
+		FieldMap: map[string]string{
+			"source_ip": "src",
+			"action":    "act",
+			"user":      "suser",
+		},
+	}
+	msg := def.Parse("APPFW: src=10.0.0.5 act=blocked suser=alice extra=kept")
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	event := mapRegistryToEvent(msg, "tenant-a", now)
+
+	if event["telemetry_type"] != "syslog_generic_kv" {
+		t.Fatalf("expected configured telemetry_type, got %v", event["telemetry_type"])
+	}
+	if event["event_type"] != "blocked" {
+		t.Fatalf("expected event_type from configured event_type_field, got %v", event["event_type"])
+	}
+	if event["source_ip"] != "10.0.0.5" || event["action"] != "blocked" || event["user"] != "alice" {
+		t.Fatalf("expected field_map fields promoted, got source_ip=%v action=%v user=%v",
+			event["source_ip"], event["action"], event["user"])
+	}
+	if event["source_type"] != "generic_fw" {
+		t.Fatalf("expected source_type set to source definition name, got %v", event["source_type"])
+	}
+	if event["tenant_id"] != "tenant-a" {
+		t.Fatalf("expected tenant_id preserved, got %v", event["tenant_id"])
+	}
+	ext, ok := event["generic_extension"].(map[string]string)
+	if !ok || ext["extra"] != "kept" {
+		t.Fatalf("expected unmapped key preserved verbatim in generic_extension, got %v", event["generic_extension"])
+	}
+}
+
+func TestMapRegistryToEventDefaultsWhenEventTypeFieldMissing(t *testing.T) {
+	def := registry.SourceDefinition{Name: "bare", Marker: "X:", FieldMap: map[string]string{}}
+	msg := def.Parse("X: a=1")
+	event := mapRegistryToEvent(msg, "", time.Now())
+	if event["event_type"] != "bare_event" {
+		t.Fatalf("expected fallback event_type, got %v", event["event_type"])
+	}
+	if event["telemetry_type"] != "syslog_generic_kv" {
+		t.Fatalf("expected fallback telemetry_type, got %v", event["telemetry_type"])
+	}
+	if _, hasTenant := event["tenant_id"]; hasTenant {
+		t.Fatalf("expected no tenant_id key when tenantID is empty")
+	}
+}
+
+func TestProcessLineDispatchesToRegistryWhenMarkerMatches(t *testing.T) {
+	reg := &registry.Registry{Sources: []registry.SourceDefinition{
+		{
+			Name:           "generic_fw",
+			Marker:         "APPFW:",
+			TelemetryType:  "syslog_generic_kv",
+			EventTypeField: "act",
+			FieldMap:       map[string]string{"source_ip": "src", "action": "act"},
+		},
+	}}
+	out := processLine("APPFW: src=1.2.3.4 act=deny", "", time.Now(), reg)
+	if out["telemetry_type"] != "syslog_generic_kv" {
+		t.Fatalf("expected registry dispatch, got %v", out["telemetry_type"])
+	}
+	if out["source_ip"] != "1.2.3.4" || out["action"] != "deny" {
+		t.Fatalf("expected registry field_map applied, got %v", out)
+	}
+}
+
+func TestProcessLineFallsBackToRawWhenRegistryHasNoMatch(t *testing.T) {
+	reg := &registry.Registry{Sources: []registry.SourceDefinition{
+		{Name: "generic_fw", Marker: "APPFW:", FieldMap: map[string]string{}},
+	}}
+	out := processLine("this line matches nothing configured", "", time.Now(), reg)
+	if out["telemetry_type"] != "syslog_raw" {
+		t.Fatalf("expected raw fallback when registry has no match, got %v", out["telemetry_type"])
+	}
+}
+
+func TestShippedSampleRegistryConfigParsesEndToEnd(t *testing.T) {
+	reg, err := registry.Load("parsers.sample.json")
+	if err != nil {
+		t.Fatalf("failed to load shipped parsers.sample.json: %v", err)
+	}
+	line := "<134>Jul 10 10:00:00 fw-1 APPFW: src=10.0.0.5 dst=203.0.113.9 spt=51820 dpt=443 proto=TCP act=blocked suser=alice"
+	out := processLine(line, "", time.Now(), reg)
+	if out["telemetry_type"] != "syslog_generic_kv" {
+		t.Fatalf("expected the shipped sample source to match, got %v", out["telemetry_type"])
+	}
+	if out["source_ip"] != "10.0.0.5" || out["destination_ip"] != "203.0.113.9" || out["action"] != "blocked" || out["user"] != "alice" {
+		t.Fatalf("expected shipped field_map applied, got %v", out)
+	}
+}
+
 func TestMapRawToEventPreservesLine(t *testing.T) {
 	event := mapRawToEvent("not a cef line at all", "tenant-b", time.Now())
 	if event["telemetry_type"] != "syslog_raw" || event["event_type"] != "unparsed" {
@@ -118,21 +216,21 @@ func TestMapRawToEventPreservesLine(t *testing.T) {
 }
 
 func TestProcessLineDispatchesAndSkipsBlank(t *testing.T) {
-	if processLine("   \n", "", time.Now()) != nil {
+	if processLine("   \n", "", time.Now(), nil) != nil {
 		t.Fatalf("expected nil for blank line")
 	}
 	cefLine := `CEF:0|V|P|1.0|100|Name|5|src=1.2.3.4`
-	out := processLine(cefLine, "", time.Now())
+	out := processLine(cefLine, "", time.Now(), nil)
 	if out["telemetry_type"] != "syslog_cef" {
 		t.Fatalf("expected CEF dispatch, got %v", out["telemetry_type"])
 	}
 	leefLine := "LEEF:1.0|V|P|1.0|100|src=1.2.3.4"
-	out = processLine(leefLine, "", time.Now())
+	out = processLine(leefLine, "", time.Now(), nil)
 	if out["telemetry_type"] != "syslog_leef" {
 		t.Fatalf("expected LEEF dispatch, got %v", out["telemetry_type"])
 	}
 	rawLine := "plain syslog message, no CEF/LEEF marker"
-	out = processLine(rawLine, "", time.Now())
+	out = processLine(rawLine, "", time.Now(), nil)
 	if out["telemetry_type"] != "syslog_raw" {
 		t.Fatalf("expected raw fallback dispatch, got %v", out["telemetry_type"])
 	}

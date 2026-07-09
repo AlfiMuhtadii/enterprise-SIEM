@@ -430,6 +430,43 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   **Not run**: `docker build`/live UDP-to-pipeline smoke test — Docker daemon unavailable in
   this environment, the same standing limitation noted throughout this session's other
   infra-adjacent work.
+- **Progress (2026-07-10, phase 3):** Config-driven parser registry done — the remaining half
+  of the original proposed fix ("a config-driven parser registry (source-type → field map) so
+  new sources are onboarded by config, not code"). New `internal/registry` package in
+  `services/log-connector-syslog`: `SourceDefinition{Name, Marker, TelemetryType,
+  EventTypeField, FieldMap}` loaded from a JSON file (`Load()`, empty path → empty registry,
+  zero-config default); `Match()` finds the first definition whose `Marker` substring appears
+  in the line (same technique CEF/LEEF already use for their own markers); `Parse()` extracts
+  space-separated `key=value` pairs after the marker (reusing the same key-boundary regex
+  technique as `internal/cef`'s extension parser, kept as an independent implementation rather
+  than a cross-package dependency, since the registry is deliberately generic/decoupled from
+  CEF's specific grammar) and promotes only the keys named in `FieldMap` to output field names,
+  while preserving every key found — mapped or not — verbatim in `Extension`. `processLine()`
+  dispatch order is now CEF → LEEF → registry match → `syslog_raw` fallback. New
+  `mapRegistryToEvent()` writes `FieldMap`-promoted fields directly under their **configured
+  canonical names** (`source_ip`, `action`, ...) — the same names the normalizer's existing
+  generic fallback envelope already recognizes — so onboarding a genuinely new source through
+  this registry requires **zero `normalizer-worker` code changes**, only a JSON config entry;
+  this is the actual "by config, not code" payoff the original finding asked for. Shipped a
+  real example, `parsers.sample.json` (a `generic_appliance_fw` source: marker `APPFW:`,
+  promoting `src/dst/spt/dpt/proto/act/suser`), proven to work end-to-end via a test that loads
+  the exact shipped file and parses a full RFC3164-prefixed sample line through it — not just a
+  synthetic in-memory config. `main.go` wired `XDR_SYSLOG_PARSER_REGISTRY` (optional path env
+  var; unset → identical behavior to phase 2) and a `parsed_registry` `/metrics` counter.
+  +19 new Go tests (12 `internal/registry` — load/empty-path/nil-registry/missing-file/
+  invalid-JSON/marker-matching/field-promotion/extension-preservation/no-marker-in-line/
+  unmapped-or-missing-source-key/no-event-type-field; 5 `main_test.go` —
+  field-promotion+extension mapping, fallback-defaults, registry dispatch, no-match raw
+  fallback, the shipped-sample-file end-to-end test; plus the existing `TestProcessLine*`
+  tests updated for the new registry parameter). `go build`/`go vet`/`go test ./...` clean
+  across all 4 packages (`main`, `internal/cef`, `internal/leef`, `internal/registry`); every
+  phase-1/phase-2 CEF/LEEF/raw test still passes unmodified (0 regressions). README documents
+  the config schema and the "why zero normalizer changes" reasoning. **Still open**:
+  cloud-native connectors (CloudTrail/GuardDuty/O365/GCP) — a materially different integration
+  shape (pull-based API polling, not a syslog receiver), remains a separate, larger effort.
+  **Not run**: `docker build`/live UDP-to-pipeline smoke test — Docker daemon unavailable in
+  this environment, the same standing limitation noted throughout this session's other
+  infra-adjacent work.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 

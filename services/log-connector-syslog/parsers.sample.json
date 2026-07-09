@@ -1,0 +1,19 @@
+{
+  "sources": [
+    {
+      "name": "generic_appliance_fw",
+      "marker": "APPFW:",
+      "telemetry_type": "syslog_generic_kv",
+      "event_type_field": "act",
+      "field_map": {
+        "source_ip": "src",
+        "destination_ip": "dst",
+        "source_port": "spt",
+        "destination_port": "dpt",
+        "protocol": "proto",
+        "action": "act",
+        "user": "suser"
+      }
+    }
+  ]
+}

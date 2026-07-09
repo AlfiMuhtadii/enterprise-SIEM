@@ -35,6 +35,7 @@ import (
 
 	"detector-xdr-log-connector-syslog/internal/cef"
 	"detector-xdr-log-connector-syslog/internal/leef"
+	"detector-xdr-log-connector-syslog/internal/registry"
 )
 
 // Connector receives syslog lines over UDP/TCP, maps them into the
@@ -46,16 +47,18 @@ type Connector struct {
 	tenantID   string
 	batchSize  int
 	httpClient *http.Client
+	registry   *registry.Registry
 
 	mu     sync.Mutex
 	buffer []map[string]any
 
-	received      atomic.Int64
-	parsedCEF     atomic.Int64
-	parsedLEEF    atomic.Int64
-	parsedRaw     atomic.Int64
-	forwarded     atomic.Int64
-	forwardErrors atomic.Int64
+	received       atomic.Int64
+	parsedCEF      atomic.Int64
+	parsedLEEF     atomic.Int64
+	parsedRegistry atomic.Int64
+	parsedRaw      atomic.Int64
+	forwarded      atomic.Int64
+	forwardErrors  atomic.Int64
 }
 
 func main() {
@@ -64,12 +67,18 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", env("XDR_SYSLOG_METRICS_ADDR", ":8095"), "health/metrics listen address")
 	flag.Parse()
 
+	reg, err := registry.Load(env("XDR_SYSLOG_PARSER_REGISTRY", ""))
+	if err != nil {
+		log.Fatalf("[log-connector-syslog] failed to load parser registry: %v", err)
+	}
+
 	c := &Connector{
 		ingestURL:  env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
 		secret:     env("XDR_INGEST_SECRET", "dev-secret-change-me"),
 		tenantID:   env("XDR_SYSLOG_TENANT_ID", ""),
 		batchSize:  envInt("XDR_SYSLOG_BATCH_SIZE", 50),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
+		registry:   reg,
 	}
 
 	stop := make(chan struct{})
@@ -88,12 +97,13 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"received":       c.received.Load(),
-			"parsed_cef":     c.parsedCEF.Load(),
-			"parsed_leef":    c.parsedLEEF.Load(),
-			"parsed_raw":     c.parsedRaw.Load(),
-			"forwarded":      c.forwarded.Load(),
-			"forward_errors": c.forwardErrors.Load(),
+			"received":        c.received.Load(),
+			"parsed_cef":      c.parsedCEF.Load(),
+			"parsed_leef":     c.parsedLEEF.Load(),
+			"parsed_registry": c.parsedRegistry.Load(),
+			"parsed_raw":      c.parsedRaw.Load(),
+			"forwarded":       c.forwarded.Load(),
+			"forward_errors":  c.forwardErrors.Load(),
 		})
 	})
 
@@ -123,7 +133,7 @@ func main() {
 // if the buffer has reached batchSize.
 func (c *Connector) ingestLine(line string) {
 	c.received.Add(1)
-	event := processLine(line, c.tenantID, time.Now())
+	event := processLine(line, c.tenantID, time.Now(), c.registry)
 	if event == nil {
 		return
 	}
@@ -132,8 +142,10 @@ func (c *Connector) ingestLine(line string) {
 		c.parsedCEF.Add(1)
 	case "syslog_leef":
 		c.parsedLEEF.Add(1)
-	default:
+	case "syslog_raw":
 		c.parsedRaw.Add(1)
+	default:
+		c.parsedRegistry.Add(1)
 	}
 	c.mu.Lock()
 	c.buffer = append(c.buffer, event)
@@ -223,12 +235,16 @@ func sign(secret string, ts int64, body []byte) string {
 
 // processLine maps one raw syslog line into the generic telemetry.raw event
 // shape. A successfully parsed CEF payload becomes telemetry_type=syslog_cef,
-// a successfully parsed LEEF payload becomes telemetry_type=syslog_leef;
-// anything else becomes telemetry_type=syslog_raw so no line is silently
-// dropped — an analyst can still see and search it even if this connector
-// doesn't understand its format. Returns nil for a blank line. CEF is tried
-// first since "CEF:"/"LEEF:" markers are mutually exclusive by construction.
-func processLine(line string, tenantID string, now time.Time) map[string]any {
+// a successfully parsed LEEF payload becomes telemetry_type=syslog_leef; a
+// line matched against reg (a config-driven CONNECTOR-FRAMEWORK parser
+// registry — see internal/registry) becomes whatever telemetry_type that
+// source definition names; anything else becomes telemetry_type=syslog_raw
+// so no line is silently dropped — an analyst can still see and search it
+// even if this connector doesn't understand its format. Returns nil for a
+// blank line. reg may be nil or empty (the zero-config default); CEF/LEEF
+// are tried first since their markers are reserved and mutually exclusive
+// by construction.
+func processLine(line string, tenantID string, now time.Time, reg *registry.Registry) map[string]any {
 	line = strings.TrimRight(line, "\r\n")
 	if strings.TrimSpace(line) == "" {
 		return nil
@@ -238,6 +254,9 @@ func processLine(line string, tenantID string, now time.Time) map[string]any {
 	}
 	if msg, err := leef.Parse(line); err == nil {
 		return mapLEEFToEvent(msg, tenantID, now)
+	}
+	if def := reg.Match(line); def != nil {
+		return mapRegistryToEvent(def.Parse(line), tenantID, now)
 	}
 	return mapRawToEvent(line, tenantID, now)
 }
@@ -309,6 +328,39 @@ func mapLEEFToEvent(msg *leef.Message, tenantID string, now time.Time) map[strin
 		"action":           firstNonEmpty(ext["action"], ext["cat"]),
 		"user":             firstNonEmpty(ext["usrName"], ext["srcUser"], ext["duser"]),
 		"message":          ext["msg"],
+	}
+	if tenantID != "" {
+		event["tenant_id"] = tenantID
+	}
+	return event
+}
+
+// mapRegistryToEvent builds the telemetry.raw envelope for a line matched by
+// a config-driven internal/registry source definition. FieldMap-promoted
+// fields are written directly using their configured canonical output names
+// (e.g. "source_ip", "action") so a newly onboarded source needs zero
+// normalizer-worker changes — it flows through the same generic fallback
+// envelope any other unrecognized telemetry_type already uses. The full
+// key=value extension is preserved verbatim under generic_extension.
+func mapRegistryToEvent(msg *registry.Message, tenantID string, now time.Time) map[string]any {
+	eventType := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(msg.EventType), " ", "_"))
+	if eventType == "" {
+		eventType = msg.SourceName + "_event"
+	}
+	telemetryType := msg.TelemetryType
+	if telemetryType == "" {
+		telemetryType = "syslog_generic_kv"
+	}
+	event := map[string]any{
+		"ts":                now.UTC().Format(time.RFC3339),
+		"telemetry_type":    telemetryType,
+		"event_type":        eventType,
+		"event_source":      "syslog-registry-" + msg.SourceName,
+		"source_type":       msg.SourceName,
+		"generic_extension": msg.Extension,
+	}
+	for field, value := range msg.Fields {
+		event[field] = value
 	}
 	if tenantID != "" {
 		event["tenant_id"] = tenantID
