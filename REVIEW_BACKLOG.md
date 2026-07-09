@@ -337,6 +337,45 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   Considering this backlog item's rule-engine scope **effectively closed**; remaining work
   (Pandaproxy transport decomposition, normalizer-worker, alert-writer-service) is different
   enough in shape that it's tracked as ongoing rather than "more seams of the same kind."
+- **Progress (2026-07-10):** `incident-builder-service/main.py` decomposed — the one remaining
+  Python service that had never had a seam extracted (`normalizer-worker` and
+  `alert-writer-service` were already done in earlier passes). New `incident_aggregation.py`:
+  `alert_entities()`/`group_key()`/`incident_id_for()`/`aggregate()` — the alert-to-incident
+  grouping/identity logic, pure with zero FastAPI/Pandaproxy/DB dependency (confirmed: only
+  references the module-local `SEVERITY_RANK` constant, a `now_iso()` helper, and `traceparent`)
+  — extracted the same way `alert_identity.py` was extracted from `alert-writer-service/main.py`
+  in an earlier pass; `AlertPayload`/`BuildRequest` type hints intentionally use `Any` rather
+  than importing the Pydantic model back from `main.py`, avoiding a circular import (same
+  technique `alert_identity.py` already uses). `now_iso()` moved into the new module too (its
+  only true dependency was `aggregate()`'s two fallback timestamps) and is now imported back
+  into `main.py` rather than duplicated, since it's a pure 2-line helper with zero
+  `main.py`-specific dependency — eliminating a within-service duplication rather than
+  introducing one. `main.py` 708→645 lines; also dropped 2 now-unused imports (`hashlib`,
+  `datetime`/`timezone`) left behind by the extraction. **This logic had zero isolated unit
+  test coverage before extraction** (only reachable indirectly through the full FastAPI
+  request path) — +25 new direct-import tests (`test_incident_aggregation.py`, no
+  fastapi/pydantic stubbing needed, `SimpleNamespace` fake alerts) covering entity resolution
+  from evidence lists vs. actor_key/ip fallback (and that both are *unconditionally* included
+  alongside evidence entities — a real behavior worth pinning down, caught by a test that
+  initially asserted the opposite and had to be corrected against the actual code, not the
+  other way around), `group_key`'s alert-type-family + first-sorted-entity derivation,
+  `incident_id_for` determinism, and `aggregate`'s severity/confidence/timeline-ordering/
+  mitre-dedup/domain-dedup/trace_id-and-tenant_id-first-non-empty assembly (including a
+  corrected test for `confidence`'s `default=0.5` — that default only fires for an *empty*
+  generator, which can't happen since `aggregate()` always receives >=1 alert, so a single
+  alert with `score=None` correctly yields `confidence=0.0`, not `0.5`; the test's first draft
+  wrongly asserted `0.5` and was fixed against the real semantics after the test run caught it).
+  Also fixed a **latent Docker build bug** discovered while checking Dockerfile parity for this
+  task (the exact same bug class already caught once for the Go services' `internal/` packages
+  earlier this session): `alert-writer-service/Dockerfile` and `incident-builder-service/
+  Dockerfile` use explicit per-file `COPY` lines rather than copying the whole directory, and
+  neither had been updated to `COPY traceparent.py` when phase 2 of OBS-OTEL-TRACING added it —
+  meaning the image build has been broken since that commit, never caught because the Docker
+  daemon is unavailable in this environment. Fixed both Dockerfiles (`traceparent.py` added to
+  both; `incident_aggregation.py` added to `incident-builder-service`'s). Per-directory Python
+  suites clean: `tests/alert_writer` 82/82, `tests/incident_builder` 77/77 (52 pre-existing this
+  session + 25 new this pass), zero regressions. **Not run**: an actual `docker build` to
+  verify the Dockerfile fix — Docker daemon unavailable, the same standing limitation.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 

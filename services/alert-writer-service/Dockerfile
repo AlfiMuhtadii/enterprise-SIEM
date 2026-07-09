@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app main.py ./
 COPY --chown=app:app xdr_event_contracts.py ./
 COPY --chown=app:app alert_identity.py ./
+COPY --chown=app:app traceparent.py ./
 USER app
 EXPOSE 8095
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
