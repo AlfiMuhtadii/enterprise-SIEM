@@ -101,7 +101,6 @@ use App\Http\Controllers\ShadowSoak\ShadowSoakController;
 use App\Http\Controllers\EasmController;
 use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\SiemSearchController;
-use App\Http\Controllers\Detection\MitreCoverageController;
 use App\Http\Controllers\ArchiveSearchController;
 use App\Http\Controllers\DataResidencyController;
 use App\Http\Controllers\PilotReadinessMatrixController;
@@ -580,7 +579,7 @@ Route::middleware(['auth', 'soc:response.create'])->group(function () {
     Route::post('/response-plans/{id}/cancel', [ResponsePlanController::class, 'cancel'])->name('response.cancel');
 });
 
-Route::middleware(['auth', 'soc:response.approve'])->group(function () {
+Route::middleware(['auth', 'soc:response.approve', 'mfa.required'])->group(function () {
     Route::post('/response-plans/{id}/approve', [ResponsePlanController::class, 'approve'])->name('response.approve');
     Route::post('/response-plans/{id}/reject', [ResponsePlanController::class, 'reject'])->name('response.reject');
 });
@@ -597,7 +596,7 @@ Route::middleware(['auth', 'soc:response.view', 'throttle:soc-api'])->prefix('ap
     Route::get('/response-plans/{id}/timeline', [ResponsePlanApiController::class, 'timeline'])->name('api.response-plans.timeline');
 });
 
-Route::middleware(['auth', 'soc:response.approve', 'throttle:soc-api'])->prefix('api')->group(function () {
+Route::middleware(['auth', 'soc:response.approve', 'mfa.required', 'throttle:soc-api'])->prefix('api')->group(function () {
     Route::post('/response-plans/{id}/approve', [ResponsePlanApiController::class, 'approve'])->name('api.response-plans.approve');
     Route::post('/response-plans/{id}/reject', [ResponsePlanApiController::class, 'reject'])->name('api.response-plans.reject');
 });
@@ -727,7 +726,7 @@ Route::middleware(['auth', 'soc:response.create'])->group(function () {
     Route::post('/active-response/{id}/cancel',              [ActiveResponseController::class, 'cancel'])->name('active-response.cancel');
 });
 
-Route::middleware(['auth', 'soc:response.approve'])->group(function () {
+Route::middleware(['auth', 'soc:response.approve', 'mfa.required'])->group(function () {
     Route::post('/active-response/{id}/approve',             [ActiveResponseController::class, 'approve'])->name('active-response.approve');
     Route::post('/active-response/{id}/reject',              [ActiveResponseController::class, 'reject'])->name('active-response.reject');
 });
@@ -1260,12 +1259,6 @@ Route::middleware(['auth', 'soc:search.view'])->group(function () {
     Route::get('/siem-search',                                 [SiemSearchController::class, 'index'])->name('siem-search.index');
 });
 
-// MITRE ATT&CK detection-coverage — read-only analytics + Navigator layer export
-Route::middleware(['auth', 'soc:mitrecoverage.view'])->group(function () {
-    Route::get('/mitre-coverage',                              [MitreCoverageController::class, 'index'])->name('mitre-coverage.index');
-    Route::get('/mitre-coverage/navigator.json',              [MitreCoverageController::class, 'navigator'])->name('mitre-coverage.navigator');
-});
-
 // Archive Search — read-only search over the gzip JSONL retention archive
 // (DATA-TIERING phase 2b), reusing soc:search.view since it's the same
 // "read-only search over historical platform data" permission concept.
@@ -1281,6 +1274,8 @@ Route::middleware(['auth', 'soc:erasure.request'])->group(function () {
 });
 Route::middleware(['auth', 'soc:retention.manage'])->group(function () {
     Route::post('/data-residency/policy',                      [DataResidencyController::class, 'updatePolicy'])->name('data-residency.policy.update');
+});
+Route::middleware(['auth', 'soc:retention.manage', 'mfa.required'])->group(function () {
     Route::post('/data-residency/erasure/{requestId}/approve',  [DataResidencyController::class, 'approveErasure'])->name('data-residency.erasure.approve');
     Route::post('/data-residency/erasure/{requestId}/reject',   [DataResidencyController::class, 'rejectErasure'])->name('data-residency.erasure.reject');
 });

@@ -2,6 +2,11 @@
 
 return [
     'api_rate_limit_per_minute' => env('SOC_API_RATE_LIMIT_PER_MINUTE', 120),
+    // IDENTITY-SSO-MFA: mandatory MFA on response-plan/active-response/erasure
+    // approval routes, gated by the "mfa.required" middleware. Off by default —
+    // enabling this before every account with response/erasure-approve
+    // permission has MFA configured would lock those users out of approving.
+    'mfa_enforcement_enabled' => env('SOC_MFA_ENFORCEMENT_ENABLED', false),
     'export_max_rows' => env('SOC_EXPORT_MAX_ROWS', 500),
     'webhook_secret' => env('SOC_WEBHOOK_SECRET'),
     'agent_enrollment_token' => env('SOC_AGENT_ENROLLMENT_TOKEN'),
@@ -86,7 +91,6 @@ return [
             'assetinventory.view',
             'assetinventory.manage',
             'search.view',
-            'mitrecoverage.view',
             'retention.manage',
             'erasure.request',
             'erasure.approve',
@@ -132,7 +136,6 @@ return [
             'assetinventory.view',
             'assetinventory.manage',
             'search.view',
-            'mitrecoverage.view',
             'erasure.request',
             'honeytoken.view',
         ],
@@ -157,7 +160,6 @@ return [
             'ai.knowledge.view',
             'assetinventory.view',
             'search.view',
-            'mitrecoverage.view',
             'honeytoken.view',
         ],
         'scenario_operator' => [
@@ -183,7 +185,6 @@ return [
             'scenario.evidence.view',
             'trace.view',
             'rules.govern',
-            'mitrecoverage.view',
             'entity.view',
             'investigation.view',
             'investigation.create',
