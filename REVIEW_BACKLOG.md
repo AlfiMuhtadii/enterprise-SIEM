@@ -828,6 +828,38 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   sequential/overlapping ranges of the same evidence, so there's no "which one is current"
   ambiguity for an overview facade to resolve. Documentation-only correction, no test run per
   CLAUDE.md policy.
+- **Progress (2026-07-10, follow-up #2):** Built follow-up #2 from the broader audit —
+  `SoakOverviewService`, mirroring `StabilityFreezeOverviewService`'s read-only pattern, but
+  **deliberately not the same shape**: the freeze services all share an identical
+  `getLatestFreeze()` return structure (sequential phase ranges of the same evidence), while the
+  7 soak services were already confirmed structurally distinct in the audit — no uniform
+  "latest run" interface exists across them, so forcing one would have been artificial.
+  `SoakOverviewService::overview()` instead calls each service's own most relevant *existing*
+  read method as-is: `DomainSoakHarnessService::getSummary()` (zero-arg aggregate — already an
+  overview, not a single run), `DomainSoakSimulationService::getSimulations()->first()` (already
+  ordered by `simulated_at` DESC), `EndpointSoakPlanService::getLatestPlan()`,
+  `Phase1SoakExecutionService::getLatestRun()`, `Phase1SoakEvidenceFreezeService::getLatestFreeze()`,
+  `RealDomainSoakPlanService::getLatestPlan()`, `SoakChaosValidationService::dashboardStats()`
+  (also a zero-arg aggregate). Each entry tagged with its own `kind` string (e.g.
+  `evidence_accumulation_summary`, `dry_run_simulation_latest`, `real_run_latest`,
+  `chaos_fault_injection_dashboard`) rather than presenting a false uniform "status" — the
+  `note` field explicitly states "this is a read-only survey of each service's own current
+  status, not a single merged soak status," matching the same anti-conflation discipline
+  `StabilityFreezeOverviewService`'s `note` already established. New `soak:overview` Artisan
+  command (read-only, writes nothing). +14 tests (`SoakOverviewTest`): all 7 keys present,
+  always-advisory, note wording check, harness/chaos aggregates present-but-zero when nothing
+  has run (distinguishing "zero count" from "null" — the 5 other services correctly report
+  `null` data when never run, since they have no meaningful zero-state), then a seeded-real-run
+  test **for each of the 5 `getLatest*`-style services** (calling each service's own real
+  producing method — `generatePlan(false)`/`buildRun(false)`/`freeze(false)`/`buildPlan(false)`/
+  `simulate('endpoint', false)` — not a mock) confirming the overview picks up real data end to
+  end, an explicit write-guard test (row count unchanged after calling `overview()` twice), and
+  2 command-level CLI tests. All 14 passed on the first run — every one of the 7 services'
+  actual method signatures matched what the audit's earlier survey had found. Full
+  `php artisan test --parallel --recreate-databases` run confirmed green (see CLAUDE.md gate).
+  **Item 3 of the broader audit's "Concrete next steps" (redirect new capability work toward
+  connectors/search/asset-context rather than a 34th meta-module) is a standing principle, not
+  a discrete task — this session continues to follow it, not add to the sprawl.**
 
 ## Proposed Task: SIM-LAYER-REALITY-GATE (Track B) — Back the key HA/scale/chaos/soak simulators with real infra
 
