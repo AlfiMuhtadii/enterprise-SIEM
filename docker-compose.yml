@@ -375,6 +375,26 @@ services:
       - ingestion-gateway
     restart: unless-stopped
 
+  log-connector-gcp-audit:
+    build:
+      context: ./services/log-connector-gcp-audit
+    container_name: detector-xdr-log-connector-gcp-audit
+    profiles: ["strangler"]
+    environment:
+      # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
+      XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
+      XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
+      XDR_GCP_AUDIT_METRICS_ADDR: ":8099"
+    volumes:
+      # Operator mounts a local sync of their GCP Cloud Audit Log sink's GCS bucket here
+      # (e.g. `gcloud storage rsync gs://my-audit-log-bucket ./gcp-audit-logs` on a cron).
+      - ./gcp-audit-logs:/data/gcp-audit-logs
+    ports:
+      - "8099:8099"
+    depends_on:
+      - ingestion-gateway
+    restart: unless-stopped
+
   correlation-worker:
     build:
       context: ./services/correlation-worker

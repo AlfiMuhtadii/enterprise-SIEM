@@ -652,6 +652,46 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   extension-matching helper). `go build`/`go vet`/`go test ./...` clean. **Still open**:
   O365/GCP connectors, live AWS API polling for either AWS connector (needs SigV4 + real
   credentials). **Not run**: `docker build`/live smoke test — Docker daemon unavailable.
+- **Progress (2026-07-10, phase 6):** Third cloud-native connector done — GCP Cloud Audit Logs,
+  same file-based-not-live-API scope decision as CloudTrail/GuardDuty (live Cloud Logging API
+  polling needs GCP credentials this environment can't exercise). New standalone service
+  `services/log-connector-gcp-audit`. **A third distinct payload shape**, confirming the
+  pattern that "cloud-native, file-based, gzip-aware" is not a single reusable format across
+  providers: GCP log sinks also write NDJSON (like GuardDuty, unlike CloudTrail's single-array
+  format), but the audit payload itself is nested inside a `protoPayload` object typed as
+  `google.cloud.audit.AuditLog` (`@type` field) — genuinely different field names and nesting
+  from both AWS formats, so `internal/gcpaudit` is its own parser, not a rename of the other
+  two. Field mapping required deriving `result` from GCP's own convention rather than a direct
+  field: an **empty** `protoPayload.status` object means the call succeeded, a **populated**
+  one (non-zero `code` or non-empty `message`) means it failed — `HasErrorStatus()` checks
+  both, tested for the empty-success case, the populated-failure case, and the field-absent
+  case explicitly. `user`/`source_ip`/`cloud_account` are all nested nil-safe nested-map digs
+  (`authenticationInfo.principalEmail`, `requestMetadata.callerIp`,
+  `resource.labels.project_id`) via a small shared `digString()` helper, mirroring the same
+  "walk a path through nested `map[string]any`, return empty on any missing hop" technique the
+  GuardDuty connector already established for its multi-shape `Service.Action` extraction.
+  **State-file-self-scan fix applied proactively again** (third time this exact fix has been
+  written correctly from the first draft, after being discovered via a failing test only once,
+  for CloudTrail), still locked in with the identical dedicated regression test. Wired into
+  `docker-compose.yml` under `strangler` with a bind-mounted `./gcp-audit-logs` directory for
+  an operator's `gcloud storage rsync`/`gsutil rsync` cron target (`docker compose config
+  --quiet` exit 0). +23 Go tests (13 `internal/gcpaudit` — plain NDJSON, gzip, raw-field
+  preservation, poison-line isolation, empty input, malformed gzip,
+  `PrincipalEmail`/`CallerIP`/`ProjectID`/`ServiceName` extraction, both `HasErrorStatus()`
+  branches plus the no-status-field case, and `ProjectID()`'s nil-labels-map safety; 10
+  `main_test.go` — field-promotion mapping, error-result derivation, tenant_id omission, HMAC
+  cross-check, signed-forward, non-2xx error, rescan-skip, the state-file-self-scan regression
+  test, state round-trip across a restart, extension-matching helper). `go build`/`go vet`/
+  `go test ./...` clean. **CONNECTOR-FRAMEWORK's originally-named cloud-native set
+  (CloudTrail/GuardDuty/O365/GCP) is now 3 of 4 done** — only O365 Management Activity API
+  remains, and it is a genuinely different integration shape from the 3 already built: O365
+  audit logs are delivered via a pull-based Management Activity API (subscription + polling
+  with continuation tokens), not a file-export-to-object-storage pattern, so it cannot reuse
+  this phase's "watch a directory" connector skeleton the way CloudTrail/GuardDuty/GCP could —
+  a real O365 connector needs actual OAuth/API-key credentials to test against, which this
+  environment doesn't have; documented as the one remaining item requiring a materially
+  different design, not just a fourth parser bolted onto the same skeleton. **Not run**:
+  `docker build`/live smoke test — Docker daemon unavailable.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 
