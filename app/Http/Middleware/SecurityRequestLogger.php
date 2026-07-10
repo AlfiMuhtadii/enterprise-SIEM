@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\SecurityLogger;
+use App\Services\TraceparentService;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Request;
@@ -32,6 +33,14 @@ class SecurityRequestLogger
 
         $response->headers->set('X-Request-Id', $requestId);
 
+        // OBS-OTEL-TRACING (phase 3): propagate a W3C traceparent — a new child
+        // span if the request carried a valid one, otherwise a fresh root — so
+        // an analyst request into the SOC control plane can be linked to the
+        // same trace as the pipeline events it's investigating.
+        $traceparent = TraceparentService::propagate($request->headers->get('traceparent'));
+        $request->attributes->set('traceparent', $traceparent);
+        $response->headers->set('Traceparent', $traceparent);
+
         $path = '/' . ltrim($request->path(), '/');
         if ($this->shouldIgnore($request)) {
             return $response;
@@ -41,6 +50,7 @@ class SecurityRequestLogger
 
         SecurityLogger::log('http_request', [
             'request_id' => $requestId,
+            'traceparent' => $traceparent,
             'ip' => $request->ip(),
             'user_agent_hash' => SecurityLogger::hashValue($request->userAgent()),
             'user_id' => optional($request->user())->id,

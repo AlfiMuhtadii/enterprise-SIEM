@@ -181,6 +181,34 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   CLAUDE.md's own Python test convention already uses for `tests/endpoint_agent`) is the
   supported/passing invocation. **Still open**: Laravel-side exposure and the OTLP collector/SDK
   wiring itself — this remains context-production-only, nothing consumes these spans yet.
+- **Progress (2026-07-10, phase 3):** Laravel-side exposure done — the pipeline (Go+Python) side
+  was already complete; this closes the one remaining hop explicitly named in the original
+  Component list (`Laravel HTTP middleware`). New `TraceparentService` (`app/Services/`), a PHP
+  algorithmic mirror of the same `generate()`/`parse()`/`newChildSpan()`/`propagate()` contract
+  as the Go `internal/traceparent` packages and Python `traceparent.py` modules — pure,
+  dependency-free (`random_bytes`/`preg_match` only). Wired into the existing global
+  `SecurityRequestLogger` middleware (already runs on every request per `Kernel.php`): reads an
+  inbound `traceparent` request header if present, propagates a child span via the same
+  `TraceparentService::propagate()` every pipeline hop already uses, sets it on the response as
+  a `Traceparent` header (alongside the existing `X-Request-Id` pattern), and adds it to the
+  structured `SecurityLogger::log('http_request', ...)` payload — so an analyst's own browser
+  request into the SOC console can now be linked to the same trace as the pipeline events they're
+  investigating. Deliberately placed **before** the middleware's existing
+  `shouldIgnore()`/internal-path early-return (mirroring where `X-Request-Id` is already set),
+  since trace propagation is a cross-cutting concern independent of the security-detector's
+  authenticated-internal-path exclusion — verified with a dedicated test that the header is
+  present even on `/soc` (an ignored path). No DB schema change — consistent with the Python
+  phase's decision to keep `traceparent` production-only rather than pulling in a migration for
+  a field whose real payoff is OTLP collector consumption. +17 new tests: 13 pure unit tests
+  (`tests/Unit/TraceparentServiceTest.php`, no Laravel bootstrap needed, mirrors the Go/Python
+  test suites exactly — generate/parse/reject-each-invalid-shape/child-span/propagate) + 4
+  HTTP-level feature tests (`SecurityRequestLoggerTraceparentTest`): valid-generated-header when
+  none sent, child-span-of-inbound when one is sent, invalid-inbound still yields a valid
+  generated header (never blocks the response), and the ignored-path header-still-present case.
+  Full `php artisan test --parallel --recreate-databases` run confirmed green (see CLAUDE.md
+  gate). **Still genuinely open** (unchanged): wiring to a real OTLP collector/OTel SDK across
+  all 6 hops — every hop (Go, Python, now PHP) produces standards-shaped span context, but no
+  service anywhere emits or collects an actual OTel span yet.
 
 ## Proposed Task: ML-SERVE-ONLINE — Multiclass LR model is offline-only, not in the live detection path
 
