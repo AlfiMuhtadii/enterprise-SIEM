@@ -1,0 +1,45 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:164f21ae-2af1-5300-b268-7d07482c7523",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "correlation-worker",
+      "version": "unversioned"
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "go",
+      "version": "1.24",
+      "purl": "pkg:generic/go@1.24"
+    },
+    {
+      "type": "container",
+      "name": "golang",
+      "version": "1.26-alpine",
+      "purl": "pkg:docker/golang@1.26-alpine?digest=sha256%3A3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648"
+        }
+      ]
+    },
+    {
+      "type": "container",
+      "name": "alpine",
+      "version": "3.22",
+      "purl": "pkg:docker/alpine@3.22?digest=sha256%3A14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce"
+        }
+      ]
+    }
+  ]
+}
