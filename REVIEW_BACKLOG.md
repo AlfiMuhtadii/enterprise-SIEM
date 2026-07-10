@@ -697,6 +697,43 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   solution available without a live-pipeline verifier; the overlapping soak services
   (`DomainSoakHarnessService`/`DomainSoakSimulationService`/`RealDomainSoakPlanService`/etc.)
   and the ~32-service meta-module audit are a separate, larger effort.
+- **Progress (2026-07-10, broader audit):** The "Audit the meta-module set" clause done —
+  documentation only, `docs/architecture/META_MODULE_AUDIT.md`. Ran a fresh survey rather than
+  trusting the finding's stale list: found **33 meta-modules, not ~32** — all 17 the finding
+  named are still present, plus **16 more that were never named** (`DomainSoakHarnessService`,
+  `DomainSoakSimulationService`, `EndpointSoakPlanService`, `Phase1SoakEvidenceFreezeService`,
+  `Phase1SoakExecutionService`, `PilotExecutionService`, `PilotTenantOnboardingService`,
+  `RealDomainSoakPlanService`, `RedpandaRecoveryHardeningService`, `RetentionGovernanceService`,
+  `RuleEvidenceGovernanceService`, `SecurityHardeningEvidenceFreezeService`,
+  `SensorHardeningService`, `SoakChaosValidationService`, `StabilityFreezeOverviewService` [the
+  bounded-step work from earlier this pass], `TelemetryScalePilotService`). **The headline
+  finding: the sprawl grew, it did not shrink**, between when the finding was written and now.
+  Classified all 33 (keep/merge-candidate/naming-risk) — net result: only **2 of 33 are a
+  genuine merge-candidate pair** (`PilotReadinessService` + `EnterprisePilotReadinessMatrixService`
+  — both literally answer "is the pilot ready," the one true duplicate found), **1 is a lowest-
+  production-value candidate for relabeling** (`DemoPlatformPackagingService` — reads like demo/
+  defense-prep tooling sitting alongside production governance services), and 2 carry
+  **naming risk without a behavior problem** (`CommercialReadinessService`,
+  `FinalXdrCertificationService` — already `is_advisory`/`freeze_approved=false`-gated at
+  runtime, but the class names alone, read out of context, risk exactly the "reviewers may read
+  this as a real accreditation" concern the finding quoted). The rest legitimately answer
+  different questions despite sharing near-identical advisory scaffolding — confirming the
+  finding's instinct was right about the *shape* (repeated boilerplate) more than the
+  *substance* (redundant computation). Documented the soak-service "overlap" is real but not
+  actually redundant (7 distinct sub-purposes, verified via docblocks: harness=accumulation,
+  simulation=explicitly-dry-run, plan=tiering, execution=the-actual-run, freeze=snapshot-of-run,
+  real-plan=multi-phase-rollout, chaos=fault-injection) — recommended, but did **not build**, a
+  `SoakOverviewService` mirroring the already-shipped `StabilityFreezeOverviewService` read-only
+  pattern rather than a literal merge, generalizing the bounded-step precedent instead of
+  re-litigating the same "don't merge without a live verifier" reasoning per-service. Also
+  surfaced 4 Controller/Service naming-drift pairs (`EnterpriseDeploymentController` vs.
+  `EnterpriseDeploymentHardeningService`, etc.) as a separate low-risk cleanup candidate. Migration
+  footprint quantified: 24 files hit the finding's literal search terms, ~36 including
+  hardening/pilot/demo-named tables. **Explicitly recommends but does not execute**: the
+  `PilotReadinessService` merge, the `SoakOverviewService` build, and any renaming — each is a
+  separate, individually-scoped follow-up, not bundled into this documentation pass.
+  Documentation-only change — no test run per CLAUDE.md's Test Execution Policy (no executable
+  examples/commands/behavior contracts changed).
 
 ## Proposed Task: SIM-LAYER-REALITY-GATE (Track B) — Back the key HA/scale/chaos/soak simulators with real infra
 
