@@ -126,6 +126,43 @@ class AiKnowledgeSeedTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
+    // AI-KB-FEED-INGEST: bundled offline MITRE ATT&CK technique-coverage fixtures
+    // -----------------------------------------------------------------------
+
+    public function test_fixtures_include_bundled_mitre_technique_coverage(): void
+    {
+        $fixtures = app(AiKnowledgeSeedService::class)->loadFixtures();
+        $mitre = array_filter($fixtures, fn (array $f) => str_starts_with($f['fixture_id'], 'ti-mitre-'));
+
+        $this->assertGreaterThanOrEqual(100, count($mitre), 'expected one KB fixture per unique MITRE technique in the rule registry');
+        foreach ($mitre as $f) {
+            $this->assertSame('threat_intel', $f['category']);
+            $this->assertSame('detection-rule-registry-v1-bundled-offline', $f['source']);
+        }
+    }
+
+    public function test_mitre_fixture_content_is_labelled_as_bundled_not_live_feed(): void
+    {
+        $fixtures = app(AiKnowledgeSeedService::class)->loadFixtures();
+        $t1110 = collect($fixtures)->firstWhere('fixture_id', 'ti-mitre-t1110');
+
+        $this->assertNotNull($t1110, 'expected a fixture for MITRE T1110');
+        $this->assertStringContainsString('not a live MITRE ATT&CK API/TAXII feed or RSS ingestion', $t1110['content']);
+        $this->assertStringContainsString('IDENTITY_MFA_FAILURE_BURST', $t1110['content'], 'expected content derived from this platform\'s own rule registry, not invented text');
+    }
+
+    public function test_mitre_fixtures_seed_into_knowledge_base(): void
+    {
+        app(AiKnowledgeSeedService::class)->seed('test', false);
+
+        $count = DB::table('soc_knowledge_base')
+            ->where('related_rule_id', 'like', 'rag-seed-ti-mitre-%')
+            ->count();
+
+        $this->assertGreaterThanOrEqual(100, $count);
+    }
+
+    // -----------------------------------------------------------------------
     // getSeededCount()
     // -----------------------------------------------------------------------
 

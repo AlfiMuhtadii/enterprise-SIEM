@@ -1,7 +1,7 @@
 [
   {
     "fixture_id": "rkf-identity-mfa-001",
-    "title": "MFA Fatigue Attack — Detection and Response",
+    "title": "MFA Fatigue Attack \u2014 Detection and Response",
     "category": "detection_rule",
     "content": "MFA fatigue attacks involve sending repeated push notifications to trick users into approving access. Indicators: >10 MFA prompts within 5 minutes from the same user. Correlated rule: IDENTITY_MFA_FATIGUE_ATTACK. Response: Temporarily disable push MFA, switch to TOTP, notify user. Severity: High. MITRE: T1621.",
     "source": "xdr-knowledge-base-v1"
@@ -22,51 +22,772 @@
   },
   {
     "fixture_id": "rkf-soc-triage-001",
-    "title": "SOC Triage Procedure — High Severity Alerts",
+    "title": "SOC Triage Procedure \u2014 High Severity Alerts",
     "category": "soc_procedure",
-    "content": "For HIGH severity alerts: 1) Acknowledge within 15min (SLA-T1). 2) Assign to senior analyst. 3) Check alert evidence chain: telemetry source → normalizer → correlation → alert. 4) Cross-reference entity graph. 5) Open investigation if confirmed. 6) Escalate to CRIT if containment needed. SLA-T2: 1h for initial triage. SLA-T3: 4h for investigation close.",
+    "content": "For HIGH severity alerts: 1) Acknowledge within 15min (SLA-T1). 2) Assign to senior analyst. 3) Check alert evidence chain: telemetry source \u2192 normalizer \u2192 correlation \u2192 alert. 4) Cross-reference entity graph. 5) Open investigation if confirmed. 6) Escalate to CRIT if containment needed. SLA-T2: 1h for initial triage. SLA-T3: 4h for investigation close.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-soc-triage-002",
-    "title": "SOC Triage Procedure — False Positive Classification",
+    "title": "SOC Triage Procedure \u2014 False Positive Classification",
     "category": "soc_procedure",
-    "content": "False positive classification procedure: 1) Verify alert evidence is invalid (wrong user, test environment, known-good tool). 2) Set status to false_positive. 3) Submit false positive report in Detection Engineering module. 4) Do not suppress rule without review cycle. 5) Document condition in investigation notes. Rules: NEVER delete alerts — mark as false_positive only.",
+    "content": "False positive classification procedure: 1) Verify alert evidence is invalid (wrong user, test environment, known-good tool). 2) Set status to false_positive. 3) Submit false positive report in Detection Engineering module. 4) Do not suppress rule without review cycle. 5) Document condition in investigation notes. Rules: NEVER delete alerts \u2014 mark as false_positive only.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-incident-type-001",
-    "title": "Identity Compromise Incident — Response Playbook",
+    "title": "Identity Compromise Incident \u2014 Response Playbook",
     "category": "incident_type",
-    "content": "Identity compromise incidents involve unauthorized access to user credentials. Playbook steps: 1) Isolate affected account (disable SSO sessions). 2) Reset credentials and MFA. 3) Review access logs for lateral movement. 4) Check for persistent access (API keys, OAuth tokens). 5) Notify user and HR. 6) Complete post-incident review within 48h. Response framework: recommend_* only — no autonomous account actions.",
+    "content": "Identity compromise incidents involve unauthorized access to user credentials. Playbook steps: 1) Isolate affected account (disable SSO sessions). 2) Reset credentials and MFA. 3) Review access logs for lateral movement. 4) Check for persistent access (API keys, OAuth tokens). 5) Notify user and HR. 6) Complete post-incident review within 48h. Response framework: recommend_* only \u2014 no autonomous account actions.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-incident-type-002",
-    "title": "Cloud Resource Abuse Incident — Response Playbook",
+    "title": "Cloud Resource Abuse Incident \u2014 Response Playbook",
     "category": "incident_type",
     "content": "Cloud resource abuse incidents involve unauthorized provisioning or data exfiltration via cloud APIs. Playbook: 1) Identify compromised access key or role. 2) Revoke key and invalidate sessions. 3) Inventory resources created by compromised credential. 4) Estimate data exposure scope. 5) Notify cloud provider security team. 6) Review IAM policies and apply least-privilege. MITRE: T1078, T1537.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-threat-intel-001",
-    "title": "Threat Intelligence — Common Attack Patterns in Demo Dataset",
+    "title": "Threat Intelligence \u2014 Common Attack Patterns in Demo Dataset",
     "category": "threat_intel",
-    "content": "The demo dataset simulates three attack chains: (1) MFA fatigue → access key creation → S3 exfiltration. (2) OAuth app grant → persistent SaaS access → bulk export. (3) Credential stuffing → successful login → privilege escalation. All scenarios use MITRE ATT&CK framework v14. Evidence chain: source_event_id links attack steps. Use retrospective threat hunting to trace full chain.",
+    "content": "The demo dataset simulates three attack chains: (1) MFA fatigue \u2192 access key creation \u2192 S3 exfiltration. (2) OAuth app grant \u2192 persistent SaaS access \u2192 bulk export. (3) Credential stuffing \u2192 successful login \u2192 privilege escalation. All scenarios use MITRE ATT&CK framework v14. Evidence chain: source_event_id links attack steps. Use retrospective threat hunting to trace full chain.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-detection-eng-001",
-    "title": "Detection Rule Lifecycle — Promotion from Shadow to Active",
+    "title": "Detection Rule Lifecycle \u2014 Promotion from Shadow to Active",
     "category": "soc_procedure",
-    "content": "Rule promotion lifecycle: DRAFT → shadow → staged_active. Shadow rules produce advisory findings only (xdr.alerts.shadow.endpoint topic). Promotion requires: (1) Domain-specific 6h soak PASS. (2) False positive rate < 5%. (3) Detection Engineering approval. (4) No active blocker. Rules in endpoint/DNS/network/threat-intel domains are shadow-only until domain soak completes. ACTIVE_ALLOWLIST must not be modified without soak PASS.",
+    "content": "Rule promotion lifecycle: DRAFT \u2192 shadow \u2192 staged_active. Shadow rules produce advisory findings only (xdr.alerts.shadow.endpoint topic). Promotion requires: (1) Domain-specific 6h soak PASS. (2) False positive rate < 5%. (3) Detection Engineering approval. (4) No active blocker. Rules in endpoint/DNS/network/threat-intel domains are shadow-only until domain soak completes. ACTIVE_ALLOWLIST must not be modified without soak PASS.",
     "source": "xdr-knowledge-base-v1"
   },
   {
     "fixture_id": "rkf-investigation-001",
-    "title": "Investigation Query Guide — Threat Hunting Domains",
+    "title": "Investigation Query Guide \u2014 Threat Hunting Domains",
     "category": "soc_procedure",
     "content": "Supported hunt domains include: alerts, processes, persistence_items, execution_chains, beacon_patterns, behavioral_findings, hosts, network_correlations, cross_domain_correlations, dns_events, proxy_events, firewall_events, identity_provider_events, saas_audit_events. Hunt queries are advisory-only, replay-safe, bounded to MAX_RESULTS=500 and MAX_QUERY_WINDOW_DAYS=90. Results are stored in threat_hunt_results (append-only).",
     "source": "xdr-knowledge-base-v1"
+  },
+  {
+    "fixture_id": "ti-mitre-t1003",
+    "title": "MITRE ATT&CK T1003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_LSASS_ACCESS_INDICATOR (\"LSASS Access Indicator (Advisory)\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1003-001",
+    "title": "MITRE ATT&CK T1003.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1003.001 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_LSASS_ACCESS_INDICATOR (\"LSASS Access Indicator (Advisory)\", endpoint, critical); CRED_ABNORMAL_LSASS_MEMORY_ACCESS (\"Abnormal LSASS Memory Access\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1003-002",
+    "title": "MITRE ATT&CK T1003.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1003.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_DUMP_INDICATOR (\"Credential Dump Behavioral Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1003-003",
+    "title": "MITRE ATT&CK T1003.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1003.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_DUMP_INDICATOR (\"Credential Dump Behavioral Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1003-006",
+    "title": "MITRE ATT&CK T1003.006 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1003.006 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_DCSync_REPLICATION_REQUEST (\"DCSync Replication Request from Non-DC\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1018",
+    "title": "MITRE ATT&CK T1018 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1018 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): network. Rules: UEBA_ABNORMAL_NETWORK_DESTINATION_FREQUENCY (\"Abnormal Network Destination Frequency (UEBA Baseline)\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021",
+    "title": "MITRE ATT&CK T1021 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021 is mapped to 6 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: multi_host_shared_destination (\"Multiple Hosts LOLBin Activity to Shared Destination\", endpoint, critical); cross_domain_attack_progression (\"Cross-Domain Attack Progression Detected\", endpoint, critical); STREAM_SHORT_LIVED_SUSPICIOUS_PROCESS (\"Short-Lived Suspicious Process Detected in Streaming Telemetry\", endpoint, medium); LATERAL_ABNORMAL_REMOTE_EXEC (\"Abnormal Remote Execution\", endpoint, high); LATERAL_MULTI_HOST_PROPAGATION (\"Multi-Host Propagation Chain\", endpoint, critical); CONTAINER_HOST_NETWORK_NAMESPACE_ABUSE (\"Container Host Network Namespace Abuse\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021-001",
+    "title": "MITRE ATT&CK T1021.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021.001 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_RDP_ANOMALOUS_SOURCE (\"Anomalous RDP Source\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021-002",
+    "title": "MITRE ATT&CK T1021.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021.002 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_SMB_ACTIVITY (\"Suspicious SMB Lateral Activity\", endpoint, high); LATERAL_SMB_PROPAGATION_CHAIN (\"SMB Lateral Propagation Chain\", endpoint, high); LATERAL_ADMIN_SHARE_STAGING (\"Admin Share Staging for Lateral Movement\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021-003",
+    "title": "MITRE ATT&CK T1021.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_DCOM_LATERAL_MOVEMENT (\"DCOM Lateral Movement\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021-004",
+    "title": "MITRE ATT&CK T1021.004 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021.004 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): network. Rules: LATERAL_SSH_PROPAGATION_ANOMALY (\"SSH Propagation Anomaly\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1021-006",
+    "title": "MITRE ATT&CK T1021.006 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1021.006 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_WINRM_ABUSE (\"WinRM Lateral Movement Indicator\", endpoint, high); LATERAL_WINRM_UNUSUAL_CHAIN (\"WinRM Lateral Movement Chain\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1027",
+    "title": "MITRE ATT&CK T1027 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1027 is mapped to 9 detection rule(s) in this platform's registry, covering domain(s): endpoint, threat-intel. Rules: powershell_encoded_command (\"PowerShell Encoded Command Execution\", endpoint, high); suspicious_temp_file_write (\"Executable Written to Temporary Directory\", endpoint, high); ioc_file_hash_match (\"Endpoint IOC File Hash Match\", threat-intel, critical); suspicious_execution_chain (\"Suspicious Process Execution Chain\", endpoint, high); suspicious_lolbin_usage (\"Living-off-the-Land Binary (LOLBin) Usage\", endpoint, medium); repeated_lolbin_sequence (\"Repeated LOLBin Execution Sequence\", endpoint, high); LLTET_RARE_PROCESS_EXECUTION (\"Rare Process Execution\", endpoint, medium); EVASION_AMSI_BYPASS_INDICATOR (\"AMSI Bypass Indicator (Advisory)\", endpoint, critical); +1 more rule(s). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1027-010",
+    "title": "MITRE ATT&CK T1027.010 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1027.010 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_SUSPICIOUS_SCRIPT_BLOCK (\"Suspicious Script Block Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1030",
+    "title": "MITRE ATT&CK T1030 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1030 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): network. Rules: high_volume_proxy_egress (\"High Volume Proxy Egress Detected\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1036-005",
+    "title": "MITRE ATT&CK T1036.005 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1036.005 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_PROCESS_MASQUERADING (\"Process Name Masquerading\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1037",
+    "title": "MITRE ATT&CK T1037 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1037 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_persistence_entry (\"New or Unexpected Persistence Entry\", endpoint, high); suspicious_persistence_correlation (\"Persistence + Active Shell + Outbound Correlation\", endpoint, high); persistence_reactivation_pattern (\"Persistence Item Reactivation Pattern\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1041",
+    "title": "MITRE ATT&CK T1041 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1041 is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint, network. Rules: STREAM_BURST_OUTBOUND_ACTIVITY (\"Burst Outbound Connection Activity Detected in Streaming Telemetry\", endpoint, medium); high_volume_proxy_egress (\"High Volume Proxy Egress Detected\", network, high); rare_external_destination (\"Rare External Firewall Destination Detected\", network, medium); UEBA_ABNORMAL_BYTES_OUT (\"Abnormal Outbound Data Volume (UEBA Baseline)\", network, high); LLTET_ABNORMAL_NETWORK_CONNECTION (\"Abnormal Network Connection\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1043",
+    "title": "MITRE ATT&CK T1043 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1043 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): network. Rules: repeated_denied_outbound (\"Repeated Denied Outbound Firewall Flows\", network, high); unusual_destination_port (\"Unusual Firewall Destination Port Detected\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1046",
+    "title": "MITRE ATT&CK T1046 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1046 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint, network. Rules: STREAM_BURST_OUTBOUND_ACTIVITY (\"Burst Outbound Connection Activity Detected in Streaming Telemetry\", endpoint, medium); suspicious_user_agent (\"Suspicious Proxy User-Agent Detected\", network, high); UEBA_ABNORMAL_NETWORK_DESTINATION_FREQUENCY (\"Abnormal Network Destination Frequency (UEBA Baseline)\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1048",
+    "title": "MITRE ATT&CK T1048 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1048 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint, network, xdr. Rules: UEBA_ABNORMAL_BYTES_OUT (\"Abnormal Outbound Data Volume (UEBA Baseline)\", network, high); UEBA_PEER_GROUP_BEHAVIOR_DEVIATION (\"Peer Group Behavior Deviation (UEBA Baseline)\", xdr, medium); LLTET_ABNORMAL_NETWORK_CONNECTION (\"Abnormal Network Connection\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1048-001",
+    "title": "MITRE ATT&CK T1048.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1048.001 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): network. Rules: dns_txt_query_pattern (\"Repeated DNS TXT Queries Detected\", network, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1053",
+    "title": "MITRE ATT&CK T1053 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1053 is mapped to 8 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: scheduled_task_persistence (\"Scheduled Task Persistence\", endpoint, high); suspicious_persistence_correlation (\"Persistence + Active Shell + Outbound Correlation\", endpoint, high); repeated_behavioral_chain (\"Repeated Behavioral Execution Chain Pattern\", endpoint, high); repeated_lolbin_sequence (\"Repeated LOLBin Execution Sequence\", endpoint, high); persistence_reactivation_pattern (\"Persistence Item Reactivation Pattern\", endpoint, high); identity_persistence_correlation (\"Identity Privilege Escalation Correlated with Endpoint Persistence\", endpoint, high); STREAM_RAPID_PERSISTENCE_CREATION (\"Rapid Persistence Creation Detected in Streaming Telemetry\", endpoint, high); STREAM_RAPID_EXECUTION_BEACON_PATTERN (\"Rapid Execution Beacon Pattern Detected in Streaming Telemetry\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1053-003",
+    "title": "MITRE ATT&CK T1053.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1053.003 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_persistence_entry (\"New or Unexpected Persistence Entry\", endpoint, high); PERSIST_CRON_MODIFICATION (\"Suspicious Cron Modification\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1053-005",
+    "title": "MITRE ATT&CK T1053.005 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1053.005 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: scheduled_task_persistence (\"Scheduled Task Persistence\", endpoint, high); LLTET_SUSPICIOUS_PERSISTENCE_INDICATOR (\"Suspicious Persistence Indicator\", endpoint, high); PERSIST_SUSPICIOUS_SCHEDULED_TASK_LINEAGE (\"Suspicious Scheduled Task Lineage\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1055",
+    "title": "MITRE ATT&CK T1055 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1055 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: UEBA_UNUSUAL_HOST_USAGE (\"Unusual Host Usage Pattern (UEBA Baseline)\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1059",
+    "title": "MITRE ATT&CK T1059 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1059 is mapped to 20 detection rule(s) in this platform's registry, covering domain(s): endpoint, threat-intel, xdr. Rules: suspicious_parent_child_process (\"Suspicious Parent-Child Process Relationship\", endpoint, high); ioc_file_hash_match (\"Endpoint IOC File Hash Match\", threat-intel, critical); suspicious_parent_child_chain (\"Suspicious Parent-Child Process Chain (Behavioral)\", endpoint, high); suspicious_shell_chain (\"Suspicious Shell-to-Shell Execution Chain\", endpoint, high); suspicious_long_lived_process (\"Suspicious Long-Lived Interactive Process\", endpoint, medium); suspicious_execution_chain (\"Suspicious Process Execution Chain\", endpoint, high); suspicious_lolbin_usage (\"Living-off-the-Land Binary (LOLBin) Usage\", endpoint, medium); suspicious_persistence_correlation (\"Persistence + Active Shell + Outbound Correlation\", endpoint, high); +12 more rule(s). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1059-001",
+    "title": "MITRE ATT&CK T1059.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1059.001 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: powershell_encoded_command (\"PowerShell Encoded Command Execution\", endpoint, high); LLTET_SUSPICIOUS_SCRIPT_BLOCK (\"Suspicious Script Block Execution\", endpoint, high); EVASION_ENCODED_PS_OBFUSCATION (\"Obfuscated PowerShell Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1059-004",
+    "title": "MITRE ATT&CK T1059.004 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1059.004 is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_parent_child_chain (\"Suspicious Parent-Child Process Chain (Behavioral)\", endpoint, high); suspicious_shell_chain (\"Suspicious Shell-to-Shell Execution Chain\", endpoint, high); suspicious_execution_chain (\"Suspicious Process Execution Chain\", endpoint, high); STREAM_RAPID_SHELL_CHAIN (\"Rapid Shell Chain Detected in Streaming Telemetry\", endpoint, high); LLTET_SUSPICIOUS_SHELL_SPAWN (\"Suspicious Shell Spawn from Web/Service Process\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1059-006",
+    "title": "MITRE ATT&CK T1059.006 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1059.006 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_SUSPICIOUS_INTERPRETER_CHAIN (\"Suspicious Interpreter Chain\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1068",
+    "title": "MITRE ATT&CK T1068 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1068 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_IMPOSSIBLE_PRIVILEGE_ESCALATION_CHAIN (\"Impossible Privilege Escalation Chain\", endpoint, critical); CONTAINER_PRIVESC_CHAIN (\"Container Privilege Escalation Chain\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1070",
+    "title": "MITRE ATT&CK T1070 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1070 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_LOG_TAMPERING (\"Log Tampering Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1070-001",
+    "title": "MITRE ATT&CK T1070.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1070.001 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_LOG_TAMPERING (\"Log Tampering Indicator\", endpoint, critical); EVASION_EVENT_LOG_CLEARANCE (\"Windows Event Log Clearance\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1071",
+    "title": "MITRE ATT&CK T1071 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1071 is mapped to 16 detection rule(s) in this platform's registry, covering domain(s): endpoint, network, threat-intel. Rules: ioc_ip_match (\"Endpoint IOC IP Match\", threat-intel, high); c2_beacon_pattern (\"Possible C2 Beacon Pattern\", endpoint, high); suspicious_long_lived_process (\"Suspicious Long-Lived Interactive Process\", endpoint, medium); suspicious_beacon_pattern (\"Suspicious Beacon-like Outbound Pattern\", endpoint, high); suspicious_persistence_correlation (\"Persistence + Active Shell + Outbound Correlation\", endpoint, high); multi_host_beacon_pattern (\"Multi-Host Beacon Pattern to Same Destination\", endpoint, critical); saas_endpoint_beacon_chain (\"SaaS Activity Correlated with Endpoint Beacon Pattern\", endpoint, high); multi_host_shared_destination (\"Multiple Hosts LOLBin Activity to Shared Destination\", endpoint, critical); +8 more rule(s). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1071-001",
+    "title": "MITRE ATT&CK T1071.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1071.001 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint, network. Rules: c2_beacon_pattern (\"Possible C2 Beacon Pattern\", endpoint, high); suspicious_beacon_pattern (\"Suspicious Beacon-like Outbound Pattern\", endpoint, high); suspicious_user_agent (\"Suspicious Proxy User-Agent Detected\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1071-004",
+    "title": "MITRE ATT&CK T1071.004 (Application Layer Protocol: DNS) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1071.004 (Application Layer Protocol: DNS) is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint, network, threat-intel. Rules: suspicious_dns_query (\"Suspicious DNS Query\", endpoint, medium); ioc_domain_match (\"Endpoint IOC Domain Match\", threat-intel, high); suspicious_dns_tld (\"Suspicious DNS TLD Query Detected\", network, medium); dns_txt_query_pattern (\"Repeated DNS TXT Queries Detected\", network, medium); repeated_nxdomain (\"Repeated NXDOMAIN Responses Detected\", network, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1078",
+    "title": "MITRE ATT&CK T1078 (Valid Accounts) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1078 (Valid Accounts) is mapped to 14 detection rule(s) in this platform's registry, covering domain(s): endpoint, identity, saas, xdr. Rules: IDENTITY_FAILED_LOGIN_ACROSS_SERVICES (\"Failed Login Across Multiple Services\", identity, high); IDENTITY_RISKY_IP_LOGIN (\"Successful Login from High-Risk IP\", identity, high); IDENTITY_IMPOSSIBLE_TRAVEL (\"Impossible Travel \u00e2\u20ac\u201d Multiple Source IPs\", identity, medium); IDENTITY_UNUSUAL_LOGIN_SOURCE (\"Unusual Login Source \u00e2\u20ac\u201d Multiple Actors\", identity, medium); SAAS_UNUSUAL_ADMIN_ACTIVITY (\"Unusual SaaS Admin Activity\", saas, high); suspicious_long_lived_process (\"Suspicious Long-Lived Interactive Process\", endpoint, medium); repeated_behavioral_chain (\"Repeated Behavioral Execution Chain Pattern\", endpoint, high); identity_persistence_correlation (\"Identity Privilege Escalation Correlated with Endpoint Persistence\", endpoint, high); +6 more rule(s). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1078-004",
+    "title": "MITRE ATT&CK T1078.004 (Valid Accounts: Cloud Accounts) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1078.004 (Valid Accounts: Cloud Accounts) is mapped to 9 detection rule(s) in this platform's registry, covering domain(s): cloud, identity, saas. Rules: IDENTITY_RISKY_IP_LOGIN (\"Successful Login from High-Risk IP\", identity, high); IDENTITY_PRIVILEGE_ESCALATION (\"Identity Privilege Escalation\", identity, high); CLOUD_UNUSUAL_API_ACTIVITY (\"Unusual Cloud API Activity\", cloud, high); CLOUD_NEW_ACCESS_KEY (\"New Cloud Access Key Created\", cloud, high); UEBA_UNUSUAL_LOGIN_TIME (\"Unusual Login Time (UEBA Baseline)\", identity, medium); UEBA_UNUSUAL_SAAS_ACTION_FREQUENCY (\"Unusual SaaS Action Frequency (UEBA Baseline)\", saas, medium); CLOUD_ABNORMAL_API_TOKEN_USAGE (\"Abnormal API Token Usage Pattern\", cloud, high); SAAS_IMPOSSIBLE_ACTIVITY_CHAIN (\"Impossible SaaS Activity Chaining\", saas, high); +1 more rule(s). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1095",
+    "title": "MITRE ATT&CK T1095 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1095 is mapped to 6 detection rule(s) in this platform's registry, covering domain(s): endpoint, network, threat-intel. Rules: suspicious_outbound_connection (\"Suspicious Outbound Network Connection\", endpoint, medium); ioc_ip_match (\"Endpoint IOC IP Match\", threat-intel, high); c2_beacon_pattern (\"Possible C2 Beacon Pattern\", endpoint, high); suspicious_beacon_pattern (\"Suspicious Beacon-like Outbound Pattern\", endpoint, high); multi_host_beacon_pattern (\"Multi-Host Beacon Pattern to Same Destination\", endpoint, critical); unusual_destination_port (\"Unusual Firewall Destination Port Detected\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1098",
+    "title": "MITRE ATT&CK T1098 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1098 is mapped to 4 detection rule(s) in this platform's registry, covering domain(s): cloud, identity, saas. Rules: IDENTITY_PRIVILEGE_ESCALATION (\"Identity Privilege Escalation\", identity, high); CLOUD_SECURITY_SETTING_MODIFIED (\"Cloud Security Setting Modified\", cloud, high); SAAS_UNUSUAL_ADMIN_ACTIVITY (\"Unusual SaaS Admin Activity\", saas, high); CLOUD_TENANT_ADMIN_ANOMALY (\"Suspicious Tenant Admin Activity\", cloud, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1098-001",
+    "title": "MITRE ATT&CK T1098.001 (Account Manipulation: Additional Cloud Credentials) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1098.001 (Account Manipulation: Additional Cloud Credentials) is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_NEW_ACCESS_KEY (\"New Cloud Access Key Created\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1098-003",
+    "title": "MITRE ATT&CK T1098.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1098.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): identity. Rules: IDENTITY_PRIVILEGE_ESCALATION (\"Identity Privilege Escalation\", identity, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1102",
+    "title": "MITRE ATT&CK T1102 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1102 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_beacon_pattern (\"Suspicious Beacon-like Outbound Pattern\", endpoint, high); multi_host_beacon_pattern (\"Multi-Host Beacon Pattern to Same Destination\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1105",
+    "title": "MITRE ATT&CK T1105 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1105 is mapped to 8 detection rule(s) in this platform's registry, covering domain(s): endpoint, threat-intel. Rules: suspicious_temp_file_write (\"Executable Written to Temporary Directory\", endpoint, high); ioc_file_hash_match (\"Endpoint IOC File Hash Match\", threat-intel, critical); suspicious_execution_chain (\"Suspicious Process Execution Chain\", endpoint, high); suspicious_lolbin_usage (\"Living-off-the-Land Binary (LOLBin) Usage\", endpoint, medium); repeated_lolbin_sequence (\"Repeated LOLBin Execution Sequence\", endpoint, high); multi_host_shared_destination (\"Multiple Hosts LOLBin Activity to Shared Destination\", endpoint, critical); STREAM_SHORT_LIVED_SUSPICIOUS_PROCESS (\"Short-Lived Suspicious Process Detected in Streaming Telemetry\", endpoint, medium); LLTET_SUSPICIOUS_INTERPRETER_CHAIN (\"Suspicious Interpreter Chain\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1106",
+    "title": "MITRE ATT&CK T1106 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1106 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_shell_chain (\"Suspicious Shell-to-Shell Execution Chain\", endpoint, high); rare_parent_child_process (\"Rare Parent-Child Process Relationship\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1110",
+    "title": "MITRE ATT&CK T1110 (Brute Force) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1110 (Brute Force) is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint, identity. Rules: IDENTITY_MFA_FAILURE_BURST (\"MFA Failure Burst\", identity, high); failed_login_burst (\"Failed Login Burst (Endpoint)\", endpoint, medium); identity_endpoint_execution_chain (\"Identity Failure Followed by Endpoint Shell Execution\", endpoint, critical); UEBA_UNUSUAL_SOURCE_IP_DIVERSITY (\"Unusual Source IP Diversity (UEBA Baseline)\", identity, medium); UEBA_ABNORMAL_FAILED_LOGIN_RATIO (\"Abnormal Failed Login Ratio (UEBA Baseline)\", identity, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1110-001",
+    "title": "MITRE ATT&CK T1110.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1110.001 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint, identity. Rules: IDENTITY_MFA_FAILURE_BURST (\"MFA Failure Burst\", identity, high); failed_login_burst (\"Failed Login Burst (Endpoint)\", endpoint, medium); UEBA_ABNORMAL_FAILED_LOGIN_RATIO (\"Abnormal Failed Login Ratio (UEBA Baseline)\", identity, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1110-003",
+    "title": "MITRE ATT&CK T1110.003 (Brute Force: Password Spraying) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1110.003 (Brute Force: Password Spraying) is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): identity. Rules: IDENTITY_MFA_FAILURE_BURST (\"MFA Failure Burst\", identity, high); IDENTITY_FAILED_LOGIN_ACROSS_SERVICES (\"Failed Login Across Multiple Services\", identity, high); IDENTITY_UNUSUAL_LOGIN_SOURCE (\"Unusual Login Source \u00e2\u20ac\u201d Multiple Actors\", identity, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1134",
+    "title": "MITRE ATT&CK T1134 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1134 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_TOKEN_IMPERSONATION_INDICATOR (\"Token Impersonation Indicator\", endpoint, high); CRED_IMPOSSIBLE_PRIVILEGE_ESCALATION_CHAIN (\"Impossible Privilege Escalation Chain\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1134-001",
+    "title": "MITRE ATT&CK T1134.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1134.001 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_TOKEN_IMPERSONATION_INDICATOR (\"Token Impersonation Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1134-002",
+    "title": "MITRE ATT&CK T1134.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1134.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_TOKEN_IMPERSONATION_INDICATOR (\"Token Impersonation Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1140",
+    "title": "MITRE ATT&CK T1140 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1140 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_lolbin_usage (\"Living-off-the-Land Binary (LOLBin) Usage\", endpoint, medium); repeated_lolbin_sequence (\"Repeated LOLBin Execution Sequence\", endpoint, high); LLTET_SUSPICIOUS_SCRIPT_BLOCK (\"Suspicious Script Block Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1176",
+    "title": "MITRE ATT&CK T1176 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1176 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: PERSIST_BROWSER_EXTENSION_INSTALL (\"Suspicious Browser Extension Installation\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1190",
+    "title": "MITRE ATT&CK T1190 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1190 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_parent_child_chain (\"Suspicious Parent-Child Process Chain (Behavioral)\", endpoint, high); rare_parent_child_process (\"Rare Parent-Child Process Relationship\", endpoint, high); LLTET_SUSPICIOUS_SHELL_SPAWN (\"Suspicious Shell Spawn from Web/Service Process\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1203",
+    "title": "MITRE ATT&CK T1203 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1203 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_SUSPICIOUS_SHELL_SPAWN (\"Suspicious Shell Spawn from Web/Service Process\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1204",
+    "title": "MITRE ATT&CK T1204 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1204 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: UEBA_UNUSUAL_PROCESS_EXECUTION_FREQUENCY (\"Unusual Process Execution Frequency (UEBA Baseline)\", endpoint, medium); LLTET_RARE_PROCESS_EXECUTION (\"Rare Process Execution\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1204-002",
+    "title": "MITRE ATT&CK T1204.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1204.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_parent_child_process (\"Suspicious Parent-Child Process Relationship\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1205",
+    "title": "MITRE ATT&CK T1205 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1205 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: persistence_reactivation_pattern (\"Persistence Item Reactivation Pattern\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1218",
+    "title": "MITRE ATT&CK T1218 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1218 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_lolbin_usage (\"Living-off-the-Land Binary (LOLBin) Usage\", endpoint, medium); LLTET_RARE_PROCESS_EXECUTION (\"Rare Process Execution\", endpoint, medium); EVASION_LOLBIN_CHAINING (\"LOLBin Chaining Pattern\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1218-005",
+    "title": "MITRE ATT&CK T1218.005 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1218.005 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_SIGNED_BINARY_PROXY (\"Suspicious Signed Binary Proxy Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1218-010",
+    "title": "MITRE ATT&CK T1218.010 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1218.010 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_SIGNED_BINARY_PROXY (\"Suspicious Signed Binary Proxy Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1218-011",
+    "title": "MITRE ATT&CK T1218.011 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1218.011 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_SIGNED_BINARY_PROXY (\"Suspicious Signed Binary Proxy Execution\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1484-002",
+    "title": "MITRE ATT&CK T1484.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1484.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_TENANT_ADMIN_ANOMALY (\"Suspicious Tenant Admin Activity\", cloud, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1497-003",
+    "title": "MITRE ATT&CK T1497.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1497.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_DELAYED_EXECUTION_PATTERN (\"Delayed Execution / Sandbox Evasion Pattern\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1505-003",
+    "title": "MITRE ATT&CK T1505.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1505.003 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_parent_child_chain (\"Suspicious Parent-Child Process Chain (Behavioral)\", endpoint, high); rare_parent_child_process (\"Rare Parent-Child Process Relationship\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1525",
+    "title": "MITRE ATT&CK T1525 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1525 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CONTAINER_SUSPICIOUS_IMAGE_LINEAGE (\"Suspicious Container Image Lineage\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1528",
+    "title": "MITRE ATT&CK T1528 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1528 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): cloud, endpoint. Rules: CRED_TOKEN_REPLAY_INDICATOR (\"Token Replay Indicator\", endpoint, high); CLOUD_OAUTH_ABUSE_PROGRESSION (\"OAuth Token Abuse Progression\", cloud, high); CLOUD_SERVICE_PRINCIPAL_ABUSE (\"Service Principal Credential Abuse\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1530",
+    "title": "MITRE ATT&CK T1530 (Data from Cloud Storage Object) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1530 (Data from Cloud Storage Object) is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): cloud, saas. Rules: CLOUD_UNUSUAL_API_ACTIVITY (\"Unusual Cloud API Activity\", cloud, high); CLOUD_SUSPICIOUS_OBJECT_ACCESS (\"Suspicious Cloud Object Access\", cloud, high); CLOUD_MASS_DOWNLOAD (\"Cloud Mass Download\", cloud, high); UEBA_UNUSUAL_SAAS_ACTION_FREQUENCY (\"Unusual SaaS Action Frequency (UEBA Baseline)\", saas, medium); SAAS_MASS_EXPORT_ANOMALY (\"Mass Data Export Anomaly\", saas, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1534",
+    "title": "MITRE ATT&CK T1534 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1534 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): identity. Rules: IDENTITY_IMPOSSIBLE_TRAVEL (\"Impossible Travel \u00e2\u20ac\u201d Multiple Source IPs\", identity, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1537",
+    "title": "MITRE ATT&CK T1537 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1537 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_RESOURCE_HIJACKING_PATTERN (\"Cloud Resource Hijacking Pattern\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1542-003",
+    "title": "MITRE ATT&CK T1542.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1542.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: PERSIST_BOOT_SECTOR_MODIFICATION (\"Boot Sector Modification Attempt\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1543",
+    "title": "MITRE ATT&CK T1543 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1543 is mapped to 6 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: new_service_persistence (\"New Service Installed\", endpoint, high); suspicious_persistence_correlation (\"Persistence + Active Shell + Outbound Correlation\", endpoint, high); persistence_reactivation_pattern (\"Persistence Item Reactivation Pattern\", endpoint, high); identity_persistence_correlation (\"Identity Privilege Escalation Correlated with Endpoint Persistence\", endpoint, high); STREAM_RAPID_PERSISTENCE_CREATION (\"Rapid Persistence Creation Detected in Streaming Telemetry\", endpoint, high); UEBA_UNUSUAL_HOST_USAGE (\"Unusual Host Usage Pattern (UEBA Baseline)\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1543-002",
+    "title": "MITRE ATT&CK T1543.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1543.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: suspicious_persistence_entry (\"New or Unexpected Persistence Entry\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1543-003",
+    "title": "MITRE ATT&CK T1543.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1543.003 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: new_service_persistence (\"New Service Installed\", endpoint, high); PERSIST_MALICIOUS_SERVICE_CREATION (\"Suspicious Service Creation for Persistence\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1546-003",
+    "title": "MITRE ATT&CK T1546.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1546.003 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: PERSIST_WMI_SUBSCRIPTION (\"WMI Event Subscription Persistence\", endpoint, critical); PERSIST_WMI_EVENT_SUBSCRIPTION (\"WMI Event Subscription Persistence\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1547",
+    "title": "MITRE ATT&CK T1547 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1547 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: STREAM_RAPID_PERSISTENCE_CREATION (\"Rapid Persistence Creation Detected in Streaming Telemetry\", endpoint, high); LLTET_SUSPICIOUS_PERSISTENCE_INDICATOR (\"Suspicious Persistence Indicator\", endpoint, high); CONTAINER_ABNORMAL_RUNTIME_PERSISTENCE (\"Abnormal Container Runtime Persistence\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1547-001",
+    "title": "MITRE ATT&CK T1547.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1547.001 is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_SUSPICIOUS_PERSISTENCE_INDICATOR (\"Suspicious Persistence Indicator\", endpoint, high); PERSIST_REGISTRY_RUN_KEY (\"Registry Run Key Persistence\", endpoint, high); PERSIST_STARTUP_FOLDER_ABUSE (\"Startup Folder Persistence\", endpoint, high); PERSIST_STARTUP_FOLDER_IMPLANT (\"Startup Folder Persistence Implant\", endpoint, medium); PERSIST_REGISTRY_RUN_KEY_MASS_WRITE (\"Mass Registry Run Key Write\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1548",
+    "title": "MITRE ATT&CK T1548 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1548 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_PRIVILEGE_ESCALATION_INDICATOR (\"Privilege Escalation Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1548-001",
+    "title": "MITRE ATT&CK T1548.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1548.001 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_PRIVILEGE_ESCALATION_INDICATOR (\"Privilege Escalation Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1548-002",
+    "title": "MITRE ATT&CK T1548.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1548.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_PRIVILEGE_ESCALATION_INDICATOR (\"Privilege Escalation Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1550",
+    "title": "MITRE ATT&CK T1550 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1550 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_ABNORMAL_AUTH_CHAIN (\"Abnormal Authentication Chaining\", endpoint, high); CRED_TOKEN_REPLAY_INDICATOR (\"Token Replay Indicator\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1550-001",
+    "title": "MITRE ATT&CK T1550.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1550.001 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_OAUTH_ABUSE_PROGRESSION (\"OAuth Token Abuse Progression\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1550-002",
+    "title": "MITRE ATT&CK T1550.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1550.002 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_ABNORMAL_AUTH_CHAIN (\"Abnormal Authentication Chaining\", endpoint, high); CRED_PASS_THE_HASH_INDICATOR (\"Pass-the-Hash Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1557",
+    "title": "MITRE ATT&CK T1557 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1557 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_ABNORMAL_AUTH_CHAIN (\"Abnormal Authentication Chaining\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1558",
+    "title": "MITRE ATT&CK T1558 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1558 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_KERBEROS_ANOMALOUS_TGT_REQUEST (\"Anomalous Kerberos TGT Request\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1558-003",
+    "title": "MITRE ATT&CK T1558.003 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1558.003 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CRED_KERBEROS_ANOMALOUS_TGT_REQUEST (\"Anomalous Kerberos TGT Request\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1562",
+    "title": "MITRE ATT&CK T1562 (Impair Defenses) \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1562 (Impair Defenses) is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): cloud, endpoint. Rules: CLOUD_SECURITY_SETTING_MODIFIED (\"Cloud Security Setting Modified\", cloud, high); EVASION_TELEMETRY_DISABLEMENT (\"Telemetry Disablement Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1562-001",
+    "title": "MITRE ATT&CK T1562.001 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1562.001 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_AMSI_BYPASS_INDICATOR (\"AMSI Bypass Indicator (Advisory)\", endpoint, critical); EVASION_TELEMETRY_SUPPRESSION_ATTEMPT (\"Telemetry Suppression Attempt\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1562-004",
+    "title": "MITRE ATT&CK T1562.004 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1562.004 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint, network. Rules: suspicious_allow_after_deny (\"Suspicious Allow After Prior Deny on Same Destination\", network, high); EVASION_TELEMETRY_DISABLEMENT (\"Telemetry Disablement Indicator\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1562-006",
+    "title": "MITRE ATT&CK T1562.006 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1562.006 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: EVASION_TELEMETRY_SUPPRESSION_ATTEMPT (\"Telemetry Suppression Attempt\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1562-007",
+    "title": "MITRE ATT&CK T1562.007 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1562.007 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_SECURITY_SETTING_MODIFIED (\"Cloud Security Setting Modified\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1567",
+    "title": "MITRE ATT&CK T1567 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1567 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): cloud, network. Rules: CLOUD_UNUSUAL_API_ACTIVITY (\"Unusual Cloud API Activity\", cloud, high); UEBA_ABNORMAL_BYTES_OUT (\"Abnormal Outbound Data Volume (UEBA Baseline)\", network, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1567-002",
+    "title": "MITRE ATT&CK T1567.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1567.002 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_MASS_DOWNLOAD (\"Cloud Mass Download\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1568",
+    "title": "MITRE ATT&CK T1568 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1568 is mapped to 3 detection rule(s) in this platform's registry, covering domain(s): endpoint, network, threat-intel. Rules: suspicious_dns_query (\"Suspicious DNS Query\", endpoint, medium); ioc_domain_match (\"Endpoint IOC Domain Match\", threat-intel, high); suspicious_dns_tld (\"Suspicious DNS TLD Query Detected\", network, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1568-002",
+    "title": "MITRE ATT&CK T1568.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1568.002 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint, network. Rules: suspicious_dns_query (\"Suspicious DNS Query\", endpoint, medium); repeated_nxdomain (\"Repeated NXDOMAIN Responses Detected\", network, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1569-002",
+    "title": "MITRE ATT&CK T1569.002 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1569.002 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_ABNORMAL_REMOTE_EXEC (\"Abnormal Remote Execution\", endpoint, high); LATERAL_REMOTE_SERVICE_EXECUTION (\"Remote Service Execution Chain\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1570",
+    "title": "MITRE ATT&CK T1570 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1570 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LATERAL_MULTI_HOST_PROPAGATION (\"Multi-Host Propagation Chain\", endpoint, critical); LATERAL_ADMIN_SHARE_STAGING (\"Admin Share Staging for Lateral Movement\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1571",
+    "title": "MITRE ATT&CK T1571 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1571 is mapped to 5 detection rule(s) in this platform's registry, covering domain(s): endpoint, threat-intel. Rules: suspicious_outbound_connection (\"Suspicious Outbound Network Connection\", endpoint, medium); ioc_ip_match (\"Endpoint IOC IP Match\", threat-intel, high); c2_beacon_pattern (\"Possible C2 Beacon Pattern\", endpoint, high); suspicious_beacon_pattern (\"Suspicious Beacon-like Outbound Pattern\", endpoint, high); multi_host_beacon_pattern (\"Multi-Host Beacon Pattern to Same Destination\", endpoint, critical). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1578",
+    "title": "MITRE ATT&CK T1578 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1578 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): cloud. Rules: CLOUD_RESOURCE_HIJACKING_PATTERN (\"Cloud Resource Hijacking Pattern\", cloud, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1609",
+    "title": "MITRE ATT&CK T1609 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1609 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CONTAINER_SUSPICIOUS_EXEC (\"Suspicious Container Exec\", endpoint, high); CONTAINER_ABNORMAL_RUNTIME (\"Abnormal Container Runtime Behavior\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1610",
+    "title": "MITRE ATT&CK T1610 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1610 is mapped to 2 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: CONTAINER_ABNORMAL_RUNTIME (\"Abnormal Container Runtime Behavior\", endpoint, high); CONTAINER_RUNTIME_DRIFT (\"Container Runtime Drift Anomaly\", endpoint, medium). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1611",
+    "title": "MITRE ATT&CK T1611 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1611 is mapped to 7 detection rule(s) in this platform's registry, covering domain(s): endpoint. Rules: LLTET_CONTAINER_ESCAPE_INDICATOR (\"Container Escape Indicator\", endpoint, critical); CONTAINER_PRIVILEGED_ANOMALY (\"Privileged Container Runtime Anomaly\", endpoint, high); CONTAINER_ESCAPE_INDICATOR (\"Container Escape Indicator\", endpoint, critical); CONTAINER_PRIVESC_CHAIN (\"Container Privilege Escalation Chain\", endpoint, critical); CONTAINER_PRIVILEGED_EXEC_CHAINING (\"Privileged Container Exec Chaining\", endpoint, critical); CONTAINER_ABNORMAL_RUNTIME_PERSISTENCE (\"Abnormal Container Runtime Persistence\", endpoint, critical); CONTAINER_HOST_NETWORK_NAMESPACE_ABUSE (\"Container Host Network Namespace Abuse\", endpoint, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
+  },
+  {
+    "fixture_id": "ti-mitre-t1621",
+    "title": "MITRE ATT&CK T1621 \u2014 Detection Coverage",
+    "category": "threat_intel",
+    "content": "MITRE ATT&CK technique T1621 is mapped to 1 detection rule(s) in this platform's registry, covering domain(s): identity. Rules: CRED_MFA_FATIGUE_PATTERN (\"MFA Fatigue / Push Spam Pattern\", identity, high). Source: bundled offline snapshot of docs/detection/rules/registry.v1.json (registry_version v1) \u2014 not a live MITRE ATT&CK API/TAXII feed or RSS ingestion.",
+    "source": "detection-rule-registry-v1-bundled-offline"
   }
 ]

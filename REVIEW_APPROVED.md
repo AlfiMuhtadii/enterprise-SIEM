@@ -69,6 +69,7 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **INT-AUTH-2** | Add X-Internal-Service-Token validation on GET /dlq in alert-writer and incident-builder | `services/alert-writer-service/main.py`, `services/incident-builder-service/main.py` | High | — |
 | **TEST-1** | Replace trivial ExampleTest assertions with meaningful PHP version, login, and dashboard redirect checks | `tests/Feature/ExampleTest.php`, `tests/Unit/ExampleTest.php` | Low | — |
 | **TEST-2** | Migrate 13 Feature test files to `AssertsAdvisoryOnlyConstraints` trait; remove 5 duplicated inline methods per file | 13 `tests/Feature/*.php` | Low | — |
+| **AI-KB-FEED-INGEST** | Bundled offline MITRE ATT&CK technique-coverage KB import — 103 fixtures derived from the 133-rule registry, imported via existing `AiKnowledgeSeedService` (no live feed, no new service) | `database/seeders/data/rag_knowledge_fixtures.json`, `tests/Feature/AiKnowledgeSeedTest.php` | Low | [#26](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/26) |
 
 ## Notes
 
