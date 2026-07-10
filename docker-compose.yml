@@ -355,6 +355,26 @@ services:
       - ingestion-gateway
     restart: unless-stopped
 
+  log-connector-guardduty:
+    build:
+      context: ./services/log-connector-guardduty
+    container_name: detector-xdr-log-connector-guardduty
+    profiles: ["strangler"]
+    environment:
+      # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
+      XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
+      XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
+      XDR_GUARDDUTY_METRICS_ADDR: ":8098"
+    volumes:
+      # Operator mounts a local sync of their GuardDuty findings-export S3 bucket here
+      # (e.g. `aws s3 sync s3://my-guardduty-bucket ./guardduty-findings` on a cron).
+      - ./guardduty-findings:/data/guardduty-findings
+    ports:
+      - "8098:8098"
+    depends_on:
+      - ingestion-gateway
+    restart: unless-stopped
+
   correlation-worker:
     build:
       context: ./services/correlation-worker

@@ -614,6 +614,44 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   CloudTrail itself (would need SigV4 — a separate, larger effort requiring real AWS
   credentials this environment doesn't have). **Not run**: `docker build`/live smoke test —
   Docker daemon unavailable, the same standing limitation.
+- **Progress (2026-07-10, phase 5):** Second cloud-native connector done — AWS GuardDuty, same
+  file-based-not-live-API scope decision as CloudTrail (live `GetFindings`/`ListFindings`
+  polling needs AWS credentials this environment can't exercise). New standalone service
+  `services/log-connector-guardduty`. **The two connectors are NOT structurally identical
+  despite both being "AWS, file-based, gzip-aware"**: GuardDuty's native "export findings"
+  feature writes **NDJSON — one finding JSON object per line** — a materially different shape
+  from CloudTrail's single `{"Records":[...]}` array per file, so this needed its own
+  `internal/guardduty` parser rather than reusing `internal/cloudtrail`; a line that fails to
+  decode is skipped (poison-line isolation), not fatal to the file. GuardDuty findings also
+  have a genuinely harder field-mapping problem than CloudTrail: **there is no single
+  `sourceIPAddress`-equivalent field** — GuardDuty findings carry different
+  `Service.Action.*` shapes depending on finding `Type` (`NetworkConnectionAction`,
+  `AwsApiCallAction`, `DnsRequestAction`, `KubernetesApiCallAction`, `PortProbeAction` with a
+  nested details array, ...), so `Finding.RemoteIPAddress()` does **best-effort** extraction
+  across the known common shapes and returns empty rather than guessing when a finding's type
+  isn't one of them — documented explicitly as best-effort, not exhaustive, in both the
+  docblock and the README (consistent with this connector framework's stated principle: no
+  vendor-specific field is silently lost, since the full raw finding is always preserved under
+  `guardduty_finding` regardless of what got promoted). Maps onto the same canonical field
+  names the normalizer's generic fallback envelope already recognizes — zero
+  `normalizer-worker` changes needed. **Proactively fixed, not just documented, the
+  state-file-self-scan bug class this session already found once in the CloudTrail
+  connector**: the state-file skip check was written into `scanOnce()` from the very first
+  draft this time (not discovered via a failing test after the fact), and still locked in with
+  the identical dedicated regression test used for CloudTrail, run twice per scan to confirm
+  zero parse errors. Same restart-safe atomic-write state-file pattern, same HMAC sigv2
+  forwarding, same directory-watcher skeleton. Wired into `docker-compose.yml` under
+  `strangler` with a bind-mounted `./guardduty-findings` directory
+  (`docker compose config --quiet` exit 0). +21 Go tests (11 `internal/guardduty` — plain
+  NDJSON, gzip-compressed, raw-field preservation, blank-line skipping, poison-line isolation
+  without aborting the file, empty input, malformed gzip, `RemoteIPAddress()` extraction from
+  both `NetworkConnectionAction` and the nested-array `PortProbeAction` shape, and the
+  no-match/no-action empty-string cases; 10 `main_test.go` — field-promotion mapping, empty
+  source_ip when no action matches, HMAC cross-check, signed-forward, non-2xx error, rescan-skip,
+  the state-file-self-scan regression test, state round-trip across a restart, and the
+  extension-matching helper). `go build`/`go vet`/`go test ./...` clean. **Still open**:
+  O365/GCP connectors, live AWS API polling for either AWS connector (needs SigV4 + real
+  credentials). **Not run**: `docker build`/live smoke test — Docker daemon unavailable.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 
