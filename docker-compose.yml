@@ -425,6 +425,8 @@ services:
       context: ./services/ai-rag-service
     container_name: detector-xdr-ai-rag-service
     profiles: ["strangler"]
+    env_file:
+      - ./.env
     ports:
       - "8094:8094"
     depends_on:

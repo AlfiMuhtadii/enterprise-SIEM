@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"detector-xdr-log-connector-guardduty/internal/guardduty"
+	"detector-xdr-log-connector-guardduty/internal/mtls"
 )
 
 // Connector watches a directory for GuardDuty finding export files, maps
@@ -74,11 +75,37 @@ func main() {
 		tenantID:       env("XDR_GUARDDUTY_TENANT_ID", ""),
 		batchSize:      envInt("XDR_GUARDDUTY_BATCH_SIZE", 100),
 		watchDir:       *watchDir,
-		httpClient:     &http.Client{Timeout: 10 * time.Second},
+		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 		processedFiles: map[string]bool{},
 	}
 	c.stateFile = filepath.Join(c.watchDir, ".guardduty-connector-state.json")
 	c.loadState()
+
+	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
+	// mechanism proven on ingestion-gateway/normalizer-worker/correlation-worker.
+	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	mtlsCA := env("XDR_INTERNAL_MTLS_CA", "")
+	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
+		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
+		mtlsCA,
+	)
+	if err != nil {
+		log.Fatalf("[log-connector-guardduty] internal mTLS server config error: %v", err)
+	}
+	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
+		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
+		mtlsCA,
+	)
+	if err != nil {
+		log.Fatalf("[log-connector-guardduty] internal mTLS client config error: %v", err)
+	}
+	if clientTLSCfg != nil {
+		if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = clientTLSCfg
+		}
+	}
 
 	stop := make(chan struct{})
 	c.startPoller(time.Duration(envInt("XDR_GUARDDUTY_POLL_SECONDS", 30))*time.Second, stop)
@@ -102,6 +129,7 @@ func main() {
 		Addr:              *metricsAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		TLSConfig:         serverTLSCfg,
 	}
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -112,9 +140,15 @@ func main() {
 		_ = server.Close()
 	}()
 
-	log.Printf("[log-connector-guardduty] watching dir=%s metrics=%s ingest=%s", c.watchDir, *metricsAddr, c.ingestURL)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	log.Printf("[log-connector-guardduty] watching dir=%s metrics=%s ingest=%s internal_mtls=%v", c.watchDir, *metricsAddr, c.ingestURL, mtlsEnabled)
+	var serveErr error
+	if serverTLSCfg != nil {
+		serveErr = server.ListenAndServeTLS("", "")
+	} else {
+		serveErr = server.ListenAndServe()
+	}
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		log.Fatal(serveErr)
 	}
 }
 
@@ -340,4 +374,12 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func envBool(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value == "1" || value == "true" || value == "yes"
 }

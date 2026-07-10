@@ -7,8 +7,10 @@ COPY --chown=app:app main.py ./
 COPY --chown=app:app xdr_event_contracts.py ./
 COPY --chown=app:app traceparent.py ./
 COPY --chown=app:app incident_aggregation.py ./
+COPY --chown=app:app docker-entrypoint.sh ./
+COPY --chown=app:app docker-healthcheck.py ./
 USER app
 EXPOSE 8096
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8096/health', timeout=3)" || exit 1
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8096"]
+  CMD python docker-healthcheck.py 8096 || exit 1
+CMD ["sh", "docker-entrypoint.sh", "8096"]

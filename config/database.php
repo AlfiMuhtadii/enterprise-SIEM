@@ -81,7 +81,15 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
-            'sslmode' => 'prefer',
+            // ENT-SEC-NO-TLS-INTERNAL: configurable, default unchanged
+            // ('prefer' — opportunistic TLS, matches prior hardcoded
+            // behavior byte-for-byte). An operator with a real Postgres TLS
+            // setup can tighten this to 'verify-full' via DB_SSLMODE without
+            // a code change. Full mutual TLS (client cert via sslcert/
+            // sslkey/sslrootcert) is NOT wired here — verifying that DSN
+            // path needs a live Postgres server with real certs configured,
+            // which this environment cannot provision or verify.
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
         'sqlsrv' => [

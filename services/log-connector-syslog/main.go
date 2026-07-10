@@ -35,6 +35,7 @@ import (
 
 	"detector-xdr-log-connector-syslog/internal/cef"
 	"detector-xdr-log-connector-syslog/internal/leef"
+	"detector-xdr-log-connector-syslog/internal/mtls"
 	"detector-xdr-log-connector-syslog/internal/registry"
 )
 
@@ -77,8 +78,34 @@ func main() {
 		secret:     env("XDR_INGEST_SECRET", "dev-secret-change-me"),
 		tenantID:   env("XDR_SYSLOG_TENANT_ID", ""),
 		batchSize:  envInt("XDR_SYSLOG_BATCH_SIZE", 50),
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 		registry:   reg,
+	}
+
+	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
+	// mechanism proven on ingestion-gateway/normalizer-worker/correlation-worker.
+	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	mtlsCA := env("XDR_INTERNAL_MTLS_CA", "")
+	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
+		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
+		mtlsCA,
+	)
+	if err != nil {
+		log.Fatalf("[log-connector-syslog] internal mTLS server config error: %v", err)
+	}
+	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
+		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
+		mtlsCA,
+	)
+	if err != nil {
+		log.Fatalf("[log-connector-syslog] internal mTLS client config error: %v", err)
+	}
+	if clientTLSCfg != nil {
+		if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = clientTLSCfg
+		}
 	}
 
 	stop := make(chan struct{})
@@ -111,6 +138,7 @@ func main() {
 		Addr:              *metricsAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		TLSConfig:         serverTLSCfg,
 	}
 	go func() {
 		sigCh := make(chan os.Signal, 1)
@@ -123,9 +151,15 @@ func main() {
 		_ = server.Shutdown(ctx)
 	}()
 
-	log.Printf("[log-connector-syslog] listening udp=%s tcp=%s metrics=%s ingest=%s", *udpAddr, *tcpAddr, *metricsAddr, c.ingestURL)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	log.Printf("[log-connector-syslog] listening udp=%s tcp=%s metrics=%s ingest=%s internal_mtls=%v", *udpAddr, *tcpAddr, *metricsAddr, c.ingestURL, mtlsEnabled)
+	var serveErr error
+	if serverTLSCfg != nil {
+		serveErr = server.ListenAndServeTLS("", "")
+	} else {
+		serveErr = server.ListenAndServe()
+	}
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		log.Fatal(serveErr)
 	}
 }
 
@@ -472,4 +506,12 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func envBool(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value == "1" || value == "true" || value == "yes"
 }
