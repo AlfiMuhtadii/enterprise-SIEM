@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -36,6 +37,7 @@ import (
 	"syscall"
 	"time"
 
+	"detector-xdr-log-connector-cloudtrail/internal/boundedfile"
 	"detector-xdr-log-connector-cloudtrail/internal/cloudtrail"
 	"detector-xdr-log-connector-cloudtrail/internal/deliver"
 	"detector-xdr-log-connector-cloudtrail/internal/mtls"
@@ -53,21 +55,30 @@ type Connector struct {
 	stateFile  string
 	httpClient *http.Client
 
-	mu             sync.Mutex
-	processedFiles map[string]bool
+	mu               sync.Mutex
+	processedFiles   map[string]bool
+	quarantinedFiles map[string]bool
 
 	// CONN-DELIVERY-LOSS: bounded retry before a file is left unprocessed.
 	forwardMaxRetries int
 	forwardRetryBase  time.Duration
 	forwardRetryMax   time.Duration
 
-	filesScanned        atomic.Int64
-	filesSkipped        atomic.Int64
-	recordsParsed       atomic.Int64
-	forwarded           atomic.Int64
-	forwardErrors       atomic.Int64
-	parseErrors         atomic.Int64
-	deliveryFailedFiles atomic.Int64
+	// CONN-UNBOUNDED-FILE: size ceilings. 0 disables the corresponding bound.
+	maxFileBytes      int64
+	maxExpandedBytes  int64
+	maxRecordBytes    int64
+	quarantineLogPath string
+
+	filesScanned            atomic.Int64
+	filesSkipped            atomic.Int64
+	filesQuarantined        atomic.Int64
+	recordsParsed           atomic.Int64
+	oversizedRecordsSkipped atomic.Int64
+	forwarded               atomic.Int64
+	forwardErrors           atomic.Int64
+	parseErrors             atomic.Int64
+	deliveryFailedFiles     atomic.Int64
 }
 
 func main() {
@@ -88,12 +99,18 @@ func main() {
 		watchDir:          *watchDir,
 		httpClient:        &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 		processedFiles:    map[string]bool{},
+		quarantinedFiles:  map[string]bool{},
 		forwardMaxRetries: envInt("XDR_CLOUDTRAIL_FORWARD_MAX_RETRIES", 3),
 		forwardRetryBase:  time.Duration(envInt("XDR_CLOUDTRAIL_FORWARD_RETRY_BASE_MS", 200)) * time.Millisecond,
 		forwardRetryMax:   time.Duration(envInt("XDR_CLOUDTRAIL_FORWARD_RETRY_MAX_MS", 2000)) * time.Millisecond,
+		maxFileBytes:      int64(envInt("XDR_CLOUDTRAIL_MAX_FILE_BYTES", 100*1024*1024)),
+		maxExpandedBytes:  int64(envInt("XDR_CLOUDTRAIL_MAX_EXPANDED_BYTES", 500*1024*1024)),
+		maxRecordBytes:    int64(envInt("XDR_CLOUDTRAIL_MAX_RECORD_BYTES", 1024*1024)),
 	}
 	c.stateFile = filepath.Join(c.watchDir, ".cloudtrail-connector-state.json")
+	c.quarantineLogPath = filepath.Join(c.watchDir, ".cloudtrail-connector-quarantine.jsonl")
 	c.loadState()
+	c.loadQuarantineLog()
 
 	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
 	// mechanism proven on ingestion-gateway/normalizer-worker/correlation-worker.
@@ -130,13 +147,15 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"files_scanned":         c.filesScanned.Load(),
-			"files_skipped":         c.filesSkipped.Load(),
-			"records_parsed":        c.recordsParsed.Load(),
-			"forwarded":             c.forwarded.Load(),
-			"forward_errors":        c.forwardErrors.Load(),
-			"parse_errors":          c.parseErrors.Load(),
-			"delivery_failed_files": c.deliveryFailedFiles.Load(),
+			"files_scanned":             c.filesScanned.Load(),
+			"files_skipped":             c.filesSkipped.Load(),
+			"files_quarantined":         c.filesQuarantined.Load(),
+			"records_parsed":            c.recordsParsed.Load(),
+			"oversized_records_skipped": c.oversizedRecordsSkipped.Load(),
+			"forwarded":                 c.forwarded.Load(),
+			"forward_errors":            c.forwardErrors.Load(),
+			"parse_errors":              c.parseErrors.Load(),
+			"delivery_failed_files":     c.deliveryFailedFiles.Load(),
 		})
 	})
 
@@ -205,7 +224,7 @@ func (c *Connector) scanOnce() {
 			return nil
 		}
 		c.mu.Lock()
-		already := c.processedFiles[path]
+		already := c.processedFiles[path] || c.quarantinedFiles[path]
 		c.mu.Unlock()
 		if already {
 			c.filesSkipped.Add(1)
@@ -235,17 +254,32 @@ func (c *Connector) scanOnce() {
 // their own idempotency keys, not this connector's.
 func (c *Connector) processFile(path string) {
 	c.filesScanned.Add(1)
-	data, err := os.ReadFile(path)
+	data, err := boundedfile.Read(path, c.maxFileBytes)
+	if errors.Is(err, boundedfile.ErrTooLarge) {
+		c.quarantine(path, "file_exceeds_max_file_bytes")
+		return
+	}
 	if err != nil {
 		c.parseErrors.Add(1)
 		log.Printf("[log-connector-cloudtrail] read error path=%s: %v", path, err)
 		return
 	}
-	records, err := cloudtrail.Parse(data)
+	records, oversized, err := cloudtrail.ParseBounded(data, cloudtrail.Limits{
+		MaxExpandedBytes: c.maxExpandedBytes,
+		MaxRecordBytes:   c.maxRecordBytes,
+	})
+	if errors.Is(err, cloudtrail.ErrExpandedTooLarge) {
+		c.quarantine(path, "decompressed_content_exceeds_max_expanded_bytes")
+		return
+	}
 	if err != nil {
 		c.parseErrors.Add(1)
 		log.Printf("[log-connector-cloudtrail] parse error path=%s: %v", path, err)
 		return
+	}
+	if oversized > 0 {
+		c.oversizedRecordsSkipped.Add(int64(oversized))
+		log.Printf("[log-connector-cloudtrail] WARN: skipped %d oversized record(s) (over XDR_CLOUDTRAIL_MAX_RECORD_BYTES) in path=%s — other records in the file were still processed", oversized, path)
 	}
 	c.recordsParsed.Add(int64(len(records)))
 
@@ -402,6 +436,69 @@ func (c *Connector) saveState() {
 		return
 	}
 	_ = os.Rename(tmp, c.stateFile)
+}
+
+// quarantineRecord is one durable, human-readable line in the append-only
+// quarantine log — CONN-UNBOUNDED-FILE's constraint that a rejected file
+// must leave "a durable rejection record suitable for operator recovery",
+// not just a metric bump. The rejected file itself is left in place
+// untouched (never deleted/moved) so an operator can inspect, split, or
+// manually re-import it after investigating.
+type quarantineRecord struct {
+	Path          string `json:"path"`
+	Reason        string `json:"reason"`
+	QuarantinedAt string `json:"quarantined_at"`
+}
+
+// quarantine marks path as permanently skipped (so a multi-GB file isn't
+// re-read and re-rejected on every 30s scan — the "retry policy" the
+// finding requires) and appends a durable, auditable rejection record.
+// Unlike processedFiles, quarantining is a one-way decision: an operator
+// who wants to reconsider a quarantined file must resolve it out-of-band
+// (fix/split the file, raise the limit, or manually forward it) and clear
+// the entry from the quarantine log themselves.
+func (c *Connector) quarantine(path, reason string) {
+	c.filesQuarantined.Add(1)
+	c.mu.Lock()
+	c.quarantinedFiles[path] = true
+	c.mu.Unlock()
+
+	log.Printf("[log-connector-cloudtrail] WARN: quarantined path=%s reason=%s — left in place, not retried; see %s", path, reason, c.quarantineLogPath)
+
+	rec := quarantineRecord{Path: path, Reason: reason, QuarantinedAt: time.Now().UTC().Format(time.RFC3339)}
+	encoded, err := json.Marshal(rec)
+	if err != nil {
+		return
+	}
+	f, err := os.OpenFile(c.quarantineLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	_, _ = f.Write(append(encoded, '\n'))
+}
+
+// loadQuarantineLog restores the quarantined-paths set from a prior run's
+// append-only log so a restart doesn't re-attempt (and re-reject) the same
+// oversized file. Best-effort, matching loadState.
+func (c *Connector) loadQuarantineLog() {
+	data, err := os.ReadFile(c.quarantineLogPath)
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var rec quarantineRecord
+		if err := json.Unmarshal(line, &rec); err != nil {
+			continue
+		}
+		c.quarantinedFiles[rec.Path] = true
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

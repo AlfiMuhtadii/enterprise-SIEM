@@ -42,6 +42,9 @@ audit data is nested inside `protoPayload` (a
 | `XDR_GCP_AUDIT_FORWARD_MAX_RETRIES` | `3` | CONN-DELIVERY-LOSS: max forward attempts per batch before the source file is left unprocessed for retry on the next scan |
 | `XDR_GCP_AUDIT_FORWARD_RETRY_BASE_MS` | `200` | CONN-DELIVERY-LOSS: initial retry backoff (doubles each attempt, capped at `_RETRY_MAX_MS`) |
 | `XDR_GCP_AUDIT_FORWARD_RETRY_MAX_MS` | `2000` | CONN-DELIVERY-LOSS: retry backoff cap |
+| `XDR_GCP_AUDIT_MAX_FILE_BYTES` | `104857600` (100 MiB) | CONN-UNBOUNDED-FILE: on-disk (compressed) file size ceiling; a file over this is quarantined without being read further. `0` disables the bound |
+| `XDR_GCP_AUDIT_MAX_EXPANDED_BYTES` | `524288000` (500 MiB) | CONN-UNBOUNDED-FILE: gzip-decompressed size ceiling — the compression-bomb defense; exceeding it quarantines the file. `0` disables the bound |
+| `XDR_GCP_AUDIT_MAX_RECORD_BYTES` | `1048576` (1 MiB) | CONN-UNBOUNDED-FILE: single NDJSON-line size ceiling; an oversized line is skipped and counted (`oversized_records_skipped` metric) but does not quarantine the rest of the file. `0` disables the bound |
 
 ## Restart-safe file tracking
 
@@ -56,6 +59,19 @@ independently of any other file's, never mixed into a shared cross-file
 buffer, so a file is either fully acknowledged or left entirely
 unprocessed for retry on the next scan; there is no partial-file
 checkpoint.
+
+## Size ceilings and quarantine (CONN-UNBOUNDED-FILE)
+
+Same mechanism as `log-connector-cloudtrail`/`-guardduty`: a file over
+`XDR_GCP_AUDIT_MAX_FILE_BYTES` (on disk) or `XDR_GCP_AUDIT_MAX_EXPANDED_BYTES`
+(after gzip decompression) is quarantined — left in place, recorded in
+`<watch-dir>/.gcp-audit-connector-quarantine.jsonl` (append-only,
+`path`/`reason`/`quarantined_at`), and never re-attempted after a restart.
+Since `hasAuditLogExtension` accepts `.jsonl`, the quarantine log itself is
+explicitly excluded from scanning the same way the state file is. A single
+oversized NDJSON line within an otherwise-acceptable file is skipped and
+counted (`oversized_records_skipped`) without invalidating the rest of the
+file.
 
 ## Field mapping
 

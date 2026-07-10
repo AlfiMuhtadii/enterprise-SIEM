@@ -144,15 +144,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Safety:** Real validation harness only; advisory-only records preserved; no autonomous action;
   append-only tables untouched.
 
-## Proposed Task: CONN-UNBOUNDED-FILE - Stream and bound cloud-export file ingestion
-
-- **Priority:** High
-- **Component:** `services/log-connector-{cloudtrail,guardduty,gcp-audit}` parsers and file scanners
-- **Finding:** Each connector calls `os.ReadFile()` and compressed parsers call `io.ReadAll()` without compressed or decompressed size ceilings. One oversized file or compression bomb can exhaust memory and restart-loop the connector.
-- **Required outcome:** Parse from streaming readers with configurable compressed and expanded byte limits; bound record/line size; quarantine oversized or malformed files with an auditable reason and retry policy; publish rejection metrics without blocking later files.
-- **Required tests:** Oversized plain file, gzip expansion limit, oversized single record, malformed file followed by a valid file, and stable memory behavior under a large multi-record fixture.
-- **Constraint:** Do not silently skip poison records. Preserve evidence or a durable rejection record suitable for operator recovery.
-
 
 
 

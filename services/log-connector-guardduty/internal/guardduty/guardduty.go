@@ -15,8 +15,28 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"io"
 )
+
+// ErrExpandedTooLarge is returned by ParseBounded when a gzip-compressed
+// file's decompressed content exceeds Limits.MaxExpandedBytes — the
+// defense against a compression-bomb export file (CONN-UNBOUNDED-FILE).
+var ErrExpandedTooLarge = errors.New("decompressed content exceeds configured size limit")
+
+// Limits bounds ParseBounded's resource usage. Zero value means "no limit"
+// on that dimension, matching Parse's original unbounded behavior.
+type Limits struct {
+	// MaxExpandedBytes caps how much decompressed data a gzip-compressed
+	// file is allowed to produce. 0 = unlimited.
+	MaxExpandedBytes int64
+	// MaxRecordBytes caps a single NDJSON line's byte length. A line over
+	// this limit is counted in the returned oversizedRecords count and
+	// skipped WITHOUT being unmarshaled — the caller is expected to
+	// surface that count (metric/log/quarantine record), not treat it as
+	// a silent drop. 0 = unlimited.
+	MaxRecordBytes int64
+}
 
 // Finding is one parsed GuardDuty finding. Resource/Service are kept as raw
 // maps (not deeply typed structs) since their shape varies significantly by
@@ -44,20 +64,35 @@ type Finding struct {
 // magic bytes 0x1f 0x8b, the default GuardDuty S3 export format). A line
 // that fails to decode is skipped rather than aborting the whole file — one
 // poison line must not block every other finding in the same export.
+// Equivalent to ParseBounded with no limits.
 func Parse(data []byte) ([]Finding, error) {
+	findings, _, err := ParseBounded(data, Limits{})
+	return findings, err
+}
+
+// ParseBounded is Parse with CONN-UNBOUNDED-FILE size ceilings: gzip
+// expansion is capped at limits.MaxExpandedBytes (ErrExpandedTooLarge if
+// exceeded), and any NDJSON line whose byte length exceeds
+// limits.MaxRecordBytes is skipped and counted in the returned
+// oversizedRecords BEFORE any unmarshal is attempted on it.
+func ParseBounded(data []byte, limits Limits) (findings []Finding, oversizedRecords int, err error) {
 	if isGzip(data) {
-		decompressed, err := gunzip(data)
-		if err != nil {
-			return nil, err
+		decompressed, gzErr := gunzip(data, limits.MaxExpandedBytes)
+		if gzErr != nil {
+			return nil, 0, gzErr
 		}
 		data = decompressed
 	}
 
 	lines := bytes.Split(data, []byte("\n"))
-	findings := make([]Finding, 0, len(lines))
+	findings = make([]Finding, 0, len(lines))
 	for _, line := range lines {
 		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
+			continue
+		}
+		if limits.MaxRecordBytes > 0 && int64(len(line)) > limits.MaxRecordBytes {
+			oversizedRecords++
 			continue
 		}
 		var raw map[string]any
@@ -72,7 +107,7 @@ func Parse(data []byte) ([]Finding, error) {
 		findings = append(findings, f)
 	}
 
-	return findings, nil
+	return findings, oversizedRecords, nil
 }
 
 // RemoteIPAddress best-effort extracts a remote IP from whichever
@@ -129,11 +164,23 @@ func isGzip(data []byte) bool {
 	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 }
 
-func gunzip(data []byte) ([]byte, error) {
+func gunzip(data []byte, maxExpandedBytes int64) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = r.Close() }()
-	return io.ReadAll(r)
+
+	if maxExpandedBytes <= 0 {
+		return io.ReadAll(r)
+	}
+
+	out, err := io.ReadAll(io.LimitReader(r, maxExpandedBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > maxExpandedBytes {
+		return nil, ErrExpandedTooLarge
+	}
+	return out, nil
 }

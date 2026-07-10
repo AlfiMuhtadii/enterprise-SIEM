@@ -19,8 +19,26 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"io"
 )
+
+// ErrExpandedTooLarge is returned by ParseBounded when a gzip-compressed
+// file's decompressed content exceeds Limits.MaxExpandedBytes — the
+// defense against a compression-bomb export file (CONN-UNBOUNDED-FILE).
+var ErrExpandedTooLarge = errors.New("decompressed content exceeds configured size limit")
+
+// Limits bounds ParseBounded's resource usage. Zero value means "no limit"
+// on that dimension, matching Parse's original unbounded behavior.
+type Limits struct {
+	// MaxExpandedBytes caps how much decompressed data a gzip-compressed
+	// file is allowed to produce. 0 = unlimited.
+	MaxExpandedBytes int64
+	// MaxRecordBytes caps a single NDJSON line's byte length. A line over
+	// this limit is counted in the returned oversizedRecords count and
+	// skipped WITHOUT being unmarshaled. 0 = unlimited.
+	MaxRecordBytes int64
+}
 
 // Resource is the GCP monitored-resource block identifying what emitted
 // the log entry (project, bucket, instance, ...).
@@ -47,21 +65,36 @@ type LogEntry struct {
 // per line), optionally gzip-compressed (detected via the gzip magic bytes
 // 0x1f 0x8b — GCP sinks write plain JSON by default, gzip only if the sink
 // destination is configured that way). A line that fails to decode is
-// skipped rather than aborting the whole file.
+// skipped rather than aborting the whole file. Equivalent to ParseBounded
+// with no limits.
 func Parse(data []byte) ([]LogEntry, error) {
+	entries, _, err := ParseBounded(data, Limits{})
+	return entries, err
+}
+
+// ParseBounded is Parse with CONN-UNBOUNDED-FILE size ceilings: gzip
+// expansion is capped at limits.MaxExpandedBytes (ErrExpandedTooLarge if
+// exceeded), and any NDJSON line whose byte length exceeds
+// limits.MaxRecordBytes is skipped and counted in the returned
+// oversizedRecords BEFORE any unmarshal is attempted on it.
+func ParseBounded(data []byte, limits Limits) (entries []LogEntry, oversizedRecords int, err error) {
 	if isGzip(data) {
-		decompressed, err := gunzip(data)
-		if err != nil {
-			return nil, err
+		decompressed, gzErr := gunzip(data, limits.MaxExpandedBytes)
+		if gzErr != nil {
+			return nil, 0, gzErr
 		}
 		data = decompressed
 	}
 
 	lines := bytes.Split(data, []byte("\n"))
-	entries := make([]LogEntry, 0, len(lines))
+	entries = make([]LogEntry, 0, len(lines))
 	for _, line := range lines {
 		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
+			continue
+		}
+		if limits.MaxRecordBytes > 0 && int64(len(line)) > limits.MaxRecordBytes {
+			oversizedRecords++
 			continue
 		}
 		var raw map[string]any
@@ -76,7 +109,7 @@ func Parse(data []byte) ([]LogEntry, error) {
 		entries = append(entries, e)
 	}
 
-	return entries, nil
+	return entries, oversizedRecords, nil
 }
 
 // MethodName returns protoPayload.methodName (e.g. "storage.objects.get"),
@@ -148,11 +181,23 @@ func isGzip(data []byte) bool {
 	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 }
 
-func gunzip(data []byte) ([]byte, error) {
+func gunzip(data []byte, maxExpandedBytes int64) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = r.Close() }()
-	return io.ReadAll(r)
+
+	if maxExpandedBytes <= 0 {
+		return io.ReadAll(r)
+	}
+
+	out, err := io.ReadAll(io.LimitReader(r, maxExpandedBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > maxExpandedBytes {
+		return nil, ErrExpandedTooLarge
+	}
+	return out, nil
 }

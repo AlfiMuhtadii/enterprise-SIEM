@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -298,8 +300,10 @@ func newDeliveryTestConnector(t *testing.T, dir, ingestURL string, batchSize int
 		batchSize:         batchSize,
 		watchDir:          dir,
 		stateFile:         filepath.Join(dir, ".state.json"),
+		quarantineLogPath: filepath.Join(dir, ".quarantine.jsonl"),
 		httpClient:        &http.Client{Timeout: 5 * time.Second},
 		processedFiles:    map[string]bool{},
+		quarantinedFiles:  map[string]bool{},
 		forwardMaxRetries: 3,
 		forwardRetryBase:  time.Millisecond,
 		forwardRetryMax:   5 * time.Millisecond,
@@ -434,5 +438,232 @@ func TestProcessFileMultiBatchMiddleBatchFailureLeavesFileUnprocessed(t *testing
 	}
 	if c.forwarded.Load() != 2 {
 		t.Errorf("expected the first (successful) batch's 2 findings to be counted as forwarded, got %d", c.forwarded.Load())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CONN-UNBOUNDED-FILE: size ceilings, quarantine, and rejection metrics.
+// ---------------------------------------------------------------------------
+
+func TestProcessFileQuarantinesOversizedPlainFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "huge.json")
+	if err := os.WriteFile(path, []byte(`{"Id":"x","Type":"`+strings.Repeat("a", 10000)+`"}`), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("forward must never be called for a quarantined oversized file")
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.maxFileBytes = 1000
+	c.processFile(path)
+
+	if c.filesQuarantined.Load() != 1 {
+		t.Fatalf("expected filesQuarantined=1, got %d", c.filesQuarantined.Load())
+	}
+	c.mu.Lock()
+	quarantined := c.quarantinedFiles[path]
+	c.mu.Unlock()
+	if !quarantined {
+		t.Error("expected the oversized file to be recorded as quarantined")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("expected the original file to be left in place, got stat error: %v", err)
+	}
+
+	data, err := os.ReadFile(c.quarantineLogPath)
+	if err != nil {
+		t.Fatalf("expected a durable quarantine log to be written: %v", err)
+	}
+	if !bytes.Contains(data, []byte("file_exceeds_max_file_bytes")) {
+		t.Errorf("expected the quarantine record to name the reason, got: %s", data)
+	}
+}
+
+func TestScanOnceNeverRetriesAQuarantinedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "huge.json")
+	if err := os.WriteFile(path, []byte(`{"Id":"x","Type":"`+strings.Repeat("a", 10000)+`"}`), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.maxFileBytes = 1000
+	c.scanOnce()
+	if c.filesQuarantined.Load() != 1 {
+		t.Fatalf("expected filesQuarantined=1 after first scan, got %d", c.filesQuarantined.Load())
+	}
+
+	c.scanOnce()
+	if c.filesQuarantined.Load() != 1 {
+		t.Errorf("expected filesQuarantined to stay at 1 (no re-quarantine attempt), got %d", c.filesQuarantined.Load())
+	}
+	if c.filesScanned.Load() != 1 {
+		t.Errorf("expected filesScanned=1 (only the first scan actually read the file), got %d", c.filesScanned.Load())
+	}
+}
+
+func TestQuarantineIsRestartSafeAcrossConnectorInstances(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "huge.json")
+	if err := os.WriteFile(path, []byte(`{"Id":"x","Type":"`+strings.Repeat("a", 10000)+`"}`), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	c1 := newDeliveryTestConnector(t, dir, "http://unused.invalid", 100)
+	c1.maxFileBytes = 1000
+	c1.processFile(path)
+
+	c2 := newDeliveryTestConnector(t, dir, "http://unused.invalid", 100)
+	c2.maxFileBytes = 1000
+	c2.loadQuarantineLog()
+	c2.scanOnce()
+
+	if c2.filesScanned.Load() != 0 {
+		t.Errorf("expected the restarted connector to load the quarantine record and skip the file, got filesScanned=%d", c2.filesScanned.Load())
+	}
+}
+
+func TestProcessFileQuarantinesGzipExpansionOverLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bomb.json.gz")
+	huge := bytes.Repeat([]byte("A"), 5_000_000)
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write([]byte(`{"Id":"x","Type":"` + string(huge) + `"}`)); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("forward must never be called for a quarantined compression-bomb file")
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.maxExpandedBytes = 1_000_000
+	c.processFile(path)
+
+	if c.filesQuarantined.Load() != 1 {
+		t.Fatalf("expected filesQuarantined=1, got %d", c.filesQuarantined.Load())
+	}
+	data, err := os.ReadFile(c.quarantineLogPath)
+	if err != nil {
+		t.Fatalf("expected a durable quarantine log to be written: %v", err)
+	}
+	if !bytes.Contains(data, []byte("decompressed_content_exceeds_max_expanded_bytes")) {
+		t.Errorf("expected the quarantine record to name the expansion-limit reason, got: %s", data)
+	}
+}
+
+func TestProcessFileSkipsOversizedRecordButStillForwardsOthers(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mixed.json")
+	hugeLine := `{"Id":"finding-huge","Type":"` + strings.Repeat("x", 5000) + `"}`
+	content := `{"Id":"finding-small1"}` + "\n" + hugeLine + "\n" + `{"Id":"finding-small2"}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	var captured []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&captured)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.maxRecordBytes = 500
+	c.processFile(path)
+
+	if c.oversizedRecordsSkipped.Load() != 1 {
+		t.Fatalf("expected oversizedRecordsSkipped=1, got %d", c.oversizedRecordsSkipped.Load())
+	}
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if !processed {
+		t.Error("expected the file to still be marked processed — an oversized single record doesn't invalidate the rest of the file")
+	}
+	if len(captured) != 2 {
+		t.Fatalf("expected the 2 small findings to be forwarded, got %d: %+v", len(captured), captured)
+	}
+}
+
+func TestScanOnceMalformedFileDoesNotBlockSubsequentValidFile(t *testing.T) {
+	dir := t.TempDir()
+	malformedPath := filepath.Join(dir, "a-malformed.json")
+	validPath := filepath.Join(dir, "b-valid.json")
+	if err := os.WriteFile(malformedPath, []byte("not json at all { { {"), 0o644); err != nil {
+		t.Fatalf("write malformed fixture: %v", err)
+	}
+	writeSampleFindingsFile(t, validPath)
+
+	var forwardedCount int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardedCount++
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.scanOnce()
+
+	if forwardedCount != 1 {
+		t.Errorf("expected the valid file to still be forwarded despite the malformed file in the same scan, got %d forward calls", forwardedCount)
+	}
+	c.mu.Lock()
+	validProcessed := c.processedFiles[validPath]
+	c.mu.Unlock()
+	if !validProcessed {
+		t.Error("expected the valid file to be marked processed")
+	}
+}
+
+func TestProcessFileStableAcrossLargeMultiRecordFixture(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "large.json")
+	const n = 3000
+	writeMultiFindingFile(t, path, n)
+
+	var totalForwarded int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var batch []map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&batch)
+		totalForwarded += len(batch)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 200)
+	c.maxFileBytes = 50 * 1024 * 1024
+	c.maxExpandedBytes = 50 * 1024 * 1024
+	c.maxRecordBytes = 1024 * 1024
+	c.processFile(path)
+
+	if c.filesQuarantined.Load() != 0 {
+		t.Errorf("expected no quarantine for a well-formed large fixture within limits, got %d", c.filesQuarantined.Load())
+	}
+	if totalForwarded != n {
+		t.Fatalf("expected all %d findings forwarded across batches, got %d", n, totalForwarded)
+	}
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if !processed {
+		t.Error("expected the large file to be marked processed after full delivery")
 	}
 }

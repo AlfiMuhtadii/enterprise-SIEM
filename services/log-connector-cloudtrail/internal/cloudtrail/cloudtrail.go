@@ -12,8 +12,28 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"io"
 )
+
+// ErrExpandedTooLarge is returned by ParseBounded when a gzip-compressed
+// file's decompressed content exceeds Limits.MaxExpandedBytes — the
+// defense against a compression-bomb export file (CONN-UNBOUNDED-FILE).
+var ErrExpandedTooLarge = errors.New("decompressed content exceeds configured size limit")
+
+// Limits bounds ParseBounded's resource usage. Zero value means "no limit"
+// on that dimension, matching Parse's original unbounded behavior.
+type Limits struct {
+	// MaxExpandedBytes caps how much decompressed data a gzip-compressed
+	// file is allowed to produce. 0 = unlimited.
+	MaxExpandedBytes int64
+	// MaxRecordBytes caps the re-marshaled JSON size of a single Records[]
+	// entry. An entry over this limit is counted in the returned
+	// oversizedRecords count and skipped (not silently discarded — the
+	// caller is expected to log/quarantine using that count), never
+	// unmarshaled into the typed struct. 0 = unlimited.
+	MaxRecordBytes int64
+}
 
 // UserIdentity is the CloudTrail record's actor-identity block. Only the
 // fields commonly populated across identity types (IAMUser, AssumedRole,
@@ -60,23 +80,37 @@ type recordBatch struct {
 // Parse decodes a CloudTrail export file. data may be gzip-compressed (the
 // default CloudTrail S3 export format, detected via the gzip magic bytes
 // 0x1f 0x8b) or plain JSON — the caller does not need to know which.
+// Equivalent to ParseBounded with no limits.
 func Parse(data []byte) ([]Record, error) {
+	records, _, err := ParseBounded(data, Limits{})
+	return records, err
+}
+
+// ParseBounded is Parse with CONN-UNBOUNDED-FILE size ceilings: gzip
+// expansion is capped at limits.MaxExpandedBytes (ErrExpandedTooLarge if
+// exceeded — the file is rejected wholesale, since an export whose
+// decompressed size can't even be measured safely can't be partially
+// trusted), and any individual Records[] entry whose re-marshaled size
+// exceeds limits.MaxRecordBytes is skipped and counted in the returned
+// oversizedRecords rather than unmarshaled — the caller is expected to
+// surface that count (metric/log/quarantine record), not treat it as a
+// silent drop.
+func ParseBounded(data []byte, limits Limits) (records []Record, oversizedRecords int, err error) {
 	if isGzip(data) {
-		decompressed, err := gunzip(data)
-		if err != nil {
-			return nil, err
+		decompressed, gzErr := gunzip(data, limits.MaxExpandedBytes)
+		if gzErr != nil {
+			return nil, 0, gzErr
 		}
 		data = decompressed
 	}
 
 	var batch recordBatch
 	if err := json.Unmarshal(data, &batch); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	records := make([]Record, 0, len(batch.Records))
+	records = make([]Record, 0, len(batch.Records))
 	for _, raw := range batch.Records {
-		var rec Record
 		// Re-marshal/unmarshal the individual record map into the typed
 		// struct so unknown/varying fields (requestParameters, etc.) are
 		// simply ignored by the typed decode while still available raw.
@@ -84,6 +118,11 @@ func Parse(data []byte) ([]Record, error) {
 		if err != nil {
 			continue
 		}
+		if limits.MaxRecordBytes > 0 && int64(len(encoded)) > limits.MaxRecordBytes {
+			oversizedRecords++
+			continue
+		}
+		var rec Record
 		if err := json.Unmarshal(encoded, &rec); err != nil {
 			continue
 		}
@@ -91,18 +130,30 @@ func Parse(data []byte) ([]Record, error) {
 		records = append(records, rec)
 	}
 
-	return records, nil
+	return records, oversizedRecords, nil
 }
 
 func isGzip(data []byte) bool {
 	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 }
 
-func gunzip(data []byte) ([]byte, error) {
+func gunzip(data []byte, maxExpandedBytes int64) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = r.Close() }()
-	return io.ReadAll(r)
+
+	if maxExpandedBytes <= 0 {
+		return io.ReadAll(r)
+	}
+
+	out, err := io.ReadAll(io.LimitReader(r, maxExpandedBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(out)) > maxExpandedBytes {
+		return nil, ErrExpandedTooLarge
+	}
+	return out, nil
 }

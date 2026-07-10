@@ -136,3 +136,106 @@ func TestParseSkipsRecordThatFailsToRemarshal(t *testing.T) {
 		t.Fatalf("unexpected records: %+v", records)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CONN-UNBOUNDED-FILE: ParseBounded size ceilings.
+// ---------------------------------------------------------------------------
+
+func gzipCompress(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestParseBoundedZeroLimitsMatchesUnboundedParse(t *testing.T) {
+	records, oversized, err := ParseBounded([]byte(sampleRecord), Limits{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 0 {
+		t.Errorf("expected 0 oversized records with no limit, got %d", oversized)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(records))
+	}
+}
+
+func TestParseBoundedRejectsGzipExpansionOverLimit(t *testing.T) {
+	// A highly compressible payload: small on the wire, large once
+	// decompressed -- the compression-bomb shape the finding calls out.
+	huge := bytes.Repeat([]byte("A"), 10_000_000)
+	compressed := gzipCompress(t, huge)
+
+	_, _, err := ParseBounded(compressed, Limits{MaxExpandedBytes: 1_000_000})
+	if err != ErrExpandedTooLarge {
+		t.Fatalf("expected ErrExpandedTooLarge, got: %v", err)
+	}
+}
+
+func TestParseBoundedAllowsGzipExpansionUnderLimit(t *testing.T) {
+	compressed := gzipCompress(t, []byte(sampleRecord))
+
+	records, _, err := ParseBounded(compressed, Limits{MaxExpandedBytes: 1_000_000})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records, got %d", len(records))
+	}
+}
+
+func TestParseBoundedSkipsOversizedSingleRecordButKeepsOthers(t *testing.T) {
+	hugeValue := string(bytes.Repeat([]byte("x"), 5000))
+	batch := `{"Records": [
+		{"eventName": "Small1"},
+		{"eventName": "Huge", "requestParameters": {"blob": "` + hugeValue + `"}},
+		{"eventName": "Small2"}
+	]}`
+
+	records, oversized, err := ParseBounded([]byte(batch), Limits{MaxRecordBytes: 500})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 1 {
+		t.Fatalf("expected exactly 1 oversized record counted, got %d", oversized)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected the 2 small records to still be parsed, got %d: %+v", len(records), records)
+	}
+	for _, r := range records {
+		if r.EventName == "Huge" {
+			t.Fatalf("the oversized record must not appear in the parsed results")
+		}
+	}
+}
+
+func TestParseBoundedStableUnderLargeMultiRecordFixture(t *testing.T) {
+	var sb bytes.Buffer
+	sb.WriteString(`{"Records": [`)
+	const n = 5000
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString(`{"eventName": "Event", "eventID": "evt"}`)
+	}
+	sb.WriteString(`]}`)
+
+	records, oversized, err := ParseBounded(sb.Bytes(), Limits{MaxRecordBytes: 1_000_000, MaxExpandedBytes: 50_000_000})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 0 {
+		t.Errorf("expected 0 oversized records, got %d", oversized)
+	}
+	if len(records) != n {
+		t.Fatalf("expected %d records, got %d", n, len(records))
+	}
+}

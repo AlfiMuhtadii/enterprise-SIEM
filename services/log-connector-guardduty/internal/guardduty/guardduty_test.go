@@ -124,3 +124,98 @@ func TestRemoteIPAddressReturnsEmptyWhenNoServiceAction(t *testing.T) {
 		t.Fatalf("expected empty string, got %q", ip)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CONN-UNBOUNDED-FILE: ParseBounded size ceilings.
+// ---------------------------------------------------------------------------
+
+func gzipCompress(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestParseBoundedZeroLimitsMatchesUnboundedParse(t *testing.T) {
+	findings, oversized, err := ParseBounded([]byte(sampleNDJSON), Limits{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 0 {
+		t.Errorf("expected 0 oversized records with no limit, got %d", oversized)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(findings))
+	}
+}
+
+func TestParseBoundedRejectsGzipExpansionOverLimit(t *testing.T) {
+	huge := bytes.Repeat([]byte("A"), 10_000_000)
+	compressed := gzipCompress(t, huge)
+
+	_, _, err := ParseBounded(compressed, Limits{MaxExpandedBytes: 1_000_000})
+	if err != ErrExpandedTooLarge {
+		t.Fatalf("expected ErrExpandedTooLarge, got: %v", err)
+	}
+}
+
+func TestParseBoundedAllowsGzipExpansionUnderLimit(t *testing.T) {
+	compressed := gzipCompress(t, []byte(sampleNDJSON))
+
+	findings, _, err := ParseBounded(compressed, Limits{MaxExpandedBytes: 1_000_000})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(findings))
+	}
+}
+
+func TestParseBoundedSkipsOversizedLineButKeepsOthers(t *testing.T) {
+	hugeLine := `{"Id":"finding-huge","Type":"` + string(bytes.Repeat([]byte("x"), 5000)) + `"}`
+	data := `{"Id":"finding-small1"}` + "\n" + hugeLine + "\n" + `{"Id":"finding-small2"}`
+
+	findings, oversized, err := ParseBounded([]byte(data), Limits{MaxRecordBytes: 500})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 1 {
+		t.Fatalf("expected exactly 1 oversized record counted, got %d", oversized)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("expected the 2 small findings to still be parsed, got %d: %+v", len(findings), findings)
+	}
+	for _, f := range findings {
+		if f.ID == "finding-huge" {
+			t.Fatalf("the oversized line must not appear in the parsed results")
+		}
+	}
+}
+
+func TestParseBoundedStableUnderLargeMultiRecordFixture(t *testing.T) {
+	var sb bytes.Buffer
+	const n = 5000
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(`{"Id":"finding","Type":"Test"}`)
+	}
+
+	findings, oversized, err := ParseBounded(sb.Bytes(), Limits{MaxRecordBytes: 1_000_000, MaxExpandedBytes: 50_000_000})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if oversized != 0 {
+		t.Errorf("expected 0 oversized records, got %d", oversized)
+	}
+	if len(findings) != n {
+		t.Fatalf("expected %d findings, got %d", n, len(findings))
+	}
+}

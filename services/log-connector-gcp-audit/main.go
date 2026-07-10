@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -36,6 +37,7 @@ import (
 	"syscall"
 	"time"
 
+	"detector-xdr-log-connector-gcp-audit/internal/boundedfile"
 	"detector-xdr-log-connector-gcp-audit/internal/deliver"
 	"detector-xdr-log-connector-gcp-audit/internal/gcpaudit"
 	"detector-xdr-log-connector-gcp-audit/internal/mtls"
@@ -57,16 +59,25 @@ type Connector struct {
 	forwardRetryBase  time.Duration
 	forwardRetryMax   time.Duration
 
-	mu             sync.Mutex
-	processedFiles map[string]bool
+	// CONN-UNBOUNDED-FILE: size ceilings. 0 disables the corresponding bound.
+	maxFileBytes      int64
+	maxExpandedBytes  int64
+	maxRecordBytes    int64
+	quarantineLogPath string
 
-	filesScanned        atomic.Int64
-	filesSkipped        atomic.Int64
-	entriesParsed       atomic.Int64
-	forwarded           atomic.Int64
-	forwardErrors       atomic.Int64
-	parseErrors         atomic.Int64
-	deliveryFailedFiles atomic.Int64
+	mu               sync.Mutex
+	processedFiles   map[string]bool
+	quarantinedFiles map[string]bool
+
+	filesScanned            atomic.Int64
+	filesSkipped            atomic.Int64
+	filesQuarantined        atomic.Int64
+	entriesParsed           atomic.Int64
+	oversizedRecordsSkipped atomic.Int64
+	forwarded               atomic.Int64
+	forwardErrors           atomic.Int64
+	parseErrors             atomic.Int64
+	deliveryFailedFiles     atomic.Int64
 }
 
 func main() {
@@ -87,12 +98,18 @@ func main() {
 		watchDir:          *watchDir,
 		httpClient:        &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 		processedFiles:    map[string]bool{},
+		quarantinedFiles:  map[string]bool{},
 		forwardMaxRetries: envInt("XDR_GCP_AUDIT_FORWARD_MAX_RETRIES", 3),
 		forwardRetryBase:  time.Duration(envInt("XDR_GCP_AUDIT_FORWARD_RETRY_BASE_MS", 200)) * time.Millisecond,
 		forwardRetryMax:   time.Duration(envInt("XDR_GCP_AUDIT_FORWARD_RETRY_MAX_MS", 2000)) * time.Millisecond,
+		maxFileBytes:      int64(envInt("XDR_GCP_AUDIT_MAX_FILE_BYTES", 100*1024*1024)),
+		maxExpandedBytes:  int64(envInt("XDR_GCP_AUDIT_MAX_EXPANDED_BYTES", 500*1024*1024)),
+		maxRecordBytes:    int64(envInt("XDR_GCP_AUDIT_MAX_RECORD_BYTES", 1024*1024)),
 	}
 	c.stateFile = filepath.Join(c.watchDir, ".gcp-audit-connector-state.json")
+	c.quarantineLogPath = filepath.Join(c.watchDir, ".gcp-audit-connector-quarantine.jsonl")
 	c.loadState()
+	c.loadQuarantineLog()
 
 	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
 	// mechanism proven on ingestion-gateway/normalizer-worker/correlation-worker.
@@ -129,13 +146,15 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"files_scanned":         c.filesScanned.Load(),
-			"files_skipped":         c.filesSkipped.Load(),
-			"entries_parsed":        c.entriesParsed.Load(),
-			"forwarded":             c.forwarded.Load(),
-			"forward_errors":        c.forwardErrors.Load(),
-			"parse_errors":          c.parseErrors.Load(),
-			"delivery_failed_files": c.deliveryFailedFiles.Load(),
+			"files_scanned":             c.filesScanned.Load(),
+			"files_skipped":             c.filesSkipped.Load(),
+			"files_quarantined":         c.filesQuarantined.Load(),
+			"entries_parsed":            c.entriesParsed.Load(),
+			"oversized_records_skipped": c.oversizedRecordsSkipped.Load(),
+			"forwarded":                 c.forwarded.Load(),
+			"forward_errors":            c.forwardErrors.Load(),
+			"parse_errors":              c.parseErrors.Load(),
+			"delivery_failed_files":     c.deliveryFailedFiles.Load(),
 		})
 	})
 
@@ -195,11 +214,14 @@ func (c *Connector) scanOnce() {
 		if !hasAuditLogExtension(path) {
 			return nil
 		}
-		if path == c.stateFile || path == c.stateFile+".tmp" {
+		// The quarantine log (.jsonl) needs its own exclusion here since it
+		// matches hasAuditLogExtension, unlike cloudtrail's narrower
+		// .json/.json.gz-only filter.
+		if path == c.stateFile || path == c.stateFile+".tmp" || path == c.quarantineLogPath {
 			return nil
 		}
 		c.mu.Lock()
-		already := c.processedFiles[path]
+		already := c.processedFiles[path] || c.quarantinedFiles[path]
 		c.mu.Unlock()
 		if already {
 			c.filesSkipped.Add(1)
@@ -234,17 +256,32 @@ func hasAuditLogExtension(path string) bool {
 // checkpoint-write ordering is correct.
 func (c *Connector) processFile(path string) {
 	c.filesScanned.Add(1)
-	data, err := os.ReadFile(path)
+	data, err := boundedfile.Read(path, c.maxFileBytes)
+	if errors.Is(err, boundedfile.ErrTooLarge) {
+		c.quarantine(path, "file_exceeds_max_file_bytes")
+		return
+	}
 	if err != nil {
 		c.parseErrors.Add(1)
 		log.Printf("[log-connector-gcp-audit] read error path=%s: %v", path, err)
 		return
 	}
-	entries, err := gcpaudit.Parse(data)
+	entries, oversized, err := gcpaudit.ParseBounded(data, gcpaudit.Limits{
+		MaxExpandedBytes: c.maxExpandedBytes,
+		MaxRecordBytes:   c.maxRecordBytes,
+	})
+	if errors.Is(err, gcpaudit.ErrExpandedTooLarge) {
+		c.quarantine(path, "decompressed_content_exceeds_max_expanded_bytes")
+		return
+	}
 	if err != nil {
 		c.parseErrors.Add(1)
 		log.Printf("[log-connector-gcp-audit] parse error path=%s: %v", path, err)
 		return
+	}
+	if oversized > 0 {
+		c.oversizedRecordsSkipped.Add(int64(oversized))
+		log.Printf("[log-connector-gcp-audit] WARN: skipped %d oversized record(s) (over XDR_GCP_AUDIT_MAX_RECORD_BYTES) in path=%s — other records in the file were still processed", oversized, path)
 	}
 	c.entriesParsed.Add(int64(len(entries)))
 
@@ -383,6 +420,64 @@ func (c *Connector) saveState() {
 		return
 	}
 	_ = os.Rename(tmp, c.stateFile)
+}
+
+// quarantineRecord is one durable, human-readable line in the append-only
+// quarantine log — CONN-UNBOUNDED-FILE's constraint that a rejected file
+// must leave "a durable rejection record suitable for operator recovery",
+// not just a metric bump. The rejected file itself is left in place
+// untouched (never deleted/moved) so an operator can inspect it later.
+type quarantineRecord struct {
+	Path          string `json:"path"`
+	Reason        string `json:"reason"`
+	QuarantinedAt string `json:"quarantined_at"`
+}
+
+// quarantine marks path as permanently skipped (so a multi-GB file isn't
+// re-read and re-rejected on every scan) and appends a durable, auditable
+// rejection record. See the identical design note in log-connector-cloudtrail.
+func (c *Connector) quarantine(path, reason string) {
+	c.filesQuarantined.Add(1)
+	c.mu.Lock()
+	c.quarantinedFiles[path] = true
+	c.mu.Unlock()
+
+	log.Printf("[log-connector-gcp-audit] WARN: quarantined path=%s reason=%s — left in place, not retried; see %s", path, reason, c.quarantineLogPath)
+
+	rec := quarantineRecord{Path: path, Reason: reason, QuarantinedAt: time.Now().UTC().Format(time.RFC3339)}
+	encoded, err := json.Marshal(rec)
+	if err != nil {
+		return
+	}
+	f, err := os.OpenFile(c.quarantineLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+	_, _ = f.Write(append(encoded, '\n'))
+}
+
+// loadQuarantineLog restores the quarantined-paths set from a prior run's
+// append-only log so a restart doesn't re-attempt (and re-reject) the same
+// oversized file. Best-effort, matching loadState.
+func (c *Connector) loadQuarantineLog() {
+	data, err := os.ReadFile(c.quarantineLogPath)
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var rec quarantineRecord
+		if err := json.Unmarshal(line, &rec); err != nil {
+			continue
+		}
+		c.quarantinedFiles[rec.Path] = true
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

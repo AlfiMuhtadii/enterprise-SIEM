@@ -356,6 +356,10 @@ services:
       # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
       XDR_CLOUDTRAIL_TENANT_ID: ${XDR_CLOUDTRAIL_TENANT_ID:-}
       XDR_CLOUDTRAIL_REQUIRE_TENANT: ${XDR_CLOUDTRAIL_REQUIRE_TENANT:-false}
+      # CONN-UNBOUNDED-FILE: size ceilings, defaults match the Go binary's own fallbacks.
+      XDR_CLOUDTRAIL_MAX_FILE_BYTES: ${XDR_CLOUDTRAIL_MAX_FILE_BYTES:-104857600}
+      XDR_CLOUDTRAIL_MAX_EXPANDED_BYTES: ${XDR_CLOUDTRAIL_MAX_EXPANDED_BYTES:-524288000}
+      XDR_CLOUDTRAIL_MAX_RECORD_BYTES: ${XDR_CLOUDTRAIL_MAX_RECORD_BYTES:-1048576}
     volumes:
       # Operator mounts a local sync of their CloudTrail S3 export bucket here
       # (e.g. `aws s3 sync s3://my-trail-bucket ./cloudtrail-logs` on a cron).
@@ -379,6 +383,10 @@ services:
       # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
       XDR_GUARDDUTY_TENANT_ID: ${XDR_GUARDDUTY_TENANT_ID:-}
       XDR_GUARDDUTY_REQUIRE_TENANT: ${XDR_GUARDDUTY_REQUIRE_TENANT:-false}
+      # CONN-UNBOUNDED-FILE: size ceilings, defaults match the Go binary's own fallbacks.
+      XDR_GUARDDUTY_MAX_FILE_BYTES: ${XDR_GUARDDUTY_MAX_FILE_BYTES:-104857600}
+      XDR_GUARDDUTY_MAX_EXPANDED_BYTES: ${XDR_GUARDDUTY_MAX_EXPANDED_BYTES:-524288000}
+      XDR_GUARDDUTY_MAX_RECORD_BYTES: ${XDR_GUARDDUTY_MAX_RECORD_BYTES:-1048576}
     volumes:
       # Operator mounts a local sync of their GuardDuty findings-export S3 bucket here
       # (e.g. `aws s3 sync s3://my-guardduty-bucket ./guardduty-findings` on a cron).
@@ -402,6 +410,10 @@ services:
       # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
       XDR_GCP_AUDIT_TENANT_ID: ${XDR_GCP_AUDIT_TENANT_ID:-}
       XDR_GCP_AUDIT_REQUIRE_TENANT: ${XDR_GCP_AUDIT_REQUIRE_TENANT:-false}
+      # CONN-UNBOUNDED-FILE: size ceilings, defaults match the Go binary's own fallbacks.
+      XDR_GCP_AUDIT_MAX_FILE_BYTES: ${XDR_GCP_AUDIT_MAX_FILE_BYTES:-104857600}
+      XDR_GCP_AUDIT_MAX_EXPANDED_BYTES: ${XDR_GCP_AUDIT_MAX_EXPANDED_BYTES:-524288000}
+      XDR_GCP_AUDIT_MAX_RECORD_BYTES: ${XDR_GCP_AUDIT_MAX_RECORD_BYTES:-1048576}
     volumes:
       # Operator mounts a local sync of their GCP Cloud Audit Log sink's GCS bucket here
       # (e.g. `gcloud storage rsync gs://my-audit-log-bucket ./gcp-audit-logs` on a cron).
