@@ -16,7 +16,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning done; SBOM/scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions (`==`) and Go services have zero external deps (no `go.sum` needed) — that part was already fine. The real gap was all 6 Dockerfiles floating on mutable tags (`python:3.12-slim`, `golang:1.26-alpine`, `alpine:3.22`); now pinned to resolved digests (`@sha256:...`, fetched live from the Docker Hub registry API). Still missing: SBOM generation (syft/cyclonedx), image vuln scan gate (trivy), signed builds (cosign) — none of these tools are available in this environment | `services/*/Dockerfile`, CI | Medium | Proposed (reduced) |
 | **IDENTITY-SSO-MFA** (TOTP MFA done; SSO/SAML/OIDC federation remains) | [Enterprise BLOCKER — re-ranked] Per-user opt-in TOTP now implemented (`TotpService`, RFC 6238, dependency-free — verified against the RFC's own published test vector, not just self-consistency). Login gates on a 6-digit code when a user has enabled it; existing password-only login is unaffected for everyone else. Still missing: real SSO/SAML/OIDC federation to a corporate IdP (Okta/Azure AD) — needs a real external IdP to configure and test against, which this environment doesn't have; enforcing MFA as *mandatory* for specific roles/routes (`soc:response.*`/`soc:admin.*`) is also still a policy decision, not yet wired | `app/Services/TotpService.php`, `app/Http/Controllers/Auth/MfaController.php`, `app/Http/Controllers/Auth/AuthenticatedSessionController.php`, `routes/auth.php` | High | Proposed (reduced) |
 | **OBS-OTEL-TRACING** (phases 1-3 done — W3C traceparent across all 6 hops; OTLP collector wiring remains) | See detail section below | `services/*/main.*`, `app/Http/Middleware/*` | High | Proposed (reduced) |
-| **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
+| **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** (phases 1-6 done — syslog/CEF/LEEF/parser-registry/CloudTrail/GuardDuty/GCP; O365 Management Activity API remains) | See detail section below | `services/ingestion-gateway`, `services/normalizer-worker`, `services/log-connector-*` | High | Proposed (reduced) |
 | **DATA-TIERING** (phases 1/2/2b done — archive-then-prune, searchable local archive, RBAC-gated UI; warm/cold infra tiers remain) | See detail section below | `app/Services/SecurityRetentionArchiveService.php`, `app/Services/ArchiveSearchService.php` | Medium | Proposed (reduced) |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
@@ -75,10 +75,13 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
     `DOMAIN_FIELDS` security allowlist extracted to `ThreatHuntQueryAllowlist`.
   - `app/Services/ReportExportService.php`: 994→438 lines (56% reduction) — rendering/templating
     logic extracted to `ReportRenderer`.
+  - `app/Services/UEBABaselineService.php`: 806→730 lines — pure statistical math
+    (robustZScore/percentileRank/computeMAD/computeMedian/computeStats/
+    percentileRankFromBaseline/computeConfidence) extracted to `UEBAStatistics`.
 - **Remaining scope:** Pandaproxy/Kafka transport in all 3 Go/Python pipeline services is
   intentionally left untouched (tightly coupled to Worker/connection state — high-risk).
-  Other large Laravel services (e.g. `EntityRiskScoringService` 989 lines, `UEBABaselineService`
-  806 lines) haven't been decomposed — same general opportunity, not yet worked.
+  Other large Laravel services (e.g. `EntityRiskScoringService` 989 lines) haven't been
+  decomposed — same general opportunity, not yet worked.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 

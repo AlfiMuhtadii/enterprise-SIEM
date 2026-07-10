@@ -88,7 +88,7 @@ class UEBABaselineService
             return null;
         }
 
-        $stats = $this->computeStats($observations);
+        $stats = UEBAStatistics::computeStats($observations);
 
         $existing = EntityBehaviorBaseline::where('entity_key', $entityKey)
             ->where('entity_type', $entityType)
@@ -192,9 +192,9 @@ class UEBABaselineService
         $baselineValue = $baseline->baseline_median ?? $baseline->baseline_mean ?? 0.0;
         $deviation     = abs($observedValue - $baselineValue);
         $zScore        = $this->robustZScore($observedValue, $baseline->baseline_median, $baseline->baseline_mad);
-        $pctRank       = $this->percentileRankFromBaseline($observedValue, $baseline);
+        $pctRank       = UEBAStatistics::percentileRankFromBaseline($observedValue, $baseline);
 
-        $confidence   = $this->computeConfidence($zScore, $baseline->sample_count);
+        $confidence   = UEBAStatistics::computeConfidence($zScore, $baseline->sample_count);
         $anomalyType  = self::DIMENSION_ANOMALY_MAP[$dimension] ?? 'peer_group_behavior_deviation';
 
         if ($traceId && !in_array($traceId, $traceIds, true)) {
@@ -261,7 +261,7 @@ class UEBABaselineService
 
         $deviation      = abs($entityVal - $peerMean);
         $peerDeviation  = ($peerStddev > 0) ? ($deviation / $peerStddev) : 0.0;
-        $confidence     = $this->computeConfidence($peerDeviation, $dimStats['sample_count'] ?? 0);
+        $confidence     = UEBAStatistics::computeConfidence($peerDeviation, $dimStats['sample_count'] ?? 0);
 
         return BaselineAnomalyScore::create([
             'score_id'            => (string) Str::uuid(),
@@ -415,7 +415,7 @@ class UEBABaselineService
                 ->toArray();
 
             if (count($values) >= 2) {
-                $stats = $this->computeStats($values);
+                $stats = UEBAStatistics::computeStats($values);
                 $dimensionStats[$dim] = [
                     'mean'         => $stats['mean'],
                     'median'       => $stats['median'],
@@ -552,10 +552,7 @@ class UEBABaselineService
      */
     public function robustZScore(float $value, ?float $median, ?float $mad): float
     {
-        if ($median === null || $mad === null || $mad < 1e-10) {
-            return 0.0;
-        }
-        return ($value - $median) / (1.4826 * $mad);
+        return UEBAStatistics::robustZScore($value, $median, $mad);
     }
 
     /**
@@ -564,11 +561,7 @@ class UEBABaselineService
      */
     public function percentileRank(float $value, array $sortedValues): float
     {
-        if (empty($sortedValues)) {
-            return 50.0;
-        }
-        $below = count(array_filter($sortedValues, fn ($v) => $v < $value));
-        return round(($below / count($sortedValues)) * 100.0, 2);
+        return UEBAStatistics::percentileRank($value, $sortedValues);
     }
 
     /**
@@ -576,12 +569,7 @@ class UEBABaselineService
      */
     public function computeMAD(array $values): float
     {
-        if (empty($values)) {
-            return 0.0;
-        }
-        $median = $this->computeMedian($values);
-        $deviations = array_map(fn ($v) => abs($v - $median), $values);
-        return $this->computeMedian($deviations);
+        return UEBAStatistics::computeMAD($values);
     }
 
     /**
@@ -589,71 +577,7 @@ class UEBABaselineService
      */
     public function computeMedian(array $values): float
     {
-        if (empty($values)) {
-            return 0.0;
-        }
-        sort($values);
-        $n = count($values);
-        $mid = intdiv($n, 2);
-        return ($n % 2 === 0)
-            ? (($values[$mid - 1] + $values[$mid]) / 2.0)
-            : (float) $values[$mid];
-    }
-
-    // -----------------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------------
-
-    /**
-     * Compute all stats needed for a baseline from an array of float observations.
-     */
-    private function computeStats(array $values): array
-    {
-        $n      = count($values);
-        $sum    = array_sum($values);
-        $mean   = $sum / $n;
-        $median = $this->computeMedian($values);
-        $mad    = $this->computeMAD($values);
-
-        $variance = array_sum(array_map(fn ($v) => ($v - $mean) ** 2, $values)) / $n;
-        $stddev   = sqrt($variance);
-
-        $sorted = $values;
-        sort($sorted);
-        $p10 = $sorted[(int) floor(0.10 * ($n - 1))];
-        $p90 = $sorted[(int) floor(0.90 * ($n - 1))];
-
-        return compact('mean', 'median', 'mad', 'stddev', 'p10', 'p90');
-    }
-
-    private function percentileRankFromBaseline(float $value, EntityBehaviorBaseline $baseline): float
-    {
-        $p10 = $baseline->baseline_p10 ?? 0.0;
-        $p90 = $baseline->baseline_p90 ?? 1.0;
-        $range = max($p90 - $p10, 1e-10);
-        $rank = (($value - $p10) / $range) * 80.0 + 10.0;
-        return round(max(0.0, min(100.0, $rank)), 2);
-    }
-
-    private function computeConfidence(float $zOrDeviation, int $sampleCount): float
-    {
-        $absZ = abs($zOrDeviation);
-        if ($absZ < 2.0) {
-            return 0.30;
-        }
-        if ($absZ < 2.5) {
-            return 0.50;
-        }
-        if ($absZ < 3.0) {
-            return 0.65;
-        }
-        if ($absZ < 4.0) {
-            return 0.75;
-        }
-        $base = 0.85;
-        // More samples → more confidence (capped at 0.97)
-        $sampleBonus = min(0.12, ($sampleCount / 500) * 0.12);
-        return min(0.97, round($base + $sampleBonus, 4));
+        return UEBAStatistics::computeMedian($values);
     }
 
     /**
