@@ -5,11 +5,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -278,5 +281,158 @@ func TestTwoConnectorInstancesStayTenantIsolated(t *testing.T) {
 	}
 	if eventB["tenant_id"] != "tenant-b" {
 		t.Errorf("expected tenant-b's event to carry tenant_id=tenant-b, got %v", eventB["tenant_id"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CONN-DELIVERY-LOSS: a file's checkpoint (processedFiles+saveState) must
+// only be committed after ALL of its derived batches are confirmed
+// delivered — never before, and never on partial success.
+// ---------------------------------------------------------------------------
+
+func newDeliveryTestConnector(t *testing.T, dir, ingestURL string, batchSize int) *Connector {
+	t.Helper()
+	return &Connector{
+		ingestURL:         ingestURL,
+		secret:            "s",
+		batchSize:         batchSize,
+		watchDir:          dir,
+		stateFile:         filepath.Join(dir, ".state.json"),
+		httpClient:        &http.Client{Timeout: 5 * time.Second},
+		processedFiles:    map[string]bool{},
+		forwardMaxRetries: 3,
+		forwardRetryBase:  time.Millisecond,
+		forwardRetryMax:   5 * time.Millisecond,
+	}
+}
+
+func writeMultiFindingFile(t *testing.T, path string, n int) {
+	t.Helper()
+	var lines []string
+	for i := 0; i < n; i++ {
+		lines = append(lines, fmt.Sprintf(`{"Id":"finding-%d","Type":"UnauthorizedAccess:EC2/SSHBruteForce","AccountId":"123456789012","CreatedAt":"2026-07-10T10:00:00.000Z"}`, i))
+	}
+	content := strings.Join(lines, "\n")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+}
+
+func TestProcessFileLeavesFileUnprocessedWhenGatewayUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleFindingsFile(t, path)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, _ := w.(http.Hijacker)
+		conn, _, _ := hj.Hijack()
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if processed {
+		t.Error("expected the file to be left unprocessed after exhausting retries against an unavailable gateway")
+	}
+	if c.deliveryFailedFiles.Load() != 1 {
+		t.Errorf("expected deliveryFailedFiles=1, got %d", c.deliveryFailedFiles.Load())
+	}
+	if _, err := os.Stat(c.stateFile); err == nil {
+		t.Error("expected no state file to have been written for an unacknowledged file")
+	}
+}
+
+func TestProcessFileRetriesThenSucceedsAndMarksProcessed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleFindingsFile(t, path)
+
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&attempts, 1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if !processed {
+		t.Error("expected the file to be marked processed after eventual delivery success")
+	}
+
+	c2 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c2.loadState()
+	if !c2.processedFiles[path] {
+		t.Error("expected a restarted connector to load the file as processed via the persisted state file")
+	}
+}
+
+func TestProcessFileRestartRetriesAnUnacknowledgedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleFindingsFile(t, path)
+
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	c1 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c1.processFile(path)
+
+	c2 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c2.loadState()
+	c2.scanOnce()
+
+	if got := atomic.LoadInt32(&attempts); got < 2 {
+		t.Errorf("expected the restarted connector to retry the file, got %d total attempts", got)
+	}
+	if c2.filesSkipped.Load() != 0 {
+		t.Errorf("expected the unacknowledged file to be re-scanned, not skipped, got filesSkipped=%d", c2.filesSkipped.Load())
+	}
+}
+
+func TestProcessFileMultiBatchMiddleBatchFailureLeavesFileUnprocessed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "multi.json")
+	writeMultiFindingFile(t, path, 5) // batchSize=2 -> 3 batches
+
+	var batchCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&batchCount, 1)
+		if n == 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 2)
+	c.forwardMaxRetries = 1
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if processed {
+		t.Error("expected the file to be left unprocessed when its middle batch fails, even though the first batch succeeded")
+	}
+	if c.forwarded.Load() != 2 {
+		t.Errorf("expected the first (successful) batch's 2 findings to be counted as forwarded, got %d", c.forwarded.Load())
 	}
 }

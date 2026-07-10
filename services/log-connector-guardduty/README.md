@@ -35,6 +35,9 @@ rather than reusing CloudTrail's.
 | `XDR_GUARDDUTY_TENANT_ID` | (empty) | tenant_id stamped on every forwarded event |
 | `XDR_GUARDDUTY_REQUIRE_TENANT` | `false` | CONN-UNTENANTED-INGEST: if `true` and `XDR_GUARDDUTY_TENANT_ID` is empty, the connector refuses to start rather than forwarding unattributed telemetry |
 | `XDR_GUARDDUTY_BATCH_SIZE` | `100` | events per forwarded batch |
+| `XDR_GUARDDUTY_FORWARD_MAX_RETRIES` | `3` | CONN-DELIVERY-LOSS: max forward attempts per batch before the source file is left unprocessed for retry on the next scan |
+| `XDR_GUARDDUTY_FORWARD_RETRY_BASE_MS` | `200` | CONN-DELIVERY-LOSS: initial retry backoff (doubles each attempt, capped at `_RETRY_MAX_MS`) |
+| `XDR_GUARDDUTY_FORWARD_RETRY_MAX_MS` | `2000` | CONN-DELIVERY-LOSS: retry backoff cap |
 
 ## Restart-safe file tracking
 
@@ -42,6 +45,14 @@ Same pattern as `log-connector-cloudtrail`: processed file paths persist to
 `<watch-dir>/.guardduty-connector-state.json` (atomic write-then-rename).
 The state file itself is explicitly excluded from re-scanning (a bug caught
 via test in the CloudTrail connector, fixed proactively here from the start).
+
+CONN-DELIVERY-LOSS: a file is only marked processed — and the state file
+only saved — after every batch derived from that file has been forwarded
+successfully (with bounded retry). Each file's batches are delivered
+independently of any other file's, never mixed into a shared cross-file
+buffer, so a file is either fully acknowledged or left entirely
+unprocessed for retry on the next scan; there is no partial-file
+checkpoint.
 
 ## Field mapping
 

@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"detector-xdr-log-connector-guardduty/internal/deliver"
 	"detector-xdr-log-connector-guardduty/internal/guardduty"
 	"detector-xdr-log-connector-guardduty/internal/mtls"
 )
@@ -53,15 +54,20 @@ type Connector struct {
 	httpClient *http.Client
 
 	mu             sync.Mutex
-	buffer         []map[string]any
 	processedFiles map[string]bool
 
-	filesScanned   atomic.Int64
-	filesSkipped   atomic.Int64
-	findingsParsed atomic.Int64
-	forwarded      atomic.Int64
-	forwardErrors  atomic.Int64
-	parseErrors    atomic.Int64
+	// CONN-DELIVERY-LOSS: bounded retry before a file is left unprocessed.
+	forwardMaxRetries int
+	forwardRetryBase  time.Duration
+	forwardRetryMax   time.Duration
+
+	filesScanned        atomic.Int64
+	filesSkipped        atomic.Int64
+	findingsParsed      atomic.Int64
+	forwarded           atomic.Int64
+	forwardErrors       atomic.Int64
+	parseErrors         atomic.Int64
+	deliveryFailedFiles atomic.Int64
 }
 
 func main() {
@@ -75,13 +81,16 @@ func main() {
 	}
 
 	c := &Connector{
-		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
-		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:       tenantID,
-		batchSize:      envInt("XDR_GUARDDUTY_BATCH_SIZE", 100),
-		watchDir:       *watchDir,
-		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
-		processedFiles: map[string]bool{},
+		ingestURL:         env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
+		secret:            env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		tenantID:          tenantID,
+		batchSize:         envInt("XDR_GUARDDUTY_BATCH_SIZE", 100),
+		watchDir:          *watchDir,
+		httpClient:        &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
+		processedFiles:    map[string]bool{},
+		forwardMaxRetries: envInt("XDR_GUARDDUTY_FORWARD_MAX_RETRIES", 3),
+		forwardRetryBase:  time.Duration(envInt("XDR_GUARDDUTY_FORWARD_RETRY_BASE_MS", 200)) * time.Millisecond,
+		forwardRetryMax:   time.Duration(envInt("XDR_GUARDDUTY_FORWARD_RETRY_MAX_MS", 2000)) * time.Millisecond,
 	}
 	c.stateFile = filepath.Join(c.watchDir, ".guardduty-connector-state.json")
 	c.loadState()
@@ -121,12 +130,13 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"files_scanned":   c.filesScanned.Load(),
-			"files_skipped":   c.filesSkipped.Load(),
-			"findings_parsed": c.findingsParsed.Load(),
-			"forwarded":       c.forwarded.Load(),
-			"forward_errors":  c.forwardErrors.Load(),
-			"parse_errors":    c.parseErrors.Load(),
+			"files_scanned":         c.filesScanned.Load(),
+			"files_skipped":         c.filesSkipped.Load(),
+			"findings_parsed":       c.findingsParsed.Load(),
+			"forwarded":             c.forwarded.Load(),
+			"forward_errors":        c.forwardErrors.Load(),
+			"parse_errors":          c.parseErrors.Load(),
+			"delivery_failed_files": c.deliveryFailedFiles.Load(),
 		})
 	})
 
@@ -201,7 +211,6 @@ func (c *Connector) scanOnce() {
 		c.processFile(path)
 		return nil
 	})
-	c.flush()
 }
 
 func hasFindingsExtension(path string) bool {
@@ -213,6 +222,18 @@ func hasFindingsExtension(path string) bool {
 	return false
 }
 
+// processFile parses one GuardDuty findings export file and forwards its
+// findings.
+//
+// CONN-DELIVERY-LOSS: this file's findings are batched and delivered
+// independently of any other file's — never appended to a shared
+// cross-file buffer — so "all derived batches accepted" can be evaluated
+// per file. The checkpoint (processedFiles[path]=true + saveState) is
+// committed ONLY after every batch derived from this file has been
+// successfully delivered (with bounded retry via deliver.WithRetry). If
+// any batch fails after retries are exhausted, the file is deliberately
+// left unprocessed — retried in full on the next scan. See the identical
+// design note in log-connector-cloudtrail.
 func (c *Connector) processFile(path string) {
 	c.filesScanned.Add(1)
 	data, err := os.ReadFile(path)
@@ -227,18 +248,33 @@ func (c *Connector) processFile(path string) {
 		log.Printf("[log-connector-guardduty] parse error path=%s: %v", path, err)
 		return
 	}
-	c.mu.Lock()
-	for _, finding := range findings {
-		c.buffer = append(c.buffer, mapFindingToEvent(finding, c.tenantID))
-	}
-	c.processedFiles[path] = true
-	full := len(c.buffer) >= c.batchSize
-	c.mu.Unlock()
 	c.findingsParsed.Add(int64(len(findings)))
-	c.saveState()
-	if full {
-		c.flush()
+
+	events := make([]map[string]any, 0, len(findings))
+	for _, finding := range findings {
+		events = append(events, mapFindingToEvent(finding, c.tenantID))
 	}
+
+	for start := 0; start < len(events); start += c.batchSize {
+		end := start + c.batchSize
+		if end > len(events) {
+			end = len(events)
+		}
+		batch := events[start:end]
+		deliverErr := deliver.WithRetry(c.forwardMaxRetries, c.forwardRetryBase, c.forwardRetryMax, func() error {
+			return c.forward(batch)
+		})
+		if deliverErr != nil {
+			c.deliveryFailedFiles.Add(1)
+			log.Printf("[log-connector-guardduty] WARN: forward failed after retries for path=%s (findings %d-%d of %d) — file left unprocessed, will retry on next scan: %v", path, start, end, len(events), deliverErr)
+			return
+		}
+	}
+
+	c.mu.Lock()
+	c.processedFiles[path] = true
+	c.mu.Unlock()
+	c.saveState()
 }
 
 // mapFindingToEvent maps one GuardDuty finding into the generic
@@ -265,20 +301,6 @@ func mapFindingToEvent(f guardduty.Finding, tenantID string) map[string]any {
 		event["tenant_id"] = tenantID
 	}
 	return event
-}
-
-func (c *Connector) flush() {
-	c.mu.Lock()
-	if len(c.buffer) == 0 {
-		c.mu.Unlock()
-		return
-	}
-	batch := c.buffer
-	c.buffer = nil
-	c.mu.Unlock()
-	if err := c.forward(batch); err != nil {
-		log.Printf("[log-connector-guardduty] forward error: %v", err)
-	}
 }
 
 // forward sends a batch of events to ingestion-gateway's /v1/ingest, signed

@@ -39,12 +39,23 @@ audit data is nested inside `protoPayload` (a
 | `XDR_GCP_AUDIT_TENANT_ID` | (empty) | tenant_id stamped on every forwarded event |
 | `XDR_GCP_AUDIT_REQUIRE_TENANT` | `false` | CONN-UNTENANTED-INGEST: if `true` and `XDR_GCP_AUDIT_TENANT_ID` is empty, the connector refuses to start rather than forwarding unattributed telemetry |
 | `XDR_GCP_AUDIT_BATCH_SIZE` | `100` | events per forwarded batch |
+| `XDR_GCP_AUDIT_FORWARD_MAX_RETRIES` | `3` | CONN-DELIVERY-LOSS: max forward attempts per batch before the source file is left unprocessed for retry on the next scan |
+| `XDR_GCP_AUDIT_FORWARD_RETRY_BASE_MS` | `200` | CONN-DELIVERY-LOSS: initial retry backoff (doubles each attempt, capped at `_RETRY_MAX_MS`) |
+| `XDR_GCP_AUDIT_FORWARD_RETRY_MAX_MS` | `2000` | CONN-DELIVERY-LOSS: retry backoff cap |
 
 ## Restart-safe file tracking
 
 Same pattern as the other file connectors: processed file paths persist to
 `<watch-dir>/.gcp-audit-connector-state.json` (atomic write-then-rename),
 explicitly excluded from re-scanning.
+
+CONN-DELIVERY-LOSS: a file is only marked processed — and the state file
+only saved — after every batch derived from that file has been forwarded
+successfully (with bounded retry). Each file's batches are delivered
+independently of any other file's, never mixed into a shared cross-file
+buffer, so a file is either fully acknowledged or left entirely
+unprocessed for retry on the next scan; there is no partial-file
+checkpoint.
 
 ## Field mapping
 

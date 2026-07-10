@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"detector-xdr-log-connector-syslog/internal/cef"
+	"detector-xdr-log-connector-syslog/internal/deliver"
 	"detector-xdr-log-connector-syslog/internal/leef"
 	"detector-xdr-log-connector-syslog/internal/mtls"
 	"detector-xdr-log-connector-syslog/internal/registry"
@@ -61,6 +62,11 @@ type Connector struct {
 	tcpLimiter     *tcpadmit.Limiter
 	tcpIdleTimeout time.Duration
 
+	// CONN-DELIVERY-LOSS: bounded retry before a batch is dropped.
+	forwardMaxRetries int
+	forwardRetryBase  time.Duration
+	forwardRetryMax   time.Duration
+
 	received         atomic.Int64
 	parsedCEF        atomic.Int64
 	parsedLEEF       atomic.Int64
@@ -71,6 +77,7 @@ type Connector struct {
 	tcpActiveConns   atomic.Int64
 	tcpRejectedConns atomic.Int64
 	tcpTimeouts      atomic.Int64
+	deliveryDropped  atomic.Int64
 }
 
 func main() {
@@ -90,14 +97,17 @@ func main() {
 	}
 
 	c := &Connector{
-		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
-		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:       tenantID,
-		batchSize:      envInt("XDR_SYSLOG_BATCH_SIZE", 50),
-		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
-		registry:       reg,
-		tcpLimiter:     tcpadmit.NewLimiter(envInt("XDR_SYSLOG_TCP_MAX_CONNS", 1000)),
-		tcpIdleTimeout: time.Duration(envInt("XDR_SYSLOG_TCP_IDLE_TIMEOUT_SECONDS", 300)) * time.Second,
+		ingestURL:         env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
+		secret:            env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		tenantID:          tenantID,
+		batchSize:         envInt("XDR_SYSLOG_BATCH_SIZE", 50),
+		httpClient:        &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
+		registry:          reg,
+		tcpLimiter:        tcpadmit.NewLimiter(envInt("XDR_SYSLOG_TCP_MAX_CONNS", 1000)),
+		tcpIdleTimeout:    time.Duration(envInt("XDR_SYSLOG_TCP_IDLE_TIMEOUT_SECONDS", 300)) * time.Second,
+		forwardMaxRetries: envInt("XDR_SYSLOG_FORWARD_MAX_RETRIES", 3),
+		forwardRetryBase:  time.Duration(envInt("XDR_SYSLOG_FORWARD_RETRY_BASE_MS", 200)) * time.Millisecond,
+		forwardRetryMax:   time.Duration(envInt("XDR_SYSLOG_FORWARD_RETRY_MAX_MS", 2000)) * time.Millisecond,
 	}
 
 	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
@@ -152,6 +162,7 @@ func main() {
 			"tcp_active_conns":   c.tcpActiveConns.Load(),
 			"tcp_rejected_conns": c.tcpRejectedConns.Load(),
 			"tcp_timeouts":       c.tcpTimeouts.Load(),
+			"delivery_dropped":   c.deliveryDropped.Load(),
 		})
 	})
 
@@ -225,6 +236,22 @@ func (c *Connector) ingestLine(line string) {
 // flush forwards and clears the current buffer. Safe to call from multiple
 // goroutines (the periodic ticker and a batch-size trigger can race; the
 // mutex-guarded swap ensures each buffered event is forwarded exactly once).
+//
+// CONN-DELIVERY-LOSS: a forward() failure (network error, timeout, 429, 5xx)
+// used to just log and drop the batch — permanently, with no retry. flush()
+// now retries with bounded exponential backoff (deliver.WithRetry) before
+// giving up; only after retries are exhausted is the batch actually
+// discarded, and that is now an explicit, counted event
+// (deliveryDropped/metrics), not a silent one. Because flush() is
+// synchronous through the whole retry sequence, calling it once more on
+// shutdown (see startFlusher) already satisfies "shutdown waits for an
+// acknowledged flush" — no separate shutdown-specific code needed.
+//
+// Syslog telemetry is ephemeral (UDP/TCP, no source file to re-scan), so
+// unlike the file-based connectors this cannot be made restart-safe purely
+// by deferring a checkpoint write — surviving a process crash mid-outage
+// would need a disk-backed spool, a materially larger feature deliberately
+// left out of this pass (see README).
 func (c *Connector) flush() {
 	c.mu.Lock()
 	if len(c.buffer) == 0 {
@@ -234,8 +261,13 @@ func (c *Connector) flush() {
 	batch := c.buffer
 	c.buffer = nil
 	c.mu.Unlock()
-	if err := c.forward(batch); err != nil {
-		log.Printf("[log-connector-syslog] forward error: %v", err)
+
+	err := deliver.WithRetry(c.forwardMaxRetries, c.forwardRetryBase, c.forwardRetryMax, func() error {
+		return c.forward(batch)
+	})
+	if err != nil {
+		c.deliveryDropped.Add(int64(len(batch)))
+		log.Printf("[log-connector-syslog] WARN: forward failed after retries — dropping batch of %d events: %v", len(batch), err)
 	}
 }
 

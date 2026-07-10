@@ -36,6 +36,7 @@ import (
 	"syscall"
 	"time"
 
+	"detector-xdr-log-connector-gcp-audit/internal/deliver"
 	"detector-xdr-log-connector-gcp-audit/internal/gcpaudit"
 	"detector-xdr-log-connector-gcp-audit/internal/mtls"
 )
@@ -52,16 +53,20 @@ type Connector struct {
 	stateFile  string
 	httpClient *http.Client
 
+	forwardMaxRetries int
+	forwardRetryBase  time.Duration
+	forwardRetryMax   time.Duration
+
 	mu             sync.Mutex
-	buffer         []map[string]any
 	processedFiles map[string]bool
 
-	filesScanned  atomic.Int64
-	filesSkipped  atomic.Int64
-	entriesParsed atomic.Int64
-	forwarded     atomic.Int64
-	forwardErrors atomic.Int64
-	parseErrors   atomic.Int64
+	filesScanned        atomic.Int64
+	filesSkipped        atomic.Int64
+	entriesParsed       atomic.Int64
+	forwarded           atomic.Int64
+	forwardErrors       atomic.Int64
+	parseErrors         atomic.Int64
+	deliveryFailedFiles atomic.Int64
 }
 
 func main() {
@@ -75,13 +80,16 @@ func main() {
 	}
 
 	c := &Connector{
-		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
-		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:       tenantID,
-		batchSize:      envInt("XDR_GCP_AUDIT_BATCH_SIZE", 100),
-		watchDir:       *watchDir,
-		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
-		processedFiles: map[string]bool{},
+		ingestURL:         env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
+		secret:            env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		tenantID:          tenantID,
+		batchSize:         envInt("XDR_GCP_AUDIT_BATCH_SIZE", 100),
+		watchDir:          *watchDir,
+		httpClient:        &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
+		processedFiles:    map[string]bool{},
+		forwardMaxRetries: envInt("XDR_GCP_AUDIT_FORWARD_MAX_RETRIES", 3),
+		forwardRetryBase:  time.Duration(envInt("XDR_GCP_AUDIT_FORWARD_RETRY_BASE_MS", 200)) * time.Millisecond,
+		forwardRetryMax:   time.Duration(envInt("XDR_GCP_AUDIT_FORWARD_RETRY_MAX_MS", 2000)) * time.Millisecond,
 	}
 	c.stateFile = filepath.Join(c.watchDir, ".gcp-audit-connector-state.json")
 	c.loadState()
@@ -121,12 +129,13 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"files_scanned":  c.filesScanned.Load(),
-			"files_skipped":  c.filesSkipped.Load(),
-			"entries_parsed": c.entriesParsed.Load(),
-			"forwarded":      c.forwarded.Load(),
-			"forward_errors": c.forwardErrors.Load(),
-			"parse_errors":   c.parseErrors.Load(),
+			"files_scanned":         c.filesScanned.Load(),
+			"files_skipped":         c.filesSkipped.Load(),
+			"entries_parsed":        c.entriesParsed.Load(),
+			"forwarded":             c.forwarded.Load(),
+			"forward_errors":        c.forwardErrors.Load(),
+			"parse_errors":          c.parseErrors.Load(),
+			"delivery_failed_files": c.deliveryFailedFiles.Load(),
 		})
 	})
 
@@ -199,7 +208,6 @@ func (c *Connector) scanOnce() {
 		c.processFile(path)
 		return nil
 	})
-	c.flush()
 }
 
 func hasAuditLogExtension(path string) bool {
@@ -211,6 +219,19 @@ func hasAuditLogExtension(path string) bool {
 	return false
 }
 
+// processFile parses one GCP Cloud Audit Log export file and forwards its
+// entries.
+//
+// CONN-DELIVERY-LOSS: this file's entries are batched and delivered
+// independently of any other file's — never appended to a shared
+// cross-file buffer — so "all derived batches accepted" can be evaluated
+// per file. The file is only marked processed (and the state file only
+// saved) after every batch derived from it has been forwarded
+// successfully (with bounded retry). If any batch exhausts its retries,
+// the file is left unprocessed so the next scan cycle retries it from
+// scratch — this connector's pre-existing processedFiles/stateFile
+// mechanism already gives that restart-safety for free once the
+// checkpoint-write ordering is correct.
 func (c *Connector) processFile(path string) {
 	c.filesScanned.Add(1)
 	data, err := os.ReadFile(path)
@@ -225,18 +246,33 @@ func (c *Connector) processFile(path string) {
 		log.Printf("[log-connector-gcp-audit] parse error path=%s: %v", path, err)
 		return
 	}
-	c.mu.Lock()
-	for _, entry := range entries {
-		c.buffer = append(c.buffer, mapEntryToEvent(entry, c.tenantID))
-	}
-	c.processedFiles[path] = true
-	full := len(c.buffer) >= c.batchSize
-	c.mu.Unlock()
 	c.entriesParsed.Add(int64(len(entries)))
-	c.saveState()
-	if full {
-		c.flush()
+
+	events := make([]map[string]any, 0, len(entries))
+	for _, entry := range entries {
+		events = append(events, mapEntryToEvent(entry, c.tenantID))
 	}
+
+	for start := 0; start < len(events); start += c.batchSize {
+		end := start + c.batchSize
+		if end > len(events) {
+			end = len(events)
+		}
+		batch := events[start:end]
+		deliverErr := deliver.WithRetry(c.forwardMaxRetries, c.forwardRetryBase, c.forwardRetryMax, func() error {
+			return c.forward(batch)
+		})
+		if deliverErr != nil {
+			c.deliveryFailedFiles.Add(1)
+			log.Printf("[log-connector-gcp-audit] WARN: forward failed after retries for path=%s (entries %d-%d of %d) — file left unprocessed, will retry on next scan: %v", path, start, end, len(events), deliverErr)
+			return
+		}
+	}
+
+	c.mu.Lock()
+	c.processedFiles[path] = true
+	c.mu.Unlock()
+	c.saveState()
 }
 
 // mapEntryToEvent maps one GCP Cloud Audit Log entry into the generic
@@ -268,20 +304,6 @@ func mapEntryToEvent(e gcpaudit.LogEntry, tenantID string) map[string]any {
 		event["tenant_id"] = tenantID
 	}
 	return event
-}
-
-func (c *Connector) flush() {
-	c.mu.Lock()
-	if len(c.buffer) == 0 {
-		c.mu.Unlock()
-		return
-	}
-	batch := c.buffer
-	c.buffer = nil
-	c.mu.Unlock()
-	if err := c.forward(batch); err != nil {
-		log.Printf("[log-connector-gcp-audit] forward error: %v", err)
-	}
 }
 
 // forward sends a batch of events to ingestion-gateway's /v1/ingest, signed

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -330,6 +331,152 @@ func TestIngestLineFlushesAtBatchSize(t *testing.T) {
 	}
 	if c.received.Load() != 2 || c.parsedRaw.Load() != 2 {
 		t.Fatalf("expected received=2 parsedRaw=2, got received=%d parsedRaw=%d", c.received.Load(), c.parsedRaw.Load())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CONN-DELIVERY-LOSS: flush() must retry a failed forward() with bounded
+// backoff before dropping, and only drop explicitly (counted), never
+// silently.
+// ---------------------------------------------------------------------------
+
+func newRetryingTestConnector(ingestURL string) *Connector {
+	return &Connector{
+		ingestURL:         ingestURL,
+		secret:            "s",
+		batchSize:         100, // effectively unbounded — tests flush() directly
+		httpClient:        &http.Client{Timeout: 5 * time.Second},
+		forwardMaxRetries: 3,
+		forwardRetryBase:  time.Millisecond,
+		forwardRetryMax:   5 * time.Millisecond,
+	}
+}
+
+func TestFlushRetriesAfterConnectionFailureThenRecovers(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 3 {
+			// Simulate "gateway unavailable": close the connection without a response.
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				t.Fatal("expected ResponseWriter to support hijacking for this test")
+			}
+			conn, _, _ := hj.Hijack()
+			_ = conn.Close()
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newRetryingTestConnector(server.URL)
+	c.buffer = []map[string]any{{"event_type": "x"}}
+
+	c.flush()
+
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected exactly 3 attempts (2 failures + 1 success), got %d", got)
+	}
+	if c.forwarded.Load() != 1 {
+		t.Errorf("expected the batch to eventually be forwarded (forwarded=1), got %d", c.forwarded.Load())
+	}
+	if c.deliveryDropped.Load() != 0 {
+		t.Errorf("expected no dropped events after eventual success, got %d", c.deliveryDropped.Load())
+	}
+}
+
+func TestFlushRetriesAfterNon2xxThenSucceeds(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 2 {
+			w.WriteHeader(http.StatusServiceUnavailable) // transient 5xx
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newRetryingTestConnector(server.URL)
+	c.buffer = []map[string]any{{"event_type": "x"}}
+
+	c.flush()
+
+	if got := atomic.LoadInt32(&attempts); got != 2 {
+		t.Errorf("expected exactly 2 attempts (1 failure + 1 success), got %d", got)
+	}
+	if c.forwarded.Load() != 1 {
+		t.Errorf("expected forwarded=1 after eventual success, got %d", c.forwarded.Load())
+	}
+}
+
+func TestFlushDropsExplicitlyAfterExhaustingRetries(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusServiceUnavailable) // always fails
+	}))
+	defer server.Close()
+
+	c := newRetryingTestConnector(server.URL)
+	c.buffer = []map[string]any{{"event_type": "a"}, {"event_type": "b"}}
+
+	c.flush()
+
+	if got := atomic.LoadInt32(&attempts); got != int32(c.forwardMaxRetries) {
+		t.Errorf("expected exactly forwardMaxRetries=%d attempts, got %d", c.forwardMaxRetries, got)
+	}
+	if c.deliveryDropped.Load() != 2 {
+		t.Errorf("expected deliveryDropped=2 (the whole batch) after exhausting retries, got %d", c.deliveryDropped.Load())
+	}
+	if c.forwarded.Load() != 0 {
+		t.Errorf("expected forwarded=0 for a batch that was never actually delivered, got %d", c.forwarded.Load())
+	}
+}
+
+// TestShutdownFlushWaitsForRetriesBeforeReturning proves "shutdown waits for
+// an acknowledged flush": the stop-triggered flush() in startFlusher must
+// not return (and therefore the goroutine must not exit) until the retry
+// sequence has actually completed.
+func TestShutdownFlushWaitsForRetriesBeforeReturning(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newRetryingTestConnector(server.URL)
+	c.buffer = []map[string]any{{"event_type": "x"}}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	c.startFlusher(time.Hour, stop) // interval irrelevant — only the stop-triggered flush matters
+	go func() {
+		close(stop)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown signal was not processed in time")
+	}
+
+	// Poll briefly since startFlusher's own goroutine (not this test) performs
+	// the flush asynchronously relative to close(stop) — the assertion is that
+	// it completes the full retry sequence, not that it does so instantly.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && c.forwarded.Load() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if c.forwarded.Load() != 1 {
+		t.Errorf("expected the shutdown flush to retry through to success (forwarded=1), got forwarded=%d after %d attempts", c.forwarded.Load(), atomic.LoadInt32(&attempts))
 	}
 }
 

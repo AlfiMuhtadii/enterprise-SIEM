@@ -32,6 +32,20 @@ ingestion-gateway.
 | `XDR_SYSLOG_PARSER_REGISTRY` | (empty) | path to a JSON config-driven parser registry (see below); empty means no registry sources, CEF/LEEF/raw dispatch only |
 | `XDR_SYSLOG_TCP_MAX_CONNS` | `1000` | max concurrent TCP connections (SYSLOG-TCP-ADMISSION); `0` disables the cap. Beyond this, new connections are refused immediately (`tcp_rejected_conns` metric) |
 | `XDR_SYSLOG_TCP_IDLE_TIMEOUT_SECONDS` | `300` | a TCP connection is closed if no line arrives within this window; `0` disables the timeout (`tcp_timeouts` metric) |
+| `XDR_SYSLOG_FORWARD_MAX_RETRIES` | `3` | CONN-DELIVERY-LOSS: max forward attempts per batch before it is dropped and counted in `delivery_dropped` |
+| `XDR_SYSLOG_FORWARD_RETRY_BASE_MS` | `200` | CONN-DELIVERY-LOSS: initial retry backoff (doubles each attempt, capped at `_RETRY_MAX_MS`) |
+| `XDR_SYSLOG_FORWARD_RETRY_MAX_MS` | `2000` | CONN-DELIVERY-LOSS: retry backoff cap |
+
+CONN-DELIVERY-LOSS scope note: unlike the file-based connectors
+(`log-connector-cloudtrail`/`-guardduty`/`-gcp-audit`), syslog telemetry is
+ephemeral (UDP/TCP, no source file to re-read), so there is no disk-backed
+spool here — a batch that still fails after `XDR_SYSLOG_FORWARD_MAX_RETRIES`
+attempts is explicitly dropped and logged (`delivery_dropped` metric),
+never silently discarded. True restart-safe delivery for this connector
+would require a disk-backed pending-batch spool, which is a materially
+larger, deliberately deferred feature — the retry-then-explicit-drop
+behavior here only closes the "transient failure loses in-flight data"
+gap, not "process crash loses in-flight data".
 
 Production deployments accepting syslog from untrusted or semi-trusted networks
 should additionally: allowlist source IPs at the network/firewall layer (this

@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -290,5 +292,187 @@ func TestTwoConnectorInstancesStayTenantIsolated(t *testing.T) {
 	}
 	if eventB["tenant_id"] != "tenant-b" {
 		t.Errorf("expected tenant-b's event to carry tenant_id=tenant-b, got %v", eventB["tenant_id"])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CONN-DELIVERY-LOSS: a file's checkpoint (processedFiles+saveState) must
+// only be committed after ALL of its derived batches are confirmed
+// delivered — never before, and never on partial success.
+// ---------------------------------------------------------------------------
+
+func newDeliveryTestConnector(t *testing.T, dir, ingestURL string, batchSize int) *Connector {
+	t.Helper()
+	return &Connector{
+		ingestURL:         ingestURL,
+		secret:            "s",
+		batchSize:         batchSize,
+		watchDir:          dir,
+		stateFile:         filepath.Join(dir, ".state.json"),
+		httpClient:        &http.Client{Timeout: 5 * time.Second},
+		processedFiles:    map[string]bool{},
+		forwardMaxRetries: 3,
+		forwardRetryBase:  time.Millisecond,
+		forwardRetryMax:   5 * time.Millisecond,
+	}
+}
+
+func writeMultiRecordCloudTrailFile(t *testing.T, path string, n int) {
+	t.Helper()
+	records := make([]map[string]any, n)
+	for i := 0; i < n; i++ {
+		records[i] = map[string]any{
+			"eventName": fmt.Sprintf("Event%d", i),
+			"eventTime": "2026-07-10T10:00:00Z",
+		}
+	}
+	body, err := json.Marshal(map[string]any{"Records": records})
+	if err != nil {
+		t.Fatalf("marshal fixture: %v", err)
+	}
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+}
+
+func TestProcessFileLeavesFileUnprocessedWhenGatewayUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleCloudTrailFile(t, path)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, _ := w.(http.Hijacker)
+		conn, _, _ := hj.Hijack()
+		_ = conn.Close() // simulate gateway unavailable — always fails
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if processed {
+		t.Error("expected the file to be left unprocessed after exhausting retries against an unavailable gateway")
+	}
+	if c.deliveryFailedFiles.Load() != 1 {
+		t.Errorf("expected deliveryFailedFiles=1, got %d", c.deliveryFailedFiles.Load())
+	}
+	if _, err := os.Stat(c.stateFile); err == nil {
+		t.Error("expected no state file to have been written for an unacknowledged file")
+	}
+}
+
+func TestProcessFileRetriesThenSucceedsAndMarksProcessed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleCloudTrailFile(t, path)
+
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&attempts, 1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if !processed {
+		t.Error("expected the file to be marked processed after eventual delivery success")
+	}
+	if c.deliveryFailedFiles.Load() != 0 {
+		t.Errorf("expected deliveryFailedFiles=0 after eventual success, got %d", c.deliveryFailedFiles.Load())
+	}
+
+	// Restart simulation: a fresh connector loading state must see the file as processed.
+	c2 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c2.loadState()
+	if !c2.processedFiles[path] {
+		t.Error("expected a restarted connector to load the file as processed via the persisted state file")
+	}
+}
+
+func TestProcessFileRestartRetriesAnUnacknowledgedFile(t *testing.T) {
+	// "process restart with an unacknowledged file": simulates a full
+	// restart (a fresh Connector + loadState) after a delivery failure —
+	// the file must be picked up and retried, not silently skipped.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sample.json")
+	writeSampleCloudTrailFile(t, path)
+
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusServiceUnavailable) // always fails this pass
+	}))
+	defer server.Close()
+
+	c1 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c1.processFile(path)
+	c1.mu.Lock()
+	stillUnprocessed := !c1.processedFiles[path]
+	c1.mu.Unlock()
+	if !stillUnprocessed {
+		t.Fatal("precondition failed: file should be unprocessed after a failed delivery")
+	}
+
+	// "Restart": a new connector instance loads whatever state was actually
+	// persisted (none, since delivery never succeeded) and re-scans.
+	c2 := newDeliveryTestConnector(t, dir, server.URL, 100)
+	c2.loadState()
+	c2.scanOnce() // must re-attempt the file, not skip it as already-processed
+
+	if got := atomic.LoadInt32(&attempts); got < 2 {
+		t.Errorf("expected the restarted connector to retry the file (more than 1 total attempt across both connectors), got %d", got)
+	}
+	if c2.filesSkipped.Load() != 0 {
+		t.Errorf("expected the unacknowledged file to be re-scanned, not skipped, got filesSkipped=%d", c2.filesSkipped.Load())
+	}
+}
+
+func TestProcessFileMultiBatchMiddleBatchFailureLeavesFileUnprocessed(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "multi.json")
+	writeMultiRecordCloudTrailFile(t, path, 5) // batchSize=2 -> 3 batches: [0,1] [2,3] [4]
+
+	var batchCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&batchCount, 1)
+		if n == 2 {
+			// The middle batch fails on every attempt (exhausts retries).
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer server.Close()
+
+	c := newDeliveryTestConnector(t, dir, server.URL, 2)
+	c.forwardMaxRetries = 1 // fail fast — this test cares about batch ordering, not retry timing
+	c.processFile(path)
+
+	c.mu.Lock()
+	processed := c.processedFiles[path]
+	c.mu.Unlock()
+	if processed {
+		t.Error("expected the file to be left unprocessed when its middle batch fails, even though the first batch succeeded")
+	}
+	if c.deliveryFailedFiles.Load() != 1 {
+		t.Errorf("expected deliveryFailedFiles=1, got %d", c.deliveryFailedFiles.Load())
+	}
+	// The first batch's forward() call did succeed (forwarded counter reflects
+	// it) — the constraint is specifically about NOT marking the file
+	// processed on partial success, not about preventing the first batch's
+	// HTTP call from happening at all.
+	if c.forwarded.Load() != 2 {
+		t.Errorf("expected the first (successful) batch's 2 events to be counted as forwarded, got %d", c.forwarded.Load())
 	}
 }

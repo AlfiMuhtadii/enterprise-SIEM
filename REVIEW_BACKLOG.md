@@ -144,15 +144,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Safety:** Real validation harness only; advisory-only records preserved; no autonomous action;
   append-only tables untouched.
 
-## Proposed Task: CONN-DELIVERY-LOSS - Implement acknowledged and restart-safe connector delivery
-
-- **Priority:** Critical
-- **Component:** `services/log-connector-{syslog,cloudtrail,guardduty,gcp-audit}/main.go`
-- **Finding:** Every connector clears `c.buffer` before `forward()` succeeds. The three file connectors also persist `processedFiles[path] = true` before any batch is acknowledged, so network errors, timeouts, HTTP 429, or HTTP 5xx permanently discard telemetry and suppress the source file on later scans/restarts.
-- **Required outcome:** Failed batches remain retryable through a bounded durable spool or equivalent restart-safe mechanism; file checkpoints are committed only after all derived batches are accepted; retries use bounded exponential backoff and preserve event identity for downstream deduplication; shutdown waits for an acknowledged flush.
-- **Required tests:** Gateway unavailable then recovers; non-2xx then success; process restart with an unacknowledged file; multi-batch file where a middle batch fails; shutdown during flush. Assert no silent loss and no unintended duplicate persistence.
-- **Constraint:** Do not mark a file processed merely because parsing succeeded. Delivery and checkpoint state must have explicit failure handling and observability.
-
 ## Proposed Task: CONN-UNBOUNDED-FILE - Stream and bound cloud-export file ingestion
 
 - **Priority:** High
