@@ -634,6 +634,37 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   Service/Command/Test, so zero regression risk to any other suite by construction. **Still
   not done**: the real warm tier (ClickHouse) and cold tier (object storage archival/restore) —
   unchanged from phase 1, both need live infra unavailable in this environment.
+- **Progress (2026-07-10, phase 2b):** Closed the CLI-only gap from phase 2 — new
+  `ArchiveSearchController` (`GET /archive-search`, RBAC-gated via the existing `soc:search.view`
+  permission, reused rather than inventing a new one since it's the same "read-only search over
+  historical platform data" concept `SiemSearchController` already uses) and a matching Blade view,
+  so an analyst can search the retention archive from the SOC without shell access. **Caught and
+  fixed a real tenant-isolation design mistake before it shipped, not after**: the controller was
+  first written with a free-text `tenant_id` query parameter a user could type any value into and
+  have it passed straight to the search — the exact class of bug this session's own
+  `ENT-TENANCY-*` fixes spent multiple passes closing elsewhere in the codebase. Caught during
+  design review (not by a failing test) and rewritten to derive tenant scope exclusively from
+  `TenantContextAuthority::validateAndResolve()` (the `X-Tenant-ID` header, validated against the
+  user's real memberships) — the same boundary every other tenant-scoped SOC controller in this
+  codebase enforces — with the free-text field removed from both the controller and the form
+  entirely. Deliberately **did not** copy `SiemSearchController`'s `?? 'default'` null-fallback:
+  that string is specific to how SiemSearch's OpenSearch-backed index scopes tenants and doesn't
+  apply to this archive's directory-per-tenant layout, where `ArchiveSearchService` already
+  correctly treats `tenantId=null` as "search across all tenant archive directories" — copying
+  the fallback verbatim would have silently returned empty results for the common
+  admin/unscoped-legacy-mode case. Controller hard-codes the same default archive path
+  `SecurityRetentionCommand`/the phase-2 CLI use (`storage/app/archives`) — no separate config
+  concept introduced. Results render as raw JSON blocks per row (archived rows have no fixed
+  schema across tables, unlike SiemSearch's alert-shaped rows) alongside the same
+  files/rows/results/truncated summary the CLI already prints. +7 new tests
+  (`ArchiveSearchControllerTest`): auth-required redirect, RBAC permission check, empty-query
+  renders OK, results render for a real archived+matched row, `filters=` query param applied,
+  no-match message for a nonexistent table, and the summary counters line — all against the
+  controller's real hard-coded default path (fixtures written there and cleaned up per-test,
+  since a browser route has no `--archive-dir`-style override the CLI tests could use). Full
+  `php artisan test --parallel --recreate-databases` run confirmed green (see CLAUDE.md's
+  Laravel gate); `ArchiveSearchServiceTest`/`SiemSearchTest` re-run to confirm zero regression
+  since neither was touched. **Still open**: the actual warm/cold tier, unchanged.
 
 ## Proposed Task: META-MODULE-RATIONALIZE — Consolidate the self-assessment / evidence-freeze sprawl
 

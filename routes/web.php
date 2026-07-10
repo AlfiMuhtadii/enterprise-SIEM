@@ -102,6 +102,7 @@ use App\Http\Controllers\EasmController;
 use App\Http\Controllers\AssetInventoryController;
 use App\Http\Controllers\SiemSearchController;
 use App\Http\Controllers\Detection\MitreCoverageController;
+use App\Http\Controllers\ArchiveSearchController;
 use App\Http\Controllers\DataResidencyController;
 use App\Http\Controllers\PilotReadinessMatrixController;
 use App\Http\Controllers\TenantStrictModeReadinessController;
@@ -1263,6 +1264,13 @@ Route::middleware(['auth', 'soc:search.view'])->group(function () {
 Route::middleware(['auth', 'soc:mitrecoverage.view'])->group(function () {
     Route::get('/mitre-coverage',                              [MitreCoverageController::class, 'index'])->name('mitre-coverage.index');
     Route::get('/mitre-coverage/navigator.json',              [MitreCoverageController::class, 'navigator'])->name('mitre-coverage.navigator');
+});
+
+// Archive Search — read-only search over the gzip JSONL retention archive
+// (DATA-TIERING phase 2b), reusing soc:search.view since it's the same
+// "read-only search over historical platform data" permission concept.
+Route::middleware(['auth', 'soc:search.view'])->group(function () {
+    Route::get('/archive-search',                              [ArchiveSearchController::class, 'index'])->name('archive-search.index');
 });
 
 // Data Residency / GDPR Erasure — per-tenant retention policy + erasure request lifecycle.
