@@ -9,7 +9,35 @@ Each finding is classified into one of three buckets:
 | **Deferred** | Valid finding, but not in scope for the current phase. Should be revisited before production deployment. |
 | **Accepted Risk** | Valid finding intentionally tolerated for local/demo posture. Documented so the risk is explicit, not invisible. |
 
-**Rule:** Enterprise-relevant reliability or production-hardening findings must never be classified as Rejected merely because academic/demo RPS is currently low. Those belong in Deferred.
+**Rule:** Enterprise-relevant reliability or production-hardening findings must never be classified as Rejected merely because current traffic is low. Those belong in Deferred.
+
+---
+
+## Reconciliation audit (2026-07-06) — decision-quality review
+
+A pass over every Rejected/Deferred/Accepted-Risk decision (see REVIEW_ALL.md Batch 22). Outcome:
+
+- **Reject decisions are sound and evidence-based.** ENV-3 (code-style, real regression risk),
+  STATE-REDIS-05 (verified: no Redis in correlation-worker), PERF-DB-CONN-LEAK (verified: psycopg3
+  `with conn:` closes — no leak), and **TEST-PER-TEST-SEED** (re-verified 2026-07-06: **zero** test
+  files seed inside `setUp()` — the reject is correct; the original Batch 21 finding was imprecise)
+  all hold.
+- **EDR-EXEC-02 / AI-CONF-BANDS / GAP-005 / GAP-007 stay valid regardless of target** — these are
+  CLAUDE.md **Forbidden Changes / non-goals (safety boundaries)**, not academic preferences. Only the
+  *rationale wording* ("academic defensibility / thesis requirement") is stale post-enterprise-reframe
+  and should read "product safety boundary / stated non-goal." The **decisions do not change.**
+- **Rationale wording to refresh (decision unchanged, justification now weaker at enterprise bar):**
+  DB-3, DB-4 (null-tenant demo data), RAG-1 (empty KB), INFRA-4 (Grafana writable) — "tolerated for
+  demo" is a softer basis now; each needs a firmer production gate, not removal.
+- **GAP-006** (p95 494ms) — reason still valid (Docker Desktop/WSL2 artifact) but now requires the
+  native-Linux <300ms SLA measurement as a hard pre-pilot gate, not an open-ended acceptance.
+- **Filing fixes:** INFRA-3 was stale (resolved by ENTERPRISE-068) → now marked RESOLVED below.
+  IG-1/IG-2/IG-3 are marked **IMPLEMENTED** but live in this file's Section 2 (Deferred) — they are
+  done (also in REVIEW_COMPLETED.md as INGESTION-025); they belong in COMPLETED, kept here only as
+  cross-reference.
+- **Completed-fix fidelity:** spot-checked 4 completed fixes against live code (ASSET-TENANT-OVERWRITE,
+  CONSUMER-GROUP-EPHEMERAL, NORM-ASYNC-COMMIT-LOSS, AW-DEDUPE-BEFORE-COMMIT) — **all four match their
+  claimed fix exactly.** No overstated completions found.
 
 ---
 
@@ -189,7 +217,7 @@ with load testing; the Go hot-path items require a live-pipeline verifier run pe
 - **Finding**: `docker-compose.yml` sets no `mem_limit` or `cpus` for Redpanda, ClickHouse, OpenSearch, or Grafana. Under sustained load these can starve the host.
 - **Why deferred**: Hard limits in the local dev compose can crash containers on lower-spec developer machines. This is a production deployment concern — limits belong in the Kubernetes/ECS deployment manifest or a `docker-compose.prod.yml` override, not in the shared dev compose.
 - **Production gate**: Must be addressed before any multi-tenant production pilot. Relevant to `docs/operations/OPERATIONAL_POSTURE.md`.
-- **Status**: **DEFERRED**
+- **Status**: **RESOLVED (2026-07-06 reconciliation)** — superseded by **ENTERPRISE-068** (`0d6cfce`, in REVIEW_COMPLETED.md): `deploy.resources.limits` (memory + cpus) added to 6 services in both `docker-compose.yml` (dev) and `docker-compose.prod.yml`, with `xdr_container_resource_validate.py` (14 tests). This entry was stale — the finding is done; kept here for history.
 
 ---
 
@@ -217,6 +245,30 @@ with load testing; the Go hot-path items require a live-pipeline verifier run pe
 - **Severity**: Medium (sustained Redpanda outage scenario)
 - **Source**: [REVIEW_ALL.md](REVIEW_ALL.md#finding-ig-3--15-second-publish-retry-timeout-causing-socket-exhaustion)
 - **Status**: **IMPLEMENTED** — `publish()` now uses `context.WithTimeout` per attempt (`XDR_PUBLISH_TIMEOUT_SECONDS`, default 5s), exponential backoff (100ms/200ms/400ms, capped at 1s), and circuit breaker (`XDR_PUBLISH_CB_FAILURES`=5, `XDR_PUBLISH_CB_OPEN_SECONDS`=30). Circuit open = immediate fast-fail, no goroutine accumulation. BACKLOG-INGESTION-025 / commits 3027e08 + e88c103.
+
+---
+
+### ML-SERVE-ONLINE: Multiclass LR model is offline-only, not in the live detection path
+
+- **Category**: Product Claim / Detection Capability
+- **Severity**: Medium-High (thesis/product claim accuracy, not a live-system defect)
+- **Source**: REVIEW_BACKLOG.md (moved here 2026-07-10 after investigation)
+- **Finding**: The trained multiclass logistic-regression model (`ai_detector_model.pkl`) is loaded only by offline `scripts/` (`train_ai_detector`, `realtime_detector_*_consumer`, `replay_detector_from_db`) — no live service loads it, so the running pipeline's "hybrid rule-based + ML" claim is, in practice, rule-based only.
+- **Why deferred**: Investigated 2026-07-10 — the original proposed fix (wire the model into `correlation-worker`) is the wrong integration point. The model's feature vector (`status`/`latency_ms`/`has_sql_keywords`/...) is HTTP-request features, confirmed identical to `SecurityRequestLogger`'s `security_events` capture, not `correlation-worker`'s identity/cloud/SaaS telemetry — wiring it into correlation-worker would score data it was never trained on. The real rule+ML hybrid already exists as working code (`scripts/realtime_detector_consumer.py`) but is absent from `docker-compose.yml` and writes directly to the **active** `security_alerts`/`security_responses` tables with no advisory/shadow gate — deploying it as-is risks silently activating an unvalidated new alert domain, against the spirit of the Forbidden Changes list on domain promotion.
+- **Production gate**: An explicit decision between (a) deploying `realtime_detector_consumer.py` as a real compose service that writes active alerts for a new web-request/HTTP-attack domain (requires domain-specific 6h soak PASS per CLAUDE.md before any active-path promotion) or (b) redirecting its output to an advisory-only table first (matching the existing `advisory_findings` shadow-alert-consumer pattern) and soak-validating before promotion. Either path is a properly-sized dedicated task, not a quick wire-up.
+- **Status**: **DEFERRED**
+
+---
+
+### TECH-EOL-UPGRADE: Runtime/framework are at or past end-of-life
+
+- **Category**: Tech Currency / Supply Chain
+- **Severity**: High (compliance/security-patchability signal, not an active exploit)
+- **Source**: REVIEW_BACKLOG.md (moved here 2026-07-10)
+- **Finding**: `composer.json` pins `php: ^8.1` (security support ended 2025-12), `laravel/framework: ^10.10` (security window closed ~2025-02), `laravel/sanctum: ^3.3` (4.x is current). Running on an unsupported PHP/framework fails baseline SOC 2 / vendor security review expectations.
+- **Why deferred**: This dev environment only has PHP 8.1 available — there is no PHP 8.3 runtime to upgrade to or test against here, so the staged upgrade (PHP 8.1→8.3, Laravel 10→11, Sanctum 3→4, each gated on the full test suite green) cannot even be attempted, let alone verified, in this environment. Not a code-complexity blocker — a missing-runtime blocker.
+- **Production gate**: Must be revisited in an environment with a newer PHP runtime available, before any production/pilot deployment. Each version bump gated on the full `php artisan test` suite green before merge; Laravel 11's bootstrap/config restructuring should be its own dedicated effort, not bundled with the PHP bump.
+- **Status**: **DEFERRED**
 
 ---
 
