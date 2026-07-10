@@ -404,6 +404,45 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   suites clean: `tests/alert_writer` 82/82, `tests/incident_builder` 77/77 (52 pre-existing this
   session + 25 new this pass), zero regressions. **Not run**: an actual `docker build` to
   verify the Dockerfile fix — Docker daemon unavailable, the same standing limitation.
+- **Progress (2026-07-10, ThreatHuntingService):** The single biggest decomposition win found
+  in the codebase this session — `app/Services/ThreatHuntingService.php` was **2524 lines**, of
+  which **~1150 lines (46%)** was a single `DOMAIN_FIELDS` constant (a security-critical
+  field/operator allowlist, guarding "NEVER allows raw SQL expressions, field injection, or
+  unsupported domains" per the class's own docblock) plus its companion `SUPPORTED_DOMAINS`
+  constant and `validateQueryFilters()` validator — pure data + pure validation logic, zero
+  Eloquent/DB dependency, extracted verbatim into a new `ThreatHuntQueryAllowlist` class.
+  `ThreatHuntingService` 2524→1145 lines (55% reduction); `validateQueryFilters()` kept as a
+  1-line delegating passthrough (`ThreatHuntQueryAllowlist::validate(...)`) so every existing
+  caller's signature is unchanged, and `supportedDomains()`/the two `DOMAIN_FIELDS[...]`
+  lookup sites in `executeQuery()`/`queryAlerts()` were repointed at the new class.
+  **Found and preserved a real backward-compatibility hazard before it could break anything**:
+  `DOMAIN_FIELDS` was `private const` (zero external references, confirmed by grep — safe to
+  move outright), but `SUPPORTED_DOMAINS` was `public const` and is referenced by **25 other
+  files** (`ThreatHuntController` plus 24 test files spanning almost every meta-module test
+  suite, since hunt-domain-count tracking is threaded through this codebase's "N hunt domains"
+  convention) — moving it without a compatibility path would have broken all 25 with an
+  undefined-constant fatal. Added `public const SUPPORTED_DOMAINS =
+  ThreatHuntQueryAllowlist::SUPPORTED_DOMAINS;` back on `ThreatHuntingService` (PHP allows a
+  class constant's value to reference another class's constant; verified this resolves
+  correctly at runtime, not just parses, via the full `ThreatHuntingQueryEngineTest` suite) —
+  zero of the 25 external call sites needed to change. Extraction itself performed via `sed`
+  line-range extraction + a small Python rewrite script (not the Edit tool) given the sheer
+  size (~1370 lines moved) made manual old_string/new_string matching impractical; every step
+  verified with `php -l` and the real test suite, not just visual inspection. **This allowlist
+  had zero isolated unit test coverage before extraction** (only reachable indirectly through
+  the full `executeQuery()`/RefreshDatabase path) — +11 new direct-import tests
+  (`ThreatHuntQueryAllowlistTest`, plain `PHPUnit\Framework\TestCase`, no DB, matching the
+  `TotpServiceTest`/`TraceparentServiceTest` precedent for pure services): valid pass,
+  unsupported-domain rejection, non-allowlisted-field rejection, disallowed-operator-for-an-
+  allowed-field rejection, multi-filter validation (checks every filter, not just the first),
+  plus two **structural sanity checks over the entire 1150-line data structure** that weren't
+  practically writable before this was its own reviewable unit: every `DOMAIN_FIELDS` key has a
+  matching `SUPPORTED_DOMAINS` entry (no dead/orphaned allowlist blocks), and every field's
+  operator list is non-empty (an empty list would make that field permanently unusable via
+  `in_array` against `[]`) — both passed cleanly, confirming the allowlist data itself has no
+  latent inconsistencies. Full `php artisan test --parallel --recreate-databases` run (see
+  CLAUDE.md's Laravel gate) confirmed green across the entire suite, including all 25 external
+  `SUPPORTED_DOMAINS` call sites and the full 44-test `ThreatHuntingQueryEngineTest` suite.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 
