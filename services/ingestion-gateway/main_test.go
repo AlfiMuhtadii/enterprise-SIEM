@@ -646,6 +646,90 @@ func TestIngestHandlerUsesPayloadTenantForRateLimit(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// CONN-UNTENANTED-INGEST: strict-mode rejection of unattributed batches.
+// Default (requireTenant=false) preserves existing fail-open behavior;
+// XDR_INGEST_REQUIRE_TENANT=true makes an empty effective tenant (no
+// payload tenant_id, no X-Tenant-ID header) a hard rejection.
+// ---------------------------------------------------------------------------
+
+func TestIngestHandlerDefaultModeAllowsFullyUntenantedBatch(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL) // requireTenant defaults to false (zero value)
+
+	events := []map[string]any{{"event_type": "login"}}
+	body, _ := json.Marshal(events)
+	rr := postIngest(gw, body, "") // no header, no payload tenant_id
+
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 for a fully untenanted batch in default (non-strict) mode, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerStrictModeRejectsFullyUntenantedBatch(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.requireTenant = true
+
+	events := []map[string]any{{"event_type": "login"}}
+	body, _ := json.Marshal(events)
+	rr := postIngest(gw, body, "")
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for an untenanted batch in strict mode, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerStrictModeAcceptsConfiguredTenant(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.requireTenant = true
+
+	events := []map[string]any{{"event_type": "login", "tenant_id": "tenant-abc"}}
+	body, _ := json.Marshal(events)
+	rr := postIngest(gw, body, "")
+
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 in strict mode when the payload carries a tenant_id, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestIngestHandlerStrictModeAcceptsHeaderOnlyTenant(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{"offsets": []any{}})
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.requireTenant = true
+
+	events := []map[string]any{{"event_type": "login"}}
+	body, _ := json.Marshal(events)
+	rr := postIngest(gw, body, "tenant-header-only")
+
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202 in strict mode when the X-Tenant-ID header carries a tenant, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 // IG-HMAC-FAIL-OPEN: in enforced posture, an empty or dev-default ingest secret
 // must be a hard failure, not a silent fail-open warning.
 

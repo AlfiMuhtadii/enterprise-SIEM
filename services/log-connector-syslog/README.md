@@ -26,6 +26,7 @@ ingestion-gateway.
 | `XDR_INGEST_URL` | `http://127.0.0.1:8091/v1/ingest` | ingestion-gateway target |
 | `XDR_INGEST_SECRET` | `dev-secret-change-me` | HMAC secret shared with ingestion-gateway |
 | `XDR_SYSLOG_TENANT_ID` | (empty) | tenant_id stamped on every forwarded event |
+| `XDR_SYSLOG_REQUIRE_TENANT` | `false` | CONN-UNTENANTED-INGEST: if `true` and `XDR_SYSLOG_TENANT_ID` is empty, the connector refuses to start rather than forwarding unattributed telemetry |
 | `XDR_SYSLOG_BATCH_SIZE` | `50` | events per forwarded batch |
 | `XDR_SYSLOG_FLUSH_MS` | `500` | max time before a partial batch is flushed |
 | `XDR_SYSLOG_PARSER_REGISTRY` | (empty) | path to a JSON config-driven parser registry (see below); empty means no registry sources, CEF/LEEF/raw dispatch only |

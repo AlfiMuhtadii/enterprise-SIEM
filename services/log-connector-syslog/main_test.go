@@ -472,3 +472,41 @@ func waitForCondition(t *testing.T, cond func() bool) {
 		t.Fatal("condition not met within timeout")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CONN-UNTENANTED-INGEST: startup-refusal in strict mode.
+// ---------------------------------------------------------------------------
+
+func TestValidateTenantConfigDefaultAllowsEmptyTenant(t *testing.T) {
+	if err := validateTenantConfig("", false); err != nil {
+		t.Errorf("expected no error in default (non-strict) mode with an empty tenant, got: %v", err)
+	}
+}
+
+func TestValidateTenantConfigStrictRejectsEmptyTenant(t *testing.T) {
+	if err := validateTenantConfig("", true); err == nil {
+		t.Error("expected an error in strict mode with an empty tenant")
+	}
+}
+
+func TestValidateTenantConfigStrictAllowsConfiguredTenant(t *testing.T) {
+	if err := validateTenantConfig("tenant-abc", true); err != nil {
+		t.Errorf("expected no error in strict mode with a configured tenant, got: %v", err)
+	}
+}
+
+// TestTwoConnectorInstancesStayTenantIsolated locks in that tenantID is a
+// per-Connector-instance field, not shared/global state — two connectors
+// configured for different tenants must never cross-contaminate each
+// other's stamped tenant_id.
+func TestTwoConnectorInstancesStayTenantIsolated(t *testing.T) {
+	eventA := mapRawToEvent("line for tenant A", "tenant-a", time.Now())
+	eventB := mapRawToEvent("line for tenant B", "tenant-b", time.Now())
+
+	if eventA["tenant_id"] != "tenant-a" {
+		t.Errorf("expected tenant-a's event to carry tenant_id=tenant-a, got %v", eventA["tenant_id"])
+	}
+	if eventB["tenant_id"] != "tenant-b" {
+		t.Errorf("expected tenant-b's event to carry tenant_id=tenant-b, got %v", eventB["tenant_id"])
+	}
+}

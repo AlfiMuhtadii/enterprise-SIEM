@@ -284,6 +284,9 @@ services:
       XDR_MAX_BATCH_SIZE: 1000
       XDR_NORMALIZER_METRICS_URL: http://normalizer-worker:8092/metrics
       XDR_MAX_NORMALIZER_QUEUE_DEPTH: 150000
+      # CONN-UNTENANTED-INGEST: reject unattributed batches outright.
+      # Default false keeps local demo usable without configuring a tenant.
+      XDR_INGEST_REQUIRE_TENANT: ${XDR_INGEST_REQUIRE_TENANT:-false}
     ports:
       - "8091:8091"
     depends_on:
@@ -327,6 +330,11 @@ services:
       XDR_SYSLOG_UDP_ADDR: ":5140"
       XDR_SYSLOG_TCP_ADDR: ":5140"
       XDR_SYSLOG_METRICS_ADDR: ":8095"
+      # CONN-UNTENANTED-INGEST: deployment manifests must expose tenant
+      # configuration explicitly rather than leaving it entirely absent.
+      # Both default to the pre-existing behavior (unattributed telemetry).
+      XDR_SYSLOG_TENANT_ID: ${XDR_SYSLOG_TENANT_ID:-}
+      XDR_SYSLOG_REQUIRE_TENANT: ${XDR_SYSLOG_REQUIRE_TENANT:-false}
     ports:
       - "5140:5140/udp"
       - "5140:5140/tcp"
@@ -345,6 +353,9 @@ services:
       XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_CLOUDTRAIL_METRICS_ADDR: ":8097"
+      # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
+      XDR_CLOUDTRAIL_TENANT_ID: ${XDR_CLOUDTRAIL_TENANT_ID:-}
+      XDR_CLOUDTRAIL_REQUIRE_TENANT: ${XDR_CLOUDTRAIL_REQUIRE_TENANT:-false}
     volumes:
       # Operator mounts a local sync of their CloudTrail S3 export bucket here
       # (e.g. `aws s3 sync s3://my-trail-bucket ./cloudtrail-logs` on a cron).
@@ -365,6 +376,9 @@ services:
       XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_GUARDDUTY_METRICS_ADDR: ":8098"
+      # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
+      XDR_GUARDDUTY_TENANT_ID: ${XDR_GUARDDUTY_TENANT_ID:-}
+      XDR_GUARDDUTY_REQUIRE_TENANT: ${XDR_GUARDDUTY_REQUIRE_TENANT:-false}
     volumes:
       # Operator mounts a local sync of their GuardDuty findings-export S3 bucket here
       # (e.g. `aws s3 sync s3://my-guardduty-bucket ./guardduty-findings` on a cron).
@@ -385,6 +399,9 @@ services:
       XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_GCP_AUDIT_METRICS_ADDR: ":8099"
+      # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
+      XDR_GCP_AUDIT_TENANT_ID: ${XDR_GCP_AUDIT_TENANT_ID:-}
+      XDR_GCP_AUDIT_REQUIRE_TENANT: ${XDR_GCP_AUDIT_REQUIRE_TENANT:-false}
     volumes:
       # Operator mounts a local sync of their GCP Cloud Audit Log sink's GCS bucket here
       # (e.g. `gcloud storage rsync gs://my-audit-log-bucket ./gcp-audit-logs` on a cron).

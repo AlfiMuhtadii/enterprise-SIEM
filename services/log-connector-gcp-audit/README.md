@@ -37,6 +37,7 @@ audit data is nested inside `protoPayload` (a
 | `XDR_INGEST_URL` | `http://127.0.0.1:8091/v1/ingest` | ingestion-gateway target |
 | `XDR_INGEST_SECRET` | `dev-secret-change-me` | HMAC secret shared with ingestion-gateway |
 | `XDR_GCP_AUDIT_TENANT_ID` | (empty) | tenant_id stamped on every forwarded event |
+| `XDR_GCP_AUDIT_REQUIRE_TENANT` | `false` | CONN-UNTENANTED-INGEST: if `true` and `XDR_GCP_AUDIT_TENANT_ID` is empty, the connector refuses to start rather than forwarding unattributed telemetry |
 | `XDR_GCP_AUDIT_BATCH_SIZE` | `100` | events per forwarded batch |
 
 ## Restart-safe file tracking

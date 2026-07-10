@@ -84,10 +84,15 @@ func main() {
 		log.Fatalf("[log-connector-syslog] failed to load parser registry: %v", err)
 	}
 
+	tenantID := env("XDR_SYSLOG_TENANT_ID", "")
+	if err := validateTenantConfig(tenantID, envBool("XDR_SYSLOG_REQUIRE_TENANT", false)); err != nil {
+		log.Fatalf("[log-connector-syslog] %v", err)
+	}
+
 	c := &Connector{
 		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
 		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:       env("XDR_SYSLOG_TENANT_ID", ""),
+		tenantID:       tenantID,
 		batchSize:      envInt("XDR_SYSLOG_BATCH_SIZE", 50),
 		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
 		registry:       reg,
@@ -587,4 +592,17 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 	return value == "1" || value == "true" || value == "yes"
+}
+
+// validateTenantConfig enforces CONN-UNTENANTED-INGEST's startup-refusal
+// requirement: in strict/production mode (XDR_SYSLOG_REQUIRE_TENANT=true), a
+// connector with no assigned tenant refuses to start rather than silently
+// forwarding unattributed telemetry that ingestion-gateway's own
+// tenantAllowed("") would otherwise accept by default. Disabled by default
+// (requireTenant=false) preserves the existing behavior byte-for-byte.
+func validateTenantConfig(tenantID string, requireTenant bool) error {
+	if requireTenant && tenantID == "" {
+		return fmt.Errorf("XDR_SYSLOG_REQUIRE_TENANT=true but XDR_SYSLOG_TENANT_ID is not set — refusing to start untenanted")
+	}
+	return nil
 }

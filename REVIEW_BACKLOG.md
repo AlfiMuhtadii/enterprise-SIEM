@@ -153,15 +153,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Required tests:** Gateway unavailable then recovers; non-2xx then success; process restart with an unacknowledged file; multi-batch file where a middle batch fails; shutdown during flush. Assert no silent loss and no unintended duplicate persistence.
 - **Constraint:** Do not mark a file processed merely because parsing succeeded. Delivery and checkpoint state must have explicit failure handling and observability.
 
-## Proposed Task: CONN-UNTENANTED-INGEST - Require tenant attribution for connector telemetry
-
-- **Priority:** High
-- **Component:** Four `log-connector-*` services, `docker-compose.yml`, ingestion-gateway strict tenant policy
-- **Finding:** Connector tenant environment variables default to empty and are absent from Compose. Events then omit `tenant_id`, send no `X-Tenant-ID`, and are accepted because `ingestion-gateway.tenantAllowed("")` returns true.
-- **Required outcome:** Production/strict mode refuses connector startup without an assigned tenant; every connector event carries signed tenant attribution; deployment manifests expose explicit tenant configuration; strict gateway mode rejects unattributed batches.
-- **Required tests:** Startup rejection in strict mode, acceptance with a configured tenant, rejection of empty tenant ingest, header/payload mismatch, and isolation of two connector instances assigned to different tenants.
-- **Constraint:** Tenant identity must come from trusted deployment configuration, not from untrusted Syslog payload fields or cloud-export record contents.
-
 ## Proposed Task: CONN-UNBOUNDED-FILE - Stream and bound cloud-export file ingestion
 
 - **Priority:** High

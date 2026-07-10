@@ -69,10 +69,15 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", env("XDR_CLOUDTRAIL_METRICS_ADDR", ":8097"), "health/metrics listen address")
 	flag.Parse()
 
+	tenantID := env("XDR_CLOUDTRAIL_TENANT_ID", "")
+	if err := validateTenantConfig(tenantID, envBool("XDR_CLOUDTRAIL_REQUIRE_TENANT", false)); err != nil {
+		log.Fatalf("[log-connector-cloudtrail] %v", err)
+	}
+
 	c := &Connector{
 		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
 		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:       env("XDR_CLOUDTRAIL_TENANT_ID", ""),
+		tenantID:       tenantID,
 		batchSize:      envInt("XDR_CLOUDTRAIL_BATCH_SIZE", 100),
 		watchDir:       *watchDir,
 		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
@@ -400,4 +405,17 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 	return value == "1" || value == "true" || value == "yes"
+}
+
+// validateTenantConfig enforces CONN-UNTENANTED-INGEST's startup-refusal
+// requirement: in strict/production mode (XDR_CLOUDTRAIL_REQUIRE_TENANT=true),
+// a connector with no assigned tenant refuses to start rather than silently
+// forwarding unattributed telemetry that ingestion-gateway's own
+// tenantAllowed("") would otherwise accept by default. Disabled by default
+// (requireTenant=false) preserves the existing behavior byte-for-byte.
+func validateTenantConfig(tenantID string, requireTenant bool) error {
+	if requireTenant && tenantID == "" {
+		return fmt.Errorf("XDR_CLOUDTRAIL_REQUIRE_TENANT=true but XDR_CLOUDTRAIL_TENANT_ID is not set — refusing to start untenanted")
+	}
+	return nil
 }

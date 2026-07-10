@@ -166,6 +166,8 @@ type Gateway struct {
 	// body-only signatures (no X-XDR-Timestamp header) are still accepted.
 	sigTimestampToleranceSecs int64
 	sigV2Required             bool
+	// CONN-UNTENANTED-INGEST: strict-mode rejection of unattributed batches.
+	requireTenant bool
 	// core counters
 	requests      atomic.Int64
 	accepted      atomic.Int64
@@ -200,6 +202,7 @@ func main() {
 		publishTimeoutSecs: publishTimeoutSecs,
 		sigTimestampToleranceSecs: int64(envInt("XDR_INGEST_SIG_TOLERANCE_SECONDS", 300)),
 		sigV2Required:             envBool("XDR_INGEST_SIGV2_REQUIRED", false),
+		requireTenant:             envBool("XDR_INGEST_REQUIRE_TENANT", false),
 	}
 
 	// IG-1: start background goroutine to poll normalizer metrics
@@ -439,6 +442,15 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 	effectiveTenantID := payloadTenantID
 	if effectiveTenantID == "" {
 		effectiveTenantID = headerTenantID
+	}
+	// CONN-UNTENANTED-INGEST: in strict mode, an unattributed batch (no
+	// tenant_id in the payload, no X-Tenant-ID header) is rejected outright
+	// rather than silently accepted — tenantAllowed("") intentionally treats
+	// an empty tenant as "unrestricted" for rate-limiting purposes, which is
+	// a separate concern from whether the batch should be admitted at all.
+	if g.requireTenant && effectiveTenantID == "" {
+		g.reject(w, "tenant_required", http.StatusBadRequest)
+		return
 	}
 	if !g.tenantAllowed(effectiveTenantID) {
 		g.reject(w, "tenant_rate_limited", http.StatusTooManyRequests)

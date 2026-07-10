@@ -245,3 +245,38 @@ func writeSampleFindingsFile(t *testing.T, path string) {
 		t.Fatalf("failed to write sample file: %v", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CONN-UNTENANTED-INGEST: startup-refusal in strict mode.
+// ---------------------------------------------------------------------------
+
+func TestValidateTenantConfigDefaultAllowsEmptyTenant(t *testing.T) {
+	if err := validateTenantConfig("", false); err != nil {
+		t.Errorf("expected no error in default (non-strict) mode with an empty tenant, got: %v", err)
+	}
+}
+
+func TestValidateTenantConfigStrictRejectsEmptyTenant(t *testing.T) {
+	if err := validateTenantConfig("", true); err == nil {
+		t.Error("expected an error in strict mode with an empty tenant")
+	}
+}
+
+func TestValidateTenantConfigStrictAllowsConfiguredTenant(t *testing.T) {
+	if err := validateTenantConfig("tenant-abc", true); err != nil {
+		t.Errorf("expected no error in strict mode with a configured tenant, got: %v", err)
+	}
+}
+
+func TestTwoConnectorInstancesStayTenantIsolated(t *testing.T) {
+	f := guardduty.Finding{ID: "finding-1", Type: "UnauthorizedAccess:EC2/SSHBruteForce"}
+	eventA := mapFindingToEvent(f, "tenant-a")
+	eventB := mapFindingToEvent(f, "tenant-b")
+
+	if eventA["tenant_id"] != "tenant-a" {
+		t.Errorf("expected tenant-a's event to carry tenant_id=tenant-a, got %v", eventA["tenant_id"])
+	}
+	if eventB["tenant_id"] != "tenant-b" {
+		t.Errorf("expected tenant-b's event to carry tenant_id=tenant-b, got %v", eventB["tenant_id"])
+	}
+}
