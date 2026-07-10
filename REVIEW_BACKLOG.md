@@ -804,6 +804,30 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   separate, individually-scoped follow-up, not bundled into this documentation pass.
   Documentation-only change — no test run per CLAUDE.md's Test Execution Policy (no executable
   examples/commands/behavior contracts changed).
+- **Correction (2026-07-10, later):** Attempted follow-up #1 from the broader audit above (merge
+  `PilotReadinessService` into `EnterprisePilotReadinessMatrixService`) and **retracted it after
+  investigation, before writing any merge code** — the same discipline already applied to
+  `StabilityEvidenceFreeze` V2/V3/V4, this time catching a mistake in this audit's own earlier
+  classification rather than in the original finding. `PilotReadinessService` is operational
+  execution/tracking (onboarding registration, health checks, success metrics, rollback
+  validation, telemetry pressure snapshots, operator sign-off, audit events); `Enterprise
+  PilotReadinessMatrixService` is a generic gate/evidence scorecard (`REQUIRED_GATE_IDS` +
+  `DIMENSIONS`, evaluated from evidence manually attached via `linkEvidence()` — **not
+  hard-coded to `PilotReadinessService` at all**). Grep confirms **zero references between the
+  two services** — no shared models, no calls either direction; the gate IDs conceptually
+  overlap with what `PilotReadinessService` tracks (e.g. `rollback_readiness` ↔
+  `validateRollback()`), but the matrix service is architecturally an evidence-aggregator over
+  *any* source, the same role `StabilityEvidenceFreeze` plays relative to the services *it*
+  aggregates from — an aggregator is not a duplicate of what it aggregates. Updated
+  `docs/architecture/META_MODULE_AUDIT.md` in place: reclassified both services from
+  "Merge-candidate" to "Keep," added a new §3a documenting the correction and the generalized
+  lesson (name-similarity alone is exactly the "distinct nouns, same verb" mistake this codebase
+  already learned to avoid), updated the "Net recommendation" count from "2 of 33" to "0 of 33"
+  merge-candidates, and struck the retracted step from the "Concrete next steps" list. **No
+  merge attempted, no facade needed either** — unlike V2/V3/V4, these two don't cover
+  sequential/overlapping ranges of the same evidence, so there's no "which one is current"
+  ambiguity for an overview facade to resolve. Documentation-only correction, no test run per
+  CLAUDE.md policy.
 
 ## Proposed Task: SIM-LAYER-REALITY-GATE (Track B) — Back the key HA/scale/chaos/soak simulators with real infra
 

@@ -83,8 +83,8 @@ taken by this audit.
 | `Phase1SoakEvidenceFreezeService` | Keep | Snapshot of a completed real run, distinct from the plan/execution services |
 | `RealDomainSoakPlanService` | Keep | Multi-phase rollout structure, distinct from single-domain plans |
 | `SoakChaosValidationService` | Keep | Distinct discipline: fault-injection/resilience testing, not promotion evidence |
-| `EnterprisePilotReadinessMatrixService` | **Merge-candidate** | Same subject as `PilotReadinessService` below — two services both answering "is the pilot ready" |
-| `PilotReadinessService` | **Merge-candidate** | See above — the clearest actual near-duplicate pair in the whole set |
+| `EnterprisePilotReadinessMatrixService` | Keep — **corrected 2026-07-10** | Originally classified "Merge-candidate" below; investigated for the actual merge attempt and found genuinely distinct — see §3a |
+| `PilotReadinessService` | Keep — **corrected 2026-07-10** | See §3a |
 | `CommercialReadinessService` | Keep, **naming-risk** | Legitimate top-level summary, but the name alone (out of context) risks being read as a real commercial certification — no behavior change needed, `is_advisory` already enforced; flag for a defense/demo script note, not a code change |
 | `FinalXdrCertificationService` | Keep, **naming-risk (highest)** | Same concern as above but sharper — "Final XDR Certification" is the exact phrase the original finding quoted as a credibility risk. Runtime output is already `is_advisory`/`freeze_approved=false`-gated; the risk is purely in how the class/feature name reads out of context |
 | `CodeLevelXdrMaturityService` | Keep, low-risk naming | Narrower framing ("maturity scorecard") reads less like a real accreditation than "certification" |
@@ -93,13 +93,55 @@ taken by this audit.
 | `LongRunningOperationalService` | Keep | Distinct scope: multi-week operational-window analysis |
 | `DemoPlatformPackagingService` | **Lowest production value** | Name and scope suggest defense/demo packaging rather than an operational platform capability — candidate for relabeling as explicitly "demo tooling" (e.g. a `demo/` sub-namespace) rather than sitting alongside production governance services, not for deletion |
 
-**Net recommendation: 2 of 33 (6%) are a genuine merge-candidate pair; 1 of
-33 is a naming/categorization candidate; the rest are legitimately distinct
-in scope even though they share the same advisory-scaffolding shape.** The
-finding's instinct that this is "sprawl" is correct about the *shape*
-(near-identical `ADVISORY_ONLY`/`freeze_approved=false`/gate-table scaffolding
-repeated 33 times) more than the *substance* (most services answer a
-genuinely different question).
+**Net recommendation (updated 2026-07-10 — see §3a): 0 of 33 are a genuine
+merge-candidate pair; 1 of 33 is a naming/categorization candidate; the rest
+are legitimately distinct in scope even though they share the same
+advisory-scaffolding shape.** The finding's instinct that this is "sprawl"
+is correct about the *shape* (near-identical
+`ADVISORY_ONLY`/`freeze_approved=false`/gate-table scaffolding repeated 33
+times) more than the *substance* (every service answers a genuinely
+different question) — more so than this audit's own first pass concluded.
+
+## 3a. Correction: the one "merge-candidate" pair was not actually a duplicate
+
+This audit originally classified `PilotReadinessService` +
+`EnterprisePilotReadinessMatrixService` as the one genuine merge-candidate
+pair, on the strength of both names literally containing "pilot readiness."
+When Task I of the next session round attempted the actual merge, deeper
+investigation found the same thing the earlier `StabilityEvidenceFreeze`
+investigation found: **superficial name similarity, structurally unrelated
+services.**
+
+- `PilotReadinessService` is **operational execution/tracking**: registers
+  pilot onboarding, runs health checks, records success metrics, validates
+  rollback, snapshots telemetry pressure, records operator sign-off and
+  audit events. It does things.
+- `EnterprisePilotReadinessMatrixService` is a **generic gate/evidence
+  scorecard**: `REQUIRED_GATE_IDS` (`soak_validation`, `replay_verification`,
+  `tenant_isolation`, `rollback_readiness`) and `DIMENSIONS` (`technical`,
+  `operational`, `security`, `telemetry`, `easm`, `certification`) are
+  evaluated from evidence an operator manually attaches via `linkEvidence()`
+  — not hard-coded to `PilotReadinessService` at all. **Grep confirms zero
+  references between the two services** — no shared models, no method calls
+  either direction. The gate IDs *conceptually* overlap with what
+  `PilotReadinessService` tracks (e.g. `rollback_readiness` ↔
+  `validateRollback()`), but the matrix service is designed to aggregate
+  evidence from *any* source, the same architectural role
+  `StabilityEvidenceFreezeV2/V3/V4` play relative to the services *they*
+  aggregate evidence from (`DetectionPromotionReadinessService`,
+  `TenantBoundaryService`, etc.) — an evidence-aggregator is not a duplicate
+  of the things it aggregates evidence about.
+
+**Corrected outcome: no merge attempted, no facade needed either** (unlike
+V2/V3/V4, these two don't cover sequential/overlapping ranges of the *same*
+kind of evidence — there's no "which one is current" ambiguity to resolve
+with an overview facade). The lesson generalizes: **this audit's own
+name-similarity heuristic was exactly the mistake CLAUDE.md warns against
+elsewhere in this codebase** ("distinct nouns, same verb" pattern) — every
+"looks like a duplicate" finding in this class of service needs the same
+"read the actual code, check for real coupling" verification the freeze
+services already got, not just a classification pass over docblocks and
+class names.
 
 ## 4. The versioned-duplication smell — already has a working pattern
 
@@ -160,9 +202,9 @@ operability between "browse in the SOC UI" and "run from CI/cron."
 
 ## 7. Concrete next steps (not executed by this audit)
 
-1. Merge `PilotReadinessService` into `EnterprisePilotReadinessMatrixService`
-   (or vice versa) — the one pair in §3 that is a genuine duplicate, not
-   just structurally similar.
+1. ~~Merge `PilotReadinessService` into `EnterprisePilotReadinessMatrixService`~~
+   — **retracted, see §3a**: investigated and found genuinely distinct, not
+   a duplicate. No merge action remains for this pair.
 2. Build a `SoakOverviewService` mirroring `StabilityFreezeOverviewService`'s
    read-only, per-service, explicitly-labelled pattern (§4).
 3. Redirect new capability work toward the connector/search/asset-context
