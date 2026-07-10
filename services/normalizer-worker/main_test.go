@@ -224,3 +224,68 @@ func TestPublishFailureDlqIncludesFullEvents(t *testing.T) {
 		t.Fatal("DLQ write for the failed publish never happened")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// PERF-GO-OVERCONCURRENT: normalizeBatch must reuse a persistent worker pool
+// across calls instead of spawning fresh goroutines+channels every batch.
+// ---------------------------------------------------------------------------
+
+func TestNormalizeBatchReusesSamePoolAcrossCalls(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	w.normalizeBatch([]map[string]any{normalizedRawEvent("evt-1")})
+	first := w.pool
+	if first == nil {
+		t.Fatal("expected pool to be initialized after first normalizeBatch call")
+	}
+
+	w.normalizeBatch([]map[string]any{normalizedRawEvent("evt-2")})
+	if w.pool != first {
+		t.Error("expected the same pool instance to be reused across normalizeBatch calls, got a new one")
+	}
+}
+
+func TestNormalizeBatchCorrectnessThroughPersistentPool(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	raw := []map[string]any{
+		normalizedRawEvent("evt-a"),
+		normalizedRawEvent("evt-b"),
+		{"event_id": "evt-malformed"}, // missing required fields → normalize.Event should error
+		normalizedRawEvent("evt-c"),
+	}
+
+	normalized, malformed := w.normalizeBatch(raw)
+
+	if malformed != 1 {
+		t.Errorf("expected exactly 1 malformed event, got %d", malformed)
+	}
+	if len(normalized) != 3 {
+		t.Errorf("expected 3 normalized events, got %d", len(normalized))
+	}
+}
+
+func TestNormalizeBatchHandlesConcurrentCallsOnSamePool(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			normalized, malformed := w.normalizeBatch([]map[string]any{normalizedRawEvent(fmt.Sprintf("evt-concurrent-%d", i))})
+			if malformed != 0 || len(normalized) != 1 {
+				t.Errorf("call %d: expected 1 normalized/0 malformed, got %d/%d", i, len(normalized), malformed)
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
+func TestNormalizeBatchEmptyInputReturnsEmpty(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+	normalized, malformed := w.normalizeBatch(nil)
+	if len(normalized) != 0 || malformed != 0 {
+		t.Errorf("expected empty result for empty input, got %d normalized, %d malformed", len(normalized), malformed)
+	}
+}

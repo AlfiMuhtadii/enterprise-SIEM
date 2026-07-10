@@ -74,6 +74,8 @@ type Worker struct {
 	producerQueues        []chan queuedEvent
 	nextProducer          atomic.Uint64
 	mu                    sync.Mutex
+	pool                  *normalizerPool
+	poolOnce              sync.Once
 }
 
 // queuedEvent pairs a normalized event with the WaitGroup (if any) that must
@@ -230,7 +232,7 @@ func (w *Worker) consumeOnce() {
 			}
 			rawEvents = append(rawEvents, value)
 		}
-		normalized, malformed := normalizeBatch(rawEvents)
+		normalized, malformed := w.normalizeBatch(rawEvents)
 		w.processed.Add(int64(len(rawEvents)))
 		w.malformed.Add(int64(malformed))
 		// Block the next consumerPoll (which implicitly commits this batch's
@@ -466,7 +468,7 @@ func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "normalizer_backpressure", http.StatusTooManyRequests)
 		return
 	}
-	normalized, malformed := normalizeBatch(rawEvents)
+	normalized, malformed := w.normalizeBatch(rawEvents)
 	w.processed.Add(int64(len(rawEvents)))
 	w.malformed.Add(int64(malformed))
 	for _, event := range normalized {
@@ -482,32 +484,51 @@ func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
-	workers := envInt("XDR_NORMALIZER_WORKERS", runtime.NumCPU())
+// normalizerPool is a bounded worker pool started once and reused across
+// every normalizeBatch call (PERF-GO-OVERCONCURRENT), rather than the old
+// behavior of spawning `workers` fresh goroutines (plus 2 fresh channels)
+// on every single poll-batch cycle. Only the small per-batch results
+// channel is still allocated per call — unavoidable since each batch needs
+// its own completion signal — the actual GC-churn source (goroutine
+// spawn+teardown at high sustained RPS) is what's eliminated.
+type normalizeJob struct {
+	raw    map[string]any
+	result chan<- normalizeResult
+}
+
+type normalizeResult struct {
+	event map[string]any
+	err   error
+}
+
+type normalizerPool struct {
+	jobs chan normalizeJob
+}
+
+func newNormalizerPool(workers int) *normalizerPool {
 	if workers < 1 {
 		workers = 1
 	}
-	if workers > len(rawEvents) && len(rawEvents) > 0 {
-		workers = len(rawEvents)
-	}
-	type result struct {
-		event map[string]any
-		err   error
-	}
-	jobs := make(chan map[string]any, len(rawEvents))
-	results := make(chan result, len(rawEvents))
+	p := &normalizerPool{jobs: make(chan normalizeJob, workers*4)}
 	for i := 0; i < workers; i++ {
 		go func() {
-			for raw := range jobs {
-				event, err := normalize.Event(raw)
-				results <- result{event: event, err: err}
+			for job := range p.jobs {
+				event, err := normalize.Event(job.raw)
+				job.result <- normalizeResult{event: event, err: err}
 			}
 		}()
 	}
-	for _, raw := range rawEvents {
-		jobs <- raw
+	return p
+}
+
+func (p *normalizerPool) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
+	if len(rawEvents) == 0 {
+		return nil, 0
 	}
-	close(jobs)
+	results := make(chan normalizeResult, len(rawEvents))
+	for _, raw := range rawEvents {
+		p.jobs <- normalizeJob{raw: raw, result: results}
+	}
 	normalized := make([]map[string]any, 0, len(rawEvents))
 	malformed := 0
 	for i := 0; i < len(rawEvents); i++ {
@@ -519,6 +540,18 @@ func normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
 		normalized = append(normalized, item.event)
 	}
 	return normalized, malformed
+}
+
+// normalizeBatch lazily starts the shared worker pool on first use (so any
+// Worker construction path — main(), tests, one-off file processing — gets
+// it without needing to remember an explicit init step) and reuses it for
+// every subsequent call.
+func (w *Worker) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
+	w.poolOnce.Do(func() {
+		workers := envInt("XDR_NORMALIZER_WORKERS", runtime.NumCPU())
+		w.pool = newNormalizerPool(workers)
+	})
+	return w.pool.normalizeBatch(rawEvents)
 }
 
 // enqueue hands a normalized event to a producer queue for async batched
