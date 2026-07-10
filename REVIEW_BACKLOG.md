@@ -534,6 +534,47 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   **Not run**: `docker build`/live UDP-to-pipeline smoke test — Docker daemon unavailable in
   this environment, the same standing limitation noted throughout this session's other
   infra-adjacent work.
+- **Progress (2026-07-10, phase 4):** First cloud-native connector done — AWS CloudTrail, one of
+  the four named (CloudTrail/GuardDuty/O365/GCP). **Deliberately scoped as file-based ingestion
+  of already-exported logs, not live S3 API polling**: live polling needs AWS SigV4 request
+  signing and real AWS credentials, neither exercisable or verifiable in this environment —
+  rather than ship untested auth code, this phase stays honest about what it actually does.
+  New standalone service `services/log-connector-cloudtrail`: a pure `internal/cloudtrail`
+  package (`Parse()`) decodes CloudTrail's stable `{"Records":[...]}` export format,
+  auto-detecting gzip via magic bytes (`0x1f 0x8b`) so the caller doesn't need to know whether a
+  given file is compressed — CloudTrail's default S3 export format — or plain JSON; a record
+  that fails to re-marshal into the typed struct is skipped rather than aborting the whole batch
+  (one poison record must not block every other record in the same export file). `main.go`
+  recursively walks a watch directory (`filepath.WalkDir`, matching CloudTrail's real nested S3
+  layout `AWSLogs/<account>/CloudTrail/<region>/<year>/<month>/<day>/...`) on a poll interval,
+  maps each record onto the **same canonical field names** the normalizer's generic fallback
+  envelope already recognizes (`source_ip`/`user`/`cloud_account`/`action`/`result`/
+  `event_source`) — so, exactly like the config-driven parser registry shipped in phase 3, this
+  connector needs **zero `normalizer-worker` code changes**. Full original record preserved
+  verbatim under `cloudtrail_record`. Restart-safe file tracking: processed file paths persist
+  to `<watch-dir>/.cloudtrail-connector-state.json` (atomic write-then-rename) so a restart
+  doesn't re-ingest every file already forwarded — CloudTrail export files are immutable once
+  written, so "seen once, never re-read" is the correct semantics (no mtime tracking needed).
+  Forwards via the same HMAC-SHA256 sigv2 scheme as the syslog connector — no new trust path.
+  **Caught and fixed a real bug during test-writing, not left to a live run to discover**: the
+  state file lives inside the same directory being scanned and is named `*.json`, so without an
+  explicit skip it would have been picked up as a candidate CloudTrail export on every poll
+  cycle, forever, spamming a parse-error log line indefinitely — a test that ran `scanOnce()`
+  twice and asserted zero parse errors caught this before any deployment could hit it; fixed
+  with an explicit `path == c.stateFile` skip in the walk callback, locked in with a dedicated
+  regression test. Wired into `docker-compose.yml` under the existing `strangler` profile with a
+  bind-mounted `./cloudtrail-logs` directory for an operator's `aws s3 sync` cron target
+  (`docker compose config --quiet` exit 0). +15 Go tests (7 `internal/cloudtrail` — plain JSON,
+  gzip-compressed, raw-field preservation, empty Records array, malformed JSON, malformed gzip,
+  poison-record isolation; 8 `main_test.go` — field-promotion mapping incl. the
+  userName→arn→principalId fallback chain, errorCode-as-result, tenant_id omission, HMAC
+  signature cross-check, signed-forward via `httptest.Server`, non-2xx forward error, the
+  already-processed-file rescan-skip behavior, the state-file-self-scan regression test, and a
+  load/save state round-trip across a simulated restart). `go build`/`go vet`/`go test ./...`
+  clean. **Still open, unchanged**: GuardDuty/O365/GCP connectors, and live S3 API polling for
+  CloudTrail itself (would need SigV4 — a separate, larger effort requiring real AWS
+  credentials this environment doesn't have). **Not run**: `docker build`/live smoke test —
+  Docker daemon unavailable, the same standing limitation.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 
