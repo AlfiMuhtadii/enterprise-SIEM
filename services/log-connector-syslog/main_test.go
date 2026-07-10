@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"detector-xdr-log-connector-syslog/internal/cef"
 	"detector-xdr-log-connector-syslog/internal/leef"
 	"detector-xdr-log-connector-syslog/internal/registry"
+	"detector-xdr-log-connector-syslog/internal/tcpadmit"
 )
 
 func TestMapCEFToEventPromotesCommonFields(t *testing.T) {
@@ -328,5 +330,145 @@ func TestIngestLineFlushesAtBatchSize(t *testing.T) {
 	}
 	if c.received.Load() != 2 || c.parsedRaw.Load() != 2 {
 		t.Fatalf("expected received=2 parsedRaw=2, got received=%d parsedRaw=%d", c.received.Load(), c.parsedRaw.Load())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SYSLOG-TCP-ADMISSION: bounded TCP connection admission control. These
+// dial real TCP connections against a real serveTCP listener (not mocks) —
+// the finding is specifically about real socket/goroutine/fd exhaustion
+// behavior, which only a real listener can prove.
+// ---------------------------------------------------------------------------
+
+func newTestTCPConnector(t *testing.T, maxConns int, idleTimeout time.Duration) (*Connector, string) {
+	t.Helper()
+	var forwardCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardCount++
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(server.Close)
+
+	c := &Connector{
+		ingestURL:      server.URL,
+		secret:         "s",
+		batchSize:      1,
+		httpClient:     &http.Client{Timeout: 5 * time.Second},
+		tcpLimiter:     tcpadmit.NewLimiter(maxConns),
+		tcpIdleTimeout: idleTimeout,
+	}
+	if err := c.serveTCP("127.0.0.1:0"); err != nil {
+		t.Fatalf("serveTCP: %v", err)
+	}
+	t.Cleanup(func() { _ = c.tcpListener.Close() })
+	return c, c.tcpListener.Addr().String()
+}
+
+func TestServeTCPRejectsBeyondMaxConns(t *testing.T) {
+	c, addr := newTestTCPConnector(t, 1, 0)
+
+	conn1, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial 1: %v", err)
+	}
+	defer conn1.Close()
+	waitForCondition(t, func() bool { return c.tcpActiveConns.Load() == 1 })
+
+	conn2, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial 2: %v", err)
+	}
+	defer conn2.Close()
+
+	// The 2nd connection must be closed by the server immediately (over
+	// capacity) — a read on it should observe EOF, not hang.
+	_ = conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 1)
+	_, err = conn2.Read(buf)
+	if err == nil {
+		t.Fatal("expected the over-capacity connection to be closed by the server, got a successful read instead")
+	}
+
+	waitForCondition(t, func() bool { return c.tcpRejectedConns.Load() == 1 })
+	if got := c.tcpActiveConns.Load(); got != 1 {
+		t.Errorf("expected tcpActiveConns to stay at 1 (only the admitted connection), got %d", got)
+	}
+}
+
+func TestServeTCPIdleTimeoutClosesSlowConnection(t *testing.T) {
+	c, addr := newTestTCPConnector(t, 0, 50*time.Millisecond)
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Deliberately send nothing — the server's idle read deadline must fire
+	// and close the connection from its side.
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	if err == nil {
+		t.Fatal("expected the server to close an idle connection after the configured timeout")
+	}
+
+	waitForCondition(t, func() bool { return c.tcpTimeouts.Load() == 1 })
+}
+
+func TestServeTCPActiveConnsDecrementsAfterClientCloses(t *testing.T) {
+	c, addr := newTestTCPConnector(t, 0, 0)
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	waitForCondition(t, func() bool { return c.tcpActiveConns.Load() == 1 })
+
+	_ = conn.Close()
+	waitForCondition(t, func() bool { return c.tcpActiveConns.Load() == 0 })
+}
+
+func TestServeTCPCleanShutdownStopsAcceptingNewConnections(t *testing.T) {
+	c, addr := newTestTCPConnector(t, 0, 0)
+
+	// An active connection must NOT be force-closed by shutdown — only new
+	// connections are refused. Verified by sending a line through it AFTER
+	// the listener has been closed and confirming it still gets ingested.
+	active, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatalf("dial active: %v", err)
+	}
+	defer active.Close()
+	waitForCondition(t, func() bool { return c.tcpActiveConns.Load() == 1 })
+
+	_ = c.tcpListener.Close()
+
+	// New connections must now be refused.
+	if _, err := net.DialTimeout("tcp", addr, time.Second); err == nil {
+		t.Error("expected a new dial to be refused after the listener was closed")
+	}
+
+	// The pre-existing active connection must still be usable.
+	if _, err := active.Write([]byte("still alive\n")); err != nil {
+		t.Fatalf("expected the pre-existing connection to remain writable after shutdown, got: %v", err)
+	}
+	waitForCondition(t, func() bool { return c.received.Load() == 1 })
+}
+
+// waitForCondition polls cond every 5ms for up to 2s — used instead of a
+// fixed sleep since the accept/handle goroutines update counters
+// asynchronously relative to the test's own dial/close calls.
+func waitForCondition(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !cond() {
+		t.Fatal("condition not met within timeout")
 	}
 }

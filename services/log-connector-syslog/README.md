@@ -29,6 +29,17 @@ ingestion-gateway.
 | `XDR_SYSLOG_BATCH_SIZE` | `50` | events per forwarded batch |
 | `XDR_SYSLOG_FLUSH_MS` | `500` | max time before a partial batch is flushed |
 | `XDR_SYSLOG_PARSER_REGISTRY` | (empty) | path to a JSON config-driven parser registry (see below); empty means no registry sources, CEF/LEEF/raw dispatch only |
+| `XDR_SYSLOG_TCP_MAX_CONNS` | `1000` | max concurrent TCP connections (SYSLOG-TCP-ADMISSION); `0` disables the cap. Beyond this, new connections are refused immediately (`tcp_rejected_conns` metric) |
+| `XDR_SYSLOG_TCP_IDLE_TIMEOUT_SECONDS` | `300` | a TCP connection is closed if no line arrives within this window; `0` disables the timeout (`tcp_timeouts` metric) |
+
+Production deployments accepting syslog from untrusted or semi-trusted networks
+should additionally: allowlist source IPs at the network/firewall layer (this
+connector does no IP filtering itself), and terminate TCP inside a TLS
+listener (e.g. a sidecar/reverse proxy — this connector's own TCP syslog
+listener is plaintext by design, matching RFC5426/RFC6587's non-TLS
+transport; `XDR_INTERNAL_MTLS_*` on this service's `/health`+`/metrics`
+listener is a separate, already-covered concern — see ENT-SEC-NO-TLS-INTERNAL
+— and does not apply to the syslog UDP/TCP ports themselves).
 
 ## Field mapping
 

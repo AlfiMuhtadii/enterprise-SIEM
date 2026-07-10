@@ -19,6 +19,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -37,6 +38,7 @@ import (
 	"detector-xdr-log-connector-syslog/internal/leef"
 	"detector-xdr-log-connector-syslog/internal/mtls"
 	"detector-xdr-log-connector-syslog/internal/registry"
+	"detector-xdr-log-connector-syslog/internal/tcpadmit"
 )
 
 // Connector receives syslog lines over UDP/TCP, maps them into the
@@ -53,13 +55,22 @@ type Connector struct {
 	mu     sync.Mutex
 	buffer []map[string]any
 
-	received       atomic.Int64
-	parsedCEF      atomic.Int64
-	parsedLEEF     atomic.Int64
-	parsedRegistry atomic.Int64
-	parsedRaw      atomic.Int64
-	forwarded      atomic.Int64
-	forwardErrors  atomic.Int64
+	// SYSLOG-TCP-ADMISSION: bounded TCP connection admission.
+	tcpListener    net.Listener
+	udpConn        net.PacketConn
+	tcpLimiter     *tcpadmit.Limiter
+	tcpIdleTimeout time.Duration
+
+	received         atomic.Int64
+	parsedCEF        atomic.Int64
+	parsedLEEF       atomic.Int64
+	parsedRegistry   atomic.Int64
+	parsedRaw        atomic.Int64
+	forwarded        atomic.Int64
+	forwardErrors    atomic.Int64
+	tcpActiveConns   atomic.Int64
+	tcpRejectedConns atomic.Int64
+	tcpTimeouts      atomic.Int64
 }
 
 func main() {
@@ -74,12 +85,14 @@ func main() {
 	}
 
 	c := &Connector{
-		ingestURL:  env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
-		secret:     env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:   env("XDR_SYSLOG_TENANT_ID", ""),
-		batchSize:  envInt("XDR_SYSLOG_BATCH_SIZE", 50),
-		httpClient: &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
-		registry:   reg,
+		ingestURL:      env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
+		secret:         env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		tenantID:       env("XDR_SYSLOG_TENANT_ID", ""),
+		batchSize:      envInt("XDR_SYSLOG_BATCH_SIZE", 50),
+		httpClient:     &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{}},
+		registry:       reg,
+		tcpLimiter:     tcpadmit.NewLimiter(envInt("XDR_SYSLOG_TCP_MAX_CONNS", 1000)),
+		tcpIdleTimeout: time.Duration(envInt("XDR_SYSLOG_TCP_IDLE_TIMEOUT_SECONDS", 300)) * time.Second,
 	}
 
 	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
@@ -124,13 +137,16 @@ func main() {
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"received":        c.received.Load(),
-			"parsed_cef":      c.parsedCEF.Load(),
-			"parsed_leef":     c.parsedLEEF.Load(),
-			"parsed_registry": c.parsedRegistry.Load(),
-			"parsed_raw":      c.parsedRaw.Load(),
-			"forwarded":       c.forwarded.Load(),
-			"forward_errors":  c.forwardErrors.Load(),
+			"received":           c.received.Load(),
+			"parsed_cef":         c.parsedCEF.Load(),
+			"parsed_leef":        c.parsedLEEF.Load(),
+			"parsed_registry":    c.parsedRegistry.Load(),
+			"parsed_raw":         c.parsedRaw.Load(),
+			"forwarded":          c.forwarded.Load(),
+			"forward_errors":     c.forwardErrors.Load(),
+			"tcp_active_conns":   c.tcpActiveConns.Load(),
+			"tcp_rejected_conns": c.tcpRejectedConns.Load(),
+			"tcp_timeouts":       c.tcpTimeouts.Load(),
 		})
 	})
 
@@ -146,6 +162,17 @@ func main() {
 		<-sigCh
 		log.Printf("[log-connector-syslog] shutting down gracefully")
 		close(stop)
+		// SYSLOG-TCP-ADMISSION: stop accepting new connections; already-
+		// accepted TCP connections are left open to drain naturally (their
+		// own idle timeout or the client's own close), not force-closed —
+		// force-closing here would drop any buffered-but-not-yet-flushed
+		// lines from an active client mid-line.
+		if c.tcpListener != nil {
+			_ = c.tcpListener.Close()
+		}
+		if c.udpConn != nil {
+			_ = c.udpConn.Close()
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(ctx)
@@ -436,6 +463,7 @@ func (c *Connector) serveUDP(addr string) error {
 	if err != nil {
 		return err
 	}
+	c.udpConn = conn
 	go func() {
 		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 64*1024)
@@ -459,30 +487,75 @@ func (c *Connector) serveUDP(addr string) error {
 // serveTCP starts a background goroutine accepting syslog connections.
 // Framing is newline-delimited (RFC6587 non-transparent framing); RFC6587
 // octet-counting framing is not supported by this phase-1 connector.
+//
+// SYSLOG-TCP-ADMISSION: bounds resource usage of the TCP listener —
+// connections beyond XDR_SYSLOG_TCP_MAX_CONNS are refused immediately
+// (tcpRejectedConns), a temporary Accept() error (e.g. a transient
+// EMFILE) is retried with exponential backoff instead of killing the
+// listener goroutine outright (mirroring net/http's own Server.Serve
+// accept-retry behavior), and ln.Close() (wired from main()'s shutdown
+// handler) makes the accept loop exit cleanly rather than logging a
+// generic "stopped" error indistinguishable from a real fault.
 func (c *Connector) serveTCP(addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
+	c.tcpListener = ln
 	go func() {
+		var backoff time.Duration
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					log.Printf("[log-connector-syslog] tcp listener closed")
+					return
+				}
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Temporary() { //nolint:staticcheck // mirrors net/http's Server.Serve accept-retry idiom
+					backoff = tcpadmit.NextBackoff(backoff, 5*time.Millisecond, time.Second)
+					log.Printf("[log-connector-syslog] tcp accept temporary error: %v; retrying in %v", err, backoff)
+					time.Sleep(backoff)
+					continue
+				}
 				log.Printf("[log-connector-syslog] tcp accept stopped: %v", err)
 				return
 			}
+			backoff = 0
+			if !c.tcpLimiter.TryAcquire() {
+				c.tcpRejectedConns.Add(1)
+				_ = conn.Close()
+				continue
+			}
+			c.tcpActiveConns.Add(1)
 			go c.handleTCPConn(conn)
 		}
 	}()
-	log.Printf("[log-connector-syslog] tcp listening on %s", addr)
+	log.Printf("[log-connector-syslog] tcp listening on %s max_conns=%d idle_timeout=%s", addr, c.tcpLimiter.Max(), c.tcpIdleTimeout)
 	return nil
 }
 
 func (c *Connector) handleTCPConn(conn net.Conn) {
-	defer func() { _ = conn.Close() }()
+	defer func() {
+		_ = conn.Close()
+		c.tcpLimiter.Release()
+		c.tcpActiveConns.Add(-1)
+	}()
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
+	for {
+		if c.tcpIdleTimeout > 0 {
+			_ = conn.SetReadDeadline(time.Now().Add(c.tcpIdleTimeout))
+		}
+		if !scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Timeout() {
+					c.tcpTimeouts.Add(1)
+				}
+			}
+			return
+		}
 		c.ingestLine(scanner.Text())
 	}
 }
