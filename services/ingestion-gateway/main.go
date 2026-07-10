@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"detector-xdr-ingestion-gateway/internal/mtls"
 	"detector-xdr-ingestion-gateway/internal/traceparent"
 )
 
@@ -208,6 +209,35 @@ func main() {
 	// IG-2: start background goroutine to refill per-tenant token buckets
 	gw.startTenantBucketRefiller()
 
+	// ENT-SEC-NO-TLS-INTERNAL (phase 1): internal mTLS, disabled by default.
+	// When enabled, this server requires and verifies a client certificate on
+	// every inbound connection, and the shared httpClient (used for the
+	// normalizer-worker metrics poll) presents its own client certificate.
+	// Generate dev/test certs via scripts/xdr_generate_internal_mtls_certs.py.
+	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	caFile := env("XDR_INTERNAL_MTLS_CA", "")
+	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
+		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr ingestion gateway: internal mTLS server config error: %v", err)
+	}
+	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
+		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr ingestion gateway: internal mTLS client config error: %v", err)
+	}
+	if clientTLSCfg != nil {
+		if t, ok := httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = clientTLSCfg
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", gw.health)
 	mux.HandleFunc("/ready", gw.ready)
@@ -221,6 +251,7 @@ func main() {
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		TLSConfig:         serverTLSCfg,
 	}
 	go func() {
 		stop := make(chan os.Signal, 1)
@@ -235,9 +266,17 @@ func main() {
 		}
 	}()
 	validateStartupSecrets(gw.secret)
-	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s", *addr, gw.topic, gw.redpandaREST)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s internal_mtls=%v", *addr, gw.topic, gw.redpandaREST, mtlsEnabled)
+	var serveErr error
+	if serverTLSCfg != nil {
+		// Cert/key are already loaded into server.TLSConfig.Certificates by
+		// mtls.ServerConfig, so both filename args are intentionally empty.
+		serveErr = server.ListenAndServeTLS("", "")
+	} else {
+		serveErr = server.ListenAndServe()
+	}
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		log.Fatal(serveErr)
 	}
 }
 

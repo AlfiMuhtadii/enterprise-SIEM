@@ -4,10 +4,13 @@
 /public/hot
 /public/storage
 /storage/*.key
+# ENT-SEC-NO-TLS-INTERNAL: generated dev/test CA+service certs — never commit private keys
+/storage/certs/internal-mtls/
 /vendor
 .env
 .env.backup
 .env.production
+.env.testing
 # ENT-SEC-OPENSEARCH-OPEN: real password hashes — see internal_users.yml.example
 /infra/opensearch/security/internal_users.yml
 .phpunit.result.cache
