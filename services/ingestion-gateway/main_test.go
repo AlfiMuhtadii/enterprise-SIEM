@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -208,6 +209,72 @@ func TestOverflowTenantsShareRateLimit(t *testing.T) {
 	// A different overflow tenant shares the (now drained) bucket → must be throttled.
 	if gw.tenantAllowed("overflow-2") {
 		t.Error("overflow tenants must share a single rate-limited bucket")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PERF-GO-LIMITER: atomic time-delta refill (replaces the old channel+ticker
+// token bucket). Tokens must refill lazily based on elapsed wall time, with
+// no background goroutine required for the bucket itself to make progress.
+// ---------------------------------------------------------------------------
+
+func TestTenantBucketRefillsOverElapsedTimeWithoutBackgroundGoroutine(t *testing.T) {
+	b := newTenantBucket(10) // 10 rps => 1 token every 100ms
+	for i := 0; i < 10; i++ {
+		if !b.allow() {
+			t.Fatalf("expected initial burst capacity of 10, blocked at request %d", i+1)
+		}
+	}
+	if b.allow() {
+		t.Fatal("bucket should be empty immediately after draining initial capacity")
+	}
+
+	// No startTenantBucketRefiller goroutine is running in this test — refill
+	// must happen purely from allow()'s own time-delta calculation.
+	time.Sleep(250 * time.Millisecond)
+
+	if !b.allow() {
+		t.Error("expected at least one token to have refilled after 250ms at 10rps")
+	}
+}
+
+func TestTenantBucketRefillNeverExceedsCapacity(t *testing.T) {
+	b := newTenantBucket(3)
+	b.allow() // consume 1, leaving 2
+
+	time.Sleep(500 * time.Millisecond) // far more than enough to refill past capacity
+
+	consumed := 0
+	for i := 0; i < 10; i++ {
+		if b.allow() {
+			consumed++
+		}
+	}
+	if consumed != 3 {
+		t.Errorf("expected refill to cap at rps=3 (2 remaining + 1 already-consumed slot back), got %d tokens consumed after refill", consumed)
+	}
+}
+
+func TestTenantBucketConcurrentRefillIsRaceFree(t *testing.T) {
+	// Exercises the CAS retry loop in refill()/allow() under concurrent access.
+	// Correctness here is "no data race / no panic"; go test -race (when a C
+	// toolchain is available) is the authoritative check for the CAS logic —
+	// this test still validates the total-allowed count stays bounded.
+	b := newTenantBucket(50)
+	var wg sync.WaitGroup
+	var allowed atomic.Int64
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if b.allow() {
+				allowed.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := allowed.Load(); got > 50 {
+		t.Errorf("expected at most rps=50 tokens allowed from a fresh bucket under concurrent load, got %d", got)
 	}
 }
 

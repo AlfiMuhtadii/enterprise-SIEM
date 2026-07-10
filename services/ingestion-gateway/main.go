@@ -34,22 +34,69 @@ var httpClient = &http.Client{
 	},
 }
 
-// tenantBucket is a per-tenant token-bucket rate limiter (IG-2).
+// tenantBucket is a per-tenant token-bucket rate limiter (IG-2), refilled
+// lazily via an atomic time-delta CAS loop rather than a background ticker
+// (PERF-GO-LIMITER) — refill happens inline on the request path that needs
+// it, so idle tenants cost nothing and no goroutine touches every live
+// bucket once a second regardless of demand.
 // lastSeen tracks the last request time for TTL-based eviction (IG-DOS fix).
 type tenantBucket struct {
-	tokens   chan struct{}
-	rps      int
-	lastSeen atomic.Int64 // UnixNano — updated on every tenantAllowed() call
+	rps        int64
+	tokens     atomic.Int64
+	lastRefill atomic.Int64 // UnixNano of the last successful refill
+	lastSeen   atomic.Int64 // UnixNano — updated on every tenantAllowed() call
 }
 
 func newTenantBucket(rps int) *tenantBucket {
-	ch := make(chan struct{}, rps)
-	for i := 0; i < rps; i++ {
-		ch <- struct{}{}
-	}
-	b := &tenantBucket{tokens: ch, rps: rps}
-	b.lastSeen.Store(time.Now().UnixNano())
+	b := &tenantBucket{rps: int64(rps)}
+	now := time.Now().UnixNano()
+	b.tokens.Store(int64(rps))
+	b.lastRefill.Store(now)
+	b.lastSeen.Store(now)
 	return b
+}
+
+// refill lazily tops up tokens based on elapsed time since the last refill.
+// The CAS on lastRefill ensures concurrent callers never double-count the
+// same elapsed window; a losing CAS just retries against the fresher value.
+func (b *tenantBucket) refill(now int64) {
+	for {
+		last := b.lastRefill.Load()
+		elapsed := now - last
+		add := elapsed * b.rps / int64(time.Second)
+		if add <= 0 {
+			return
+		}
+		if !b.lastRefill.CompareAndSwap(last, last+add*int64(time.Second)/b.rps) {
+			continue
+		}
+		for {
+			cur := b.tokens.Load()
+			next := cur + add
+			if next > b.rps {
+				next = b.rps
+			}
+			if b.tokens.CompareAndSwap(cur, next) {
+				return
+			}
+		}
+	}
+}
+
+// allow attempts to consume a single token, refilling first. Lock-free.
+func (b *tenantBucket) allow() bool {
+	now := time.Now().UnixNano()
+	b.lastSeen.Store(now)
+	b.refill(now)
+	for {
+		cur := b.tokens.Load()
+		if cur <= 0 {
+			return false
+		}
+		if b.tokens.CompareAndSwap(cur, cur-1) {
+			return true
+		}
+	}
 }
 
 // circuitBreaker protects the Kafka publish path from socket exhaustion (IG-3).
@@ -224,37 +271,25 @@ func (g *Gateway) startMetricsPoller(interval time.Duration) {
 	}()
 }
 
-// startTenantBucketRefiller refills per-tenant token buckets every second (IG-2)
-// and evicts buckets that have been idle longer than XDR_TENANT_LIMITER_IDLE_MINUTES (IG-DOS fix).
+// startTenantBucketRefiller evicts per-tenant buckets that have been idle
+// longer than XDR_TENANT_LIMITER_IDLE_MINUTES (IG-DOS fix). Token refill
+// itself no longer happens here (PERF-GO-LIMITER): tenantBucket.allow()
+// refills lazily via an atomic time-delta CAS loop on the request path, so
+// this goroutine only needs to run the (much cheaper, much less frequent)
+// idle sweep, not touch every live bucket's tokens once a second.
 func (g *Gateway) startTenantBucketRefiller() {
 	idleMinutes := envInt("XDR_TENANT_LIMITER_IDLE_MINUTES", 30)
 	idleTTL := time.Duration(idleMinutes) * time.Minute
 	go func() {
-		ticker := time.NewTicker(time.Second)
+		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
 			now := time.Now()
-			// RATE-LIMIT-DOS: refill the shared overflow bucket too (it is not in the map).
-			if ob := g.overflowBucket.Load(); ob != nil {
-				for len(ob.tokens) < ob.rps {
-					select {
-					case ob.tokens <- struct{}{}:
-					default:
-					}
-				}
-			}
 			g.tenantLimiters.Range(func(k, v any) bool {
 				b := v.(*tenantBucket)
 				if now.Sub(time.Unix(0, b.lastSeen.Load())) > idleTTL {
 					g.tenantLimiters.Delete(k)
 					g.tenantBucketCount.Add(-1) // RATE-LIMIT-DOS: keep the cap counter accurate
-					return true
-				}
-				for len(b.tokens) < b.rps {
-					select {
-					case b.tokens <- struct{}{}:
-					default:
-					}
 				}
 				return true
 			})
@@ -264,19 +299,11 @@ func (g *Gateway) startTenantBucketRefiller() {
 
 // tenantAllowed checks per-tenant rate limit (IG-2).
 // Returns false if this tenant's bucket is empty (throttle this tenant).
-// Updates lastSeen on every call so the eviction goroutine can remove idle buckets (IG-DOS fix).
 func (g *Gateway) tenantAllowed(tenantID string) bool {
 	if tenantID == "" {
 		return true
 	}
-	b := g.limiterFor(tenantID)
-	b.lastSeen.Store(time.Now().UnixNano())
-	select {
-	case <-b.tokens:
-		return true
-	default:
-		return false
-	}
+	return g.limiterFor(tenantID).allow()
 }
 
 // limiterFor returns the token bucket for a tenant (RATE-LIMIT-DOS).
