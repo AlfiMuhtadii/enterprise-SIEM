@@ -443,6 +443,42 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   latent inconsistencies. Full `php artisan test --parallel --recreate-databases` run (see
   CLAUDE.md's Laravel gate) confirmed green across the entire suite, including all 25 external
   `SUPPORTED_DOMAINS` call sites and the full 44-test `ThreatHuntingQueryEngineTest` suite.
+- **Progress (2026-07-10, ReportExportService):** Second-biggest decomposition win this
+  session — `app/Services/ReportExportService.php` was 994 lines, of which **~550 lines (55%)**
+  was pure JSON/Markdown/HTML rendering/templating logic (`renderJson`/`renderMarkdown`/
+  `renderHtml`, 8 `md*`/`html*` section builders per report type, `htmlStyles`, and the
+  `render()` format dispatcher) — zero DB/Eloquent dependency, completely decoupled from the
+  Eloquent-querying `build*Report()` methods that assemble the data it renders — extracted
+  into a new `ReportRenderer` class, all methods converted from instance (`$this->`) to
+  `static` (`self::`) since nothing in this block held instance state. `ReportExportService`
+  994→438 lines (56% reduction); `ReportRenderer` 574 lines. **Caught and fixed a boundary
+  mistake mid-extraction, not after**: the first `sed` line-range pull for the render block
+  accidentally included `finalize()` (which calls `recordAudit()`/`filename()`/`mime()` —
+  export-lifecycle concerns that belong in `ReportExportService`, not rendering) — caught by
+  reading the extracted file back before wiring anything up, not discovered later via a test
+  failure; removed `finalize()` from `ReportRenderer` and rewrote it in `ReportExportService`
+  to call `ReportRenderer::render()` instead of the removed `$this->render()`. Extraction
+  performed via `sed` + a Python regex pass (`private function` → `private static function`,
+  `$this->` → `self::`, `self::DISCLAIMER` → `ReportExportService::DISCLAIMER` since the
+  constant itself stayed in `ReportExportService` — no backward-compat alias needed here since,
+  unlike `ThreatHuntingService::SUPPORTED_DOMAINS`, `DISCLAIMER` was never referenced via
+  `ReportRenderer::` by anything, only via `ReportExportService::DISCLAIMER` which is
+  unchanged). All 43 pre-existing `ReportExportTest` tests (covering all 4 report types × all 3
+  formats, disclaimer presence, redaction, audit logging, MIME types, unsupported-format
+  exception) **passed unmodified** — the strongest possible confirmation that behavior is
+  byte-identical, since this suite already exercised every rendering path end-to-end before the
+  extraction even started. **Had zero isolated unit test coverage before extraction** (only
+  reachable through the full DB-backed `ReportExportService`) — +14 new direct-import tests
+  (`ReportRendererTest`, plain `PHPUnit\Framework\TestCase`, no DB, matching the
+  `TotpServiceTest`/`ThreatHuntQueryAllowlistTest` precedent) covering JSON validity, Markdown
+  title/disclaimer, HTML self-contained-document structure (`<!DOCTYPE html>` + inline
+  `<style>`), unsupported-format exception, a `@dataProvider`-driven check that the format
+  dispatcher correctly routes **all 4 report types** through both Markdown and HTML section
+  builders (8 cases), and the conditional export-reason row presence/absence — running in
+  **0.81s** versus the DB-backed suite's 19.86s, a direct measurement of the isolation this
+  extraction bought (no Laravel bootstrap, no RefreshDatabase migration overhead per test).
+  Full `php artisan test --parallel --recreate-databases` run (see CLAUDE.md gate) confirmed
+  green across the entire suite.
 
 ## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
 
