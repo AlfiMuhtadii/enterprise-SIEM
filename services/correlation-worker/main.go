@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"detector-xdr-correlation-worker/internal/ioc"
+	"detector-xdr-correlation-worker/internal/mtls"
 	"detector-xdr-correlation-worker/internal/shadowrules"
 	"detector-xdr-correlation-worker/internal/traceparent"
 )
@@ -174,6 +175,33 @@ func main() {
 		group:                    env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
 		scope:                    env("XDR_CORRELATION_SCOPE", "identity-cloud"),
 	}
+	// ENT-SEC-NO-TLS-INTERNAL (phase 3): internal mTLS, disabled by default.
+	// Same mechanism proven on ingestion-gateway (phase 1) and normalizer-worker
+	// (phase 2) — see scripts/xdr_generate_internal_mtls_certs.py for dev/test certs.
+	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	caFile := env("XDR_INTERNAL_MTLS_CA", "")
+	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
+		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr correlation worker: internal mTLS server config error: %v", err)
+	}
+	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
+		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr correlation worker: internal mTLS client config error: %v", err)
+	}
+	if clientTLSCfg != nil {
+		if t, ok := httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = clientTLSCfg
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
 	mux.HandleFunc("/ready", w.ready)
@@ -191,6 +219,7 @@ func main() {
 		WriteTimeout:      time.Duration(envInt("XDR_CORRELATION_WRITE_TIMEOUT_SEC", 180)) * time.Second,
 		IdleTimeout:       time.Duration(envInt("XDR_CORRELATION_IDLE_TIMEOUT_SEC", 120)) * time.Second,
 		MaxHeaderBytes:    envInt("XDR_CORRELATION_MAX_HEADER_BYTES", 1<<20),
+		TLSConfig:         serverTLSCfg,
 	}
 	go func() {
 		stop := make(chan os.Signal, 1)
@@ -204,9 +233,15 @@ func main() {
 			log.Printf("xdr correlation worker shutdown error: %v", err)
 		}
 	}()
-	log.Printf("xdr correlation worker listening on %s shadow_mode=true", *addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	log.Printf("xdr correlation worker listening on %s shadow_mode=true internal_mtls=%v", *addr, mtlsEnabled)
+	var serveErr error
+	if serverTLSCfg != nil {
+		serveErr = server.ListenAndServeTLS("", "")
+	} else {
+		serveErr = server.ListenAndServe()
+	}
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		log.Fatal(serveErr)
 	}
 }
 

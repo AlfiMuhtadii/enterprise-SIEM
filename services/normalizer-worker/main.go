@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"detector-xdr-normalizer-worker/internal/mtls"
 	"detector-xdr-normalizer-worker/internal/normalize"
 )
 
@@ -118,14 +119,50 @@ func main() {
 		go w.producerLoop(w.producerQueues[i])
 	}
 
+	// ENT-SEC-NO-TLS-INTERNAL (phase 2): internal mTLS, disabled by default.
+	// Same mechanism proven on ingestion-gateway (phase 1) — see
+	// scripts/xdr_generate_internal_mtls_certs.py to generate dev/test certs.
+	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	caFile := env("XDR_INTERNAL_MTLS_CA", "")
+	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
+		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr normalizer: internal mTLS server config error: %v", err)
+	}
+	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
+		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
+		caFile,
+	)
+	if err != nil {
+		log.Fatalf("xdr normalizer: internal mTLS client config error: %v", err)
+	}
+	if clientTLSCfg != nil {
+		if t, ok := httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = clientTLSCfg
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", w.health)
 	mux.HandleFunc("/ready", w.ready)
 	mux.HandleFunc("/metrics", w.metrics)
 	mux.HandleFunc("/v1/normalize", w.normalizeHTTP)
+	httpServer := &http.Server{
+		Addr:      *addr,
+		Handler:   mux,
+		TLSConfig: serverTLSCfg,
+	}
 	go func() {
-		log.Printf("xdr normalizer metrics listening on %s", *addr)
-		log.Fatal(http.ListenAndServe(*addr, mux))
+		log.Printf("xdr normalizer metrics listening on %s internal_mtls=%v", *addr, mtlsEnabled)
+		if serverTLSCfg != nil {
+			log.Fatal(httpServer.ListenAndServeTLS("", ""))
+		} else {
+			log.Fatal(httpServer.ListenAndServe())
+		}
 	}()
 
 	if *file != "" {
