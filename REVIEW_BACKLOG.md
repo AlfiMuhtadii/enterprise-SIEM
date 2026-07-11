@@ -16,7 +16,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **IDENTITY-SSO-MFA** (TOTP MFA + mandatory enforcement on approval routes done; SSO/SAML/OIDC federation remains) | [Enterprise BLOCKER — re-ranked] Per-user opt-in TOTP now implemented (`TotpService`, RFC 6238, dependency-free — verified against the RFC's own published test vector, not just self-consistency). Login gates on a 6-digit code when a user has enabled it; existing password-only login is unaffected for everyone else. Mandatory MFA enforcement now wired (`EnsureMfaVerified`/`mfa.required` middleware, gated by `SOC_MFA_ENFORCEMENT_ENABLED`, default `false`) on response-plan/active-response/data-erasure approve routes. Still missing: real SSO/SAML/OIDC federation to a corporate IdP (Okta/Azure AD) — needs a real external IdP to configure and test against, which this environment doesn't have | `app/Services/TotpService.php`, `app/Http/Controllers/Auth/MfaController.php`, `app/Http/Controllers/Auth/AuthenticatedSessionController.php`, `app/Http/Middleware/EnsureMfaVerified.php`, `routes/auth.php`, `routes/web.php` | High | Proposed (reduced) |
 | **OBS-OTEL-TRACING** (phases 1-4 done — W3C traceparent across all 6 hops + OTLP/HTTP span export wired for the 3 core Go pipeline services; Python/PHP OTLP export remains) | See detail section below | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go`, `app/Http/Middleware/*` | High | Proposed (reduced) |
 | **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService, EntityRiskScoringService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
-| **CONNECTOR-FRAMEWORK** (phases 1-6 done — syslog/CEF/LEEF/parser-registry/CloudTrail/GuardDuty/GCP; O365 Management Activity API remains) | See detail section below | `services/ingestion-gateway`, `services/normalizer-worker`, `services/log-connector-*` | High | Proposed (reduced) |
+| **CONNECTOR-FRAMEWORK** (phases 1-7 done — syslog/CEF/LEEF/parser-registry/CloudTrail/GuardDuty/GCP/O365; all connectors also have CONN-UNTENANTED-INGEST/CONN-DELIVERY-LOSS/CONN-UNBOUNDED-FILE hardening) | All 7 phases complete — see `REVIEW_COMPLETED.md` for full per-phase detail. Phase 7 (O365 Management Activity API) is a live pull-API poller, materially different from the 3 file-based cloud connectors — built and unit-tested (67 tests) against a local mock OAuth+Activity API server since this environment has no real Azure AD app registration to verify against. | `services/ingestion-gateway`, `services/normalizer-worker`, `services/log-connector-*` | High | Done |
 | **DATA-TIERING** (phases 1/2/2b done — archive-then-prune, searchable local archive, RBAC-gated UI; warm/cold infra tiers remain) | See detail section below | `app/Services/SecurityRetentionArchiveService.php`, `app/Services/ArchiveSearchService.php` | Medium | Proposed (reduced) |
 | **SIM-LAYER-REALITY-GATE** (Track B only — Track A done) | [Dummy → must be real] Track A (labelling) done: all 35 HA/scale/chaos/soak/pilot validation-run tables now carry `is_simulated`/`evidence_basis`. Remaining: Track B — back the key validators (HA failover, scale, soak) against a real multi-node harness (`docker-compose.ha.yml`) so they produce *measured*, not just *computed*, evidence | `app/Services/EnterpriseScaleHaService.php`, `TelemetryScalePilotService.php`, `SoakChaosValidationService.php`, `PilotExecutionService.php`, `docker-compose.ha.yml` | High | Proposed (reduced) |
 | **ARCH-KAFKA-NATIVE** | [Enterprise throughput — promoted from footnote 2026-07-06] Go workers talk to Redpanda via Pandaproxy HTTP REST (serialization + no compression + per-op TCP) instead of native binary Kafka (franz-go/sarama, port 9092). At enterprise throughput this is a real latency/CPU ceiling, not a demo nicety. GATE: live-pipeline verifier + offset-recovery/poison-DLQ regression per CLAUDE.md | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go` | High | Proposed (staged — needs live-pipeline validation) |
@@ -87,26 +87,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   intentionally left untouched (tightly coupled to Worker/connection state — high-risk).
   The `collect*Factors()` methods in `EntityRiskScoringService` (still 886 lines) are all
   DB-coupled and not a similar pure-extraction opportunity.
-
-## Proposed Task: CONNECTOR-FRAMEWORK — Generic log-ingestion / connector & parser framework
-
-- **Priority:** High (the single biggest capability gap)
-- **Status:** Phases 1-6 done (see `REVIEW_COMPLETED.md` for full per-phase detail):
-  - Phase 1: syslog + CEF receiver (`services/log-connector-syslog`, `internal/cef`).
-  - Phase 2: LEEF parser (`internal/leef`).
-  - Phase 3: config-driven parser registry (`internal/registry`) — onboard new sources by
-    JSON config, zero `normalizer-worker` code changes.
-  - Phase 4: AWS CloudTrail connector (`services/log-connector-cloudtrail`, file-based).
-  - Phase 5: AWS GuardDuty connector (`services/log-connector-guardduty`, NDJSON findings).
-  - Phase 6: GCP Cloud Audit Logs connector (`services/log-connector-gcp-audit`, NDJSON).
-  All events still flow through the existing normalize→correlate shadow path — no new active
-  alert domain, no rule changes. All 3 cloud connectors are deliberately file-based ingestion
-  of already-exported logs, not live API polling (would need real cloud credentials/SigV4
-  unavailable in this environment).
-- **Remaining scope:** O365 Management Activity API — a materially different integration
-  shape from the 3 cloud connectors above (pull-based subscription + continuation-token
-  polling, not a file-export-to-object-storage pattern), needs real OAuth/API-key credentials
-  to build and test against.
 
 ## Proposed Task: DATA-TIERING — Tiered long-term searchable log storage / retention lifecycle
 

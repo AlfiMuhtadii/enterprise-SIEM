@@ -467,6 +467,41 @@ services:
       - ingestion-gateway
     restart: unless-stopped
 
+  # CONNECTOR-FRAMEWORK phase 7: unlike the 3 connectors above (file-based
+  # ingestion of already-exported logs), this polls the live Office 365
+  # Management Activity API — it needs a real Azure AD app registration
+  # (XDR_O365_AZURE_TENANT_ID/CLIENT_ID/CLIENT_SECRET) with an active
+  # subscription already started out-of-band. With no credentials
+  # configured it will log auth warnings and fail to list content, but
+  # still starts cleanly (matches the other connectors' "off/unconfigured
+  # is safe" posture).
+  log-connector-o365:
+    build:
+      context: ./services/log-connector-o365
+    container_name: detector-xdr-log-connector-o365
+    profiles: ["strangler"]
+    environment:
+      # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
+      XDR_INGEST_URL: http://ingestion-gateway:8091/v1/ingest
+      XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
+      XDR_O365_METRICS_ADDR: ":8100"
+      XDR_O365_AZURE_TENANT_ID: ${XDR_O365_AZURE_TENANT_ID:-}
+      XDR_O365_CLIENT_ID: ${XDR_O365_CLIENT_ID:-}
+      XDR_O365_CLIENT_SECRET: ${XDR_O365_CLIENT_SECRET:-}
+      # CONN-UNTENANTED-INGEST: see log-connector-syslog above.
+      XDR_O365_TENANT_ID: ${XDR_O365_TENANT_ID:-}
+      XDR_O365_REQUIRE_TENANT: ${XDR_O365_REQUIRE_TENANT:-false}
+      # CONN-UNBOUNDED-FILE: size ceilings, defaults match the Go binary's own fallbacks.
+      XDR_O365_MAX_CONTENT_BYTES: ${XDR_O365_MAX_CONTENT_BYTES:-104857600}
+      XDR_O365_MAX_RECORD_BYTES: ${XDR_O365_MAX_RECORD_BYTES:-1048576}
+    volumes:
+      - o365-connector-state:/data/o365-state
+    ports:
+      - "8100:8100"
+    depends_on:
+      - ingestion-gateway
+    restart: unless-stopped
+
   correlation-worker:
     build:
       context: ./services/correlation-worker
@@ -587,3 +622,4 @@ volumes:
   detector_clickhouse_data:
   detector_opensearch_data:
   detector_qdrant_data:
+  o365-connector-state:
