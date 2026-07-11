@@ -2,4 +2,5 @@ fastapi==0.139.0
 uvicorn[standard]==0.50.0
 pydantic==2.13.4
 psycopg[binary]==3.3.3
+psycopg-pool==3.3.1
 requests==2.34.2

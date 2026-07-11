@@ -555,6 +555,10 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
+      # PERF-DB-CONN-LEAK: bounded psycopg_pool.ConnectionPool sizing
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-5}
       XDR_OPENSEARCH_URL: ${XDR_OPENSEARCH_URL:-http://opensearch:9200}
       XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_ALERTS_TOPIC: xdr.alerts
@@ -602,6 +606,10 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
+      # PERF-DB-CONN-LEAK: bounded psycopg_pool.ConnectionPool sizing
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_TIMEOUT_SECONDS: ${DB_POOL_TIMEOUT_SECONDS:-5}
       XDR_REDPANDA_REST_URL: http://redpanda:8082
       XDR_ALERTS_CREATED_TOPIC: alerts.created
       XDR_INCIDENTS_TOPIC: incidents.updated

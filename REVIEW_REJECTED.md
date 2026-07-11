@@ -168,17 +168,15 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 
 ---
 
-### PERF-DB-CONN-LEAK: Database connection pooling for Python workers
+### PERF-DB-CONN-LEAK: Database connection pooling for Python workers — RESOLVED 2026-07-11
 
-- **Category**: Enterprise Performance / Reliability
-- **Severity**: Low–Medium (scale-dependent)
-- **Source**: REVIEW_BACKLOG.md (Gemini proposal)
-- **Finding**: Proposes connection pooling for alert-writer / incident-builder to fix a "connection leak".
-- **Why deferred (not rejected)**: Two evidence-based reasons, but it remains a valid enterprise-scale concern so it is Deferred, not Rejected:
-  1. **No actual leak.** Both services use **psycopg3** (`import psycopg`). All four write paths open a connection and use it under `with conn:` (`write_postgres`, `store_operational_event`, and the two query paths). In psycopg3 the connection context-manager **closes** the connection on block exit, so connections are released per batch — there is no leak. The premise ("leak") does not hold for psycopg3.
-  2. **Safe pooling needs a dependency that is not installed.** `psycopg_pool` is not present in the environment, and a hand-rolled module-level shared connection would be **thread-unsafe** (the FastAPI HTTP handlers run concurrently with the consumer event loop; psycopg3 connections are not safe for concurrent use). Connect-per-batch is acceptable at the current academic/demo throughput.
-- **Production gate**: Before a high-throughput production pilot, add `psycopg_pool` to the service requirements and route DB access through a `ConnectionPool` (bounded min/max), then load-test under concurrency. Verified 2026-06-30.
-- **Status**: **DEFERRED**
+Moved to `REVIEW_COMPLETED.md`. The production gate stated here ("add `psycopg_pool` ...
+route DB access through a `ConnectionPool` ... load-test under concurrency") is now
+implemented: `services/{alert-writer-service,incident-builder-service}/pg_pool.py`, a
+bounded lazily-created `psycopg_pool.ConnectionPool` (thread-safe by design, solving the
+exact FastAPI-handler + consumer-event-loop concurrency concern this finding raised).
+Full concurrent load-test against a live cluster still requires infra this environment
+doesn't have (Docker daemon) — see the completed-task entry for exact scope.
 
 ---
 

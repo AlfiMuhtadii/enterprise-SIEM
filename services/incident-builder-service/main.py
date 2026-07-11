@@ -26,16 +26,12 @@ from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 import traceparent as tp
 import otlp_export as oe
+import pg_pool
 from incident_aggregation import aggregate, group_key, now_iso
 
 # OBS-OTEL-TRACING phase 5: OTLP/HTTP span export, disabled unless an
 # endpoint is configured (empty string is otlp_export's own no-op signal).
 OTEL_EXPORTER_ENDPOINT = os.getenv("XDR_OTEL_EXPORTER_ENDPOINT", "")
-
-try:
-    import psycopg
-except Exception:  # pragma: no cover
-    psycopg = None  # type: ignore
 
 
 class _JsonLogFormatter(logging.Formatter):
@@ -118,31 +114,24 @@ DLQ: "deque[Dict[str, Any]]" = deque(maxlen=_DLQ_MAX)
 STOP = threading.Event()
 
 
+@contextlib.contextmanager
 def connect_pg():
-    dsn = os.getenv("SECURITY_INGEST_DSN") or os.getenv("DATABASE_URL") or ""
-    if psycopg is None:
-        return None
-    if dsn:
-        return psycopg.connect(dsn)
-    host = os.getenv("DB_HOST", "")
-    database = os.getenv("DB_DATABASE", "")
-    user = os.getenv("DB_USERNAME", "")
-    if not host or not database or not user:
-        return None
-    return psycopg.connect(
-        host=host,
-        port=int(os.getenv("DB_PORT", "5432")),
-        dbname=database,
-        user=user,
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+    """Borrow a connection from the bounded pool for the duration of the
+    `with` block (PERF-DB-CONN-LEAK) -- returns it to the pool on exit
+    instead of closing it. Yields None when no DB is configured, matching
+    the previous connect_pg() contract of returning None."""
+    pool = pg_pool.get_pool()
+    if pool is None:
+        yield None
+        return
+    with pool.connection() as conn:
+        yield conn
 
 
 def write_incidents(incidents: List[Dict[str, Any]]) -> int:
-    conn = connect_pg()
-    if conn is None:
-        return 0
-    with conn:
+    with connect_pg() as conn:
+        if conn is None:
+            return 0
         with conn.cursor() as cur:
             for inc in incidents:
                 cur.execute(
@@ -186,16 +175,15 @@ def store_operational_event(
     aggregate_type: Optional[str] = None,
     aggregate_id: Optional[str] = None,
 ) -> None:
-    conn = connect_pg()
-    if conn is None:
-        return
     try:
-        metadata = dict(event.get("metadata") or {})
-        if aggregate_type:
-            metadata["aggregate_type"] = aggregate_type
-        if aggregate_id:
-            metadata["aggregate_id"] = aggregate_id
-        with conn:
+        with connect_pg() as conn:
+            if conn is None:
+                return
+            metadata = dict(event.get("metadata") or {})
+            if aggregate_type:
+                metadata["aggregate_type"] = aggregate_type
+            if aggregate_id:
+                metadata["aggregate_id"] = aggregate_id
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -606,7 +594,7 @@ def _build_incidents_core(request: BuildRequest, otel_spans_out: Optional[List[o
         "postgres_written": written,
         "dlq_count": len(DLQ),
         "latency_ms": round(elapsed, 3),
-        "dry_run": connect_pg() is None,
+        "dry_run": pg_pool.get_pool() is None,
     }
 
 

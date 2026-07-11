@@ -34,15 +34,11 @@ from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_
 from alert_identity import alert_id, fingerprint
 import traceparent as tp
 import otlp_export as oe
+import pg_pool
 
 # OBS-OTEL-TRACING phase 5: OTLP/HTTP span export, disabled unless an
 # endpoint is configured (empty string is otlp_export's own no-op signal).
 OTEL_EXPORTER_ENDPOINT = os.getenv("XDR_OTEL_EXPORTER_ENDPOINT", "")
-
-try:
-    import psycopg
-except Exception:  # pragma: no cover
-    psycopg = None  # type: ignore
 
 
 class _JsonLogFormatter(logging.Formatter):
@@ -175,24 +171,18 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+@contextlib.contextmanager
 def connect_pg():
-    dsn = os.getenv("SECURITY_INGEST_DSN") or os.getenv("DATABASE_URL") or ""
-    if psycopg is None:
-        return None
-    if dsn:
-        return psycopg.connect(dsn)
-    host = os.getenv("DB_HOST", "")
-    database = os.getenv("DB_DATABASE", "")
-    user = os.getenv("DB_USERNAME", "")
-    if not host or not database or not user:
-        return None
-    return psycopg.connect(
-        host=host,
-        port=int(os.getenv("DB_PORT", "5432")),
-        dbname=database,
-        user=user,
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+    """Borrow a connection from the bounded pool for the duration of the
+    `with` block (PERF-DB-CONN-LEAK) -- returns it to the pool on exit
+    instead of closing it. Yields None when no DB is configured, matching
+    the previous connect_pg() contract of returning None."""
+    pool = pg_pool.get_pool()
+    if pool is None:
+        yield None
+        return
+    with pool.connection() as conn:
+        yield conn
 
 
 def postgres_configured() -> bool:
@@ -204,29 +194,28 @@ def postgres_configured() -> bool:
 
 
 def write_postgres(alerts: List[AlertPayload], trace_id: Optional[str] = None) -> int:
-    conn = connect_pg()
-    if conn is None:
-        return 0
-    rows = []
-    for alert in alerts:
-        fp = fingerprint(alert)
-        rows.append((
-            alert_id(alert, fp),
-            alert.detected_at or now_iso(),
-            alert.alert_type,
-            alert.detector_name,
-            alert.detector_version,
-            alert.severity,
-            alert.ip,
-            alert.actor_key,
-            alert.score,
-            fp,
-            json.dumps(alert.evidence),
-            json.dumps(alert.raw_event),
-            alert.trace_id or trace_id,
-            alert.tenant_id,
-        ))
-    with conn:
+    with connect_pg() as conn:
+        if conn is None:
+            return 0
+        rows = []
+        for alert in alerts:
+            fp = fingerprint(alert)
+            rows.append((
+                alert_id(alert, fp),
+                alert.detected_at or now_iso(),
+                alert.alert_type,
+                alert.detector_name,
+                alert.detector_version,
+                alert.severity,
+                alert.ip,
+                alert.actor_key,
+                alert.score,
+                fp,
+                json.dumps(alert.evidence),
+                json.dumps(alert.raw_event),
+                alert.trace_id or trace_id,
+                alert.tenant_id,
+            ))
         with conn.cursor() as cur:
             for row in rows:
                 cur.execute(
@@ -244,7 +233,7 @@ def write_postgres(alerts: List[AlertPayload], trace_id: Optional[str] = None) -
                     """,
                     row,
                 )
-    return len(rows)
+        return len(rows)
 
 
 def store_operational_event(
@@ -253,16 +242,15 @@ def store_operational_event(
     aggregate_type: Optional[str] = None,
     aggregate_id: Optional[str] = None,
 ) -> None:
-    conn = connect_pg()
-    if conn is None:
-        return
     try:
-        metadata = dict(event.get("metadata") or {})
-        if aggregate_type:
-            metadata["aggregate_type"] = aggregate_type
-        if aggregate_id:
-            metadata["aggregate_id"] = aggregate_id
-        with conn:
+        with connect_pg() as conn:
+            if conn is None:
+                return
+            metadata = dict(event.get("metadata") or {})
+            if aggregate_type:
+                metadata["aggregate_type"] = aggregate_type
+            if aggregate_id:
+                metadata["aggregate_id"] = aggregate_id
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -866,11 +854,10 @@ def _shadow_promotion_blocker(domain: str, confidence: float) -> str:
 
 def write_advisory_finding(finding: Dict[str, Any]) -> str:
     """Upsert an advisory finding. Returns 'inserted' or 'updated'."""
-    conn = connect_pg()
-    if conn is None:
-        return "no_db"
     now = datetime.now(timezone.utc).isoformat()
-    with conn:
+    with connect_pg() as conn:
+        if conn is None:
+            return "no_db"
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -1101,11 +1088,10 @@ def normalize_dlq_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 
 def write_dlq_record(record: Dict[str, Any]) -> str:
     """Upsert a DLQ normalization record. Returns 'inserted' or 'updated'."""
-    conn = connect_pg()
-    if conn is None:
-        return "no_db"
     now = datetime.now(timezone.utc).isoformat()
-    with conn:
+    with connect_pg() as conn:
+        if conn is None:
+            return "no_db"
         with conn.cursor() as cur:
             cur.execute(
                 """

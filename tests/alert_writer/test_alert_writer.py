@@ -726,5 +726,41 @@ class TestStructuredLogging(unittest.TestCase):
         self.assertIn("ts", parsed)
 
 
+class TestConnectPgUsesBoundedPool(unittest.TestCase):
+    """PERF-DB-CONN-LEAK: connect_pg() must borrow from the bounded
+    pg_pool.ConnectionPool (thread-safe) instead of opening a fresh
+    connection per call, and must never leak a checked-out connection."""
+
+    def test_yields_none_when_pool_unavailable(self):
+        with patch.object(aw.pg_pool, "get_pool", return_value=None):
+            with aw.connect_pg() as conn:
+                self.assertIsNone(conn)
+
+    def test_borrows_from_pool_and_returns_it_on_exit(self):
+        class FakeConn:
+            pass
+
+        fake_conn = FakeConn()
+
+        class FakePoolConnectionCtx:
+            def __enter__(self_inner):
+                return fake_conn
+            def __exit__(self_inner, *a):
+                return False
+
+        fake_pool = MagicMock()
+        fake_pool.connection.return_value = FakePoolConnectionCtx()
+
+        with patch.object(aw.pg_pool, "get_pool", return_value=fake_pool):
+            with aw.connect_pg() as conn:
+                self.assertIs(conn, fake_conn)
+        fake_pool.connection.assert_called_once()
+
+    def test_write_postgres_no_op_when_pool_unavailable(self):
+        with patch.object(aw.pg_pool, "get_pool", return_value=None):
+            result = aw.write_postgres([])
+        self.assertEqual(result, 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
