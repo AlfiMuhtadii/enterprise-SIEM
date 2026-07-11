@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\EndpointAgent;
 use App\Services\EndpointResponseCommandService;
+use App\Services\TenantBoundaryService;
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,12 +24,18 @@ class SocAgentController extends Controller
         'refresh-policy'    => 'refresh_config',
     ];
 
-    public function __construct(private EndpointResponseCommandService $commandService) {}
+    public function __construct(
+        private EndpointResponseCommandService $commandService,
+        private TenantBoundaryService $tenantBoundary,
+        private TenantContextAuthority $tenantAuthority,
+    ) {}
 
     public function index(Request $request): View
     {
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
         $offlineAfter = (int) config('soc.agent_offline_after_seconds', 180);
         $agents = DB::table('endpoint_agents')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('last_seen_at')
             ->paginate(25)
             ->withQueryString();
@@ -46,6 +54,7 @@ class SocAgentController extends Controller
             'releases' => DB::table('agent_releases')->orderByDesc('released_at')->get(),
             'tamperAlerts' => DB::table('security_alerts')
                 ->whereIn('alert_type', ['AGENT_STALE_OR_STOPPED', 'AGENT_RETRY_QUEUE_GROWTH', 'AGENT_REPEATED_DELIVERY_FAILURE', 'AGENT_POLICY_OUTDATED', 'AGENT_STARTUP_INTEGRITY_FAILED', 'AGENT_UNEXPECTED_RESTART'])
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
                 ->orderByDesc('detected_at')
                 ->limit(50)
                 ->get(),
@@ -99,6 +108,10 @@ class SocAgentController extends Controller
         $data = $request->validate(['policy_id' => ['required', 'string', 'max:80']]);
         $before = DB::table('endpoint_agents')->where('agent_id', $agentId)->first();
         abort_if(!$before, 404);
+
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $this->tenantBoundary->assertAccess($before->tenant_id, $tenantId);
+
         DB::table('endpoint_agents')->where('agent_id', $agentId)->update([
             'policy_id' => $data['policy_id'],
             'updated_at' => now(),
@@ -124,6 +137,9 @@ class SocAgentController extends Controller
 
         $agent = EndpointAgent::where('agent_id', $agentId)->first();
         abort_if(!$agent, 404);
+
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $this->tenantBoundary->assertAccess($agent->tenant_id, $tenantId);
 
         $command = $this->commandService->createCommand(
             $agent,
