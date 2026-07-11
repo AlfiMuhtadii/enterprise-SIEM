@@ -24,8 +24,11 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ARCH-DB-SPLIT** | [Enterprise scale — promoted 2026-07-06] Alert/telemetry write-path lands on OLTP Postgres; route high-volume telemetry to ClickHouse (OLAP) and reserve PG for relational/SOC state so dashboards don't contend with ingest. Infra redesign — needs live ClickHouse + load test | `services/alert-writer-service/main.py`, ClickHouse, PG | High | Proposed (staged — infra) |
 | **ARCH-DISCOVERY** | [Enterprise infra — promoted 2026-07-06] Static hostnames only; multi-node needs DNS/service discovery + internal LB. Belongs with a real multi-node deploy (ties ENT-REL-SIMULATED-HA / HA-DRILL-01) | `docker-compose*.yml`, deploy manifests | Medium | Proposed (staged — infra) |
 | **AI-KB-SEMANTIC** | [Enterprise AI — promoted 2026-07-06] Qdrant + cosine ranking path exists (`SocKnowledgeRetriever::retrieveQdrant`); only a live transformer embedding model is missing (currently offline pseudo-embeddings). Needs a bundled/served embedding model — conflicts with offline-first default, so gate behind a flag | `app/Support/SocKnowledgeRetriever.php`, embedding service | Medium | Proposed (staged — needs ML infra) |
-| **UI-COUNTRY-FONT** | [UI] Fix small and low-contrast/unreadable country font size in Alert Attribution view. | `resources/views/security/attribution.blade.php` | Low | Proposed |
-
+| **EXPORT-TENANCY-GAP** | [TENANCY] Scope all Report Exports and History by Tenant Context (IDOR prevention). | `app/Services/ReportExportService.php`, `app/Http/Controllers/Export/ExportController.php` | High | Proposed |
+| **SOAR-TENANCY-GAP** | [TENANCY] Implement Tenant Isolation for SOAR Playbooks, Execution Plans, and Approvals. | SOAR controller, service, and database migrations | High | Proposed |
+| **HUNT-TENANCY-GAP** | [TENANCY] Scope Threat Hunting queries, results, and host/process pivots by Tenant. | `app/Services/ThreatHuntingService.php`, `ThreatHuntController` | High | Proposed |
+| **TRACE-TENANCY-GAP** | [TENANCY] Restrict Trace searches and timeline lookups by active Tenant Context. | `TraceInvestigationController`, `TraceApiController` | High | Proposed |
+ 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
 >
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
@@ -143,3 +146,31 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 - **Component:** `resources/views/security/attribution.blade.php`
 - **Finding:** The country name and code in the Alert Attribution view are unreadable due to extremely small text (`text-xs`) on the parent `<td>` and 50% opacity (`text-cyan-100/50`) on the country name `<span>`.
 - **Proposed Fix:** Modify [attribution.blade.php](file:///D:/project/Detector/resources/views/security/attribution.blade.php#L65-L71) to change the parent `<td>` class to `text-sm` (or remove `text-xs`) and change the country name class to a solid color like `text-cyan-50` or `text-cyan-100` without opacity for high-contrast readability against the dark theme.
+
+## Proposed Task: EXPORT-TENANCY-GAP — Scope all Report Exports and History by Tenant Context
+
+- **Priority:** High (Direct Tenant Isolation)
+- **Component:** `app/Services/ReportExportService.php`, `app/Http/Controllers/Export/ExportController.php`, `app/Http/Controllers/Api/ExportApiController.php`
+- **Finding:** The Report Export engine retrieves investigations, response plans, entity risk profiles, and traces globally without scoping database queries by the current user's tenant ID, creating an IDOR vulnerability where any authenticated user can download another tenant's security reports.
+- **Proposed Fix:** Inject `TenantBoundaryService` or use `TenantContextAuthority` inside `ReportExportService` and all export controllers to scope resource retrieval and assert that the requested records belong to the active tenant.
+
+## Proposed Task: SOAR-TENANCY-GAP — Implement Tenant Isolation for SOAR Playbooks, Plans, and Approvals
+
+- **Priority:** High (Direct Tenant Isolation)
+- **Component:** `app/Http/Controllers/Soar/SoarOrchestrationController.php`, `app/Services/SoarOrchestrationService.php`, SOAR migrations, `app/Models/SoarPlaybook.php` et al.
+- **Finding:** None of the SOAR tables contain a `tenant_id` column, and they are completely un-scoped. Any tenant user can view, run simulations on, and approve/reject active response playbooks and escalation plans belonging to other tenants.
+- **Proposed Fix:** Add `tenant_id` columns to all SOAR tables, register them in `TenantBoundaryService::ISOLATED_TABLES`, and refactor `SoarOrchestrationController` and `SoarOrchestrationService` to filter all queries by tenant context.
+
+## Proposed Task: HUNT-TENANCY-GAP — Implement Tenant Scoping for Threat Hunting Queries and Pivoting
+
+- **Priority:** High (Direct Tenant Isolation)
+- **Component:** `app/Services/ThreatHuntingService.php`, `app/Http/Controllers/Security/ThreatHuntController.php`, `app/Http/Controllers/Api/ThreatHuntApiController.php`
+- **Finding:** `ThreatHuntingService` executes hunts and pivot searches globally across all hosts/events without scoping queries by the tenant context. Pivot explorer and dashboard query hosts globally.
+- **Proposed Fix:** Scope all queries in `executeQuery` and pivot helpers by the active tenant ID, add `tenant_id` columns to the threat hunt tables (already registered under `ISOLATED_TABLES`), and segment lists in the controllers.
+
+## Proposed Task: TRACE-TENANCY-GAP — Restrict Trace Investigation and Search by Tenant Context
+
+- **Priority:** High (Direct Tenant Isolation)
+- **Component:** `app/Http/Controllers/Trace/TraceInvestigationController.php`, `app/Http/Controllers/Api/TraceApiController.php`
+- **Finding:** Trace search and timeline retrieval queries look up alerts, incidents, operational events, and evidence globally by ID or IP without checking tenant boundaries, allowing a tenant user to explore trace timelines and raw logs of other tenants.
+- **Proposed Fix:** Scope the search and timeline lookup queries by the tenant context, ensuring the trace contains at least one alert or incident owned by the active tenant before displaying the details.

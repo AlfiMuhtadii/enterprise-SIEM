@@ -108,6 +108,18 @@ Valid enterprise-relevant findings that are not causing harm at current scale bu
 
 ---
 
+### DETECT-BACKTEST-TENANCY: Detection backtest results are not tenant-scoped
+
+- **Category**: Multi-Tenant Isolation
+- **Severity**: Medium
+- **Source**: Same review pass that found the Honeytoken/SocAgentController/EndpointController tenant-scoping gaps (2026-07-12; see `REVIEW_COMPLETED.md`, issues #53–#55)
+- **Finding**: Detection backtest results are not tenant-scoped. Unlike the other three gaps found in the same pass (genuinely bounded, single-controller fixes), the root cause here sits one layer deeper, in the underlying `telemetry_events` table, which has no `tenant_id` column at all and is written to by roughly a dozen Python scripts plus one Laravel ingestion controller.
+- **Why deferred**: A correct fix requires adding `tenant_id` to `telemetry_events` and auditing every write path (mostly Python, outside this session's normal PHP/test-suite verification loop) to populate it correctly — a materially larger, cross-language change than a single-controller scoping fix, with real risk of leaving a write path silently unscoped if one is missed. Needs its own dedicated pass with full write-path coverage.
+- **Production gate**: Before this can be closed: add `tenant_id` to `telemetry_events` and its write paths, add `tenant_id` to the backtest output tables and scope the service/controller by it, then verify no write path was missed via a null-audit pass (same pattern as GAP-003's `TenantNullAuditCommand`, extended to cover `telemetry_events`).
+- **Status**: **DEFERRED**
+
+---
+
 ### GAP-001: Shadow rule domain promotion (6h soaks required)
 
 - **Category**: Detection Coverage / Operational Gate
