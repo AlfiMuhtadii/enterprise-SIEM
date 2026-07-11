@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Auth\OidcSsoController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\SamlSsoController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -54,6 +55,21 @@ Route::middleware('guest')->group(function () {
 
     Route::get('sso/oidc/callback', [OidcSsoController::class, 'callback'])
                 ->name('sso.oidc.callback');
+
+    // IDENTITY-SSO-MFA: SAML 2.0 SSO federation login, off by default via
+    // config('saml.enabled') -- the controller itself 404s when disabled.
+    // 'acs' is POSTed directly by the IdP (HTTP-POST binding), so it is
+    // excluded from CSRF verification in VerifyCsrfToken -- like OIDC's
+    // callback, it authenticates via a cryptographically signed assertion,
+    // not a session-bound CSRF token.
+    Route::get('sso/saml/login', [SamlSsoController::class, 'login'])
+                ->name('sso.saml.login');
+
+    Route::post('sso/saml/acs', [SamlSsoController::class, 'acs'])
+                ->name('sso.saml.acs');
+
+    Route::get('sso/saml/metadata', [SamlSsoController::class, 'metadata'])
+                ->name('sso.saml.metadata');
 });
 
 Route::middleware('auth')->group(function () {
