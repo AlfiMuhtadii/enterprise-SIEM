@@ -59,6 +59,9 @@ class TenantBoundaryService
         'threat_hunts',
         // NOTIFY-TENANCY-GAP: per-tenant notification target config
         'tenant_notification_settings',
+        // CAP-DECEPTION-HONEYTOKEN tenant isolation
+        'honeytokens',
+        'honeytoken_hits',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.

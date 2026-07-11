@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Honeytoken;
 use App\Models\HoneytokenHit;
 use App\Services\HoneytokenService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 
 /**
@@ -13,12 +14,23 @@ use Illuminate\Http\Request;
  */
 class SocHoneytokenController extends Controller
 {
-    public function __construct(private HoneytokenService $service) {}
+    public function __construct(
+        private HoneytokenService $service,
+        private TenantContextAuthority $tenantAuthority,
+    ) {}
 
-    public function index()
+    public function index(Request $request)
     {
-        $honeytokens = Honeytoken::orderByDesc('created_at')->limit(200)->get();
-        $hits = HoneytokenHit::orderByDesc('matched_at')->limit(200)->get();
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
+        $honeytokens = Honeytoken::when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get();
+        $hits = HoneytokenHit::when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->orderByDesc('matched_at')
+            ->limit(200)
+            ->get();
 
         return view('honeytoken.index', compact('honeytokens', 'hits'));
     }
@@ -33,11 +45,13 @@ class SocHoneytokenController extends Controller
             'label' => 'nullable|string|max:255',
         ]);
 
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
         $this->service->create(
             $data['token_type'],
             $data['token_value'],
             $data['label'] ?? null,
-            null,
+            $tenantId,
             auth()->user()->email ?? 'system',
         );
 
@@ -48,7 +62,9 @@ class SocHoneytokenController extends Controller
     {
         $this->authorize('soc:honeytoken.manage');
 
-        $this->service->deactivate($honeytokenId);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+
+        $this->service->deactivate($honeytokenId, $tenantId);
 
         return redirect()->route('honeytoken.index')->with('success', 'Honeytoken deactivated.');
     }

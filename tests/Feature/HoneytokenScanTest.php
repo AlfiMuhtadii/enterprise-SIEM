@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\TenantBoundaryViolationException;
 use App\Models\Honeytoken;
 use App\Models\User;
 use App\Services\HoneytokenService;
@@ -94,10 +95,32 @@ class HoneytokenScanTest extends TestCase
         $token = $service->create('credential', 'decoy-user-2@example.test');
         $this->seedAlert('alert-rep', ['user' => 'decoy-user-2@example.test']);
 
-        $service->scanForHits();
+        $firstRunHits = $service->scanForHits();
+        $secondRunHits = $service->scanForHits();
+
+        $this->assertSame(1, $firstRunHits);
+        $this->assertSame(0, $secondRunHits, 'a repeat scan must report zero NEW matches for an already-recorded pair');
+        $this->assertSame(1, DB::table('honeytoken_hits')->where('alert_id', 'alert-rep')->count());
+
+        // The bug this guards against: evidence['honeytoken_matches'] used to
+        // grow by one entry on every re-scan even though honeytoken_hits
+        // itself stayed deduplicated -- must still be exactly 1 after two runs.
+        $evidence = json_decode(DB::table('security_alerts')->where('alert_id', 'alert-rep')->value('evidence'), true);
+        $this->assertCount(1, $evidence['honeytoken_matches']);
+    }
+
+    public function test_scan_denormalizes_tenant_id_onto_hit_rows(): void
+    {
+        $service = app(HoneytokenService::class);
+        $service->create('credential', 'decoy-tenant-a@example.test', null, 'tenant-a');
+        $this->seedAlert('alert-tenant', ['user' => 'decoy-tenant-a@example.test']);
+
         $service->scanForHits();
 
-        $this->assertSame(1, DB::table('honeytoken_hits')->where('alert_id', 'alert-rep')->count());
+        $this->assertDatabaseHas('honeytoken_hits', [
+            'alert_id' => 'alert-tenant',
+            'tenant_id' => 'tenant-a',
+        ]);
     }
 
     public function test_scan_finds_nothing_with_no_active_honeytokens(): void
@@ -170,6 +193,98 @@ class HoneytokenScanTest extends TestCase
             ->post(route('honeytoken.deactivate', $token->honeytoken_id))
             ->assertRedirect(route('honeytoken.index'));
 
+        $this->assertFalse($token->fresh()->is_active);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tenant isolation
+    // -----------------------------------------------------------------------
+
+    public function test_store_stamps_tenant_id_from_request_context(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->withHeaders(['X-Tenant-ID' => 'tenant-a'])
+            ->post(route('honeytoken.store'), [
+                'token_type' => 'credential',
+                'token_value' => 'decoy-scoped@example.test',
+            ])
+            ->assertRedirect(route('honeytoken.index'));
+
+        $this->assertDatabaseHas('honeytokens', [
+            'token_value' => 'decoy-scoped@example.test',
+            'tenant_id' => 'tenant-a',
+        ]);
+    }
+
+    public function test_index_only_shows_honeytokens_and_hits_for_the_requesting_tenant(): void
+    {
+        $service = app(HoneytokenService::class);
+        $service->create('credential', 'decoy-tenant-a-visible@example.test', null, 'tenant-a');
+        $service->create('credential', 'decoy-tenant-b-hidden@example.test', null, 'tenant-b');
+        $this->seedAlert('alert-a', ['user' => 'decoy-tenant-a-visible@example.test']);
+        $this->seedAlert('alert-b', ['user' => 'decoy-tenant-b-hidden@example.test']);
+        $service->scanForHits();
+
+        $viewer = User::factory()->create(['role' => 'viewer']);
+
+        $response = $this->actingAs($viewer)
+            ->withHeaders(['X-Tenant-ID' => 'tenant-a'])
+            ->get(route('honeytoken.index'));
+
+        $response->assertOk();
+        $response->assertSee('decoy-tenant-a-visible@example.test');
+        $response->assertDontSee('decoy-tenant-b-hidden@example.test');
+        $response->assertSee('alert-a');
+        $response->assertDontSee('alert-b');
+    }
+
+    public function test_index_without_tenant_header_shows_everything_legacy_pass_through(): void
+    {
+        $service = app(HoneytokenService::class);
+        $service->create('credential', 'decoy-legacy-a@example.test', null, 'tenant-a');
+        $service->create('credential', 'decoy-legacy-b@example.test', null, 'tenant-b');
+
+        $viewer = User::factory()->create(['role' => 'viewer']);
+
+        $response = $this->actingAs($viewer)->get(route('honeytoken.index'));
+
+        $response->assertOk();
+        $response->assertSee('decoy-legacy-a@example.test');
+        $response->assertSee('decoy-legacy-b@example.test');
+    }
+
+    public function test_deactivate_blocks_cross_tenant_attempt(): void
+    {
+        $service = app(HoneytokenService::class);
+        $token = $service->create('credential', 'decoy-cross-tenant@example.test', null, 'tenant-a');
+
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->withHeaders(['X-Tenant-ID' => 'tenant-b'])
+            ->post(route('honeytoken.deactivate', $token->honeytoken_id))
+            ->assertForbidden();
+
+        $this->assertTrue($token->fresh()->is_active);
+    }
+
+    public function test_service_deactivate_throws_on_cross_tenant_mismatch(): void
+    {
+        $service = app(HoneytokenService::class);
+        $token = $service->create('credential', 'decoy-service-cross@example.test', null, 'tenant-a');
+
+        $this->expectException(TenantBoundaryViolationException::class);
+        $service->deactivate($token->honeytoken_id, 'tenant-b');
+    }
+
+    public function test_service_deactivate_allows_matching_tenant(): void
+    {
+        $service = app(HoneytokenService::class);
+        $token = $service->create('credential', 'decoy-service-match@example.test', null, 'tenant-a');
+
+        $this->assertTrue($service->deactivate($token->honeytoken_id, 'tenant-a'));
         $this->assertFalse($token->fresh()->is_active);
     }
 }

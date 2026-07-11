@@ -11,6 +11,7 @@ class HoneytokenHit extends Model
     protected $fillable = [
         'honeytoken_id',
         'alert_id',
+        'tenant_id',
         'telemetry_event_id',
         'matched_field',
         'matched_value',
