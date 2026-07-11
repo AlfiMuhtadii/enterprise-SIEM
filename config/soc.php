@@ -18,6 +18,10 @@ return [
     'ai_provider' => env('SOC_AI_PROVIDER', 'local'),
     'ai_service_enabled' => env('SOC_AI_SERVICE_ENABLED', false),
     'ai_service_url' => env('XDR_AI_RAG_SERVICE_URL', 'http://127.0.0.1:8094'),
+    // AI-1: internal service auth token sent as X-Internal-Service-Token to
+    // ai-rag-service. Empty (default) means no header is sent -- matches
+    // ai-rag-service's own permissive-when-not-configured default.
+    'ai_internal_token' => env('XDR_AI_RAG_INTERNAL_TOKEN', ''),
     'ai_enabled' => env('SOC_AI_ENABLED', true),
     'ai_model' => env('SOC_AI_MODEL', 'local-heuristic'),
     'ai_timeout_seconds' => env('SOC_AI_TIMEOUT_SECONDS', 20),

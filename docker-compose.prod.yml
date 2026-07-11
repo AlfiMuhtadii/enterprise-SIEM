@@ -198,4 +198,8 @@ services:
 
   ai-rag-service:
     ports: !reset []
+    environment:
+      # AI-1: was completely unauthenticated -- now enforced in production
+      # like every other internal service in this file.
+      XDR_ENFORCE_INTERNAL_AUTH: "true"
     restart: always

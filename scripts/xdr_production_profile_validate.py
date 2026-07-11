@@ -73,6 +73,7 @@ _REQUIRED_TOKENS = [
     "XDR_ALERT_WRITER_INTERNAL_TOKEN",
     "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN",
     "XDR_CORRELATION_INTERNAL_TOKEN",
+    "XDR_AI_RAG_INTERNAL_TOKEN",  # AI-1
 ]
 
 # Placeholder / default values that must NOT appear in production token fields.

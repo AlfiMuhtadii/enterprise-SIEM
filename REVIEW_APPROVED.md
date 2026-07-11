@@ -70,6 +70,7 @@ Each approved task has a corresponding GitHub Issue created via `scripts/sync_ba
 | **TEST-1** | Replace trivial ExampleTest assertions with meaningful PHP version, login, and dashboard redirect checks | `tests/Feature/ExampleTest.php`, `tests/Unit/ExampleTest.php` | Low | — |
 | **TEST-2** | Migrate 13 Feature test files to `AssertsAdvisoryOnlyConstraints` trait; remove 5 duplicated inline methods per file | 13 `tests/Feature/*.php` | Low | — |
 | **AI-KB-FEED-INGEST** | Bundled offline MITRE ATT&CK technique-coverage KB import — 103 fixtures derived from the 133-rule registry, imported via existing `AiKnowledgeSeedService` (no live feed, no new service) | `database/seeders/data/rag_knowledge_fixtures.json`, `tests/Feature/AiKnowledgeSeedTest.php` | Low | [#26](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/26) |
+| **AI-1** | ai-rag-service's `/v1/analyze`/`/v1/retrieve`/`/v1/embed` had zero authentication; added the same `X-Internal-Service-Token` pattern every other internal service already uses | `services/ai-rag-service/main.py`, `app/Support/AiRagServiceProvider.php`, `config/soc.php` | High | [#47](https://github.com/AlfiMuhtadii/enterprise-SIEM/issues/47) |
 
 ## Notes
 

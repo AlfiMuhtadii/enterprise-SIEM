@@ -36,8 +36,14 @@ class AiRagServiceProvider implements AiAnalystProvider
                 throw new \RuntimeException('AI/RAG service health check failed.');
             }
 
+            $headers = ['X-Trace-Id' => $traceId];
+            $internalToken = (string) config('soc.ai_internal_token', '');
+            if ($internalToken !== '') {
+                $headers['X-Internal-Service-Token'] = $internalToken;
+            }
+
             $response = Http::timeout($timeout)
-                ->withHeaders(['X-Trace-Id' => $traceId])
+                ->withHeaders($headers)
                 ->post($url.'/v1/analyze', [
                     'incident_id' => $incidentId,
                     'evidence' => $evidence,

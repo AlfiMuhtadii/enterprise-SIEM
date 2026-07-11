@@ -3,18 +3,32 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import hmac
+import logging
+import os
+import sys
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from xdr_event_contracts import envelope
 
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Header, HTTPException
     from pydantic import BaseModel
 except Exception:  # Allows syntax validation without installed FastAPI.
     FastAPI = None  # type: ignore
+    Header = None  # type: ignore
+    HTTPException = Exception  # type: ignore
     BaseModel = object  # type: ignore
+
+log = logging.getLogger("ai-rag-service")
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s ai-rag-service: %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
 
 
 class AnalysisRequest(BaseModel):
@@ -56,8 +70,49 @@ def heuristic_summary(request: AnalysisRequest) -> Dict[str, Any]:
     }
 
 
+def verify_internal_token(token: str) -> bool:
+    """Verify X-Internal-Service-Token. Permissive unless XDR_ENFORCE_INTERNAL_AUTH=true.
+
+    Mirrors alert-writer-service/incident-builder-service's verify_internal_token
+    exactly (AI-1): same permissive-by-default posture, same env var naming
+    convention (XDR_AI_RAG_INTERNAL_TOKEN), same constant-time comparison.
+    """
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
+    expected = os.getenv("XDR_AI_RAG_INTERNAL_TOKEN", "")
+    if enforce:
+        if not expected:
+            return False  # enforced but not configured — startup should have caught this
+        return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
+    if not expected:
+        return True  # permissive: not configured
+    return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
+
+
+def _auth_mode() -> str:
+    return "enforced" if os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"} else "permissive"
+
+
+def validate_startup_secrets() -> None:
+    enforce = os.getenv("XDR_ENFORCE_INTERNAL_AUTH", "false").lower() in {"1", "true", "yes"}
+    token_set = bool(os.getenv("XDR_AI_RAG_INTERNAL_TOKEN", "").strip())
+    if enforce:
+        if not token_set:
+            log.error("[SECURITY-FATAL] ai-rag-service: XDR_ENFORCE_INTERNAL_AUTH=true but XDR_AI_RAG_INTERNAL_TOKEN is not set — refusing to start")
+            sys.exit(1)
+        log.info("[SECURITY] ai-rag-service: internal auth enforced — /v1/analyze, /v1/retrieve, /v1/embed require X-Internal-Service-Token")
+    else:
+        if not token_set:
+            log.warning("[SECURITY-WARN] ai-rag-service: XDR_AI_RAG_INTERNAL_TOKEN not set — internal auth is permissive")
+
+
 if FastAPI is not None:
-    app = FastAPI(title="Detector XDR AI/RAG Service", version="0.1.0")
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: "FastAPI"):
+        """Modern FastAPI lifespan replacing the deprecated startup event hook."""
+        validate_startup_secrets()
+        yield
+
+    app = FastAPI(title="Detector XDR AI/RAG Service", version="0.1.0", lifespan=lifespan)
     METRICS = {"analysis_requests": 0, "retrieval_requests": 0, "embedding_requests": 0, "latency_ms_total": 0.0}
 
     @app.get("/health")
@@ -66,10 +121,15 @@ if FastAPI is not None:
 
     @app.get("/metrics")
     def metrics() -> Dict[str, Any]:
-        return METRICS
+        return {**METRICS, "internal_auth_mode": _auth_mode()}
 
     @app.post("/v1/analyze")
-    def analyze(request: AnalysisRequest) -> Dict[str, Any]:
+    def analyze(
+        request: AnalysisRequest,
+        x_internal_service_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
+        if not verify_internal_token(x_internal_service_token or ""):
+            raise HTTPException(status_code=401, detail="unauthorized")
         started = time.perf_counter()
         METRICS["analysis_requests"] += 1
         result = heuristic_summary(request)
@@ -85,7 +145,12 @@ if FastAPI is not None:
         return result
 
     @app.post("/v1/retrieve")
-    def retrieve(request: RetrievalRequest) -> Dict[str, Any]:
+    def retrieve(
+        request: RetrievalRequest,
+        x_internal_service_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
+        if not verify_internal_token(x_internal_service_token or ""):
+            raise HTTPException(status_code=401, detail="unauthorized")
         # AIRAG-STUB-CITATIONS: no real vector store (Qdrant) is wired up yet, so these
         # are fixed placeholder results, not a grounded retrieval. Labelled explicitly so
         # a caller can never mistake this for a real, evidence-backed citation.
@@ -103,7 +168,12 @@ if FastAPI is not None:
         }
 
     @app.post("/v1/embed")
-    def embed(request: EmbeddingRequest) -> Dict[str, Any]:
+    def embed(
+        request: EmbeddingRequest,
+        x_internal_service_token: Optional[str] = Header(default=None),
+    ) -> Dict[str, Any]:
+        if not verify_internal_token(x_internal_service_token or ""):
+            raise HTTPException(status_code=401, detail="unauthorized")
         METRICS["embedding_requests"] += 1
         return {
             "vectors": [
