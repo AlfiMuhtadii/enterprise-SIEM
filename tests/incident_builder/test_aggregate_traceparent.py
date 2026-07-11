@@ -75,5 +75,46 @@ class AggregateTraceparentTest(unittest.TestCase):
         self.assertIsNotNone(tp.parse(incident["traceparent"]))
 
 
+class AggregateOtelSpanTest(unittest.TestCase):
+    """OBS-OTEL-TRACING phase 5: aggregate()'s optional otel_spans_out param."""
+
+    def test_none_by_default_leaves_incident_dict_unaffected(self):
+        group = [make_alert()]
+        incident = ib.aggregate(group, "test|alice")
+        self.assertNotIn("_otel_span", incident)
+        self.assertEqual(set(incident.keys()) & {"otel_spans_out"}, set())
+
+    def test_appends_one_span_when_list_provided(self):
+        inbound = tp.generate()
+        group = [make_alert(traceparent=inbound)]
+        spans: list = []
+        ib.aggregate(group, "test|alice", spans)
+        self.assertEqual(len(spans), 1)
+
+    def test_span_never_leaks_into_the_returned_incident_dict(self):
+        spans: list = []
+        incident = ib.aggregate([make_alert()], "test|alice", spans)
+        self.assertEqual(len(spans), 1)
+        # The incident dict must remain JSON-serializable — no Span object anywhere in it.
+        import json
+        json.dumps(incident)  # raises TypeError if a non-serializable value leaked in
+
+    def test_span_trace_id_and_parent_match_traceparent_chain(self):
+        inbound = tp.generate()
+        inbound_parsed = tp.parse(inbound)
+        spans: list = []
+        incident = ib.aggregate([make_alert(traceparent=inbound)], "test|alice", spans)
+        out_parsed = tp.parse(incident["traceparent"])
+
+        self.assertEqual(spans[0].trace_id, out_parsed.trace_id)
+        self.assertEqual(spans[0].span_id, out_parsed.span_id)
+        self.assertEqual(spans[0].parent_span_id, inbound_parsed.span_id)
+
+    def test_span_root_has_empty_parent_when_no_alert_carries_traceparent(self):
+        spans: list = []
+        ib.aggregate([make_alert(traceparent=None)], "test|alice", spans)
+        self.assertEqual(spans[0].parent_span_id, "")
+
+
 if __name__ == "__main__":
     unittest.main()

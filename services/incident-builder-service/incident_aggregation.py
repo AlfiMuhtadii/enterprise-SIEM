@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+import otlp_export as oe
 import traceparent as tp
 
 SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -47,7 +48,7 @@ def incident_id_for(key: str) -> str:
     return "xdr-inc-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
 
 
-def aggregate(group: List[Any], key: str) -> Dict[str, Any]:
+def aggregate(group: List[Any], key: str, otel_spans_out: Optional[List[oe.Span]] = None) -> Dict[str, Any]:
     ordered = sorted(group, key=lambda a: a.detected_at or "")
     severity = max((a.severity for a in group), key=lambda s: SEVERITY_RANK.get(s, 0), default="medium")
     confidence = max((float(a.score or 0) for a in group), default=0.5)
@@ -56,8 +57,30 @@ def aggregate(group: List[Any], key: str) -> Dict[str, Any]:
     trace_id = next((a.trace_id for a in group if a.trace_id), None)
     # OBS-OTEL-TRACING: mint a new child span for this hop (not a passthrough
     # like trace_id) so a future OTLP collector sees a distinct incident-builder span.
-    traceparent = tp.propagate(next((a.traceparent for a in group if a.traceparent), None))
+    inbound_tp = next((a.traceparent for a in group if a.traceparent), None)
+    traceparent = tp.propagate(inbound_tp)
     tenant_id = next((a.tenant_id for a in group if a.tenant_id), None)
+
+    # OBS-OTEL-TRACING phase 5: build the OTLP span for this incident's hop
+    # and append it to the caller-owned otel_spans_out list rather than
+    # embedding it in the returned dict — that dict is JSON-serialized (DB
+    # write, Kafka payload, the /v1/build HTTP response), so a raw Span
+    # object must never end up inside it. otel_spans_out is None for the
+    # existing /v1/build HTTP route (unchanged behavior/response shape);
+    # process_alerts() passes a list it collects afterward.
+    if otel_spans_out is not None:
+        outbound_parsed = tp.parse(traceparent)
+        if outbound_parsed is not None:
+            inbound_parsed = tp.parse(inbound_tp)
+            otel_spans_out.append(oe.Span(
+                trace_id=outbound_parsed.trace_id,
+                span_id=outbound_parsed.span_id,
+                parent_span_id=inbound_parsed.span_id if inbound_parsed is not None else "",
+                name="incident-builder-service.aggregate",
+                kind=oe.SPAN_KIND_INTERNAL,
+                start_unix_nano=0,  # filled in by the caller once the batch completes
+                end_unix_nano=0,
+            ))
     timeline = []
     for alert in ordered:
         chain = alert.evidence.get("evidence_chain") or []

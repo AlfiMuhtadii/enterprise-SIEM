@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\OtlpExportService;
 use App\Services\SecurityLogger;
 use App\Services\TraceparentService;
 use Closure;
@@ -173,5 +174,53 @@ class SecurityRequestLogger
         }
 
         return $out;
+    }
+
+    /**
+     * OBS-OTEL-TRACING (phase 5): Laravel calls terminate() on global
+     * middleware AFTER the response has already been sent to the client
+     * (Illuminate\Foundation\Http\Kernel::terminate(), invoked from
+     * public/index.php) — unlike handle(), work done here never delays
+     * what the requester sees, the closest equivalent this SAPI-agnostic
+     * middleware has to the Go/Python hops' fire-and-forget goroutine/
+     * background thread. A no-op when config('xdr.otel_exporter_endpoint')
+     * is blank (the default) or no traceparent was computed for this
+     * request (handle() short-circuited before reaching that point, e.g.
+     * maintenance mode).
+     */
+    public function terminate(Request $request, Response $response): void
+    {
+        $endpoint = (string) config('xdr.otel_exporter_endpoint', '');
+        if ($endpoint === '') {
+            return;
+        }
+
+        $traceparent = $request->attributes->get('traceparent');
+        if (! is_string($traceparent) || $traceparent === '') {
+            return;
+        }
+
+        $outboundParsed = TraceparentService::parse($traceparent);
+        if ($outboundParsed === null) {
+            return;
+        }
+        $inboundParsed = TraceparentService::parse($request->headers->get('traceparent'));
+
+        $requestStart = $request->attributes->get('request_start');
+        $startSeconds = is_float($requestStart) ? $requestStart : microtime(true);
+
+        $span = [
+            'trace_id' => $outboundParsed['trace_id'],
+            'span_id' => $outboundParsed['span_id'],
+            'name' => 'soc-control-plane.http_request',
+            'kind' => OtlpExportService::SPAN_KIND_SERVER,
+            'start_unix_nano' => (int) ($startSeconds * 1_000_000_000),
+            'end_unix_nano' => (int) (microtime(true) * 1_000_000_000),
+        ];
+        if ($inboundParsed !== null) {
+            $span['parent_span_id'] = $inboundParsed['span_id'];
+        }
+
+        OtlpExportService::export($endpoint, 'soc-control-plane', [$span]);
     }
 }

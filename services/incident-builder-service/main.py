@@ -25,7 +25,12 @@ SESSION = requests.Session()
 from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 import traceparent as tp
+import otlp_export as oe
 from incident_aggregation import aggregate, group_key, now_iso
+
+# OBS-OTEL-TRACING phase 5: OTLP/HTTP span export, disabled unless an
+# endpoint is configured (empty string is otlp_export's own no-op signal).
+OTEL_EXPORTER_ENDPOINT = os.getenv("XDR_OTEL_EXPORTER_ENDPOINT", "")
 
 try:
     import psycopg
@@ -382,7 +387,12 @@ def normalize_records(records: List[Dict[str, Any]]) -> List[AlertPayload]:
 
 
 def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_topic: str) -> Dict[str, Any]:
-    result = _build_incidents_core(BuildRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
+    start_ns = time.time_ns()
+    otel_spans: List[oe.Span] = []
+    result = _build_incidents_core(
+        BuildRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic),
+        otel_spans_out=otel_spans,
+    )
     topic = os.getenv("XDR_INCIDENTS_TOPIC", "incidents.updated")
     events = []
     for incident in result.get("incidents", []):
@@ -417,6 +427,14 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
         METRICS["failures"] += len(events)
         DLQ.append({"ts": now_iso(), "target": topic, "error": str(exc), "events": events[:10]})
         METRICS["dlq_count"] = len(DLQ)
+
+    if otel_spans:
+        end_ns = time.time_ns()
+        for span in otel_spans:
+            span.start_unix_nano = start_ns
+            span.end_unix_nano = end_ns
+        oe.export_async(SESSION, OTEL_EXPORTER_ENDPOINT, "incident-builder-service", otel_spans, logger=log)
+
     return result
 
 
@@ -549,17 +567,22 @@ def dlq(x_internal_service_token: Optional[str] = Header(default=None)) -> Dict[
     return {"count": len(DLQ), "items": items}
 
 
-def _build_incidents_core(request: BuildRequest) -> Dict[str, Any]:
+def _build_incidents_core(request: BuildRequest, otel_spans_out: Optional[List[oe.Span]] = None) -> Dict[str, Any]:
     """Core aggregate/persist logic — internal auth is checked only at the HTTP layer
     (the `build()` route below). PIPE-CONSUMER-AUTH-500: the event loop calls this
-    directly so an internal-token check never runs against a non-HTTP caller."""
+    directly so an internal-token check never runs against a non-HTTP caller.
+
+    otel_spans_out (OBS-OTEL-TRACING phase 5): optional caller-owned list
+    that aggregate() appends OTLP spans into — None (the default, used by
+    the /v1/build HTTP route below) means no spans are collected, leaving
+    that route's JSON response shape completely unchanged."""
     started = time.perf_counter()
     METRICS["batches"] += 1
     METRICS["alerts_seen"] += len(request.alerts)
     groups: Dict[str, List[AlertPayload]] = defaultdict(list)
     for alert in request.alerts:
         groups[group_key(alert)].append(alert)
-    incidents = [aggregate(group, key) for key, group in groups.items()]
+    incidents = [aggregate(group, key, otel_spans_out) for key, group in groups.items()]
     written = 0
     try:
         written = write_incidents(incidents)

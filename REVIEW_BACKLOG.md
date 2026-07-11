@@ -14,7 +14,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-REL-SIMULATED-HA** | [Enterprise BLOCKER] HA/scale/DR "PASS" is computed, not measured on real cluster (SIM-LAYER Track B + HA-DRILL-01). "Too heavy for laptop" invalid at enterprise bar — run on real staging before any availability claim | `app/Services/EnterpriseScaleHaService.php` et al., `docker-compose.ha.yml` | High | Proposed (re-open Track B + HA-DRILL-01) |
 | **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning + SBOM generation done; scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions and Go services have zero external deps — already fine. Dockerfiles now pinned to resolved digests. `scripts/xdr_generate_sbom.py` now generates a CycloneDX 1.5 SBOM per service (`docs/security/sbom/*.cyclonedx.json`) directly from requirements.txt/go.mod/digest-pinned Dockerfiles — no syft binary needed. Still missing: image vuln scan gate (trivy), signed builds (cosign) — neither tool is installable/verifiable in this environment | `services/*/Dockerfile`, `scripts/xdr_generate_sbom.py`, CI | Medium | Proposed (reduced) |
 | **IDENTITY-SSO-MFA** (TOTP MFA + mandatory enforcement on approval routes done; SSO/SAML/OIDC federation remains) | [Enterprise BLOCKER — re-ranked] Per-user opt-in TOTP now implemented (`TotpService`, RFC 6238, dependency-free — verified against the RFC's own published test vector, not just self-consistency). Login gates on a 6-digit code when a user has enabled it; existing password-only login is unaffected for everyone else. Mandatory MFA enforcement now wired (`EnsureMfaVerified`/`mfa.required` middleware, gated by `SOC_MFA_ENFORCEMENT_ENABLED`, default `false`) on response-plan/active-response/data-erasure approve routes. Still missing: real SSO/SAML/OIDC federation to a corporate IdP (Okta/Azure AD) — needs a real external IdP to configure and test against, which this environment doesn't have | `app/Services/TotpService.php`, `app/Http/Controllers/Auth/MfaController.php`, `app/Http/Controllers/Auth/AuthenticatedSessionController.php`, `app/Http/Middleware/EnsureMfaVerified.php`, `routes/auth.php`, `routes/web.php` | High | Proposed (reduced) |
-| **OBS-OTEL-TRACING** (phases 1-4 done — W3C traceparent across all 6 hops + OTLP/HTTP span export wired for the 3 core Go pipeline services; Python/PHP OTLP export remains) | See detail section below | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go`, `app/Http/Middleware/*` | High | Proposed (reduced) |
+| **OBS-OTEL-TRACING** (phases 1-5 done — W3C traceparent across all 6 hops + OTLP/HTTP span export wired across the whole platform: 3 Go pipeline services, 2 Python services, Laravel SOC control plane) | All application-layer phases complete — see `REVIEW_COMPLETED.md` for full per-phase detail. Only a real live OTel collector to actually visualize the emitted spans (Tempo/Jaeger, compose `observability` profile) remains, blocked on no live Docker daemon in this environment. | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go`, `services/{alert-writer-service,incident-builder-service}/*.py`, `app/Http/Middleware/SecurityRequestLogger.php`, `app/Services/OtlpExportService.php` | Medium | Proposed (reduced) |
 | **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService, EntityRiskScoringService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** (phases 1-7 done — syslog/CEF/LEEF/parser-registry/CloudTrail/GuardDuty/GCP/O365; all connectors also have CONN-UNTENANTED-INGEST/CONN-DELIVERY-LOSS/CONN-UNBOUNDED-FILE hardening) | All 7 phases complete — see `REVIEW_COMPLETED.md` for full per-phase detail. Phase 7 (O365 Management Activity API) is a live pull-API poller, materially different from the 3 file-based cloud connectors — built and unit-tested (67 tests) against a local mock OAuth+Activity API server since this environment has no real Azure AD app registration to verify against. | `services/ingestion-gateway`, `services/normalizer-worker`, `services/log-connector-*` | High | Done |
 | **DATA-TIERING** (phases 1/2/2b done — archive-then-prune, searchable local archive, RBAC-gated UI; warm/cold infra tiers remain) | See detail section below | `app/Services/SecurityRetentionArchiveService.php`, `app/Services/ArchiveSearchService.php` | Medium | Proposed (reduced) |
@@ -55,13 +55,17 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   span exporter (`internal/otlpexport`) wired into all 3 core Go pipeline services
   (ingestion-gateway, normalizer-worker, correlation-worker), disabled by default
   (`XDR_OTEL_EXPORTER_ENDPOINT` empty), verified end-to-end against a local mock collector
-  (no live OTel collector available in this environment).
-- **Remaining scope:** OTLP export for the 2 Python services (`alert-writer-service`,
-  `incident-builder-service`) and PHP (`TraceparentService`/`SecurityRequestLogger`) — same
-  wiring pattern as the Go phase, not yet done. A real live OTel collector
-  (compose `observability` profile) to actually stitch/visualize the emitted spans (Tempo/
-  Jaeger) also remains — this environment can only verify the exporter's wire format and HTTP
-  behavior against a mock server, not a real collector's ingestion/UI.
+  (no live OTel collector available in this environment). Phase 5 done (see
+  `REVIEW_COMPLETED.md`) — the same OTLP/HTTP+JSON wire format ported to Python
+  (`otlp_export.py`, duplicated into both `alert-writer-service` and
+  `incident-builder-service`) and PHP (`OtlpExportService`, wired into
+  `SecurityRequestLogger::terminate()` using Laravel's terminable-middleware mechanism so the
+  export call runs after the response is already sent to the client). All 6 hops of the
+  platform now emit real OTLP spans, not just standards-shaped propagation context.
+- **Remaining scope:** Only a real live OTel collector (compose `observability` profile) to
+  actually stitch/visualize the emitted spans (Tempo/Jaeger) remains — this environment can
+  only verify each exporter's wire format and HTTP behavior against a mock server, not a real
+  collector's ingestion/UI, since there is no running Docker daemon here.
 
 ## Proposed Task: CODE-STRUCT-DECOMPOSE — Decompose monolithic single-file services
 

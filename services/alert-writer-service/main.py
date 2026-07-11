@@ -33,6 +33,11 @@ from pydantic import BaseModel, Field
 from xdr_event_contracts import envelope, is_envelope, unwrap_payload, validate_envelope
 from alert_identity import alert_id, fingerprint
 import traceparent as tp
+import otlp_export as oe
+
+# OBS-OTEL-TRACING phase 5: OTLP/HTTP span export, disabled unless an
+# endpoint is configured (empty string is otlp_export's own no-op signal).
+OTEL_EXPORTER_ENDPOINT = os.getenv("XDR_OTEL_EXPORTER_ENDPOINT", "")
 
 try:
     import psycopg
@@ -492,15 +497,34 @@ def process_alerts(
     source_topic: str,
     traceparent: Optional[str] = None,
 ) -> Dict[str, Any]:
+    start_ns = time.time_ns()
     result = _write_alerts_core(WriteRequest(alerts=alerts, trace_id=trace_id, source_topic=source_topic))
     created_topic = os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created")
     created_events = []
+    otel_spans: List[oe.Span] = []
     for alert in alerts:
         fp = fingerprint(alert)
         alert_trace_id = alert.trace_id or trace_id
         # OBS-OTEL-TRACING: each hop mints a new child span (not a passthrough
         # like trace_id) so a future OTLP collector sees a distinct span per hop.
-        alert_traceparent = tp.propagate(alert.traceparent or traceparent)
+        inbound_tp = alert.traceparent or traceparent
+        alert_traceparent = tp.propagate(inbound_tp)
+        # OBS-OTEL-TRACING phase 5: one OTLP span per alert, matching the
+        # propagation granularity above — a batch mixing alerts from several
+        # distinct traces must produce one span per trace, not a single span
+        # that would misrepresent all of them as one trace.
+        outbound_parsed = tp.parse(alert_traceparent)
+        if outbound_parsed is not None:
+            inbound_parsed = tp.parse(inbound_tp)
+            otel_spans.append(oe.Span(
+                trace_id=outbound_parsed.trace_id,
+                span_id=outbound_parsed.span_id,
+                parent_span_id=inbound_parsed.span_id if inbound_parsed is not None else "",
+                name="alert-writer-service.process_alerts",
+                kind=oe.SPAN_KIND_INTERNAL,
+                start_unix_nano=start_ns,
+                end_unix_nano=0,  # filled in once the batch is fully processed, below
+            ))
         payload = {
             "trace_id": alert_trace_id,
             "traceparent": alert_traceparent,
@@ -531,6 +555,13 @@ def process_alerts(
         METRICS["retry_count"] += 1
         DLQ.append({"ts": now_iso(), "target": created_topic, "error": str(exc), "events": created_events[:20]})
         METRICS["dlq_count"] = len(DLQ)
+
+    if otel_spans:
+        end_ns = time.time_ns()
+        for span in otel_spans:
+            span.end_unix_nano = end_ns
+        oe.export_async(SESSION, OTEL_EXPORTER_ENDPOINT, "alert-writer-service", otel_spans, logger=log)
+
     return result
 
 

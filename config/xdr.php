@@ -138,6 +138,13 @@ return [
     // Shadow alert consumer toggle (advisory; string 'true'/'false' for gate reporting).
     // ENV-CACHE-DRIFT-BATCH: read via config so it survives config:cache.
     'shadow_consumer_enabled' => env('XDR_SHADOW_CONSUMER_ENABLED', 'false'),
+
+    // OBS-OTEL-TRACING (phase 5): OTLP/HTTP span export for the SOC control
+    // plane. Empty (default) disables export entirely. Shared name with the
+    // Go/Python pipeline services' XDR_OTEL_EXPORTER_ENDPOINT for a single
+    // operator-facing knob across the whole platform.
+    'otel_exporter_endpoint' => env('XDR_OTEL_EXPORTER_ENDPOINT', ''),
+
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],
         'incidents_workflow_rbac' => ['driver' => 'postgresql', 'retention_days' => 365],
