@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Endpoint;
 
 use App\Http\Controllers\Controller;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class EndpointController extends Controller
 {
+    public function __construct(private TenantContextAuthority $tenantAuthority) {}
+
     private const OFFLINE_AFTER_SECONDS = 180;
 
     private const ENDPOINT_ALERT_TYPES = [
@@ -31,8 +34,10 @@ class EndpointController extends Controller
     {
         $statusFilter = $request->get('status');
         $search       = trim((string) $request->get('q', ''));
+        $tenantId     = $this->tenantAuthority->validateAndResolve($request, $request->user());
 
         $agents = DB::table('endpoint_agents')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderByDesc('last_seen_at')
             ->get()
             ->map(function ($agent) {
@@ -57,6 +62,7 @@ class EndpointController extends Controller
         // Shadow alert counts per host
         $alertCounts = DB::table('security_alerts')
             ->whereIn('alert_type', self::ENDPOINT_ALERT_TYPES)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->select('actor_key', DB::raw('count(*) as alert_count'))
             ->groupBy('actor_key')
             ->get()
@@ -76,10 +82,13 @@ class EndpointController extends Controller
             'offline'       => $agents->where('status', 'offline')->count(),
             'integrity_fail'=> $agents->where('integrity_ok', false)->count(),
             'shadow_alerts' => DB::table('security_alerts')
-                ->whereIn('alert_type', self::ENDPOINT_ALERT_TYPES)->count(),
+                ->whereIn('alert_type', self::ENDPOINT_ALERT_TYPES)
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->count(),
             'critical_hosts'=> DB::table('security_alerts')
                 ->whereIn('alert_type', self::ENDPOINT_ALERT_TYPES)
                 ->where('severity', 'critical')
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
                 ->distinct('actor_key')->count('actor_key'),
         ];
 
