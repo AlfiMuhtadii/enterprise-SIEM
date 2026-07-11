@@ -65,7 +65,7 @@
                             <td class="px-4 py-3 text-xs text-cyan-100">
                                 @if ($r->country_code)
                                     <span class="mono-ui">{{ $r->country_code }}</span>
-                                    <span class="block text-cyan-100/50">{{ $r->country_name }}</span>
+                                    <span class="block text-cyan-100/80">{{ $r->country_name }}</span>
                                 @else
                                     <span class="text-cyan-100/30">—</span>
                                 @endif
