@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\MfaController;
+use App\Http\Controllers\Auth\OidcSsoController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -45,6 +46,14 @@ Route::middleware('guest')->group(function () {
 
     Route::post('mfa/challenge', [MfaController::class, 'verify'])
                 ->name('mfa.verify');
+
+    // IDENTITY-SSO-MFA: OIDC SSO federation login, off by default via
+    // config('oidc.enabled') -- the controller itself 404s when disabled.
+    Route::get('sso/oidc/redirect', [OidcSsoController::class, 'redirect'])
+                ->name('sso.oidc.redirect');
+
+    Route::get('sso/oidc/callback', [OidcSsoController::class, 'callback'])
+                ->name('sso.oidc.callback');
 });
 
 Route::middleware('auth')->group(function () {

@@ -49,4 +49,13 @@
             </x-primary-button>
         </div>
     </form>
+
+    @if (config('oidc.enabled'))
+        <div class="mt-6 pt-6 border-t border-cyan-100/10 text-center">
+            <a href="{{ route('sso.oidc.redirect') }}"
+               class="rounded-md text-sm text-cyan-200/85 underline hover:text-cyan-100 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-slate-900">
+                {{ __('Sign in with SSO') }}
+            </a>
+        </div>
+    @endif
 </x-guest-layout>
