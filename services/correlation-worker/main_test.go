@@ -57,6 +57,29 @@ func TestMakeAlertPropagatesTraceparentAsChildSpan(t *testing.T) {
 	}
 }
 
+func TestMakeAlertPopulatesOtelSpanMatchingItsTraceparent(t *testing.T) {
+	inbound := traceparent.Generate()
+	inboundParsed, _ := traceparent.Parse(inbound)
+	events := []Event{
+		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice", Traceparent: inbound},
+	}
+	alert := makeAlert("IDENTITY_MFA_THEN_KEY", "alice", events, 0.80)
+
+	if alert.otelSpan == nil {
+		t.Fatal("expected makeAlert to populate an OTLP span")
+	}
+	outParsed, _ := traceparent.Parse(alert.Traceparent)
+	if alert.otelSpan.TraceID != outParsed.TraceID {
+		t.Errorf("expected span traceId to match the alert's own traceparent trace-id, got %q vs %q", alert.otelSpan.TraceID, outParsed.TraceID)
+	}
+	if alert.otelSpan.SpanID != outParsed.SpanID {
+		t.Errorf("expected span spanId to match the alert's own traceparent span-id, got %q vs %q", alert.otelSpan.SpanID, outParsed.SpanID)
+	}
+	if alert.otelSpan.ParentSpanID != inboundParsed.SpanID {
+		t.Errorf("expected span parentSpanId to match the contributing event's inbound span-id, got %q vs %q", alert.otelSpan.ParentSpanID, inboundParsed.SpanID)
+	}
+}
+
 func TestMakeAlertGeneratesRootTraceparentWhenNoEventCarriesOne(t *testing.T) {
 	events := []Event{
 		{EventID: "ev-001", TelemetryType: "identity", EventType: "mfa_failure", User: "alice"},

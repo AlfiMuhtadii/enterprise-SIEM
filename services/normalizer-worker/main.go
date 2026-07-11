@@ -21,6 +21,8 @@ import (
 
 	"detector-xdr-normalizer-worker/internal/mtls"
 	"detector-xdr-normalizer-worker/internal/normalize"
+	"detector-xdr-normalizer-worker/internal/otlpexport"
+	"detector-xdr-normalizer-worker/internal/traceparent"
 )
 
 // PoisonError is returned by consumerPoll when Pandaproxy reports it cannot
@@ -77,6 +79,9 @@ type Worker struct {
 	mu                    sync.Mutex
 	pool                  *normalizerPool
 	poolOnce              sync.Once
+	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
+	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
+	otelExporter *otlpexport.Exporter
 }
 
 // queuedEvent pairs a normalized event with the WaitGroup (if any) that must
@@ -108,6 +113,10 @@ func main() {
 		queueCapacity: envInt("XDR_NORMALIZER_QUEUE_DEPTH", 200000),
 		producerBatch: envInt("XDR_NORMALIZER_PRODUCER_BATCH", 5000),
 		producerFlush: time.Duration(envInt("XDR_NORMALIZER_FLUSH_MS", 100)) * time.Millisecond,
+		otelExporter: &otlpexport.Exporter{
+			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
+			ServiceName: "normalizer-worker",
+		},
 	}
 	producerCount := envInt("XDR_NORMALIZER_PRODUCERS", 4)
 	if producerCount < 1 {
@@ -269,7 +278,9 @@ func (w *Worker) consumeOnce() {
 			}
 			rawEvents = append(rawEvents, value)
 		}
-		normalized, malformed := w.normalizeBatch(rawEvents)
+		normalizeStart := time.Now()
+		normalized, malformed, spans := w.normalizeBatch(rawEvents)
+		w.exportSpans(spans, normalizeStart, time.Now())
 		w.processed.Add(int64(len(rawEvents)))
 		w.malformed.Add(int64(malformed))
 		// Block the next consumerPoll (which implicitly commits this batch's
@@ -505,7 +516,9 @@ func (w *Worker) normalizeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "normalizer_backpressure", http.StatusTooManyRequests)
 		return
 	}
-	normalized, malformed := w.normalizeBatch(rawEvents)
+	normalizeStart := time.Now()
+	normalized, malformed, spans := w.normalizeBatch(rawEvents)
+	w.exportSpans(spans, normalizeStart, time.Now())
 	w.processed.Add(int64(len(rawEvents)))
 	w.malformed.Add(int64(malformed))
 	for _, event := range normalized {
@@ -535,6 +548,7 @@ type normalizeJob struct {
 
 type normalizeResult struct {
 	event map[string]any
+	span  *otlpexport.Span
 	err   error
 }
 
@@ -551,22 +565,52 @@ func newNormalizerPool(workers int) *normalizerPool {
 		go func() {
 			for job := range p.jobs {
 				event, err := normalize.Event(job.raw)
-				job.result <- normalizeResult{event: event, err: err}
+				var span *otlpexport.Span
+				if err == nil {
+					span = buildNormalizeSpan(job.raw, event)
+				}
+				job.result <- normalizeResult{event: event, span: span, err: err}
 			}
 		}()
 	}
 	return p
 }
 
-func (p *normalizerPool) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
+// buildNormalizeSpan constructs the OTLP span for one event's hop through
+// this worker (OBS-OTEL-TRACING) — raw carries the inbound traceparent
+// (this span's parent), event carries the fresh outbound one normalize.Event
+// already generated via traceparent.Propagate (this span's own id). Returns
+// nil if event's outbound traceparent can't be parsed (defensive; should
+// not happen since normalize.Event always sets a well-formed one).
+func buildNormalizeSpan(raw, event map[string]any) *otlpexport.Span {
+	outboundTP, _ := event["traceparent"].(string)
+	parsed, err := traceparent.Parse(outboundTP)
+	if err != nil {
+		return nil
+	}
+	span := &otlpexport.Span{
+		TraceID: parsed.TraceID,
+		SpanID:  parsed.SpanID,
+		Name:    "normalizer-worker.normalize",
+		Kind:    otlpexport.SpanKindInternal,
+	}
+	inboundTP, _ := raw["traceparent"].(string)
+	if inboundParsed, inErr := traceparent.Parse(inboundTP); inErr == nil {
+		span.ParentSpanID = inboundParsed.SpanID
+	}
+	return span
+}
+
+func (p *normalizerPool) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int, []otlpexport.Span) {
 	if len(rawEvents) == 0 {
-		return nil, 0
+		return nil, 0, nil
 	}
 	results := make(chan normalizeResult, len(rawEvents))
 	for _, raw := range rawEvents {
 		p.jobs <- normalizeJob{raw: raw, result: results}
 	}
 	normalized := make([]map[string]any, 0, len(rawEvents))
+	spans := make([]otlpexport.Span, 0, len(rawEvents))
 	malformed := 0
 	for i := 0; i < len(rawEvents); i++ {
 		item := <-results
@@ -575,20 +619,40 @@ func (p *normalizerPool) normalizeBatch(rawEvents []map[string]any) ([]map[strin
 			continue
 		}
 		normalized = append(normalized, item.event)
+		if item.span != nil {
+			spans = append(spans, *item.span)
+		}
 	}
-	return normalized, malformed
+	return normalized, malformed, spans
 }
 
 // normalizeBatch lazily starts the shared worker pool on first use (so any
 // Worker construction path — main(), tests, one-off file processing — gets
 // it without needing to remember an explicit init step) and reuses it for
 // every subsequent call.
-func (w *Worker) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int) {
+func (w *Worker) normalizeBatch(rawEvents []map[string]any) ([]map[string]any, int, []otlpexport.Span) {
 	w.poolOnce.Do(func() {
 		workers := envInt("XDR_NORMALIZER_WORKERS", runtime.NumCPU())
 		w.pool = newNormalizerPool(workers)
 	})
 	return w.pool.normalizeBatch(rawEvents)
+}
+
+// exportSpans stamps start/end onto every span in the batch (the true
+// wall-clock window of this normalizeBatch call) and fires the OTLP export
+// in a goroutine so an unreachable/slow collector never adds latency to the
+// actual telemetry normalization path — see the identical pattern on
+// ingestion-gateway's publish().
+func (w *Worker) exportSpans(spans []otlpexport.Span, start, end time.Time) {
+	if len(spans) == 0 {
+		return
+	}
+	for i := range spans {
+		spans[i].Start = start
+		spans[i].End = end
+	}
+	exporter := w.otelExporter
+	go func() { _ = exporter.Export(spans) }()
 }
 
 // enqueue hands a normalized event to a producer queue for async batched

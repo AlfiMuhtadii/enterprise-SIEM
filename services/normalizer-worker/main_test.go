@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"detector-xdr-normalizer-worker/internal/otlpexport"
 )
 
 // newTestWorker builds a Worker wired to the given Pandaproxy mock server,
@@ -255,7 +258,7 @@ func TestNormalizeBatchCorrectnessThroughPersistentPool(t *testing.T) {
 		normalizedRawEvent("evt-c"),
 	}
 
-	normalized, malformed := w.normalizeBatch(raw)
+	normalized, malformed, _ := w.normalizeBatch(raw)
 
 	if malformed != 1 {
 		t.Errorf("expected exactly 1 malformed event, got %d", malformed)
@@ -273,7 +276,7 @@ func TestNormalizeBatchHandlesConcurrentCallsOnSamePool(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			normalized, malformed := w.normalizeBatch([]map[string]any{normalizedRawEvent(fmt.Sprintf("evt-concurrent-%d", i))})
+			normalized, malformed, _ := w.normalizeBatch([]map[string]any{normalizedRawEvent(fmt.Sprintf("evt-concurrent-%d", i))})
 			if malformed != 0 || len(normalized) != 1 {
 				t.Errorf("call %d: expected 1 normalized/0 malformed, got %d/%d", i, len(normalized), malformed)
 			}
@@ -284,8 +287,103 @@ func TestNormalizeBatchHandlesConcurrentCallsOnSamePool(t *testing.T) {
 
 func TestNormalizeBatchEmptyInputReturnsEmpty(t *testing.T) {
 	w := newTestWorker(t, "http://unused")
-	normalized, malformed := w.normalizeBatch(nil)
+	normalized, malformed, _ := w.normalizeBatch(nil)
 	if len(normalized) != 0 || malformed != 0 {
 		t.Errorf("expected empty result for empty input, got %d normalized, %d malformed", len(normalized), malformed)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// OBS-OTEL-TRACING: OTLP span export on the normalize path.
+// ---------------------------------------------------------------------------
+
+func TestNormalizeBatchReturnsOneSpanPerSuccessfullyNormalizedEvent(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	raw := []map[string]any{
+		normalizedRawEvent("evt-a"),
+		{"event_id": "evt-malformed"}, // missing required fields → no span for this one
+		normalizedRawEvent("evt-b"),
+	}
+
+	_, malformed, spans := w.normalizeBatch(raw)
+
+	if malformed != 1 {
+		t.Fatalf("expected 1 malformed event, got %d", malformed)
+	}
+	if len(spans) != 2 {
+		t.Fatalf("expected exactly 1 span per successfully normalized event (2), got %d", len(spans))
+	}
+}
+
+func TestNormalizeBatchSpanParentMatchesInboundTraceparent(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	inboundTP := "00-0123456789abcdef0123456789abcdef-fedcba9876543210-01"
+	raw := normalizedRawEvent("evt-a")
+	raw["traceparent"] = inboundTP
+
+	_, _, spans := w.normalizeBatch([]map[string]any{raw})
+
+	if len(spans) != 1 {
+		t.Fatalf("expected 1 span, got %d", len(spans))
+	}
+	span := spans[0]
+	if span.TraceID != "0123456789abcdef0123456789abcdef" {
+		t.Errorf("expected span traceId to match the inbound trace-id, got %q", span.TraceID)
+	}
+	if span.ParentSpanID != "fedcba9876543210" {
+		t.Errorf("expected span parentSpanId to match the inbound span-id, got %q", span.ParentSpanID)
+	}
+	if span.SpanID == "" || span.SpanID == span.ParentSpanID {
+		t.Errorf("expected a fresh child span-id distinct from the parent, got %q", span.SpanID)
+	}
+}
+
+func TestExportSpansSendsRealOtlpRequestToCollector(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	var requestCount int32
+	var capturedBody []byte
+	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		body, _ := io.ReadAll(r.Body)
+		capturedBody = body
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer collector.Close()
+	w.otelExporter = &otlpexport.Exporter{Endpoint: collector.URL, ServiceName: "normalizer-worker"}
+
+	_, _, spans := w.normalizeBatch([]map[string]any{normalizedRawEvent("evt-a")})
+	w.exportSpans(spans, time.Now(), time.Now())
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && atomic.LoadInt32(&requestCount) == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&requestCount) == 0 {
+		t.Fatal("expected exportSpans to reach the collector")
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(capturedBody, &decoded); err != nil {
+		t.Fatalf("expected valid OTLP JSON, got error: %v (body: %s)", err, capturedBody)
+	}
+}
+
+func TestExportSpansNoOpForEmptySpanSlice(t *testing.T) {
+	w := newTestWorker(t, "http://unused")
+
+	var called bool
+	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		called = true
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer collector.Close()
+	w.otelExporter = &otlpexport.Exporter{Endpoint: collector.URL, ServiceName: "normalizer-worker"}
+
+	w.exportSpans(nil, time.Now(), time.Now())
+	time.Sleep(50 * time.Millisecond)
+	if called {
+		t.Error("expected no HTTP call for an empty span slice")
 	}
 }

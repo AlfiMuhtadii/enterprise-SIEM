@@ -25,6 +25,7 @@ import (
 
 	"detector-xdr-correlation-worker/internal/ioc"
 	"detector-xdr-correlation-worker/internal/mtls"
+	"detector-xdr-correlation-worker/internal/otlpexport"
 	"detector-xdr-correlation-worker/internal/shadowrules"
 	"detector-xdr-correlation-worker/internal/traceparent"
 )
@@ -80,6 +81,11 @@ type Alert struct {
 	TraceID     string         `json:"trace_id,omitempty"`
 	Traceparent string         `json:"traceparent,omitempty"`
 	TenantID    string         `json:"tenant_id,omitempty"`
+	// otelSpan is unexported so encoding/json never serializes it into the
+	// published alert payload — it's purely an in-process carrier for
+	// OBS-OTEL-TRACING's span export, populated by makeAlert and consumed
+	// by exportAlertSpans.
+	otelSpan *otlpexport.Span
 }
 
 type Worker struct {
@@ -107,6 +113,9 @@ type Worker struct {
 	shadowAlertsPublished    atomic.Int64
 	dlqWritten               atomic.Int64
 	dlqWriteErrors           atomic.Int64
+	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
+	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
+	otelExporter *otlpexport.Exporter
 }
 
 func validateCorrelationSecrets() {
@@ -174,6 +183,10 @@ func main() {
 		iocLookupURL:             env("XDR_IOC_LOOKUP_URL", ""),
 		group:                    env("XDR_CORRELATION_GROUP", "correlation-worker-v1"),
 		scope:                    env("XDR_CORRELATION_SCOPE", "identity-cloud"),
+		otelExporter: &otlpexport.Exporter{
+			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
+			ServiceName: "correlation-worker",
+		},
 	}
 	// ENT-SEC-NO-TLS-INTERNAL (phase 3): internal mTLS, disabled by default.
 	// Same mechanism proven on ingestion-gateway (phase 1) and normalizer-worker
@@ -373,6 +386,7 @@ func (w *Worker) consumeOnce() {
 		if w.scope == "identity-cloud" || w.scope == "identity-cloud-saas" {
 			alerts = correlateIdentityCloud(events)
 		}
+		w.exportAlertSpans(alerts, started, time.Now())
 		elapsed := time.Since(started).Milliseconds()
 		w.processed.Add(int64(len(events)))
 		w.alerts.Add(int64(len(alerts)))
@@ -567,6 +581,7 @@ func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {
 	if scope == "identity-cloud" {
 		alerts = correlateIdentityCloud(events)
 	}
+	w.exportAlertSpans(alerts, started, time.Now())
 	elapsed := time.Since(started).Milliseconds()
 	w.processed.Add(int64(len(events)))
 	w.alerts.Add(int64(len(alerts)))
@@ -578,6 +593,30 @@ func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {
 		"latency_ms":  elapsed,
 		"shadow_mode": true,
 	})
+}
+
+// exportAlertSpans collects each alert's OTLP span (populated by makeAlert),
+// stamps start/end (the true wall-clock window of the correlate() call that
+// produced these alerts), and fires the export in a goroutine so an
+// unreachable/slow collector never adds latency to the alert-publish path —
+// see the identical pattern on ingestion-gateway's publish() and
+// normalizer-worker's exportSpans.
+func (w *Worker) exportAlertSpans(alerts []Alert, start, end time.Time) {
+	spans := make([]otlpexport.Span, 0, len(alerts))
+	for _, a := range alerts {
+		if a.otelSpan != nil {
+			spans = append(spans, *a.otelSpan)
+		}
+	}
+	if len(spans) == 0 {
+		return
+	}
+	for i := range spans {
+		spans[i].Start = start
+		spans[i].End = end
+	}
+	exporter := w.otelExporter
+	go func() { _ = exporter.Export(spans) }()
 }
 
 func correlate(events []Event) []Alert {
@@ -932,6 +971,29 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		primaryTenantID = tenantIDs[0]
 	}
 
+	outboundTraceparent := traceparent.Propagate(inboundTraceparent)
+
+	// OBS-OTEL-TRACING: one span per alert, matching the propagation
+	// granularity above — each alert already derives its trace-id from the
+	// first contributing event's traceparent, so the span correctly
+	// belongs to that same trace. Silently skipped (nil) if the freshly
+	// generated outbound traceparent somehow fails to parse — defensive,
+	// should not happen since traceparent.Propagate always returns a
+	// well-formed value.
+	var span *otlpexport.Span
+	if parsed, err := traceparent.Parse(outboundTraceparent); err == nil {
+		s := &otlpexport.Span{
+			TraceID: parsed.TraceID,
+			SpanID:  parsed.SpanID,
+			Name:    "correlation-worker.correlate." + alertType,
+			Kind:    otlpexport.SpanKindInternal,
+		}
+		if inboundParsed, inErr := traceparent.Parse(inboundTraceparent); inErr == nil {
+			s.ParentSpanID = inboundParsed.SpanID
+		}
+		span = s
+	}
+
 	return Alert{
 		AlertID:     hex.EncodeToString(sum[:])[:40],
 		AlertType:   alertType,
@@ -944,8 +1006,9 @@ func makeAlert(alertType, actor string, events []Event, score float64) Alert {
 		Evidence:    evidence,
 		ShadowMode:  true,
 		TraceID:     traceID,
-		Traceparent: traceparent.Propagate(inboundTraceparent),
+		Traceparent: outboundTraceparent,
 		TenantID:    primaryTenantID,
+		otelSpan:    span,
 	}
 }
 

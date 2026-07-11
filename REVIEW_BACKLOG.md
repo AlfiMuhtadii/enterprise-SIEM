@@ -15,7 +15,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ENT-DETECT-ML-NOT-LIVE** (investigated — original proposed fix is wrong integration point) | [Enterprise product-claim BLOCKER] Model scores **HTTP-request** features (`status`/`latency_ms`/`has_sql_keywords`/...), confirmed identical to `security_events` (Laravel's `SecurityRequestLogger`), NOT correlation-worker's identity/cloud/SaaS telemetry — wiring it into correlation-worker as originally proposed would score data it was never trained on. The real rule+ML hybrid already exists as working code (`scripts/realtime_detector_consumer.py`) but isn't in `docker-compose.yml` at all, and it writes directly to the **active** `security_alerts` table with no soak gate — deploying it live as-is risks silently activating an unvalidated new alert domain | `scripts/realtime_detector_consumer.py`, `docker-compose.yml`, `app/Http/Middleware/SecurityRequestLogger.php` | High | Deferred — needs advisory-first soak plan, see detail section |
 | **ENT-SDLC-NO-SUPPLYCHAIN** (base-image digest pinning + SBOM generation done; scan/sign remain) | [Enterprise SDLC] Python `requirements.txt` already pin exact versions and Go services have zero external deps — already fine. Dockerfiles now pinned to resolved digests. `scripts/xdr_generate_sbom.py` now generates a CycloneDX 1.5 SBOM per service (`docs/security/sbom/*.cyclonedx.json`) directly from requirements.txt/go.mod/digest-pinned Dockerfiles — no syft binary needed. Still missing: image vuln scan gate (trivy), signed builds (cosign) — neither tool is installable/verifiable in this environment | `services/*/Dockerfile`, `scripts/xdr_generate_sbom.py`, CI | Medium | Proposed (reduced) |
 | **IDENTITY-SSO-MFA** (TOTP MFA + mandatory enforcement on approval routes done; SSO/SAML/OIDC federation remains) | [Enterprise BLOCKER — re-ranked] Per-user opt-in TOTP now implemented (`TotpService`, RFC 6238, dependency-free — verified against the RFC's own published test vector, not just self-consistency). Login gates on a 6-digit code when a user has enabled it; existing password-only login is unaffected for everyone else. Mandatory MFA enforcement now wired (`EnsureMfaVerified`/`mfa.required` middleware, gated by `SOC_MFA_ENFORCEMENT_ENABLED`, default `false`) on response-plan/active-response/data-erasure approve routes. Still missing: real SSO/SAML/OIDC federation to a corporate IdP (Okta/Azure AD) — needs a real external IdP to configure and test against, which this environment doesn't have | `app/Services/TotpService.php`, `app/Http/Controllers/Auth/MfaController.php`, `app/Http/Controllers/Auth/AuthenticatedSessionController.php`, `app/Http/Middleware/EnsureMfaVerified.php`, `routes/auth.php`, `routes/web.php` | High | Proposed (reduced) |
-| **OBS-OTEL-TRACING** (phases 1-3 done — W3C traceparent across all 6 hops; OTLP collector wiring remains) | See detail section below | `services/*/main.*`, `app/Http/Middleware/*` | High | Proposed (reduced) |
+| **OBS-OTEL-TRACING** (phases 1-4 done — W3C traceparent across all 6 hops + OTLP/HTTP span export wired for the 3 core Go pipeline services; Python/PHP OTLP export remains) | See detail section below | `services/{ingestion-gateway,normalizer-worker,correlation-worker}/main.go`, `app/Http/Middleware/*` | High | Proposed (reduced) |
 | **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService, EntityRiskScoringService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
 | **CONNECTOR-FRAMEWORK** (phases 1-6 done — syslog/CEF/LEEF/parser-registry/CloudTrail/GuardDuty/GCP; O365 Management Activity API remains) | See detail section below | `services/ingestion-gateway`, `services/normalizer-worker`, `services/log-connector-*` | High | Proposed (reduced) |
 | **DATA-TIERING** (phases 1/2/2b done — archive-then-prune, searchable local archive, RBAC-gated UI; warm/cold infra tiers remain) | See detail section below | `app/Services/SecurityRetentionArchiveService.php`, `app/Services/ArchiveSearchService.php` | Medium | Proposed (reduced) |
@@ -52,11 +52,17 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
   generation/parsing/propagation implemented dependency-free across all 6 hops: Go
   (`internal/traceparent`, 3 services), Python (`traceparent.py`, 2 services), PHP
   (`TraceparentService`, wired into `SecurityRequestLogger`). 84 tests total across the 3
-  phases, all green.
-- **Remaining scope:** Wiring to a real OTLP collector/OTel SDK — every hop produces
-  standards-shaped span context, but nothing anywhere emits or collects an actual OTel span
-  yet, so no tool like Tempo/Jaeger can currently stitch them. Needs a live collector
-  (compose `observability` profile) to build and verify against.
+  phases, all green. Phase 4 done (see `REVIEW_COMPLETED.md`) — dependency-free OTLP/HTTP+JSON
+  span exporter (`internal/otlpexport`) wired into all 3 core Go pipeline services
+  (ingestion-gateway, normalizer-worker, correlation-worker), disabled by default
+  (`XDR_OTEL_EXPORTER_ENDPOINT` empty), verified end-to-end against a local mock collector
+  (no live OTel collector available in this environment).
+- **Remaining scope:** OTLP export for the 2 Python services (`alert-writer-service`,
+  `incident-builder-service`) and PHP (`TraceparentService`/`SecurityRequestLogger`) — same
+  wiring pattern as the Go phase, not yet done. A real live OTel collector
+  (compose `observability` profile) to actually stitch/visualize the emitted spans (Tempo/
+  Jaeger) also remains — this environment can only verify the exporter's wire format and HTTP
+  behavior against a mock server, not a real collector's ingestion/UI.
 
 ## Proposed Task: CODE-STRUCT-DECOMPOSE — Decompose monolithic single-file services
 

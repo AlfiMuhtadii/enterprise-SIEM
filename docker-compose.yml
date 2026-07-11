@@ -287,6 +287,8 @@ services:
       # CONN-UNTENANTED-INGEST: reject unattributed batches outright.
       # Default false keeps local demo usable without configuring a tenant.
       XDR_INGEST_REQUIRE_TENANT: ${XDR_INGEST_REQUIRE_TENANT:-false}
+      # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
+      XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8091:8091"
     depends_on:
@@ -312,6 +314,8 @@ services:
       # Internal auth enforcement. Default false keeps local demo usable without a token.
       # Set to true (+ XDR_NORMALIZER_INTERNAL_TOKEN) for non-local deployments.
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
+      # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
+      XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8092:8092"
     depends_on:
@@ -443,6 +447,8 @@ services:
       # Default false keeps local demo usable without tokens.
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
       XDR_CORRELATION_INTERNAL_TOKEN: ${XDR_CORRELATION_INTERNAL_TOKEN:-}
+      # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
+      XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8093:8093"
     depends_on:

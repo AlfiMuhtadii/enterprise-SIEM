@@ -10,10 +10,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"detector-xdr-ingestion-gateway/internal/otlpexport"
 )
 
 // newTestGateway builds a Gateway with test-friendly defaults.
@@ -839,5 +842,137 @@ func TestVerifySignatureV2RejectsMalformedTimestamp(t *testing.T) {
 	sig := signV2("secret", "not-a-number", body)
 	if err := verifySignature("secret", body, sig, "not-a-number", 300, false); err == nil {
 		t.Error("a non-numeric X-XDR-Timestamp must be rejected")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// OBS-OTEL-TRACING: OTLP span export on the publish() path.
+// ---------------------------------------------------------------------------
+
+func waitForCondition(t *testing.T, timeout time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if !cond() {
+		t.Fatal("condition not met before timeout")
+	}
+}
+
+func TestPublishExportsOneOtlpSpanPerEvent(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	var capturedBody []byte
+	var requestCount int32
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		capturedBody = buf
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer collector.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.otelExporter = &otlpexport.Exporter{Endpoint: collector.URL, ServiceName: "ingestion-gateway"}
+
+	events := []map[string]any{{"event_type": "a"}, {"event_type": "b"}}
+	if err := gw.publish(events); err != nil {
+		t.Fatalf("unexpected publish error: %v", err)
+	}
+
+	waitForCondition(t, time.Second, func() bool { return atomic.LoadInt32(&requestCount) >= 1 })
+
+	var decoded map[string]any
+	if err := json.Unmarshal(capturedBody, &decoded); err != nil {
+		t.Fatalf("expected valid OTLP JSON reaching the collector, got error: %v (body: %s)", err, capturedBody)
+	}
+	spans := decoded["resourceSpans"].([]any)[0].(map[string]any)["scopeSpans"].([]any)[0].(map[string]any)["spans"].([]any)
+	if len(spans) != 2 {
+		t.Fatalf("expected exactly 1 span per event (2 events), got %d", len(spans))
+	}
+}
+
+func TestPublishSpanCarriesTraceIDMatchingTheEventsOwnTraceparent(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	var capturedBody []byte
+	var requestCount int32
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		capturedBody = buf
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer collector.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.otelExporter = &otlpexport.Exporter{Endpoint: collector.URL, ServiceName: "ingestion-gateway"}
+
+	inboundTP := "00-0123456789abcdef0123456789abcdef-fedcba9876543210-01"
+	events := []map[string]any{{"event_type": "a", "traceparent": inboundTP}}
+	if err := gw.publish(events); err != nil {
+		t.Fatalf("unexpected publish error: %v", err)
+	}
+	if events[0]["traceparent"] == inboundTP {
+		t.Fatal("expected publish() to replace the inbound traceparent with a fresh child span")
+	}
+
+	waitForCondition(t, time.Second, func() bool { return atomic.LoadInt32(&requestCount) >= 1 })
+
+	var decoded map[string]any
+	_ = json.Unmarshal(capturedBody, &decoded)
+	span := decoded["resourceSpans"].([]any)[0].(map[string]any)["scopeSpans"].([]any)[0].(map[string]any)["spans"].([]any)[0].(map[string]any)
+
+	if span["traceId"] != "0123456789abcdef0123456789abcdef" {
+		t.Errorf("expected the span's traceId to match the inbound traceparent's trace-id, got %v", span["traceId"])
+	}
+	if span["parentSpanId"] != "fedcba9876543210" {
+		t.Errorf("expected the span's parentSpanId to match the inbound traceparent's span-id, got %v", span["parentSpanId"])
+	}
+	outboundTP, _ := events[0]["traceparent"].(string)
+	if !strings.Contains(outboundTP, span["spanId"].(string)) {
+		t.Errorf("expected the span's spanId to match the event's new outbound traceparent (%s), got spanId=%v", outboundTP, span["spanId"])
+	}
+}
+
+func TestPublishDoesNotExportWhenOtelExporterDisabled(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL) // otelExporter left nil, matching production zero-config default
+	if err := gw.publish([]map[string]any{{"event_type": "a"}}); err != nil {
+		t.Fatalf("unexpected publish error with a nil otelExporter: %v", err)
+	}
+}
+
+func TestPublishSpanExportDoesNotBlockOrFailPublishWhenCollectorUnreachable(t *testing.T) {
+	fakePanda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer fakePanda.Close()
+
+	gw := newTestGateway(fakePanda.URL)
+	gw.otelExporter = &otlpexport.Exporter{Endpoint: "http://127.0.0.1:1", ServiceName: "ingestion-gateway"}
+
+	start := time.Now()
+	if err := gw.publish([]map[string]any{{"event_type": "a"}}); err != nil {
+		t.Fatalf("publish must succeed even when the OTLP collector is unreachable, got: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Errorf("expected publish() to return immediately without waiting on span export, took %v", elapsed)
 	}
 }

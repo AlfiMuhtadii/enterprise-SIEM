@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"detector-xdr-ingestion-gateway/internal/mtls"
+	"detector-xdr-ingestion-gateway/internal/otlpexport"
 	"detector-xdr-ingestion-gateway/internal/traceparent"
 )
 
@@ -168,6 +169,9 @@ type Gateway struct {
 	sigV2Required             bool
 	// CONN-UNTENANTED-INGEST: strict-mode rejection of unattributed batches.
 	requireTenant bool
+	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
+	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
+	otelExporter *otlpexport.Exporter
 	// core counters
 	requests      atomic.Int64
 	accepted      atomic.Int64
@@ -203,6 +207,10 @@ func main() {
 		sigTimestampToleranceSecs: int64(envInt("XDR_INGEST_SIG_TOLERANCE_SECONDS", 300)),
 		sigV2Required:             envBool("XDR_INGEST_SIGV2_REQUIRED", false),
 		requireTenant:             envBool("XDR_INGEST_REQUIRE_TENANT", false),
+		otelExporter: &otlpexport.Exporter{
+			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
+			ServiceName: "ingestion-gateway",
+		},
 	}
 
 	// IG-1: start background goroutine to poll normalizer metrics
@@ -508,21 +516,56 @@ func newTraceID() string {
 
 // publish sends events to Redpanda with bounded retry + exponential backoff
 // and circuit breaker protection (IG-3).
-func (g *Gateway) publish(events []map[string]any) error {
+//
+// OBS-OTEL-TRACING: one OTLP span is emitted per event (not per batch) —
+// each event carries its own trace-id via traceparent, so a batch mixing
+// events from several distinct traces must produce one span per trace, not
+// a single span that would misrepresent all of them as one trace. All
+// spans in a batch share the same start/end (the true wall-clock window of
+// this publish() call, retries included), batched into a single OTLP
+// export request. Export happens in a goroutine so an unreachable/slow
+// collector never adds latency to the actual telemetry publish path.
+func (g *Gateway) publish(events []map[string]any) (err error) {
 	// IG-3: circuit breaker fast-fail when Redpanda is persistently down
 	if !g.cb.allow() {
 		return fmt.Errorf("circuit_open")
 	}
 
+	start := time.Now()
 	records := make([]map[string]any, 0, len(events))
+	spans := make([]otlpexport.Span, 0, len(events))
 	for _, event := range events {
 		if tid, _ := event["trace_id"].(string); tid == "" {
 			event["trace_id"] = newTraceID()
 		}
 		inboundTP, _ := event["traceparent"].(string)
-		event["traceparent"] = traceparent.Propagate(inboundTP)
+		outboundTP := traceparent.Propagate(inboundTP)
+		event["traceparent"] = outboundTP
 		records = append(records, map[string]any{"value": event})
+
+		if parsed, parseErr := traceparent.Parse(outboundTP); parseErr == nil {
+			span := otlpexport.Span{
+				TraceID: parsed.TraceID,
+				SpanID:  parsed.SpanID,
+				Name:    "ingestion-gateway.publish",
+				Kind:    otlpexport.SpanKindProducer,
+			}
+			if inboundParsed, inErr := traceparent.Parse(inboundTP); inErr == nil {
+				span.ParentSpanID = inboundParsed.SpanID
+			}
+			spans = append(spans, span)
+		}
 	}
+	defer func() {
+		end := time.Now()
+		for i := range spans {
+			spans[i].Start = start
+			spans[i].End = end
+		}
+		exporter := g.otelExporter
+		go func() { _ = exporter.Export(spans) }()
+	}()
+
 	payload, _ := json.Marshal(map[string]any{"records": records})
 	url := fmt.Sprintf("%s/topics/%s", g.redpandaREST, g.topic)
 
