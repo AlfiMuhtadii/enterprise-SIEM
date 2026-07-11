@@ -40,6 +40,19 @@ class RuleThresholds:
 DETECTOR_NAME = "realtime"
 DETECTOR_VERSION = "v2-idempotent-windowed"
 
+# ENT-DETECT-ML-NOT-LIVE: this detector scores HTTP-request features
+# (status/latency_ms/has_sql_keywords/...) captured from SecurityRequestLogger's
+# security_events — a materially different domain from correlation-worker's
+# identity/cloud/SaaS telemetry, and not currently soak-validated for active
+# promotion. --output-mode defaults to "shadow": findings go to advisory_findings
+# only (never security_alerts/security_responses, no auto-promotion), matching
+# the platform's existing shadow-alert-consumer pattern
+# (services/alert-writer-service/main.py's shadow_event_loop). "active" mode
+# preserves the original direct-to-security_alerts behavior for operators who
+# have already completed a domain-specific 6h soak PASS per CLAUDE.md.
+SHADOW_DOMAIN = "web_request"
+SHADOW_PROMOTION_CONFIDENCE_THRESHOLD = 0.75
+
 MITRE_BY_ALERT = {
     "BRUTE_FORCE_IP": [{"tactic": "Credential Access", "technique": "T1110", "name": "Brute Force"}],
     "CREDENTIAL_STUFFING": [{"tactic": "Credential Access", "technique": "T1110.004", "name": "Credential Stuffing"}],
@@ -164,6 +177,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--app-key", default=os.getenv("APP_KEY", "demo-alert-key"))
     parser.add_argument("--poll-interval-ms", type=int, default=800)
     parser.add_argument("--max-empty-polls", type=int, default=0, help="0 means run forever")
+    parser.add_argument(
+        "--output-mode",
+        choices=["shadow", "active"],
+        default=os.getenv("DETECTOR_OUTPUT_MODE", "shadow"),
+        help=(
+            "shadow (default): write advisory_findings only — never security_alerts or "
+            "security_responses, no auto-promotion. active: write directly to "
+            "security_alerts/security_responses (pre-existing behavior; requires a "
+            "domain-specific 6h soak PASS before production use per CLAUDE.md)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -838,6 +862,58 @@ def apply_auto_action(policy_dir: Path, action_type: str, target_id: str, expire
     write_policy_entries(path, entries)
 
 
+def shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]) -> str:
+    """Same algorithm as alert-writer-service's shadow_fingerprint — kept
+    consistent so advisory_findings dedup identically regardless of which
+    shadow producer wrote the row."""
+    material = "|".join([rule_id, actor or "unknown", ",".join(sorted(str(e) for e in evidence_ids))])
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def shadow_promotion_blocker(confidence: float) -> str:
+    reasons = [f"domain_soak_required: no 6h soak PASS for domain={SHADOW_DOMAIN}"]
+    if confidence < SHADOW_PROMOTION_CONFIDENCE_THRESHOLD:
+        reasons.append(f"low_confidence: {confidence:.2f} < {SHADOW_PROMOTION_CONFIDENCE_THRESHOLD}")
+    return "; ".join(reasons)
+
+
+def insert_advisory_findings(conn: Any, driver: str, rows: List[Tuple[Any, ...]]) -> None:
+    """Upsert into advisory_findings — the shadow/advisory path this detector
+    uses by default. Never touches security_alerts/security_incidents (see
+    the identical boundary in alert-writer-service's write_advisory_finding)."""
+    if not rows:
+        return
+    sql = """
+    INSERT INTO advisory_findings (
+      finding_id, rule_id, domain, source_topic, alert_type, severity,
+      confidence, actor_key, tenant_id, evidence, source_event_ids,
+      promotion_candidate, promotion_blocker, status, fingerprint,
+      occurrence_count, first_seen_at, last_seen_at, created_at, updated_at
+    ) VALUES (
+      %s, %s, %s, %s, %s, %s,
+      %s, %s, %s, %s::jsonb, %s::jsonb,
+      %s, %s, 'new', %s,
+      1, %s, %s, now(), now()
+    )
+    ON CONFLICT (fingerprint) DO UPDATE SET
+      occurrence_count = advisory_findings.occurrence_count + 1,
+      last_seen_at = excluded.last_seen_at,
+      promotion_candidate = CASE
+        WHEN advisory_findings.promotion_candidate THEN true
+        ELSE excluded.promotion_candidate
+      END,
+      updated_at = now()
+    """
+    with conn.cursor() as cur:
+        if driver == "psycopg3":
+            cur.executemany(sql, rows)
+        else:
+            from psycopg2.extras import execute_batch  # type: ignore
+
+            execute_batch(cur, sql, rows, page_size=200)
+    conn.commit()
+
+
 def insert_alerts(conn: Any, driver: str, rows: List[Tuple[Any, ...]]) -> None:
     if not rows:
         return
@@ -950,6 +1026,12 @@ def main() -> int:
     print(f"DetectionMode: {args.detection_mode}")
     print(f"AllowlistIPs: {len(allowlist_ips)}")
     print(f"ResponseMode: {args.response_mode}")
+    print(f"OutputMode: {args.output_mode}")
+    if args.output_mode == "shadow":
+        print(f"  -> writing advisory_findings only (domain={SHADOW_DOMAIN}); security_alerts/security_responses untouched")
+    else:
+        print("  -> WARNING: active mode writes directly to security_alerts/security_responses. "
+              "Only use this after a domain-specific 6h soak PASS per CLAUDE.md.")
     if deployment_meta is not None:
         print(
             f"Deployment: id={deployment_meta['deployment_id']} model={deployment_meta['model_key']} lock={deployment_meta['lock_enabled']}"
@@ -958,6 +1040,7 @@ def main() -> int:
 
     pending: List[Tuple[Any, ...]] = []
     pending_responses: List[Tuple[Any, ...]] = []
+    pending_findings: List[Tuple[Any, ...]] = []
     empty_polls = 0
     invalid_events = 0
     consumed_events = 0
@@ -976,6 +1059,9 @@ def main() -> int:
                 if pending:
                     insert_alerts(conn, driver, pending)
                     pending = []
+                if pending_findings:
+                    insert_advisory_findings(conn, driver, pending_findings)
+                    pending_findings = []
                 if args.max_empty_polls > 0 and empty_polls >= args.max_empty_polls:
                     break
                 continue
@@ -1053,6 +1139,37 @@ def main() -> int:
                         evidence["correlation"] = correlation_evidence[alert_type]
                     model_label = alert_type.removeprefix("ML_").lower() if alert_type.startswith("ML_") else None
 
+                    if args.output_mode == "shadow":
+                        # ENT-DETECT-ML-NOT-LIVE: advisory-only path. No
+                        # security_alerts row, no security_responses row, no
+                        # promotion — an analyst reviews advisory_findings and
+                        # a domain-specific 6h soak PASS is required before
+                        # this domain could ever move to --output-mode=active.
+                        evidence_ids = [request_id] if request_id and request_id != "None" else []
+                        fp = shadow_fingerprint(alert_type, actor_key or "unknown", evidence_ids)
+                        finding_id = "adv-" + fp[:36]
+                        pending_findings.append(
+                            (
+                                finding_id,
+                                alert_type,  # rule_id
+                                SHADOW_DOMAIN,
+                                args.topic,  # source_topic
+                                alert_type,
+                                severity,
+                                float(score),
+                                actor_key or None,
+                                None,  # tenant_id — this detector has no tenant context
+                                json.dumps(evidence, separators=(",", ":")),
+                                json.dumps(evidence_ids, separators=(",", ":")),
+                                score >= SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
+                                shadow_promotion_blocker(score),
+                                fp,
+                                ts,
+                                ts,
+                            )
+                        )
+                        continue
+
                     pending.append(
                         (
                             alert_id,
@@ -1129,6 +1246,10 @@ def main() -> int:
                 insert_responses(conn, driver, pending_responses)
                 print(f"responses_inserted_batch={len(pending_responses)}")
                 pending_responses = []
+            if len(pending_findings) >= 30:
+                insert_advisory_findings(conn, driver, pending_findings)
+                print(f"advisory_findings_inserted_batch={len(pending_findings)}")
+                pending_findings = []
 
     except KeyboardInterrupt:
         print("Stopping detector...")
@@ -1137,6 +1258,8 @@ def main() -> int:
             insert_alerts(conn, driver, pending)
         if pending_responses:
             insert_responses(conn, driver, pending_responses)
+        if pending_findings:
+            insert_advisory_findings(conn, driver, pending_findings)
         print(f"consumed_events={consumed_events}")
         print(f"invalid_events_dropped={invalid_events}")
         consumer_delete(base_uri)

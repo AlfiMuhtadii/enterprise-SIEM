@@ -60,7 +60,21 @@ python scripts/realtime_detector_consumer.py \
   --model storage/app/ai_detector_model.pkl
 ```
 
-Consumer writes alerts into `security_alerts`.
+**ENT-DETECT-ML-NOT-LIVE:** `--output-mode` defaults to `shadow` — the consumer
+writes advisory findings into `advisory_findings` (domain `web_request`) only,
+never `security_alerts`/`security_responses`, and never auto-promotes. This
+matches the platform's existing shadow-alert-consumer boundary (see
+`services/alert-writer-service/main.py`'s `shadow_event_loop`). Pass
+`--output-mode active` (or set `DETECTOR_OUTPUT_MODE=active`) only after a
+domain-specific 6h soak PASS for `web_request`, per CLAUDE.md — that mode
+preserves the original direct-to-`security_alerts` behavior byte-for-byte.
+
+Also runnable as a Compose service, deliberately in its own opt-in profile
+(not part of the default `strangler`/`app` bring-up):
+
+```bash
+docker compose --profile ml-shadow up -d ml-shadow-detector
+```
 
 ## 5) Scale out
 
