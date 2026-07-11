@@ -48,7 +48,7 @@ class AiAnalystManager
         ];
     }
 
-    public function generateForIncident(string $incidentId, string $type, string $actor): array
+    public function generateForIncident(string $incidentId, string $type, string $actor, ?string $tenantId = null): array
     {
         $started = microtime(true);
         $context = $this->incidentContext($incidentId);
@@ -82,6 +82,7 @@ class AiAnalystManager
             'suggestion_id' => $suggestionId,
             'target_type' => 'incident',
             'target_id' => $incidentId,
+            'tenant_id' => $tenantId,
             'suggestion_type' => $type,
             'provider' => $provider->providerName(),
             'model' => $model,
