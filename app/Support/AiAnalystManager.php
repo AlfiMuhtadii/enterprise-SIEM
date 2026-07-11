@@ -31,7 +31,7 @@ class AiAnalystManager
 
         return [
             'incident' => (array) $incident,
-            'alerts' => $alerts->map(fn ($row) => (array) $row)->values()->all(),
+            'alerts' => $alerts->map(fn ($row) => $this->redactAlertEvidence((array) $row))->values()->all(),
             'affected_entities' => json_decode($incident->affected_entities ?: '[]', true) ?: [],
             'mitre_mapping' => json_decode($incident->mitre_mapping ?: '[]', true) ?: [],
             'timeline' => json_decode($incident->timeline ?: '[]', true) ?: [],
@@ -46,6 +46,34 @@ class AiAnalystManager
                 ->values()
                 ->all(),
         ];
+    }
+
+    /**
+     * AI-3: evidence/raw_event are free-form JSON blobs sourced from raw
+     * request/log captures -- they can contain anything the capture happened
+     * to record (credentials, tokens, PII), not just the fields analysts
+     * intentionally attach. Redacted here, centrally, before this context
+     * ever reaches any provider, so every AI path (in-process local
+     * heuristic, remote LLM API, standalone ai-rag-service) sees the same
+     * redacted evidence uniformly -- reuses the exact TraceRedactor
+     * primitive already used for trace investigation views/APIs. Top-level
+     * investigative identifier fields (actor_key, ip, alert_type, ...) are
+     * left untouched -- they're the analytic surface, not free-form content.
+     */
+    private function redactAlertEvidence(array $alert): array
+    {
+        foreach (['evidence', 'raw_event'] as $field) {
+            if (!isset($alert[$field]) || !is_string($alert[$field])) {
+                continue;
+            }
+            $decoded = json_decode($alert[$field], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                continue;
+            }
+            $alert[$field] = json_encode(TraceRedactor::deep($decoded, redactEmails: true));
+        }
+
+        return $alert;
     }
 
     public function generateForIncident(string $incidentId, string $type, string $actor, ?string $tenantId = null): array
