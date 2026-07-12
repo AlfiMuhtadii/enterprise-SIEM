@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ClickHouseTelemetryWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -10,6 +11,8 @@ use Illuminate\Support\Str;
 
 class AgentIngestionController extends Controller
 {
+    public function __construct(private ClickHouseTelemetryWriter $clickhouse) {}
+
     public function register(Request $request): JsonResponse
     {
         $configured = (string) config('soc.agent_enrollment_token', '');
@@ -234,9 +237,18 @@ class AgentIngestionController extends Controller
             'events.*.host_id' => ['required', 'string', 'max:128'],
         ]);
 
+        // ARCH-DB-SPLIT: off by default (postgres) -- zero behavior change
+        // unless an operator opts in via XDR_TELEMETRY_WRITE_TARGET=clickhouse.
+        $target = (string) config('xdr.infrastructure.clickhouse.telemetry_write_target', 'postgres');
+
         $rows = [];
+        $clickhouseRows = [];
         foreach ($data['events'] as $event) {
             $event['agent_id'] = $agent->agent_id;
+            if ($target === 'clickhouse') {
+                $clickhouseRows[] = $this->clickhouse->mapAgentEvent($event, $agent->tenant_id);
+                continue;
+            }
             $rows[] = [
                 'ts' => $event['ts'],
                 'event_id' => substr((string) $event['event_id'], 0, 80),
@@ -256,22 +268,32 @@ class AgentIngestionController extends Controller
         }
 
         $inserted = 0;
-        foreach (array_chunk($rows, 250) as $chunk) {
-            $inserted += DB::table('telemetry_events')->insertOrIgnore($chunk);
+        if ($target === 'clickhouse') {
+            foreach (array_chunk($clickhouseRows, 250) as $chunk) {
+                if ($this->clickhouse->insert($chunk)) {
+                    $inserted += count($chunk);
+                }
+            }
+        } else {
+            foreach (array_chunk($rows, 250) as $chunk) {
+                $inserted += DB::table('telemetry_events')->insertOrIgnore($chunk);
+            }
         }
+
+        $eventCount = count($data['events']);
 
         DB::table('endpoint_agents')->where('agent_id', $agent->agent_id)->update([
             'status' => 'online',
             'last_seen_at' => now(),
-            'event_count_total' => DB::raw('event_count_total + '.count($rows)),
-            'last_batch_event_count' => count($rows),
+            'event_count_total' => DB::raw('event_count_total + '.$eventCount),
+            'last_batch_event_count' => $eventCount,
             'retry_queue_depth' => 0,
             'upgrade_status' => $this->upgradeStatus($agent->agent_version),
             'target_version' => $this->latestVersion(),
             'updated_at' => now(),
         ]);
 
-        return response()->json(['ok' => true, 'received' => count($rows), 'inserted' => $inserted]);
+        return response()->json(['ok' => true, 'received' => $eventCount, 'inserted' => $inserted]);
     }
 
     private function verifiedAgent(Request $request): ?object

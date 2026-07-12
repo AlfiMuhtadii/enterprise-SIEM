@@ -154,6 +154,60 @@ class ClickHouseClient:
             ) ENGINE = MergeTree ORDER BY (measured_at, metric_type, topic)
             TTL toDateTime(measured_at) + INTERVAL 180 DAY
             """,
+            # ARCH-DB-SPLIT: mirrors Postgres's telemetry_events column set
+            # (see database/migrations/2026_05_11_000009_create_telemetry_events_table.php
+            # + 2026_05_12_000012_add_xdr_telemetry_and_incident_fields.php) so the
+            # ClickHouse write path is a drop-in target, not a redesign. Adds
+            # tenant_id from day one (Postgres's telemetry_events never got one —
+            # see DETECT-BACKTEST-TENANCY in REVIEW_REJECTED.md) as a leading
+            # ORDER BY key, ahead of host_id (the leading key of the two
+            # single-host point-lookup read paths, SocEndpointTimelineController/
+            # SocForensicController — a future read-path migration keeps its
+            # existing (host_id, ts) access pattern fast this way).
+            #
+            # ReplacingMergeTree(inserted_at) + event_id as a trailing ORDER BY
+            # key gives *eventual* (background-merge-time) dedup on exact
+            # (tenant_id, host_id, ts, event_id) duplicates — the closest
+            # available approximation of Postgres's ON CONFLICT (event_id) DO
+            # NOTHING, but NOT the same guarantee: a duplicate row can still be
+            # visible to a plain SELECT until the next merge (or a query using
+            # FINAL, which costs real read performance). ingest_telemetry_events.py's
+            # own offset-file tracking remains the primary defense against
+            # re-processing; this is a weaker backstop than Postgres's, not an
+            # equivalent one — documented here rather than silently assumed away.
+            """
+            CREATE TABLE IF NOT EXISTS telemetry_events (
+                ts DateTime64(3),
+                event_id String,
+                tenant_id String DEFAULT '',
+                telemetry_type LowCardinality(String),
+                event_type LowCardinality(String),
+                host_id String DEFAULT '',
+                src_ip String DEFAULT '',
+                dst_ip String DEFAULT '',
+                dst_port Int32 DEFAULT 0,
+                protocol String DEFAULT '',
+                process_name String DEFAULT '',
+                user_name_hash String DEFAULT '',
+                xdr_user String DEFAULT '',
+                xdr_host String DEFAULT '',
+                source_ip String DEFAULT '',
+                destination_ip String DEFAULT '',
+                domain String DEFAULT '',
+                file_hash String DEFAULT '',
+                email_sender String DEFAULT '',
+                email_recipient String DEFAULT '',
+                cloud_account String DEFAULT '',
+                xdr_action String DEFAULT '',
+                xdr_result String DEFAULT '',
+                risk_score Float64 DEFAULT 0,
+                event_source String DEFAULT '',
+                payload String,
+                inserted_at DateTime64(3) DEFAULT now64(3)
+            ) ENGINE = ReplacingMergeTree(inserted_at)
+            ORDER BY (tenant_id, host_id, ts, event_id)
+            TTL toDateTime(ts) + INTERVAL 30 DAY
+            """,
         ]
         results = [self.query(stmt) for stmt in statements]
         return {"ok": all(r.ok for r in results), "statuses": [r.status for r in results], "errors": [r.error for r in results if not r.ok]}

@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from realtime_detector_consumer import build_dsn_from_env
 from telemetry_event_contract import validate_event
+from xdr_infra_clients import ClickHouseClient
 
 
 INSERT_SQL = """
@@ -36,14 +37,26 @@ ON CONFLICT (event_id) DO NOTHING
 """
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Ingest normalized telemetry JSONL into Postgres")
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Ingest normalized telemetry JSONL into Postgres or ClickHouse")
     parser.add_argument("--file", default="storage/logs/telemetry.jsonl")
     parser.add_argument("--offset-file", default="storage/app/telemetry_ingest.offset")
     parser.add_argument("--dsn", default=os.getenv("SECURITY_INGEST_DSN", ""))
     parser.add_argument("--batch-size", type=int, default=500)
     parser.add_argument("--from-start", action="store_true")
-    return parser.parse_args()
+    # ARCH-DB-SPLIT: off by default (postgres) -- zero behavior change unless
+    # an operator opts in. "clickhouse" routes the exact same validated,
+    # batched events to the telemetry_events table in ClickHouse instead.
+    parser.add_argument(
+        "--target",
+        choices=["postgres", "clickhouse"],
+        default=os.getenv("XDR_TELEMETRY_WRITE_TARGET", "postgres"),
+    )
+    parser.add_argument("--clickhouse-url", default=os.getenv("XDR_CLICKHOUSE_HTTP_URL", "http://127.0.0.1:8123"))
+    parser.add_argument("--clickhouse-db", default=os.getenv("XDR_CLICKHOUSE_DB", "detector_analytics"))
+    parser.add_argument("--clickhouse-user", default=os.getenv("XDR_CLICKHOUSE_USER", "detector"))
+    parser.add_argument("--clickhouse-password", default=os.getenv("XDR_CLICKHOUSE_PASSWORD", "detector"))
+    return parser.parse_args(argv)
 
 
 def connect_db(dsn: str):
@@ -112,6 +125,53 @@ def map_row(event: Dict[str, Any]) -> Tuple[Any, ...]:
     )
 
 
+def map_row_dict(event: Dict[str, Any]) -> Dict[str, Any]:
+    """ClickHouse JSONEachRow equivalent of map_row() -- same field mapping,
+    same normalize_str/int/float helpers, dict-shaped instead of positional
+    so it lines up with ClickHouseClient.insert_json_each_row(). tenant_id
+    is read directly off the event if present (telemetry_event_contract.py
+    does not require it -- absent means '', ClickHouse's documented default
+    for an unscoped/legacy event, matching this codebase's null-tenant
+    convention elsewhere)."""
+    return {
+        "ts": str(event.get("ts", "")),
+        "event_id": normalize_str(event.get("event_id"), 80) or "",
+        "tenant_id": normalize_str(event.get("tenant_id"), 64) or "",
+        "telemetry_type": normalize_str(event.get("telemetry_type"), 32) or "",
+        "event_type": normalize_str(event.get("event_type"), 80) or "",
+        "host_id": normalize_str(event.get("host_id"), 128) or "",
+        "src_ip": normalize_str(event.get("src_ip"), 64) or "",
+        "dst_ip": normalize_str(event.get("dst_ip"), 64) or "",
+        "dst_port": normalize_int(event.get("dst_port")) or 0,
+        "protocol": normalize_str(event.get("protocol"), 24) or "",
+        "process_name": normalize_str(event.get("process_name"), 160) or "",
+        "user_name_hash": normalize_str(event.get("user_name_hash"), 64) or "",
+        "xdr_user": normalize_str(event.get("user"), 160) or "",
+        "xdr_host": normalize_str(event.get("host"), 160) or "",
+        "source_ip": normalize_str(event.get("source_ip") or event.get("src_ip"), 64) or "",
+        "destination_ip": normalize_str(event.get("destination_ip") or event.get("dst_ip"), 64) or "",
+        "domain": normalize_str(event.get("domain") or event.get("query"), 255) or "",
+        "file_hash": normalize_str(event.get("file_hash"), 128) or "",
+        "email_sender": normalize_str(event.get("email_sender"), 255) or "",
+        "email_recipient": normalize_str(event.get("email_recipient"), 255) or "",
+        "cloud_account": normalize_str(event.get("cloud_account"), 160) or "",
+        "xdr_action": normalize_str(event.get("action"), 160) or "",
+        "xdr_result": normalize_str(event.get("result"), 80) or "",
+        "risk_score": normalize_float(event.get("risk_score")) or 0.0,
+        "event_source": normalize_str(event.get("event_source") or event.get("source_adapter"), 120) or "",
+        "payload": json.dumps(event, separators=(",", ":"), ensure_ascii=False),
+    }
+
+
+def insert_batch_clickhouse(client: ClickHouseClient, rows: List[Dict[str, Any]]) -> int:
+    if not rows:
+        return 0
+    result = client.insert_json_each_row("telemetry_events", rows)
+    if not result.ok:
+        raise RuntimeError(f"clickhouse insert failed: status={result.status} error={result.error or result.body}")
+    return len(rows)
+
+
 def load_offset(path: Path, from_start: bool) -> int:
     if from_start or not path.exists():
         return 0
@@ -153,9 +213,7 @@ def insert_batch(driver: str, conn: Any, rows: List[Tuple[Any, ...]]) -> int:
     return len(rows)
 
 
-def main() -> int:
-    args = parse_args()
-    project_root = Path(__file__).resolve().parents[1]
+def run_ingest(args: argparse.Namespace, project_root: Path) -> int:
     file_path = (project_root / args.file).resolve()
     offset_path = (project_root / args.offset_file).resolve()
 
@@ -163,20 +221,30 @@ def main() -> int:
         print(f"ERROR: file not found: {file_path}")
         return 1
 
-    dsn = args.dsn.strip() or build_dsn_from_env(project_root)
-    if not dsn:
-        print("ERROR: DSN not provided. Set --dsn or SECURITY_INGEST_DSN.")
-        return 1
-
     offset = load_offset(offset_path, args.from_start)
     if offset > file_path.stat().st_size:
         offset = 0
 
-    driver, conn = connect_db(dsn)
-    conn.autocommit = False
+    if args.target == "clickhouse":
+        client = ClickHouseClient(args.clickhouse_url, args.clickhouse_db, args.clickhouse_user, args.clickhouse_password)
+        row_mapper = map_row_dict
+        flush = lambda rows: insert_batch_clickhouse(client, rows)  # noqa: E731
+        close = lambda: None  # noqa: E731
+        dedup_note = "ClickHouse dedup is eventual (ReplacingMergeTree background merge), not synchronous like Postgres's ON CONFLICT DO NOTHING."
+    else:
+        dsn = args.dsn.strip() or build_dsn_from_env(project_root)
+        if not dsn:
+            print("ERROR: DSN not provided. Set --dsn or SECURITY_INGEST_DSN.")
+            return 1
+        driver, conn = connect_db(dsn)
+        conn.autocommit = False
+        row_mapper = map_row
+        flush = lambda rows: insert_batch(driver, conn, rows)  # noqa: E731
+        close = conn.close
+        dedup_note = "Actual inserted rows are deduped by telemetry event_id ON CONFLICT DO NOTHING."
 
     processed = invalid = invalid_schema = inserted = 0
-    batch: List[Tuple[Any, ...]] = []
+    batch: List[Any] = []
     last_pos = offset
     try:
         for last_pos, raw_line in iter_lines(file_path, offset):
@@ -194,23 +262,30 @@ def main() -> int:
                 invalid += 1
                 invalid_schema += 1
                 continue
-            batch.append(map_row(event))
+            batch.append(row_mapper(event))
             if len(batch) >= max(1, args.batch_size):
-                inserted += insert_batch(driver, conn, batch)
+                inserted += flush(batch)
                 batch = []
         if batch:
-            inserted += insert_batch(driver, conn, batch)
+            inserted += flush(batch)
     finally:
-        conn.close()
+        close()
 
     save_offset(offset_path, last_pos)
+    print(f"Target: {args.target}")
     print(f"Processed: {processed}")
     print(f"Inserted(attempted): {inserted}")
     print(f"Invalid: {invalid}")
     print(f"InvalidSchema: {invalid_schema}")
     print(f"Offset: {last_pos}")
-    print("Note: actual inserted rows are deduped by telemetry event_id ON CONFLICT DO NOTHING.")
+    print(f"Note: {dedup_note}")
     return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    args = parse_args(argv)
+    project_root = Path(__file__).resolve().parents[1]
+    return run_ingest(args, project_root)
 
 
 if __name__ == "__main__":

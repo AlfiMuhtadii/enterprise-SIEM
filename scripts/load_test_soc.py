@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 
 DEFAULT_PUBLIC_PATHS = ["/health/live", "/health/ready"]
@@ -144,19 +146,56 @@ def validate_telemetry_jsonl(path: Path) -> Dict[str, object]:
     }
 
 
-def ingest_telemetry_jsonl(path: Path, dsn: str, batch_size: int) -> Dict[str, object]:
+def split_jsonl(path: Path, parts: int) -> List[Path]:
+    """Splits a JSONL file into `parts` roughly-equal-line temp shards for
+    concurrent ingestion -- each concurrent worker gets its own file (and
+    its own offset file, assigned by the caller), so parallel
+    ingest_telemetry_events.py subprocesses never race on shared
+    offset-tracking state. parts<=1 (the pre-existing default) returns the
+    original path unchanged -- no split, no temp files, identical behavior
+    to before concurrency support existed."""
+    if parts <= 1:
+        return [path]
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if len(lines) < parts:
+        return [path]
+    chunk_size = math.ceil(len(lines) / parts)
+    tmp_dir = Path(tempfile.mkdtemp(prefix="load_test_soc_split_"))
+    shard_paths = []
+    for i in range(parts):
+        chunk = lines[i * chunk_size:(i + 1) * chunk_size]
+        if not chunk:
+            continue
+        shard_path = tmp_dir / f"shard_{i}.jsonl"
+        shard_path.write_text("\n".join(chunk) + "\n", encoding="utf-8")
+        shard_paths.append(shard_path)
+    return shard_paths
+
+
+def ingest_worker(shard_path: Path, dsn: str, batch_size: int, target: str, clickhouse_opts: Dict[str, str]) -> Dict[str, object]:
     start = time.perf_counter()
     cmd = [
         "python",
         "scripts/ingest_telemetry_events.py",
         "--file",
-        str(path),
+        str(shard_path),
         "--from-start",
         "--batch-size",
         str(batch_size),
+        "--target",
+        target,
+        "--offset-file",
+        str(shard_path.with_suffix(".offset")),
     ]
     if dsn:
         cmd.extend(["--dsn", dsn])
+    if target == "clickhouse":
+        cmd.extend([
+            "--clickhouse-url", clickhouse_opts.get("url", "http://127.0.0.1:8123"),
+            "--clickhouse-db", clickhouse_opts.get("db", "detector_analytics"),
+            "--clickhouse-user", clickhouse_opts.get("user", "detector"),
+            "--clickhouse-password", clickhouse_opts.get("password", "detector"),
+        ])
     proc = subprocess.run(cmd, text=True, capture_output=True)
     elapsed = max(time.perf_counter() - start, 0.001)
     processed = 0
@@ -167,13 +206,55 @@ def ingest_telemetry_jsonl(path: Path, dsn: str, batch_size: int) -> Dict[str, o
             except ValueError:
                 processed = 0
     return {
-        "enabled": True,
+        "shard": str(shard_path),
         "exit_code": proc.returncode,
         "events": processed,
         "elapsed_sec": round(elapsed, 3),
-        "ingest_events_per_sec": round(processed / elapsed, 2),
-        "stdout": proc.stdout[-2000:],
-        "stderr": proc.stderr[-2000:],
+        "stderr_tail": proc.stderr[-500:],
+    }
+
+
+def ingest_telemetry_load(
+    path: Path,
+    dsn: str,
+    batch_size: int,
+    target: str = "postgres",
+    concurrency: int = 1,
+    clickhouse_opts: Optional[Dict[str, str]] = None,
+) -> Dict[str, object]:
+    """ARCH-DB-SPLIT soak-test entry point: real concurrent write-throughput
+    generator for telemetry ingestion, targeting either Postgres (existing
+    default, unchanged single-writer behavior at concurrency=1) or the new
+    ClickHouse write path (--ingest-target clickhouse), with N parallel
+    ingest_telemetry_events.py subprocesses via ThreadPoolExecutor -- the
+    same concurrency pattern this file already uses for
+    run_workflow_load() -- rather than the single sequential subprocess the
+    original ingest_telemetry_jsonl() ran. This is what actually lets an
+    operator measure sustained concurrent write throughput against either
+    backend, which is the entire point of preparing this system for a soak
+    test: a single-writer number doesn't demonstrate anything about
+    contention."""
+    clickhouse_opts = clickhouse_opts or {}
+    start = time.perf_counter()
+    shard_paths = split_jsonl(path, concurrency)
+    results: List[Dict[str, object]] = []
+    with ThreadPoolExecutor(max_workers=len(shard_paths)) as pool:
+        futures = [pool.submit(ingest_worker, shard, dsn, batch_size, target, clickhouse_opts) for shard in shard_paths]
+        for fut in as_completed(futures):
+            results.append(fut.result())
+    elapsed = max(time.perf_counter() - start, 0.001)
+    total_processed = sum(r["events"] for r in results)
+    failures = [r for r in results if r["exit_code"] != 0]
+    return {
+        "enabled": True,
+        "target": target,
+        "concurrency": len(shard_paths),
+        "exit_code": 1 if failures else 0,
+        "events": total_processed,
+        "elapsed_sec": round(elapsed, 3),
+        "ingest_events_per_sec": round(total_processed / elapsed, 2),
+        "worker_failures": len(failures),
+        "workers": results,
     }
 
 
@@ -250,6 +331,16 @@ def main() -> int:
     parser.add_argument("--telemetry-jsonl", default="")
     parser.add_argument("--ingest-telemetry", action="store_true", help="Actually ingest --telemetry-jsonl into the configured database")
     parser.add_argument("--ingest-batch-size", type=int, default=500)
+    # ARCH-DB-SPLIT: --ingest-target/--ingest-concurrency turn this from a
+    # single-writer wall-clock measurement into a genuine concurrent
+    # write-throughput soak against either backend. Defaults (postgres,
+    # concurrency=1) reproduce the exact prior behavior unchanged.
+    parser.add_argument("--ingest-target", choices=["postgres", "clickhouse"], default="postgres")
+    parser.add_argument("--ingest-concurrency", type=int, default=1, help="Number of concurrent ingest_telemetry_events.py workers, each on its own file shard")
+    parser.add_argument("--clickhouse-url", default="http://127.0.0.1:8123")
+    parser.add_argument("--clickhouse-db", default="detector_analytics")
+    parser.add_argument("--clickhouse-user", default="detector")
+    parser.add_argument("--clickhouse-password", default="detector")
     parser.add_argument("--dsn", default="", help="Database DSN for telemetry ingest or workflow load modes")
     parser.add_argument("--workflow-incident-id", default="", help="Existing incident_id for concurrent workflow load test")
     parser.add_argument("--workflow-iterations", type=int, default=20)
@@ -265,7 +356,19 @@ def main() -> int:
     after_metrics = fetch_metrics(args.base_url, args.cookie, args.timeout)
     telemetry = validate_telemetry_jsonl(Path(args.telemetry_jsonl)) if args.telemetry_jsonl else {"enabled": False}
     telemetry_ingest = (
-        ingest_telemetry_jsonl(Path(args.telemetry_jsonl), args.dsn, args.ingest_batch_size)
+        ingest_telemetry_load(
+            Path(args.telemetry_jsonl),
+            args.dsn,
+            args.ingest_batch_size,
+            target=args.ingest_target,
+            concurrency=args.ingest_concurrency,
+            clickhouse_opts={
+                "url": args.clickhouse_url,
+                "db": args.clickhouse_db,
+                "user": args.clickhouse_user,
+                "password": args.clickhouse_password,
+            },
+        )
         if args.telemetry_jsonl and args.ingest_telemetry
         else {"enabled": False}
     )

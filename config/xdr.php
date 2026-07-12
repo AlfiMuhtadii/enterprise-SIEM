@@ -74,6 +74,13 @@ return [
             'user' => env('XDR_CLICKHOUSE_USER', env('CLICKHOUSE_USER', 'detector')),
             'password' => env('XDR_CLICKHOUSE_PASSWORD', env('CLICKHOUSE_PASSWORD', 'detector')),
             'timeout_seconds' => (int) env('XDR_CLICKHOUSE_TIMEOUT_SECONDS', 5),
+            // ARCH-DB-SPLIT: off by default (postgres) -- zero behavior change
+            // unless an operator opts in. "clickhouse" routes agent-submitted
+            // telemetry (AgentIngestionController::telemetry()) to the
+            // ClickHouse telemetry_events table instead of Postgres's. Same
+            // flag name/values as ingest_telemetry_events.py's --target /
+            // XDR_TELEMETRY_WRITE_TARGET so operators configure one thing.
+            'telemetry_write_target' => env('XDR_TELEMETRY_WRITE_TARGET', 'postgres'),
         ],
         'opensearch' => [
             'url' => env('XDR_OPENSEARCH_URL', 'http://127.0.0.1:9200'),

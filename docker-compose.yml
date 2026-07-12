@@ -256,6 +256,15 @@ services:
       DB_HOST: postgres
       KAFKA_BOOTSTRAP_SERVERS: "redpanda:9092"
       SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:-postgres}"
+      # ARCH-DB-SPLIT: off by default (postgres) -- zero behavior change
+      # unless an operator opts in. Picked up via telemetry_stream_worker.py's
+      # own --target/--clickhouse-* env-var defaults (not passed on the
+      # command line below), so flipping this alone is enough to opt in.
+      XDR_TELEMETRY_WRITE_TARGET: ${XDR_TELEMETRY_WRITE_TARGET:-postgres}
+      XDR_CLICKHOUSE_HTTP_URL: http://clickhouse:8123
+      XDR_CLICKHOUSE_DB: ${CLICKHOUSE_DB:-detector_analytics}
+      XDR_CLICKHOUSE_USER: ${CLICKHOUSE_USER:-detector}
+      XDR_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-detector}
     command: ["python3", "scripts/telemetry_stream_worker.py", "--topic", "telemetry.raw", "--bootstrap-servers", "redpanda:9092"]
     depends_on:
       postgres:
