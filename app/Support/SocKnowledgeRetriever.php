@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SocKnowledgeRetriever
@@ -13,11 +14,17 @@ class SocKnowledgeRetriever
         $started = microtime(true);
         $query = $this->queryTerms($context);
         $store = (string) config('soc.rag_vector_store', 'local-keyword');
-        $embeddingProvider = (string) config('soc.rag_embedding_provider', 'local-keyword');
         if ($store === 'qdrant') {
             $citations = $this->retrieveQdrant($context, $query, $limit);
+            // Reflects what was actually used for this retrieval (real
+            // model vs. hashed-keyword fallback), not just a static
+            // operator-set label -- config('soc.rag_embedding_provider')
+            // remains available separately for operators who want to set
+            // their own descriptive value.
+            $embeddingProvider = $this->embeddingProviderName();
         } else {
             $citations = $this->retrieveLocal($context, $query, $limit, $store);
+            $embeddingProvider = (string) config('soc.rag_embedding_provider', 'local-keyword');
         }
 
         $quality = $this->citationQuality($citations);
@@ -104,23 +111,105 @@ class SocKnowledgeRetriever
                 'related_rule_id' => $item['payload']['related_rule_id'] ?? null,
                 'related_ioc_id' => $item['payload']['related_ioc_id'] ?? null,
             ])->values()->all();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            // Previously a silent catch-and-fallback -- which is exactly how
+            // a real dimension mismatch between denseVector()'s output and
+            // the Qdrant collection's configured size went undetected: every
+            // call quietly fell back and nothing ever surfaced the failure.
+            // Still fails open (advisory-only RAG citations must never break
+            // the incident workflow), but now at least observable.
+            Log::warning('soc knowledge qdrant retrieval failed, falling back to local', [
+                'error' => $e->getMessage(),
+            ]);
             return $this->retrieveLocal($context, $query, $limit, 'qdrant-fallback-local');
         }
     }
 
     public function upsertEmbedding(object $entry): void
     {
+        $text = $entry->title.' '.$entry->content_markdown;
+
+        // soc_knowledge_embeddings (Postgres) stays on the sparse
+        // term-frequency keyword vector, unchanged -- retrieveLocal()'s own
+        // cosine bonus compares this against keywordVector(implode(' ',
+        // $query))'s identically-shaped sparse dict (string term -> count).
+        // This is a fundamentally different representation than the dense,
+        // fixed-dimension embedding used below for Qdrant -- mixing the two
+        // here would silently break every local-path cosine score, since
+        // cosine() would be comparing string-keyed and numeric-keyed
+        // vectors with no overlapping keys at all.
         DB::table('soc_knowledge_embeddings')->updateOrInsert(
             ['kb_id' => $entry->kb_id],
             [
                 'embedding_provider' => 'local-keyword',
-                'embedding' => json_encode($this->keywordVector($entry->title.' '.$entry->content_markdown)),
+                'embedding' => json_encode($this->keywordVector($text)),
                 'metadata' => json_encode(['entry_type' => $entry->entry_type]),
                 'embedded_at' => now(),
                 'created_at' => $entry->created_at ?? now(),
                 'updated_at' => now(),
             ]
+        );
+
+        if ((string) config('soc.rag_vector_store', 'local-keyword') === 'qdrant') {
+            $this->upsertQdrantPoint($entry, $this->embeddingVector($text));
+        }
+    }
+
+    /**
+     * Pushes one SOC KB entry into the Qdrant collection so retrieveQdrant()
+     * has real content to search -- previously nothing ever wrote KB rows
+     * into Qdrant at all, so every query returned zero real matches
+     * regardless of the vector scheme. Advisory-only: a Qdrant write
+     * failure here is logged and swallowed, never bubbled up to whatever
+     * triggered the KB write (creating/seeding a KB entry must not fail
+     * because the search-index mirror is unreachable).
+     */
+    private function upsertQdrantPoint(object $entry, array $vector): void
+    {
+        $baseUrl = rtrim((string) config('soc.qdrant_base_url'), '/');
+        $collection = (string) config('soc.qdrant_collection', 'soc_knowledge');
+        try {
+            Http::timeout((int) config('soc.embedding_timeout_seconds', 5))
+                ->put($baseUrl.'/collections/'.$collection.'/points', [
+                    'points' => [[
+                        'id' => $this->qdrantPointId($entry->kb_id),
+                        'vector' => array_values($vector),
+                        'payload' => [
+                            'kb_id' => $entry->kb_id,
+                            'title' => $entry->title,
+                            'entry_type' => $entry->entry_type,
+                            'excerpt' => mb_substr((string) $entry->content_markdown, 0, 260),
+                            'related_rule_id' => $entry->related_rule_id ?? null,
+                            'related_ioc_id' => $entry->related_ioc_id ?? null,
+                        ],
+                    ]],
+                ])->throw();
+        } catch (\Throwable $e) {
+            Log::warning('soc knowledge qdrant upsert failed', [
+                'kb_id' => $entry->kb_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Qdrant point IDs must be an unsigned integer or a UUID string --
+     * kb_id values in this codebase are human-readable slugs
+     * (e.g. "rag-rkf-identity-mfa-001"), so this derives a stable,
+     * deterministic UUID-shaped string from kb_id. Same kb_id always maps
+     * to the same point ID, so upsertQdrantPoint() is a genuine update on
+     * re-embedding, never a duplicate point.
+     */
+    private function qdrantPointId(string $kbId): string
+    {
+        $hash = md5($kbId);
+        return sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($hash, 0, 8),
+            substr($hash, 8, 4),
+            substr($hash, 12, 4),
+            substr($hash, 16, 4),
+            substr($hash, 20, 12),
         );
     }
 
@@ -148,7 +237,86 @@ class SocKnowledgeRetriever
         return collect($matches[0] ?? [])->countBy()->sortDesc()->take(64)->all();
     }
 
+    /**
+     * The vector actually used for both indexing (upsertEmbedding()) and
+     * querying (retrieveQdrant()) -- must be the exact same scheme on both
+     * sides, or cosine similarity between them is meaningless. Tries a real
+     * transformer embedding first when config('soc.embedding_model_url')
+     * is set; falls back to the dependency-free hashed-keyword vector
+     * (unchanged default behavior) if it's unset, or if the real call
+     * fails for any reason (advisory-only -- retrieval must degrade
+     * gracefully, never throw).
+     */
     private function denseVector(string $text): array
+    {
+        return $this->embeddingVector($text);
+    }
+
+    private function embeddingVector(string $text): array
+    {
+        $modelUrl = trim((string) config('soc.embedding_model_url', ''));
+        if ($modelUrl !== '') {
+            $real = $this->realEmbedding($text, $modelUrl);
+            if ($real !== null) {
+                return $real;
+            }
+        }
+        return $this->hashVector($text);
+    }
+
+    private function embeddingProviderName(): string
+    {
+        return trim((string) config('soc.embedding_model_url', '')) !== ''
+            ? (string) config('soc.embedding_model_name', 'all-minilm')
+            : 'local-keyword';
+    }
+
+    // Small embedding models (all-minilm's default context is 256 tokens)
+    // reject input over their context window outright rather than silently
+    // truncating -- confirmed against a real Ollama instance: several of
+    // this codebase's longer KB articles ("the input length exceeds the
+    // context length", HTTP 500) failed every single embedding attempt,
+    // not just transiently. ~4 chars/token is a conservative average for
+    // English text, so this character budget keeps well under 256 tokens
+    // with room to spare -- a title+excerpt is plenty for a citation
+    // embedding to be useful; the full article is still what's returned to
+    // the analyst; only what's sent to the embedding model is bounded.
+    private const EMBEDDING_INPUT_MAX_CHARS = 800;
+
+    /**
+     * Calls a real embedding model (Ollama's /api/embeddings, or any
+     * server implementing the same {model, prompt} -> {embedding} contract)
+     * and returns its raw vector, or null on any failure -- caller falls
+     * back to hashVector() rather than propagate the error, matching this
+     * codebase's advisory-only posture for AI features.
+     */
+    private function realEmbedding(string $text, string $modelUrl): ?array
+    {
+        $text = mb_substr($text, 0, self::EMBEDDING_INPUT_MAX_CHARS);
+        try {
+            $response = Http::timeout((int) config('soc.embedding_timeout_seconds', 5))
+                ->post(rtrim($modelUrl, '/').'/api/embeddings', [
+                    'model' => (string) config('soc.embedding_model_name', 'all-minilm'),
+                    'prompt' => $text,
+                ]);
+            if (!$response->successful()) {
+                Log::warning('soc embedding request failed', ['status' => $response->status()]);
+                return null;
+            }
+            $vector = $response->json('embedding');
+            return is_array($vector) && $vector !== [] ? array_values($vector) : null;
+        } catch (\Throwable $e) {
+            Log::warning('soc embedding request threw', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    // hashVector(): the original dependency-free scheme, unchanged --
+    // still the default (and the only option) when no embedding model is
+    // configured. 32 buckets, term counts hashed via crc32 -- crude, but
+    // requires no external service and was this repo's only option before
+    // AI-KB-SEMANTIC.
+    private function hashVector(string $text): array
     {
         $vector = array_fill(0, 32, 0.0);
         foreach ($this->keywordVector($text) as $term => $count) {

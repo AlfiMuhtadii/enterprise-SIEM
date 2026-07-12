@@ -41,6 +41,18 @@ return [
     'rag_embedding_provider' => env('SOC_RAG_EMBEDDING_PROVIDER', 'local-keyword'),
     'qdrant_base_url' => env('SOC_QDRANT_BASE_URL', 'http://127.0.0.1:6333'),
     'qdrant_collection' => env('SOC_QDRANT_COLLECTION', 'soc_knowledge'),
+    // AI-KB-SEMANTIC: empty (default) means SocKnowledgeRetriever uses its
+    // existing dependency-free hashed-keyword vector (32-dim) for both
+    // indexing and querying -- zero behavior change. Set to a real Ollama
+    // endpoint (e.g. http://127.0.0.1:11434) to use real transformer
+    // embeddings (384-dim with the default model below, matching the
+    // dimensionality the soc_knowledge Qdrant collection already expects)
+    // instead. Must be set consistently for both index-time
+    // (upsertEmbedding()) and query-time (retrieveQdrant()) -- mixing real
+    // and hashed vectors makes cosine similarity meaningless.
+    'embedding_model_url' => env('SOC_EMBEDDING_MODEL_URL', ''),
+    'embedding_model_name' => env('SOC_EMBEDDING_MODEL_NAME', 'all-minilm'),
+    'embedding_timeout_seconds' => (int) env('SOC_EMBEDDING_TIMEOUT_SECONDS', 5),
     'quality_alert_volume_spike_ratio' => env('SOC_QUALITY_ALERT_VOLUME_SPIKE_RATIO', 2.0),
     'quality_fp_spike_ratio' => env('SOC_QUALITY_FP_SPIKE_RATIO', 1.5),
     'permissions' => [
