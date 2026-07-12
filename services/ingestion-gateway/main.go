@@ -17,11 +17,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"detector-xdr-ingestion-gateway/internal/kafkanative"
 	"detector-xdr-ingestion-gateway/internal/mtls"
 	"detector-xdr-ingestion-gateway/internal/otlpexport"
 	"detector-xdr-ingestion-gateway/internal/traceparent"
@@ -178,6 +180,8 @@ type Gateway struct {
 	rejected      atomic.Int64
 	publishErrors atomic.Int64
 	retryCount    atomic.Int64
+	// ARCH-KAFKA-NATIVE: nil unless XDR_KAFKA_TRANSPORT=native.
+	nativeProducer *kafkanative.Producer
 }
 
 func main() {
@@ -211,6 +215,18 @@ func main() {
 			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
 			ServiceName: "ingestion-gateway",
 		},
+	}
+
+	// ARCH-KAFKA-NATIVE: off by default (XDR_KAFKA_TRANSPORT=pandaproxy) --
+	// zero behavior change unless an operator opts in.
+	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
+		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
+		producer, err := kafkanative.NewProducer(brokers)
+		if err != nil {
+			log.Fatalf("xdr ingestion gateway: native kafka producer init failed: %v", err)
+		}
+		gw.nativeProducer = producer
+		log.Printf("xdr ingestion gateway: using native kafka transport brokers=%v", brokers)
 	}
 
 	// IG-1: start background goroutine to poll normalizer metrics
@@ -533,6 +549,7 @@ func (g *Gateway) publish(events []map[string]any) (err error) {
 
 	start := time.Now()
 	records := make([]map[string]any, 0, len(events))
+	values := make([][]byte, 0, len(events))
 	spans := make([]otlpexport.Span, 0, len(events))
 	for _, event := range events {
 		if tid, _ := event["trace_id"].(string); tid == "" {
@@ -541,7 +558,15 @@ func (g *Gateway) publish(events []map[string]any) (err error) {
 		inboundTP, _ := event["traceparent"].(string)
 		outboundTP := traceparent.Propagate(inboundTP)
 		event["traceparent"] = outboundTP
-		records = append(records, map[string]any{"value": event})
+		if g.nativeProducer != nil {
+			b, marshalErr := json.Marshal(event)
+			if marshalErr != nil {
+				return fmt.Errorf("kafkanative: marshal event: %w", marshalErr)
+			}
+			values = append(values, b)
+		} else {
+			records = append(records, map[string]any{"value": event})
+		}
 
 		if parsed, parseErr := traceparent.Parse(outboundTP); parseErr == nil {
 			span := otlpexport.Span{
@@ -565,6 +590,10 @@ func (g *Gateway) publish(events []map[string]any) (err error) {
 		exporter := g.otelExporter
 		go func() { _ = exporter.Export(spans) }()
 	}()
+
+	if g.nativeProducer != nil {
+		return g.publishNative(values)
+	}
 
 	payload, _ := json.Marshal(map[string]any{"records": records})
 	url := fmt.Sprintf("%s/topics/%s", g.redpandaREST, g.topic)
@@ -613,6 +642,54 @@ func (g *Gateway) publish(events []map[string]any) (err error) {
 
 	g.cb.recordFailure()
 	return lastErr
+}
+
+// publishNative mirrors publish()'s REST retry loop (same backoff schedule,
+// same circuit-breaker recordSuccess/recordFailure calls, same retryCount
+// metric) over a native Kafka producer instead of an HTTP POST.
+func (g *Gateway) publishNative(values [][]byte) error {
+	baseDelay := 100 * time.Millisecond
+	maxDelay := time.Second
+	perAttemptTimeout := time.Duration(g.publishTimeoutSecs) * time.Second
+
+	var lastErr error
+	for attempt := 0; attempt < g.maxPublishRetries; attempt++ {
+		if attempt > 0 {
+			backoff := baseDelay * (1 << uint(attempt-1))
+			if backoff > maxDelay {
+				backoff = maxDelay
+			}
+			time.Sleep(backoff)
+			g.retryCount.Add(1)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), perAttemptTimeout)
+		err := g.nativeProducer.Publish(ctx, g.topic, values)
+		cancel()
+
+		if err == nil {
+			g.cb.recordSuccess()
+			return nil
+		}
+		lastErr = err
+	}
+
+	g.cb.recordFailure()
+	return lastErr
+}
+
+// splitBrokers parses a comma-separated broker list, trimming whitespace
+// and dropping empty entries (e.g. a trailing comma).
+func splitBrokers(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // verifySignature checks the X-XDR-Signature header against the request body.

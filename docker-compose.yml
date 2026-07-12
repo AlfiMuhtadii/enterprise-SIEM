@@ -317,6 +317,12 @@ services:
       # Hardcoded: container-to-container must use service name, not 127.0.0.1 (host loopback).
       # .env XDR_REDPANDA_REST_URL=http://127.0.0.1:8082 is for host-side scripts only.
       XDR_REDPANDA_REST_URL: http://redpanda:8082
+      # ARCH-KAFKA-NATIVE: off by default (pandaproxy) -- set XDR_KAFKA_TRANSPORT=native
+      # to use the native binary Kafka protocol instead of the Pandaproxy REST proxy.
+      # Port 9092 is already the redpanda service's internal (container-network-only)
+      # native listener -- no compose/network changes needed to opt in.
+      XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
+      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_RAW_TOPIC: telemetry.raw
       XDR_INGEST_RPS: 100
@@ -341,6 +347,9 @@ services:
     profiles: ["strangler"]
     environment:
       XDR_REDPANDA_REST_URL: http://redpanda:8082
+      # ARCH-KAFKA-NATIVE: see ingestion-gateway's env block above for detail.
+      XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
+      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
       XDR_RAW_TOPIC: telemetry.raw
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalization_failed
@@ -510,6 +519,9 @@ services:
     environment:
       XDR_CORRELATION_GOGC: "300"
       XDR_REDPANDA_REST_URL: http://redpanda:8082
+      # ARCH-KAFKA-NATIVE: see ingestion-gateway's env block for detail.
+      XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
+      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_ALERTS_TOPIC: xdr.alerts
       XDR_CORRELATION_DLQ_TOPIC: xdr.alerts.dlq

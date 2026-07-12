@@ -14,8 +14,44 @@
     {
       "type": "framework",
       "name": "go",
-      "version": "1.24",
-      "purl": "pkg:generic/go@1.24"
+      "version": "1.25.0",
+      "purl": "pkg:generic/go@1.25.0"
+    },
+    {
+      "type": "library",
+      "name": "github.com/twmb/franz-go",
+      "version": "1.21.5",
+      "purl": "pkg:golang/github.com/twmb/franz-go@v1.21.5"
+    },
+    {
+      "type": "library",
+      "name": "github.com/twmb/franz-go/pkg/kfake",
+      "version": "0.0.0-20260704163952-0aa5aa63c8fd",
+      "purl": "pkg:golang/github.com/twmb/franz-go/pkg/kfake@v0.0.0-20260704163952-0aa5aa63c8fd"
+    },
+    {
+      "type": "library",
+      "name": "github.com/klauspost/compress",
+      "version": "1.18.6",
+      "purl": "pkg:golang/github.com/klauspost/compress@v1.18.6"
+    },
+    {
+      "type": "library",
+      "name": "github.com/pierrec/lz4/v4",
+      "version": "4.1.26",
+      "purl": "pkg:golang/github.com/pierrec/lz4/v4@v4.1.26"
+    },
+    {
+      "type": "library",
+      "name": "github.com/twmb/franz-go/pkg/kmsg",
+      "version": "1.13.1",
+      "purl": "pkg:golang/github.com/twmb/franz-go/pkg/kmsg@v1.13.1"
+    },
+    {
+      "type": "library",
+      "name": "golang.org/x/crypto",
+      "version": "0.51.0",
+      "purl": "pkg:golang/golang.org/x/crypto@v0.51.0"
     },
     {
       "type": "container",

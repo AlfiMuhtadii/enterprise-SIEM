@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -19,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"detector-xdr-normalizer-worker/internal/kafkanative"
 	"detector-xdr-normalizer-worker/internal/mtls"
 	"detector-xdr-normalizer-worker/internal/normalize"
 	"detector-xdr-normalizer-worker/internal/otlpexport"
@@ -82,6 +84,12 @@ type Worker struct {
 	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
 	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
 	otelExporter *otlpexport.Exporter
+	// ARCH-KAFKA-NATIVE: nil unless XDR_KAFKA_TRANSPORT=native. publish()
+	// and consumeLoop() branch on nativeProducer/nativeConsumer being set
+	// rather than re-reading the env var, so the transport is decided once
+	// at startup, not per-call.
+	nativeProducer *kafkanative.Producer
+	nativeConsumer *kafkanative.Consumer
 }
 
 // queuedEvent pairs a normalized event with the WaitGroup (if any) that must
@@ -118,6 +126,27 @@ func main() {
 			ServiceName: "normalizer-worker",
 		},
 	}
+
+	// ARCH-KAFKA-NATIVE: off by default (XDR_KAFKA_TRANSPORT=pandaproxy) --
+	// zero behavior change unless an operator opts in. The consumer is only
+	// needed when the event loop itself is enabled.
+	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
+		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
+		producer, err := kafkanative.NewProducer(brokers)
+		if err != nil {
+			log.Fatalf("xdr normalizer: native kafka producer init failed: %v", err)
+		}
+		w.nativeProducer = producer
+		if envBool("XDR_NORMALIZER_EVENT_LOOP_ENABLED", true) {
+			consumer, err := kafkanative.NewConsumer(brokers, w.group, []string{w.inputTopic})
+			if err != nil {
+				log.Fatalf("xdr normalizer: native kafka consumer init failed: %v", err)
+			}
+			w.nativeConsumer = consumer
+		}
+		log.Printf("xdr normalizer: using native kafka transport brokers=%v", brokers)
+	}
+
 	producerCount := envInt("XDR_NORMALIZER_PRODUCERS", 4)
 	if producerCount < 1 {
 		producerCount = 1
@@ -224,11 +253,134 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 
 func (w *Worker) consumeLoop() {
 	for {
-		w.consumeOnce()
+		if w.nativeConsumer != nil {
+			w.consumeOnceNative()
+		} else {
+			w.consumeOnce()
+		}
 		w.reconnectCount.Add(1)
 		log.Printf("normalizer consumer reconnecting in 5s")
 		time.Sleep(5 * time.Second)
 	}
+}
+
+// consumeOnceNative mirrors consumeOnce()'s shape exactly (poll, isolate any
+// poison records, normalize+forward the rest, block until publish completes,
+// then advance offsets) but over a native long-lived Kafka connection
+// instead of Pandaproxy's REST consumer-instance protocol. There is no
+// "instance" to recreate here -- see the kafkanative package docs for why
+// that structurally removes the REST-rebalance-storm failure mode.
+func (w *Worker) consumeOnceNative() {
+	w.consumerRecreateCount.Add(1)
+	log.Printf("normalizer consuming (native) topic=%s group=%s", w.inputTopic, w.group)
+	for {
+		pollCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		records, err := w.nativeConsumer.Poll(pollCtx)
+		cancel()
+		w.consumerPolls.Add(1)
+		if err != nil {
+			w.pollErrorCount.Add(1)
+			w.consumerErrors.Add(1)
+			log.Printf("normalizer consumer poll failed (native): %v — reconnecting", err)
+			return
+		}
+		if len(records) == 0 {
+			continue
+		}
+
+		rawEvents := make([]map[string]any, 0, len(records))
+		cleanRecords := make([]*kafkanative.Record, 0, len(records))
+		reconnectNeeded := false
+		for _, record := range records {
+			// A record whose bytes aren't a valid JSON object -- whether
+			// malformed JSON entirely, or valid JSON that isn't an object
+			// (e.g. an array or scalar) -- is treated as poison, the same
+			// disposition Pandaproxy's REST path gives both cases today
+			// (poison via error_code 40801, or "invalid_record_value" via
+			// the non-object check a few lines below in the REST path).
+			var value map[string]any
+			if err := json.Unmarshal(record.Value, &value); err != nil {
+				w.malformed.Add(1)
+				if w.isolatePoisonRecordNative(record, err) {
+					continue
+				}
+				log.Printf("normalizer DLQ isolation failed for poison at %s:%d offset=%d — reconnecting",
+					record.Topic, record.Partition, record.Offset)
+				reconnectNeeded = true
+				break
+			}
+			rawEvents = append(rawEvents, value)
+			cleanRecords = append(cleanRecords, record)
+		}
+		if reconnectNeeded {
+			return
+		}
+		if len(cleanRecords) == 0 {
+			continue
+		}
+
+		normalizeStart := time.Now()
+		normalized, malformed, spans := w.normalizeBatch(rawEvents)
+		w.exportSpans(spans, normalizeStart, time.Now())
+		w.processed.Add(int64(len(rawEvents)))
+		w.malformed.Add(int64(malformed))
+		// Same NORM-ASYNC-COMMIT-LOSS invariant as the REST path: block
+		// until every event in this batch has been through a completed
+		// publish attempt (success, or failure recorded to the DLQ) before
+		// the offset commit below advances past them.
+		var wg sync.WaitGroup
+		for _, event := range normalized {
+			w.enqueue(event, &wg)
+			w.queueDepth.Add(1)
+		}
+		wg.Wait()
+
+		commitCtx, commitCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		err = w.nativeConsumer.Commit(commitCtx, cleanRecords...)
+		commitCancel()
+		if err != nil {
+			log.Printf("normalizer offset commit failed (native): %v — reconnecting", err)
+			return
+		}
+	}
+}
+
+// isolatePoisonRecordNative is the native-transport equivalent of
+// isolatePoisonRecord: write a structured DLQ record for the poison message,
+// then advance the consumer past its offset. Returns true only if both
+// steps succeed -- on any failure the caller reconnects rather than
+// silently skipping the record, exactly like the REST path.
+func (w *Worker) isolatePoisonRecordNative(record *kafkanative.Record, parseErr error) bool {
+	dlqRecord := map[string]any{
+		"dlq_event_type":   "poison_message_isolated",
+		"schema_version":   1,
+		"isolation_reason": "invalid_json_value",
+		"source_topic":     record.Topic,
+		"source_partition": int(record.Partition),
+		"source_offset":    record.Offset,
+		"error_message":    parseErr.Error(),
+		"isolated_at":      time.Now().UTC().Format(time.RFC3339),
+		"consumer_group":   w.group,
+	}
+	if err := w.publish(w.dlqTopic, []map[string]any{dlqRecord}); err != nil {
+		w.dlqWriteErrors.Add(1)
+		log.Printf("normalizer DLQ write failed for poison %s:%d offset=%d: %v",
+			record.Topic, record.Partition, record.Offset, err)
+		return false
+	}
+	w.dlqWritten.Add(1)
+	commitCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := w.nativeConsumer.Commit(commitCtx, record); err != nil {
+		w.dlqWriteErrors.Add(1)
+		log.Printf("normalizer offset advance failed for poison %s:%d offset=%d: %v",
+			record.Topic, record.Partition, record.Offset, err)
+		return false
+	}
+	w.poisonSkipped.Add(1)
+	log.Printf("normalizer isolated poison (native): topic=%s partition=%d offset=%d dlq=%s",
+		record.Topic, record.Partition, record.Offset, w.dlqTopic)
+	return true
 }
 
 func (w *Worker) consumeOnce() {
@@ -760,6 +912,9 @@ func (w *Worker) normalizeFile(path string) error {
 }
 
 func (w *Worker) publish(topic string, events []map[string]any) error {
+	if w.nativeProducer != nil {
+		return w.publishNative(topic, events)
+	}
 	records := make([]map[string]any, 0, len(events))
 	for _, event := range events {
 		records = append(records, map[string]any{"value": event})
@@ -778,6 +933,34 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 		return fmt.Errorf("publish_failed status=%d body=%s", resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+func (w *Worker) publishNative(topic string, events []map[string]any) error {
+	values := make([][]byte, len(events))
+	for i, event := range events {
+		b, err := json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("kafkanative: marshal event: %w", err)
+		}
+		values[i] = b
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
+	defer cancel()
+	return w.nativeProducer.Publish(ctx, topic, values)
+}
+
+// splitBrokers parses a comma-separated broker list, trimming whitespace
+// and dropping empty entries (e.g. a trailing comma).
+func splitBrokers(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

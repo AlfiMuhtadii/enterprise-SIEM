@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"detector-xdr-correlation-worker/internal/ioc"
+	"detector-xdr-correlation-worker/internal/kafkanative"
 	"detector-xdr-correlation-worker/internal/mtls"
 	"detector-xdr-correlation-worker/internal/otlpexport"
 	"detector-xdr-correlation-worker/internal/shadowrules"
@@ -116,6 +117,9 @@ type Worker struct {
 	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
 	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
 	otelExporter *otlpexport.Exporter
+	// ARCH-KAFKA-NATIVE: nil unless XDR_KAFKA_TRANSPORT=native.
+	nativeProducer *kafkanative.Producer
+	nativeConsumer *kafkanative.Consumer
 }
 
 func validateCorrelationSecrets() {
@@ -188,6 +192,27 @@ func main() {
 			ServiceName: "correlation-worker",
 		},
 	}
+
+	// ARCH-KAFKA-NATIVE: off by default (XDR_KAFKA_TRANSPORT=pandaproxy) --
+	// zero behavior change unless an operator opts in. The consumer is only
+	// needed when the event loop itself is enabled.
+	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
+		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
+		producer, err := kafkanative.NewProducer(brokers)
+		if err != nil {
+			log.Fatalf("xdr correlation worker: native kafka producer init failed: %v", err)
+		}
+		w.nativeProducer = producer
+		if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
+			consumer, err := kafkanative.NewConsumer(brokers, w.group, []string{w.inputTopic})
+			if err != nil {
+				log.Fatalf("xdr correlation worker: native kafka consumer init failed: %v", err)
+			}
+			w.nativeConsumer = consumer
+		}
+		log.Printf("xdr correlation worker: using native kafka transport brokers=%v", brokers)
+	}
+
 	// ENT-SEC-NO-TLS-INTERNAL (phase 3): internal mTLS, disabled by default.
 	// Same mechanism proven on ingestion-gateway (phase 1) and normalizer-worker
 	// (phase 2) — see scripts/xdr_generate_internal_mtls_certs.py for dev/test certs.
@@ -313,10 +338,162 @@ func (w *Worker) writeDLQRecord(record map[string]any) error {
 
 func (w *Worker) consumeLoop() {
 	for {
-		w.consumeOnce()
+		if w.nativeConsumer != nil {
+			w.consumeOnceNative()
+		} else {
+			w.consumeOnce()
+		}
 		w.reconnectCount.Add(1)
 		log.Printf("correlation consumer reconnecting in 5s")
 		time.Sleep(5 * time.Second)
+	}
+}
+
+// consumeOnceNative mirrors consumeOnce()'s correlation/publish logic
+// exactly, over a native long-lived Kafka connection instead of Pandaproxy's
+// REST consumer-instance protocol. Unlike the REST path (where Pandaproxy
+// implicitly commits the previous batch's offsets on the next poll),
+// DisableAutoCommit means nothing is ever committed here without an
+// explicit Commit call -- so this adds one at the end of each batch, right
+// after every publish for that batch has been attempted (success, or
+// failure recorded to the DLQ), matching normalizer-worker's
+// publish-before-commit invariant rather than reproducing correlation-
+// worker's previous exposure to offset loss on crash.
+func (w *Worker) consumeOnceNative() {
+	w.consumerRecreateCount.Add(1)
+	log.Printf("correlation consuming (native) topic=%s group=%s output=%s", w.inputTopic, w.group, w.outputTopic)
+	for {
+		pollCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		records, err := w.nativeConsumer.Poll(pollCtx)
+		cancel()
+		w.consumerPolls.Add(1)
+		if err != nil {
+			w.pollErrorCount.Add(1)
+			w.consumerErrors.Add(1)
+			log.Printf("correlation consumer poll failed (native): %v — reconnecting", err)
+			return
+		}
+		if len(records) == 0 {
+			continue
+		}
+		events := make([]Event, 0, len(records))
+		rawMaps := make([]map[string]any, 0, len(records))
+		reconnectNeeded := false
+		for _, record := range records {
+			var event Event
+			if err := json.Unmarshal(record.Value, &event); err != nil {
+				w.publishErrors.Add(1)
+				dlqRec := map[string]any{
+					"dlq_event_type":   "correlation_parse_error",
+					"source_topic":     record.Topic,
+					"source_partition": int64(record.Partition),
+					"source_offset":    record.Offset,
+					"error_message":    err.Error(),
+					"reason":           "invalid_json",
+					"ts":               time.Now().UTC().Format(time.RFC3339Nano),
+				}
+				if writeErr := w.writeDLQRecord(dlqRec); writeErr != nil {
+					reconnectNeeded = true
+					break
+				}
+				continue
+			}
+			events = append(events, event)
+			var raw map[string]any
+			if err := json.Unmarshal(record.Value, &raw); err == nil {
+				rawMaps = append(rawMaps, raw)
+			}
+		}
+		if reconnectNeeded {
+			return
+		}
+		if len(events) == 0 && len(rawMaps) == 0 {
+			continue
+		}
+		started := time.Now()
+		alerts := correlate(events)
+		if w.scope == "identity-cloud" || w.scope == "identity-cloud-saas" {
+			alerts = correlateIdentityCloud(events)
+		}
+		w.exportAlertSpans(alerts, started, time.Now())
+		elapsed := time.Since(started).Milliseconds()
+		w.processed.Add(int64(len(events)))
+		w.alerts.Add(int64(len(alerts)))
+		w.latencyMS.Store(elapsed)
+		shadowTraceID := ""
+		for _, rm := range rawMaps {
+			if tid, _ := rm["trace_id"].(string); tid != "" {
+				shadowTraceID = tid
+				break
+			}
+		}
+		if shadowAlerts := correlateEndpointShadowAll(rawMaps, w.iocLookupURL); len(shadowAlerts) > 0 {
+			w.shadowAlertsPublished.Add(int64(len(shadowAlerts)))
+			shadowPayload := map[string]any{
+				"trace_id":    shadowTraceID,
+				"source":      "correlation-worker",
+				"scope":       "endpoint-shadow",
+				"alerts":      shadowAlerts,
+				"shadow_mode": true,
+			}
+			if err := w.publish(w.shadowAlertsTopic, []map[string]any{shadowPayload}); err != nil {
+				w.publishErrors.Add(1)
+				log.Printf("endpoint shadow publish failed: %v", err)
+			}
+		}
+		if networkAlerts := shadowrules.CorrelateNetworkShadowAll(rawMaps); len(networkAlerts) > 0 {
+			networkPayload := map[string]any{
+				"trace_id":    shadowTraceID,
+				"source":      "correlation-worker",
+				"scope":       "network-shadow",
+				"alerts":      networkAlerts,
+				"shadow_mode": true,
+			}
+			if err := w.publish(w.networkShadowAlertsTopic, []map[string]any{networkPayload}); err != nil {
+				w.publishErrors.Add(1)
+				log.Printf("network shadow publish failed: %v", err)
+			}
+		}
+		if len(alerts) > 0 {
+			batchTraceID := ""
+			for _, ev := range events {
+				if ev.TraceID != "" {
+					batchTraceID = ev.TraceID
+					break
+				}
+			}
+			payload := map[string]any{
+				"trace_id": batchTraceID,
+				"source":   "correlation-worker",
+				"scope":    w.scope,
+				"alerts":   alerts,
+			}
+			if err := w.publish(w.outputTopic, []map[string]any{payload}); err != nil {
+				w.publishErrors.Add(1)
+				w.retryCount.Add(1)
+				dlqRec := map[string]any{
+					"dlq_event_type": "correlation_publish_error",
+					"source_topic":   w.inputTopic,
+					"error_message":  err.Error(),
+					"reason":         "alert_publish_failed",
+					"alert_count":    len(alerts),
+					"ts":             time.Now().UTC().Format(time.RFC3339Nano),
+				}
+				if writeErr := w.writeDLQRecord(dlqRec); writeErr != nil {
+					return
+				}
+			} else {
+				w.published.Add(int64(len(alerts)))
+			}
+		}
+
+		commitCtx, commitCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		err = w.nativeConsumer.Commit(commitCtx, records...)
+		commitCancel()
+		if err != nil {
+			log.Printf("correlation offset commit failed (native): %v — reconnecting", err)
+			return
+		}
 	}
 }
 
@@ -536,6 +713,9 @@ func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 }
 
 func (w *Worker) publish(topic string, events []map[string]any) error {
+	if w.nativeProducer != nil {
+		return w.publishNative(topic, events)
+	}
 	records := make([]map[string]any, 0, len(events))
 	for _, event := range events {
 		records = append(records, map[string]any{"value": event})
@@ -554,6 +734,34 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 		return fmt.Errorf("publish_failed status=%d body=%s", resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+func (w *Worker) publishNative(topic string, events []map[string]any) error {
+	values := make([][]byte, len(events))
+	for i, event := range events {
+		b, err := json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("kafkanative: marshal event: %w", err)
+		}
+		values[i] = b
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), httpClient.Timeout)
+	defer cancel()
+	return w.nativeProducer.Publish(ctx, topic, values)
+}
+
+// splitBrokers parses a comma-separated broker list, trimming whitespace
+// and dropping empty entries (e.g. a trailing comma).
+func splitBrokers(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {
