@@ -14,9 +14,9 @@ Update this file whenever a validation count changes (new tests, new rules).
 php artisan migrate:fresh --force && php artisan test
 ```
 
-**Expected:** `4545 passed` — zero failures, zero skipped.
-Last full verification: 4545 PHP (2026-06-30, after the alert/agent N+1 batches, TZ-AGENT-STALE fix, AI-context enrichment, and IOC/status refinements).
-Python suites: 1556 total (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342).
+**Expected:** `4788 passed` — zero failures, zero skipped.
+Last full verification: 4788 PHP (2026-07-07, after the alert/agent N+1 batches, TZ-AGENT-STALE fix, AI-context enrichment, and IOC/status refinements).
+Python suites: 1669 total (endpoint_agent 191, alert_writer 49, incident_builder 36, ai_rag 1, scripts 5, demo_causal_verify 7, demo_feed 15, xdr_topic_bootstrap 1365).
 Always prefix with `migrate:fresh --force` to avoid `QueryException` from stale schema state.
 
 If any test fails: **STOP**. Do not commit, demo, or proceed.
@@ -31,7 +31,7 @@ Do NOT run parallel `php artisan test` processes against the same PostgreSQL tes
 python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v
 ```
 
-**Expected:** `186 tests, 0 failures`
+**Expected:** `191 tests, 0 failures`
 
 Coverage: heartbeat payload, process_start (/proc), network_connection (/proc/net/tcp), buffer retry/recovery, signed heartbeat, health state thresholds, quality metrics, behavioral snapshot, command execution (safe types only), threat hunting integration, host isolation simulation (config-gated, disabled by default), streaming engine (bounded queue, sequence tracking, local spool, rapid analytics), tamper visibility, spool stats, SOC heartbeat with spool_stats.
 

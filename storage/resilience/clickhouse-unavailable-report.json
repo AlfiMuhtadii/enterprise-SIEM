@@ -4,8 +4,8 @@
     "scenario_name": "ClickHouse Unavailability",
     "scenario_type": "simulation",
     "status": "passed",
-    "started_at": "2026-06-26T07:32:45+00:00",
-    "completed_at": "2026-06-26T07:32:45+00:00",
+    "started_at": "2026-07-12T10:26:35+00:00",
+    "completed_at": "2026-07-12T10:26:35+00:00",
     "duration_seconds": 0,
     "findings": {
         "mode": "simulation",
@@ -41,5 +41,5 @@
             "within_threshold": true
         }
     ],
-    "generated_at": "2026-06-26T07:32:45+00:00"
+    "generated_at": "2026-07-12T10:26:35+00:00"
 }

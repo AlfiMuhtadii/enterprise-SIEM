@@ -359,3 +359,4 @@ Current: **133 rules** — 12 staged_active, 121 shadow
 | 2026-06-27 | ~4274+ | 186 (endpoint_agent) | + E044–E063 (~656 test methods) |
 | 2026-06-30 | 4538 | 1556 (all suites) | + NOTIFY-TENANCY, alert/agent N+1 bulk batches, TZ-AGENT-STALE (pgsql session UTC) fix, AI-context enrichment, Python service HTTP-session + in-process ClickHouse sync, IOC pre-lowercase + agent-status DRY refactor |
 | 2026-07-02 | 4545 | 1556 (all suites) | Target reframed → enterprise demo. + review fixes (IOC-hits idempotency, agent-decrypt 401, response-policy fail-closed), enterprise hardening (RATE-LIMIT-DOS tenant-bucket cap, PERF-GO-HOT-HTTP IOC cache), ENV-CACHE-DRIFT-BATCH config:cache-safe integration adapters/proxies. Go: ingestion-gateway + correlation-worker gained cap/cache tests |
+| 2026-07-07 | 4788 | 1669 (all suites) | Platform alignment & audit doc updates. Verified all test suites PASS. Hardened .gitignore and .env.example with missing configurations. |

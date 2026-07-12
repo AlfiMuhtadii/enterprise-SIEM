@@ -3,7 +3,7 @@
 **Release:** Release Candidate 1 (RC1)  
 **Date:** 2026-05-24  
 **Status:** Feature-complete, presentation-ready  
-**Validation:** 4545 PHP / 1556 Python tests green; all validators PASS
+**Validation:** 4788 PHP / 1669 Python tests green; all validators PASS
 
 ---
 
@@ -72,7 +72,7 @@ This release represents the final feature-complete state of the Hybrid Near Real
 - **Cross-Domain Correlation** — endpoint↔identity/cloud/SaaS correlation, attack stage timelines
 - **Endpoint Response Framework** — safe-command allowlist (4 types), 8-state approval lifecycle, no execute-type commands
 - **Endpoint Behavioral Visibility** — process ancestry, long-lived tracking, persistence inventory
-- **Threat Hunting Engine** — 177 query domains, advisory-only, append-only results
+- **Threat Hunting Engine** — 181 query domains, advisory-only, append-only results
 
 ---
 
@@ -80,8 +80,8 @@ This release represents the final feature-complete state of the Hybrid Near Real
 
 | Validator | Result | Date |
 |---|---|---|
-| `php artisan test` | **4545 passed, 0 failures** | 2026-07-02 |
-| Python suites (all) | **1556 passed** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342) | 2026-07-02 |
+| `php artisan test` | **4788 passed, 0 failures** | 2026-07-07 |
+| Python suites (all) | **1669 passed** (endpoint_agent 191, alert_writer 49, incident_builder 36, ai_rag 1, scripts 5, demo_causal_verify 7, demo_feed 15, xdr_topic_bootstrap 1365) | 2026-07-07 |
 | Go services (`go test`) | **PASS** (ingestion-gateway + correlation-worker, incl. RATE-LIMIT-DOS cap + IOC-cache tests) | 2026-07-02 |
 | `php artisan test` (rc3) | **4538 passed, 0 failures** | 2026-06-30 |
 | `php artisan test` (rc2) | **3043 passed, 0 failures** | 2026-05-24 |

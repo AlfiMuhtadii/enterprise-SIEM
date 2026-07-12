@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-24T09:19:23.874296+00:00",
-  "registry_path": "docs/detection/rules/registry.v1.json",
+  "generated_at": "2026-07-12T10:24:04.452534+00:00",
+  "registry_path": "D:\\project\\Detector\\.scratch_tmp/sigma_import_test_registry_014a6a91-14cb-4c27-acda-6df46c246cf1.json",
   "checks": {
     "registry_valid_json": true,
     "rules_present": true,
@@ -27,23 +27,23 @@
   "failures": [],
   "rule_failures": {},
   "summary": {
-    "total_rules": 133,
+    "total_rules": 135,
     "by_status": {
       "staged_active": 12,
-      "shadow": 121
+      "shadow": 123
     },
     "by_domain": {
-      "identity": 10,
+      "identity": 11,
       "cloud": 10,
       "saas": 4,
-      "endpoint": 93,
+      "endpoint": 94,
       "threat-intel": 3,
       "network": 12,
       "xdr": 1
     },
     "by_severity": {
-      "high": 80,
-      "medium": 26,
+      "high": 81,
+      "medium": 27,
       "critical": 27
     }
   },

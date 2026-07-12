@@ -33,7 +33,7 @@ class ReportExportTest extends TestCase
     {
         $this->assertTrue(Schema::hasTable('export_audit_logs'));
 
-        foreach (['export_id', 'export_type', 'export_format', 'exported_by', 'exported_at', 'source_id', 'export_size_bytes'] as $col) {
+        foreach (['export_id', 'tenant_id', 'export_type', 'export_format', 'exported_by', 'exported_at', 'source_id', 'export_size_bytes'] as $col) {
             $this->assertTrue(Schema::hasColumn('export_audit_logs', $col), "Missing column: {$col}");
         }
     }

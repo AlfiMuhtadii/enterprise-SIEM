@@ -1,7 +1,7 @@
 # Final Validation Summary
 
 **Platform:** Hybrid Near Real-Time Web Attack Detection Platform  
-**Date:** 2026-06-27  
+**Date:** 2026-07-07  
 **Status:** All validators PASS
 
 ---
@@ -10,10 +10,10 @@
 
 | Suite | Result | Count | Command |
 |---|---|---|---|
-| PHP Feature Tests | **PASS** | 4274+ passed, 0 failures | `php artisan migrate:fresh --force && php artisan test` |
-| Python Endpoint Agent | **PASS** | 186 passed, 0 failures | `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v` |
+| PHP Feature Tests | **PASS** | 4788 passed, 0 failures | `php artisan migrate:fresh --force && php artisan test` |
+| Python Endpoint Agent | **PASS** | 191 passed, 0 failures | `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v` |
 
-PHP count: last full-suite verification **4545** (2026-06-30). Python suites total **1556** (endpoint_agent 186, alert_writer 13, incident_builder 10, scripts 5, xdr_topic_bootstrap 1342).
+PHP count: last full-suite verification **4788** (2026-07-07). Python suites total **1669** (endpoint_agent 191, alert_writer 49, incident_builder 36, ai_rag 1, scripts 5, demo_causal_verify 7, demo_feed 15, xdr_topic_bootstrap 1365).
 
 ---
 
@@ -132,7 +132,7 @@ NO_PROMOTION = true
 
 ## Threat Hunting Domain Coverage
 
-**Total:** 177 domains across behavioral, network, governance, maturity, demo, and EASM/pilot categories
+**Total:** 181 domains across behavioral, network, governance, maturity, demo, and EASM/pilot categories
 
 All domains have corresponding:
 - `DOMAIN_FIELDS` (allowlisted query fields + operators)

@@ -359,6 +359,7 @@ Service: `App\Services\DataResidencyErasureService` — Models: `App\Models\Tena
 | `endpoint:verify-enrollment` | Verify real endpoint enrollment state |
 | `tenant:onboard-pilot` | Onboard a pilot tenant with bounded limits |
 | `security:validate-secrets` | Validate required secrets; `--record` persists a snapshot |
+| `ti:import-stix` | Import STIX 2.1 indicators into `threat_iocs` (offline bundled file, `--file`, or `--taxii-url` TAXII 2.1 poll); advisory-only, idempotent. Imported IOCs + feed record show in the `/soc` threat-intel UI |
 
 ---
 

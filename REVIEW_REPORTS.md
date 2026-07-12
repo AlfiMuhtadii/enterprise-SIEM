@@ -390,6 +390,82 @@ This file lists all the analysis results, security posture evaluations, and code
 
 ---
 
+## 19. Log Connector Reliability and Trust-Boundary Audit (LOG-CONNECTOR-AUDIT-1, 2026-07-11)
+
+### Scope Analyzed
+
+* `services/log-connector-syslog/main.go` and its CEF/LEEF/registry tests.
+* `services/log-connector-cloudtrail/main.go` and CloudTrail parser/state tests.
+* `services/log-connector-guardduty/main.go` and GuardDuty parser/state tests.
+* `services/log-connector-gcp-audit/main.go` and GCP Audit parser/state tests.
+* Connector Dockerfiles, `docker-compose.yml`, connector README files, and the ingestion gateway tenant-resolution path.
+
+### Finding CONN-DELIVERY-LOSS: Connector Batches Are Discarded Before Delivery Is Confirmed
+
+* **Category**: Reliability / Data Integrity
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * All four connectors assign `c.buffer = nil` before calling `forward()`. A network error, timeout, HTTP 429, or HTTP 5xx is only logged; the failed batch is never requeued or persisted.
+  * The three file connectors additionally set `processedFiles[path] = true` and call `saveState()` immediately after parsing, before any ingest request succeeds.
+  * On the next scan or after restart, the persisted path is skipped even though its events may never have reached `telemetry.raw`.
+  * Existing tests verify that `forward()` returns an error and increments a counter, but do not verify retry, requeue, checkpoint ordering, or recovery after a failed scan.
+* **Why it matters**: A brief ingestion-gateway or network outage can silently create permanent telemetry gaps. For file connectors, the source file remains present but is suppressed by the premature checkpoint, making recovery impossible without manually editing state.
+* **Recommended action**: Introduce bounded durable spooling or at minimum requeue failed batches with retry/backoff; checkpoint a file only after every batch derived from that file receives an accepted response; make shutdown wait for an acknowledged flush; add outage/restart tests that prove at-least-once delivery and deterministic deduplication.
+
+### Finding CONN-UNTENANTED-INGEST: Connector Deployment Omits Tenant Attribution and the Gateway Accepts It
+
+* **Category**: Tenant Isolation / Configuration Safety
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * Each connector only adds `tenant_id` when its connector-specific tenant environment variable is non-empty.
+  * `docker-compose.yml` configures none of `XDR_SYSLOG_TENANT_ID`, `XDR_CLOUDTRAIL_TENANT_ID`, `XDR_GUARDDUTY_TENANT_ID`, or `XDR_GCP_AUDIT_TENANT_ID`.
+  * The connectors do not send `X-Tenant-ID` as an alternative.
+  * `ingestion-gateway.tenantAllowed("")` returns `true`, so unattributed batches are accepted and bypass per-tenant rate limiting.
+* **Why it matters**: In the supplied deployment, connector telemetry enters the shared pipeline without an ownership boundary. This prevents reliable tenant-scoped search/correlation and can mix security evidence across customers.
+* **Recommended action**: Require a non-empty tenant identity at connector startup in multi-tenant/production mode, include it in every signed event, set explicit connector tenant configuration in deployment manifests, and reject unattributed ingest at the gateway when strict tenant mode is enabled.
+
+### Finding CONN-UNBOUNDED-FILE: Cloud Export Connectors Read Entire Files Into Memory Without a Size Limit
+
+* **Category**: Availability / Resource Exhaustion
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * CloudTrail, GuardDuty, and GCP Audit connectors call `os.ReadFile(path)` for every candidate file.
+  * Their parsers may then decompress using `io.ReadAll`, creating another unbounded in-memory representation. No compressed-size or decompressed-size ceiling is enforced.
+  * Files originate from operator-synchronized external buckets and can be unexpectedly large or compression bombs.
+* **Why it matters**: One oversized or highly compressible file can exhaust the connector container's memory, trigger repeated restart loops, and stop ingestion for all later files in that directory.
+* **Recommended action**: Stream records from bounded readers, enforce both compressed and decompressed byte limits, quarantine oversized/poison files with an auditable reason, and add memory-bound tests using oversized and high-compression fixtures.
+
+### Finding SYSLOG-TCP-ADMISSION: Syslog TCP Listener Has No Connection Limit or Read Deadline
+
+* **Category**: Availability / Network Hardening
+* **Severity**: Medium
+* **Confidence**: High
+* **Evidence**:
+  * Every accepted TCP connection launches `go c.handleTCPConn(conn)` with no semaphore or maximum concurrent connection count.
+  * `handleTCPConn()` loops on `bufio.Scanner` without setting a read/idle deadline.
+  * An unauthenticated client can keep many partial connections open indefinitely. The Compose profile publishes port `5140/tcp` on the host.
+* **Why it matters**: Slow or abandoned clients can consume file descriptors and goroutines until legitimate log sources cannot connect.
+* **Recommended action**: Add a bounded connection semaphore, configurable idle/read deadlines, temporary-error accept backoff, connection metrics, and saturation/slow-client tests. Network allowlisting or authenticated TLS should be part of production deployment hardening.
+
+### Backlog & Triage Assessment
+
+#### Backlog Candidate List (Confirmed / High-Confidence Risks)
+
+* **[CONNECTOR] Implement acknowledged, retryable, restart-safe connector delivery** (CONN-DELIVERY-LOSS)
+* **[TENANCY] Require tenant attribution for all connector telemetry** (CONN-UNTENANTED-INGEST)
+* **[CONNECTOR] Stream and bound cloud-export file ingestion** (CONN-UNBOUNDED-FILE)
+* **[SYSLOG] Bound TCP connections and enforce idle/read deadlines** (SYSLOG-TCP-ADMISSION)
+
+#### Not Backlog
+
+* Public connector health/metrics endpoints expose aggregate counters only; no sensitive payload exposure was confirmed in this pass.
+* The shared `XDR_INGEST_SECRET` is already covered by the broader internal mTLS/shared-secret backlog and is not duplicated here.
+
+---
+
 ## 13. Internal Auth and Microservice Exposure Audit (INTERNAL-AUTH-EDGE-AUDIT-1, 2026-06-26)
 
 ### Scope Analyzed
@@ -833,6 +909,273 @@ This file lists all the analysis results, security posture evaluations, and code
 * **[TESTS-PIPELINE] Resolve mock stubbing import errors in python test suites** (PTS-1)
 * **[ALERT-WRITER] Copy nested tenant_id from evidence to top-level AlertPayload before instantiation** (DB-5-DEFECT)
 * **[INGESTION-GATEWAY] Implement eviction mechanism for tenant bucket rate limiters to prevent OOM** (IG-DOS)
+
+#### Not Backlog
+* None from this audit batch.
+
+---
+
+## 18. Batch 11 — Cryptographic, Tenancy, and Rate Limiting Edge Cases (2026-06-29)
+
+### Finding CMD-SHARED-HMAC: Shared Cryptographic Secret for Privileged EDR Command Poll/Ack/Result
+* **Category**: A. Authentication / Cryptographic Weakness
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Services/EndpointResponseCommandService.php](file:///D:/project/Detector/app/Services/EndpointResponseCommandService.php) (verifyAgentSignature)
+  * **behavior observed**: The endpoint response approval framework validates command poll/ack/result payload signatures against the static global enrollment token `config('soc.agent_enrollment_token')` instead of using the unique decrypted agent-specific `agent_secret` generated during enrollment.
+* **Why it matters**: Since the enrollment token is static, shared across all endpoints, and easily retrieved from any enrolled host, any compromised host or malicious actor can forge command poll request headers, false acknowledgements, or spoofed command completion/failure results for *any other endpoint* in the system. This breaks integrity and audit controls for privileged response actions.
+* **Recommended action**: Update `verifyAgentSignature` in `EndpointResponseCommandService` to query the `endpoint_agents` table by `agentId`, decrypt `agent_secret`, and verify the signature against the unique per-agent secret, aligning it with the pattern used in `AgentIngestionController::verifiedAgent()`.
+
+---
+
+### Finding AGENT-TENANCY-GAP: Complete Absence of Tenancy Isolation for Endpoint Fleet
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - `endpoint_agents` table migration
+    - [app/Http/Controllers/AgentIngestionController.php](file:///D:/project/Detector/app/Http/Controllers/AgentIngestionController.php)
+    - [app/Http/Controllers/Endpoint/EndpointController.php](file:///D:/project/Detector/app/Http/Controllers/Endpoint/EndpointController.php)
+  * **behavior observed**:
+    - The `endpoint_agents` table has no `tenant_id` column.
+    - Enrollment relies on a global token and does not map enrolled agents to any tenant.
+    - Direct telemetry ingestion via `/api/agents/telemetry` receives and writes events globally.
+    - The modern Endpoint Fleet list (`EndpointController::index()`) and host detail (`EndpointController::show()`) query agents and sum shadow alerts globally.
+* **Why it matters**: A tenant operator with `soc:agents.view` can monitor all enrolled agents, hardware metadata, and endpoint shadow alerts across the entire platform. This is a massive cross-tenant information exposure leak.
+* **Recommended action**:
+  - Add a nullable `tenant_id` column to `endpoint_agents` table.
+  - Require a tenant context header during enrollment and map the agent to the corresponding tenant ID.
+  - Inject `TenantContextAuthority` and `TenantBoundaryService` in `EndpointController` and apply query scoping filters so users only see hosts/alerts belonging to their tenant.
+
+---
+
+### Finding TENANT-UNSCOPED-TABLES: Undocumented Isolation Gaps on Core Analysis Tables
+* **Category**: B. Tenancy Configuration Gap
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Services/TenantBoundaryService.php](file:///D:/project/Detector/app/Services/TenantBoundaryService.php)
+    - Database migrations for investigations, response plans, threat hunts, entity graphs, SOAR orchestrations, AI/RAG summaries, and notification logs.
+  * **behavior observed**: Almost 80% of database tables containing sensitive security coordinator metadata do not contain a `tenant_id` column and are not configured under `TenantBoundaryService::ISOLATED_TABLES` or `UNISOLATED_TABLES`. This includes:
+    - `investigations`, `investigation_notes`, `investigation_events`, `investigation_assignments`, `investigation_artifacts`.
+    - `response_plans`, `response_plan_actions`, `response_plan_approvals`.
+    - `threat_hunts`, `threat_hunt_queries`, `threat_hunt_results`, `soc_hunt_sessions`, `soc_hunt_run_sessions`.
+    - `soar_orchestrations`.
+    - `entity_graph`, `entity_graph_relationships`.
+    - `ai_analyst_suggestions`, `ai_execution_history`, `ai_prompt_templates`, `soc_knowledge_embeddings`, `ai_guardrail_events`, `soc_knowledge_base`, `detection_maturity_runs`, `detection_quality_warnings`.
+    - `notification_delivery_logs`.
+* **Why it matters**: These tables contain highly sensitive investigation notes, response files, active playbooks, AI findings, and threat queries. The current posture makes a secure multi-tenant SOC deployment impossible as analysts from different tenants can view, modify, or execute playbooks globally.
+* **Recommended action**: Map out all analyst-level operational tables, add `tenant_id` columns, and configure them under `TenantBoundaryService::ISOLATED_TABLES` with RLS or query scoping middleware. Update `TENANT_ISOLATION_POSTURE.md` to document these gaps.
+
+---
+
+### Finding ENV-CACHE-DRIFT: Silent Internal Auth Fallback via Direct env() Call in config:cache Mode
+* **Category**: D. Configuration Drift
+* **Severity**: Medium
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Services/InternalAuthService.php](file:///D:/project/Detector/app/Services/InternalAuthService.php) (secret)
+  * **behavior observed**: `InternalAuthService::secret()` queries the internal service secret directly via `env('XDR_INTERNAL_AUTH_SECRET', '')`.
+* **Why it matters**: During production deployment, running `php artisan config:cache` disables direct `env()` calls outside config files, forcing them to return `null`. In this state, `InternalAuthService` silently ignores any configured `XDR_INTERNAL_AUTH_SECRET` and falls back to decoding the `APP_KEY`. This causes cryptographic token validation failures across Go/Python microservices that still expect tokens signed with the intended secret.
+* **Recommended action**: Map `XDR_INTERNAL_AUTH_SECRET` to a configuration key (e.g. `config('soc.internal_auth_secret')`) in `config/soc.php` and update `InternalAuthService` to resolve the secret through the configuration repository.
+
+---
+
+### Finding RATE-LIMIT-BYPASS: Rate Limiting Bypass via Unauthenticated X-Tenant-ID HTTP Header
+* **Category**: C. Rate Limiting Weakness
+* **Severity**: Medium
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [services/ingestion-gateway/main.go](file:///D:/project/Detector/services/ingestion-gateway/main.go) (ingest)
+  * **behavior observed**: The ingestion gateway parses `X-Tenant-ID` from HTTP headers to apply per-tenant rate limiting. However, the HMAC payload signature header (`X-XDR-Signature`) only signs the JSON request body and does not include the HTTP headers.
+* **Why it matters**: A tenant can bypass rate limiting by sending randomized or arbitrary `X-Tenant-ID` headers with each request, while their telemetry events are still successfully parsed and written to the database under their true `tenant_id` (extracted from the signed body).
+* **Recommended action**: Update the ingestion gateway to either: (a) parse the payload `tenant_id` to enforce rate limits, or (b) verify that the HTTP header `X-Tenant-ID` matches the `tenant_id` field contained within the verified JSON body.
+
+---
+
+### Finding NOTIFY-TENANCY-GAP: Global / Unisolated SOC Notification Delivery
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Console/Commands/SocSlaEscalationCommand.php](file:///D:/project/Detector/app/Console/Commands/SocSlaEscalationCommand.php)
+    - [app/Services/SocNotifier.php](file:///D:/project/Detector/app/Services/SocNotifier.php)
+    - `notification_delivery_logs` table migration
+  * **behavior observed**:
+    - `SocSlaEscalationCommand` triggers alerts on SLA breaches using global configuration targets (`notifications_soc.webhook_url`, `slack_url`, `discord_url`).
+    - `SocNotifier::send()` delivers webhook, Slack, and Discord posts to these global targets without tenant lookup.
+    - `notification_delivery_logs` logs all events globally with no `tenant_id` column.
+* **Why it matters**: In a multi-tenant setup, one tenant's SLA breaches and incident summaries will be posted to the global shared channels of the operator/other tenants, causing a massive cross-tenant leakage of confidential breach details.
+* **Recommended action**: Update the notification service to store and resolve tenant-specific webhooks and webhook configs from the database, and add `tenant_id` to `notification_delivery_logs`.
+
+---
+
+### Finding ACT-RESP-TENANCY-GAP: Unisolated Active Response Execution Subsystem
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Services/ActiveResponseExecutionService.php](file:///D:/project/Detector/app/Services/ActiveResponseExecutionService.php)
+    - [app/Http/Controllers/Response/ActiveResponseController.php](file:///D:/project/Detector/app/Http/Controllers/Response/ActiveResponseController.php)
+    - [app/Http/Controllers/Api/ActiveResponseApiController.php](file:///D:/project/Detector/app/Http/Controllers/Api/ActiveResponseApiController.php)
+    - Database migration `database/migrations/2026_05_19_100001_create_active_response_execution_tables.php`
+  * **behavior observed**:
+    - None of the response execution tables (`response_executions`, `response_execution_events`, `response_execution_rollbacks`, or `response_execution_simulations`) have a `tenant_id` column.
+    - These tables are completely omitted from `TenantBoundaryService::ISOLATED_TABLES`.
+    - Controller and API actions query and mutate response execution records globally without tenant context routing or X-Tenant-ID header verification.
+* **Why it matters**: Response executions perform high-privilege containment actions (session revocation, host isolation, account disabling, network blocking). In multi-tenant environments, the lack of tenant boundary enforcement allows a compromised tenant analyst or actor to view, simulate, approve, or execute response plans targeting other tenants' infrastructures, leading to total environment compromise.
+* **Recommended action**: Add `tenant_id` to all response execution tables, register them under `TenantBoundaryService::ISOLATED_TABLES`, and refactor controllers to enforce scoping.
+
+---
+
+### Finding ENT-GRAPH-TENANCY-GAP: Unisolated Entity Graph Generation & Cross-Tenant Pollution
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Services/EntityGraphService.php](file:///D:/project/Detector/app/Services/EntityGraphService.php)
+  * **behavior observed**:
+    - `EntityGraphService::upsertEntity()` and `upsertRelationship()` do not populate the `tenant_id` column when creating or updating `Entity` and `EntityRelationship` records, leaving them as `null`.
+    - The projection methods `projectFromAlerts()` and `projectFromIncidents()` query database events globally and merge them into a single unified graph, colliding identical keys (such as `administrator` or `192.168.1.1`) across tenants.
+* **Why it matters**: Merging entities from different tenants when their keys collide results in a single shared graph topology. This leaks infrastructure details across tenant boundaries and allows Tenant A's analysts to traverse and view Tenant B's connected assets.
+* **Recommended action**: Update `EntityGraphService` to accept and populate `tenant_id` on all entities/relationships, include `tenant_id` in unique constraints (to isolate identically keyed entities), and scope all database projection queries by tenant.
+
+---
+
+### Finding UEBA-TENANCY-GAP: Unisolated UEBA Analytics & Baseline Collision
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Services/UEBABaselineService.php](file:///D:/project/Detector/app/Services/UEBABaselineService.php)
+  * **behavior observed**:
+    - None of the UEBA profile, observation, or anomaly score tables (`entity_behavior_baselines`, `baseline_observations`, `baseline_anomaly_scores`, `peer_group_profiles`) carry a `tenant_id` column.
+    - These tables are omitted from `TenantBoundaryService::ISOLATED_TABLES`.
+    - Observations, peer group configurations, and baselines are calculated globally without tenant segmentation.
+* **Why it matters**: Activity observations and peer grouping are calculated globally, causing user/host behavior baselines to be skewed by other tenants' traffic. This leaks behavior footprints and allows cross-tenant visibility of user/host anomalies.
+* **Recommended action**: Add `tenant_id` columns to all UEBA tables, register them under `TenantBoundaryService::ISOLATED_TABLES`, and segment observations, baselines, and peer groups per tenant.
+
+---
+
+### Finding RISK-TENANCY-LEAK: Cross-Tenant Data Leak in Entity Risk Scoring
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **file**: [app/Services/EntityRiskScoringService.php](file:///D:/project/Detector/app/Services/EntityRiskScoringService.php)
+  * **behavior observed**: `EntityRiskScoringService::calculateRisk()` retrieves security alerts and incidents globally based purely on the entity key (e.g. actor_key/user email, IP, hostname), without checking their tenant attribution.
+* **Why it matters**: If an entity key exists in multiple tenants (e.g. `192.168.1.1` or `admin@corp.example`), the risk scoring engine will aggregate and leak alerts/incidents belonging to other tenants in the factors detail.
+* **Recommended action**: Scope all data retrieval helpers (`alertsForEntity`, `incidentsForEntity`, etc.) inside `EntityRiskScoringService` by the requesting tenant ID.
+
+---
+
+### Finding EXPORT-TENANCY-GAP: Unisolated Report Export Service & IDOR Vulnerability
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Services/ReportExportService.php](file:///D:/project/Detector/app/Services/ReportExportService.php)
+    - [app/Http/Controllers/Export/ExportController.php](file:///D:/project/Detector/app/Http/Controllers/Export/ExportController.php)
+    - [app/Http/Controllers/Api/ExportApiController.php](file:///D:/project/Detector/app/Http/Controllers/Api/ExportApiController.php)
+  * **behavior observed**: The report export engine and its web/API controllers fetch investigations, response plans, entity risk profiles, and traces by ID directly using raw SQL queries without verifying whether they belong to the requesting user's tenant context.
+* **Why it matters**: This leads to an Insecure Direct Object Reference (IDOR) leak. Any authenticated tenant user can guess or manipulate IDs to download another tenant's security reports, raw alert logs, risk factor details, and action plans, bypassing multi-tenant scoping.
+* **Recommended action**: Inject `TenantBoundaryService` or use `TenantContextAuthority` in `ReportExportService` and all export controllers to scope resource retrieval and assert that the requested records belong to the active tenant.
+
+---
+
+### Finding SOAR-TENANCY-GAP: Lack of Multi-Tenant Scoping in SOAR Orchestration & Playbooks
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: Critical
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Http/Controllers/Soar/SoarOrchestrationController.php](file:///D:/project/Detector/app/Http/Controllers/Soar/SoarOrchestrationController.php)
+    - [app/Services/SoarOrchestrationService.php](file:///D:/project/Detector/app/Services/SoarOrchestrationService.php)
+    - Database migration `database/migrations/2026_05_20_500001_create_soar_orchestration_tables.php`
+  * **behavior observed**: None of the SOAR tables (`soar_playbooks`, `soar_playbook_versions`, `soar_execution_plans`, `soar_execution_steps`, `soar_execution_results`, `soar_approval_requests`, `soar_rollback_plans`, `soar_execution_audits`, `soar_simulation_results`) contain a `tenant_id` column. They are omitted from `TenantBoundaryService::ISOLATED_TABLES`. Web controllers query playbooks, simulations, execution plans, rollback plans, and approvals globally.
+* **Why it matters**: Allows cross-tenant control plane visibility and action execution. A user from Tenant A can view, run simulations on, and approve/reject Tenant B's active response playbooks and escalation steps.
+* **Recommended action**: Add `tenant_id` columns to all SOAR tables, configure them under `TenantBoundaryService::ISOLATED_TABLES`, and refactor `SoarOrchestrationController` and `SoarOrchestrationService` to filter all queries by the tenant context.
+
+---
+
+### Finding HUNT-TENANCY-GAP: Unisolated Threat Hunting Queries & Cross-Tenant Pivoting
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Services/ThreatHuntingService.php](file:///D:/project/Detector/app/Services/ThreatHuntingService.php)
+    - [app/Http/Controllers/Security/ThreatHuntController.php](file:///D:/project/Detector/app/Http/Controllers/Security/ThreatHuntController.php)
+    - [app/Http/Controllers/Api/ThreatHuntApiController.php](file:///D:/project/Detector/app/Http/Controllers/Api/ThreatHuntApiController.php)
+  * **behavior observed**: `ThreatHuntingService` executes hunts and pivot searches (e.g. host, process, trace, destination IP) globally across all tenants' events without filtering. `ThreatHuntController` displays threat hunts, queries, and endpoint agents globally.
+* **Why it matters**: This leaks hosts, behavioral logs, process ancestry, and network correlations of other tenants, allowing any tenant analyst to spy on other tenants' infrastructures.
+* **Recommended action**: Scope all Eloquent queries inside `ThreatHuntingService::executeQuery` and pivot helpers by the active tenant ID, add `tenant_id` columns to the threat hunt tables (already registered under `ISOLATED_TABLES`), and filter listings in the controllers.
+
+---
+
+### Finding TRACE-TENANCY-GAP: Cross-Tenant Data Leak in Trace Investigation Search
+* **Category**: A. Direct Tenant Isolation Failure
+* **Severity**: High
+* **Confidence**: High
+* **Evidence**:
+  * **files**:
+    - [app/Http/Controllers/Trace/TraceInvestigationController.php](file:///D:/project/Detector/app/Http/Controllers/Trace/TraceInvestigationController.php)
+    - [app/Http/Controllers/Api/TraceApiController.php](file:///D:/project/Detector/app/Http/Controllers/Api/TraceApiController.php)
+  * **behavior observed**: The Trace Investigation search methods query alerts, incidents, operational events, and scenario evidence globally using trace IDs, alert/incident IDs, or IPs without applying tenant filters.
+* **Why it matters**: Allows cross-tenant timeline exploration. Any tenant user can query and retrieve deep, unredacted trace timelines, associated alerts, and event steps belonging to other tenants.
+* **Recommended action**: Scope the trace search and lookup queries by the tenant context, checking that the trace contains at least one alert or incident belonging to the active tenant before displaying the timeline.
+
+---
+
+### Backlog & Triage Assessment
+
+#### Backlog Candidate List (Confirmed / High-Confidence Risks)
+* **[TENANCY] Scope all Report Exports and History by Tenant Context** (EXPORT-TENANCY-GAP)
+* **[TENANCY] Implement Tenant Isolation for SOAR Playbooks, Execution Plans, and Approvals** (SOAR-TENANCY-GAP)
+* **[TENANCY] Implement Tenant Scoping for Threat Hunting Queries and Pivoting** (HUNT-TENANCY-GAP)
+* **[TENANCY] Restrict Trace Investigation and Search by Tenant Context** (TRACE-TENANCY-GAP)
+* **[TENANCY] Implement tenant isolation for Active Response Execution subsystem** (ACT-RESP-TENANCY-GAP)
+* **[TENANCY] Implement tenant isolation for Entity Graph generation and projection** (ENT-GRAPH-TENANCY-GAP)
+* **[TENANCY] Implement tenant isolation for UEBA baseline profiles and observations** (UEBA-TENANCY-GAP)
+* **[TENANCY] Scope all Entity Risk Scoring data retrieval by tenant context** (RISK-TENANCY-LEAK)
+* **[AGENT-API] Enforce unique per-agent secret for response command signature verification** (CMD-SHARED-HMAC)
+* **[AGENT-TENANCY] Implement tenant scoping and isolation for endpoint fleet** (AGENT-TENANCY-GAP)
+* **[TENANCY] Implement tenant isolation for investigations, response plans, threat hunts, and entity graphs** (TENANT-UNSCOPED-TABLES)
+* **[CONFIG] Map XDR_INTERNAL_AUTH_SECRET to Laravel config to prevent cached env bypass** (ENV-CACHE-DRIFT)
+* **[INGESTION-GATEWAY] Validate X-Tenant-ID header matches verified payload tenant_id** (RATE-LIMIT-BYPASS)
+* **[NOTIFICATION] Implement tenant-specific lookup and isolation for webhook, Slack, and Discord alerts** (NOTIFY-TENANCY-GAP)
+* **[AI-KB] Implement Qdrant vector semantic search and sentence embedding pipeline** (AI-KB-SEMANTIC)
+* **[AI-KB] Build MITRE ATT&CK and threat intelligence RSS feed dynamic ingestion pipeline** (AI-KB-FEED-INGEST)
+* **[AI-KB] Create closed-loop analyst feedback ingestion service for approved suggestions** (AI-KB-FEEDBACK-LOOP)
+* **[AI] Implement confidence-based automated containment rules and a critical asset exclusion list** (AI-CONF-BANDS)
+* **[TENANCY] Enable hard Row-Level Security (RLS) enforcement and strict tenant mode defaults** (TENANT-ENFORCE-RLS)
+* **[PERF] Convert N+1 UPDATE queries in agent command retrieval loop to bulk updates** (PERF-AGENT-UPDATE)
+* **[PERF] Refactor threat intel nested loop with synchronous writes to use bulk insert** (PERF-IOC-LOOP)
+* **[PERF] Refactor alert suppression rule matching N+1 queries to use bulk updates and inserts** (PERF-ALERT-TUNE)
+* **[REFACTOR] Remove tracked compiled Python bytecode (*.pyc) files from Git cache** (GIT-RM-PYC)
+* **[PERF] Refactor ClickHouse sync daemon to use in-process polling instead of spawning python subprocesses** (PERF-SUBPROCESS-POLL)
+* **[PERF] Convert N+1 database queries in agent health check schedule loop to joins/eager loading** (PERF-AGENT-HEALTH-N1)
+* **[PERF] Refactor Go ingestion rate limiters to use mathematical time-delta calculations instead of channel loops** (PERF-GO-LIMITER)
+* **[PERF] Refactor python HTTP client requests in alert writer and incident builder to use persistent Session pools** (PERF-PYTHON-HTTP)
+* **[PERF] Wrap sequential Laravel write operations in database transactions to preserve data integrity** (PERF-TRANSACTION-GAP)
+* **[AI] Include alert details and RAG knowledge base text in compactContext to prevent LLM blindness** (AI-CONTEXT-EMPTY)
+* **[INGESTION] Restrict rate limiter instantiation to verified tenants to prevent memory exhaustion DoS** (RATE-LIMIT-DOS)
+* **[PERF] Refactor Python workers (alert writer / incident builder) to use database connection pooling** (PERF-DB-CONN-LEAK)
+* **[PERF] Refactor Go workers (normalizer / correlation) to use native binary Kafka protocol instead of HTTP REST** (PERF-REST-POLL)
+* **[PERF] Eliminate per-batch goroutine and channel allocations in Go workers to avoid GC churn** (PERF-GO-OVERCONCURRENT)
+* **[PERF] Refactor hot-loop synchronous HTTP IOC lookups to use thread-safe in-memory cache** (PERF-GO-HOT-HTTP)
+* **[PERF] Use static consumer instance IDs in Go workers to prevent Kafka REST rebalance storms** (PERF-REST-REBALANCE)
+* **[PERF] Pre-lowercase IOC values outside the nested matching loop to avoid CPU churn** (PERF-IOC-STR-LOWER)
+* **[ARCH] Replace Pandaproxy REST calls in Go workers with Native Kafka client binary protocol** (ARCH-KAFKA-NATIVE)
+* **[ARCH] Route high-throughput streaming telemetries to ClickHouse OLAP and reserve PG for relational OLTP** (ARCH-DB-SPLIT)
+* **[ARCH] Implement Mutual TLS (mTLS) for secure service-to-service internal container communications** (ARCH-MTLS-SEC)
+* **[ARCH] Integrate dynamic DNS-based service discovery or internal load balancers** (ARCH-DISCOVERY)
 
 #### Not Backlog
 * None from this audit batch.

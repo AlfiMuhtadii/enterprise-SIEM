@@ -62,6 +62,8 @@ class TenantBoundaryService
         // CAP-DECEPTION-HONEYTOKEN tenant isolation
         'honeytokens',
         'honeytoken_hits',
+        // EXPORT-TENANCY-GAP: append-only export history
+        'export_audit_logs',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -100,6 +102,7 @@ class TenantBoundaryService
         'tenant_membership_audit_events',
         // threat_hunts is append-only per operational policy — tenant_id set at insert only
         'threat_hunts',
+        'export_audit_logs',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap

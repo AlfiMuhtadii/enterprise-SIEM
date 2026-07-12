@@ -95,10 +95,10 @@ Show two governance subsystems:
 ### Phase 5 — Engineering Discipline (3 minutes)
 
 Show these numbers:
-- 4545 PHP tests, 1556 Python tests
+- 4788 PHP tests, 1669 Python tests
 - 133 detection rules validated by 21-check registry
 - 50+ governance subsystems
-- 158 threat hunting domains
+- 181 threat hunting domains
 - Append-only architecture: 100+ audit tables, no DELETE/UPDATE on records
 - 6h soak validation evidence for active domains
 

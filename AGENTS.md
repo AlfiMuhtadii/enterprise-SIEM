@@ -3,7 +3,7 @@
 Compact source of truth for AI coding sessions (Codex, Cursor, Copilot, etc.).
 Read this before making any change. For Claude Code, prefer CLAUDE.md which has fuller operational rules.
 
-Last updated: 2026-06-22
+Last updated: 2026-07-07
 
 ---
 
@@ -11,10 +11,10 @@ Last updated: 2026-06-22
 
 | Metric | Value |
 |---|---|
-| PHP tests | **4545** (run: `php artisan migrate:fresh --force && php artisan test`) |
-| Python tests | **186** (run: `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v`) |
+| PHP tests | **4788** (run: `php artisan migrate:fresh --force && php artisan test`) |
+| Python tests | **191** (run: `python -m unittest discover -s tests/endpoint_agent -p "test_*.py" -v`) |
 | Detection rules | **133** (12 staged_active, 121 shadow) |
-| Hunt domains | **177** |
+| Hunt domains | **181** |
 | Active correlation scope | `identity-cloud` (Go engine, 6h soak PASS 2026-05-14) |
 | Shadow / advisory | endpoint, DNS/proxy/firewall, threat-intel |
 

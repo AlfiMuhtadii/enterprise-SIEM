@@ -6,6 +6,7 @@ use App\Models\ExportAuditLog;
 use App\Support\TraceRedactor;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Query\Builder;
 
 /**
  * Report Export Service — documentation and audit evidence exports only.
@@ -27,61 +28,63 @@ class ReportExportService
     // Public export entry points
     // -------------------------------------------------------------------------
 
-    public function exportInvestigation(int $id, string $format, int $userId, ?string $reason = null): array
+    public function exportInvestigation(int $id, string $format, int $userId, ?string $reason = null, ?string $tenantId = null): array
     {
         $this->assertFormat($format);
-        $data = $this->buildInvestigationReport($id, $userId, $reason);
+        $data = $this->buildInvestigationReport($id, $userId, $reason, $tenantId);
 
         if (empty($data['investigation'])) {
             throw new \InvalidArgumentException("Investigation not found: {$id}");
         }
 
-        return $this->finalize($data, 'investigation', $format, $userId, $reason, (string) $id);
+        return $this->finalize($data, 'investigation', $format, $userId, $reason, (string) $id, $tenantId);
     }
 
-    public function exportResponsePlan(int $id, string $format, int $userId, ?string $reason = null): array
+    public function exportResponsePlan(int $id, string $format, int $userId, ?string $reason = null, ?string $tenantId = null): array
     {
         $this->assertFormat($format);
-        $data = $this->buildResponsePlanReport($id, $userId, $reason);
+        $data = $this->buildResponsePlanReport($id, $userId, $reason, $tenantId);
 
         if (empty($data['response_plan'])) {
             throw new \InvalidArgumentException("Response plan not found: {$id}");
         }
 
-        return $this->finalize($data, 'response_plan', $format, $userId, $reason, (string) $id);
+        return $this->finalize($data, 'response_plan', $format, $userId, $reason, (string) $id, $tenantId);
     }
 
-    public function exportEntityRisk(int $entityId, string $format, int $userId, ?string $reason = null): array
+    public function exportEntityRisk(int $entityId, string $format, int $userId, ?string $reason = null, ?string $tenantId = null): array
     {
         $this->assertFormat($format);
-        $data = $this->buildEntityRiskReport($entityId, $userId, $reason);
+        $data = $this->buildEntityRiskReport($entityId, $userId, $reason, $tenantId);
 
         if (empty($data['entity'])) {
             throw new \InvalidArgumentException("Entity not found: {$entityId}");
         }
 
-        return $this->finalize($data, 'entity_risk', $format, $userId, $reason, (string) $entityId);
+        return $this->finalize($data, 'entity_risk', $format, $userId, $reason, (string) $entityId, $tenantId);
     }
 
-    public function exportTrace(string $traceId, string $format, int $userId, ?string $reason = null): array
+    public function exportTrace(string $traceId, string $format, int $userId, ?string $reason = null, ?string $tenantId = null): array
     {
         $this->assertFormat($format);
-        $data = $this->buildTraceReport($traceId, $userId, $reason);
+        $data = $this->buildTraceReport($traceId, $userId, $reason, $tenantId);
 
         if (empty($data['trace'])) {
             throw new \InvalidArgumentException("Trace not found: {$traceId}");
         }
 
-        return $this->finalize($data, 'trace', $format, $userId, $reason, $traceId);
+        return $this->finalize($data, 'trace', $format, $userId, $reason, $traceId, $tenantId);
     }
 
-    public function getHistory(array $filters = [], int $limit = 100): Collection
+    public function getHistory(array $filters = [], int $limit = 100, ?string $tenantId = null): Collection
     {
         $query = DB::table('export_audit_logs as e')
             ->leftJoin('users', 'users.id', '=', 'e.exported_by')
             ->select('e.*', 'users.name as exported_by_name')
             ->orderByDesc('e.exported_at')
             ->limit($limit);
+
+        $this->scopeTenant($query, $tenantId, 'e.tenant_id');
 
         if (!empty($filters['export_type'])) {
             $query->where('e.export_type', $filters['export_type']);
@@ -93,11 +96,15 @@ class ReportExportService
         return $query->get();
     }
 
-    public function getStatCounts(): Collection
+    public function getStatCounts(?string $tenantId = null): Collection
     {
-        return DB::table('export_audit_logs')
+        $query = DB::table('export_audit_logs')
             ->select('export_type', DB::raw('count(*) as count'))
-            ->groupBy('export_type')
+            ->groupBy('export_type');
+
+        $this->scopeTenant($query, $tenantId);
+
+        return $query
             ->get()
             ->keyBy('export_type');
     }
@@ -106,14 +113,15 @@ class ReportExportService
     // Report builders — read-only
     // -------------------------------------------------------------------------
 
-    private function buildInvestigationReport(int $id, int $userId, ?string $reason): array
+    private function buildInvestigationReport(int $id, int $userId, ?string $reason, ?string $tenantId): array
     {
-        $inv = DB::table('investigations as i')
+        $query = DB::table('investigations as i')
             ->leftJoin('users as cr', 'cr.id', '=', 'i.created_by')
             ->leftJoin('users as as', 'as.id', '=', 'i.assigned_to')
             ->select('i.*', 'cr.name as creator_name', 'as.name as assignee_name')
-            ->where('i.id', $id)
-            ->first();
+            ->where('i.id', $id);
+        $this->scopeTenant($query, $tenantId, 'i.tenant_id');
+        $inv = $query->first();
 
         if (!$inv) {
             return ['investigation' => null, 'export_meta' => $this->meta('investigation', 'Investigation Summary Report', $id, $userId, $reason)];
@@ -141,16 +149,16 @@ class ReportExportService
         $entityIds   = $this->jsonDecode($inv->entity_ids);
 
         $linkedAlerts    = !empty($alertIds)
-            ? TraceRedactor::collection(DB::table('security_alerts')->whereIn('alert_id', $alertIds)->get())->toArray()
+            ? TraceRedactor::collection($this->tenantRows('security_alerts', $tenantId)->whereIn('alert_id', $alertIds)->get())->toArray()
             : [];
         $linkedIncidents = !empty($incidentIds)
-            ? TraceRedactor::collection(DB::table('security_incidents')->whereIn('incident_id', $incidentIds)->get())->toArray()
+            ? TraceRedactor::collection($this->tenantRows('security_incidents', $tenantId)->whereIn('incident_id', $incidentIds)->get())->toArray()
             : [];
         $linkedEntities  = !empty($entityIds)
-            ? DB::table('entities')->whereIn('id', $entityIds)->get()->toArray()
+            ? $this->tenantRows('entities', $tenantId)->whereIn('id', $entityIds)->get()->toArray()
             : [];
 
-        $responsePlans = DB::table('response_plans')
+        $responsePlans = $this->tenantRows('response_plans', $tenantId)
             ->where('investigation_id', $id)
             ->orderBy('created_at')
             ->get();
@@ -170,13 +178,14 @@ class ReportExportService
         ];
     }
 
-    private function buildResponsePlanReport(int $id, int $userId, ?string $reason): array
+    private function buildResponsePlanReport(int $id, int $userId, ?string $reason, ?string $tenantId): array
     {
-        $plan = DB::table('response_plans as rp')
+        $query = DB::table('response_plans as rp')
             ->leftJoin('users as cr', 'cr.id', '=', 'rp.created_by')
             ->select('rp.*', 'cr.name as creator_name')
-            ->where('rp.id', $id)
-            ->first();
+            ->where('rp.id', $id);
+        $this->scopeTenant($query, $tenantId, 'rp.tenant_id');
+        $plan = $query->first();
 
         if (!$plan) {
             return ['response_plan' => null, 'export_meta' => $this->meta('response_plan', 'Response Plan Report', $id, $userId, $reason)];
@@ -195,10 +204,10 @@ class ReportExportService
         $entityIds = $this->jsonDecode($plan->entity_ids);
 
         $linkedAlerts   = !empty($alertIds)
-            ? TraceRedactor::collection(DB::table('security_alerts')->whereIn('alert_id', $alertIds)->get())->toArray()
+            ? TraceRedactor::collection($this->tenantRows('security_alerts', $tenantId)->whereIn('alert_id', $alertIds)->get())->toArray()
             : [];
         $linkedEntities = !empty($entityIds)
-            ? DB::table('entities')->whereIn('id', $entityIds)->get()->toArray()
+            ? $this->tenantRows('entities', $tenantId)->whereIn('id', $entityIds)->get()->toArray()
             : [];
 
         return [
@@ -214,9 +223,9 @@ class ReportExportService
         ];
     }
 
-    private function buildEntityRiskReport(int $entityId, int $userId, ?string $reason): array
+    private function buildEntityRiskReport(int $entityId, int $userId, ?string $reason, ?string $tenantId): array
     {
-        $entity = DB::table('entities')->where('id', $entityId)->first();
+        $entity = $this->tenantRows('entities', $tenantId)->where('id', $entityId)->first();
 
         if (!$entity) {
             return ['entity' => null, 'export_meta' => $this->meta('entity_risk', 'Entity Risk Report', $entityId, $userId, $reason)];
@@ -238,6 +247,7 @@ class ReportExportService
         $relationships = DB::table('entity_relationships as r')
             ->join('entities as t', 't.id', '=', 'r.target_entity_id')
             ->where('r.source_entity_id', $entityId)
+            ->when($tenantId !== null, fn (Builder $query) => $query->where('r.tenant_id', $tenantId)->where('t.tenant_id', $tenantId))
             ->select('r.relationship_type', 'r.observation_count', 'r.trace_id',
                      't.entity_type as peer_type', 't.entity_key as peer_key')
             ->limit(20)
@@ -247,7 +257,7 @@ class ReportExportService
         $alertIds = collect($riskFactors)->flatMap(fn ($f) => $f['alert_ids'] ?? [])->unique()->values()->toArray();
 
         $linkedAlerts = !empty($alertIds)
-            ? TraceRedactor::collection(DB::table('security_alerts')->whereIn('alert_id', $alertIds)->limit(20)->get())->toArray()
+            ? TraceRedactor::collection($this->tenantRows('security_alerts', $tenantId)->whereIn('alert_id', $alertIds)->limit(20)->get())->toArray()
             : [];
 
         return [
@@ -267,13 +277,13 @@ class ReportExportService
         ];
     }
 
-    private function buildTraceReport(string $traceId, int $userId, ?string $reason): array
+    private function buildTraceReport(string $traceId, int $userId, ?string $reason, ?string $tenantId): array
     {
-        $alertCount = DB::table('security_alerts')->where('trace_id', $traceId)->count();
+        $alertCount = $this->tenantRows('security_alerts', $tenantId)->where('trace_id', $traceId)->count();
         $opCount    = DB::table('xdr_operational_events')->where('trace_id', $traceId)->count();
-        $incCount   = DB::table('security_incidents')->where('trace_id', $traceId)->count();
+        $incCount   = $this->tenantRows('security_incidents', $tenantId)->where('trace_id', $traceId)->count();
 
-        if ($alertCount === 0 && $opCount === 0 && $incCount === 0) {
+        if ($alertCount === 0 && $incCount === 0 && ($tenantId !== null || $opCount === 0)) {
             return ['trace' => null, 'export_meta' => $this->meta('trace', 'Trace Investigation Report', $traceId, $userId, $reason)];
         }
 
@@ -283,11 +293,11 @@ class ReportExportService
             ->get();
 
         $alerts    = TraceRedactor::collection(
-            DB::table('security_alerts')->where('trace_id', $traceId)->orderBy('detected_at')->get()
+            $this->tenantRows('security_alerts', $tenantId)->where('trace_id', $traceId)->orderBy('detected_at')->get()
         )->toArray();
 
         $incidents = TraceRedactor::collection(
-            DB::table('security_incidents')->where('trace_id', $traceId)->orderBy('first_seen_at')->get()
+            $this->tenantRows('security_incidents', $tenantId)->where('trace_id', $traceId)->orderBy('first_seen_at')->get()
         )->toArray();
 
         $evidence = DB::table('scenario_evidence')
@@ -295,18 +305,20 @@ class ReportExportService
             ->orderBy('processed_at')
             ->get();
 
-        $entityTraces = DB::table('entity_observations')
+        $entityTraces = DB::table('entity_observations as eo')
+            ->join('entities as en', 'en.id', '=', 'eo.entity_id')
             ->where('trace_id', $traceId)
-            ->select('entity_id', 'observation_type', 'source_table', 'observed_at')
+            ->when($tenantId !== null, fn (Builder $query) => $query->where('en.tenant_id', $tenantId))
+            ->select('eo.entity_id', 'eo.observation_type', 'eo.source_table', 'eo.observed_at')
             ->orderBy('observed_at')
             ->get();
 
-        $investigations = DB::table('investigations')
+        $investigations = $this->tenantRows('investigations', $tenantId)
             ->where('trace_id', $traceId)
             ->select('investigation_id', 'title', 'state', 'severity')
             ->get();
 
-        $responsePlans = DB::table('response_plans')
+        $responsePlans = $this->tenantRows('response_plans', $tenantId)
             ->where('trace_id', $traceId)
             ->select('plan_id', 'title', 'state')
             ->get();
@@ -338,7 +350,7 @@ class ReportExportService
     // these Eloquent-querying report builders.
     // -------------------------------------------------------------------------
 
-    private function finalize(array $data, string $type, string $format, int $userId, ?string $reason, string $sourceId): array
+    private function finalize(array $data, string $type, string $format, int $userId, ?string $reason, string $sourceId, ?string $tenantId): array
     {
         $redacted = TraceRedactor::deep($data, true);
         $content  = ReportRenderer::render($redacted, $format);
@@ -351,6 +363,7 @@ class ReportExportService
             'source_id'         => $sourceId,
             'source_type'       => $type,
             'export_size_bytes' => strlen($content),
+            'tenant_id'         => $tenantId,
         ]);
 
         return [
@@ -389,7 +402,23 @@ class ReportExportService
             'source_id'         => $data['source_id'],
             'source_type'       => $data['source_type'],
             'export_size_bytes' => $data['export_size_bytes'] ?? null,
+            'tenant_id'         => $data['tenant_id'] ?? null,
         ]);
+    }
+
+    private function tenantRows(string $table, ?string $tenantId): Builder
+    {
+        $query = DB::table($table);
+        return $this->scopeTenant($query, $tenantId);
+    }
+
+    private function scopeTenant(Builder $query, ?string $tenantId, string $column = 'tenant_id'): Builder
+    {
+        if ($tenantId !== null) {
+            $query->where($column, $tenantId);
+        }
+
+        return $query;
     }
 
     private function generateExportId(): string

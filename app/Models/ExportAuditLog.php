@@ -10,7 +10,7 @@ class ExportAuditLog extends Model
     protected $fillable = [
         'export_id', 'export_type', 'export_format',
         'exported_by', 'exported_at', 'export_reason',
-        'source_id', 'source_type', 'export_size_bytes', 'metadata',
+        'source_id', 'source_type', 'export_size_bytes', 'metadata', 'tenant_id',
     ];
 
     protected $casts = [

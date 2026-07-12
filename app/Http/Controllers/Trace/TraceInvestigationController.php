@@ -3,37 +3,44 @@
 namespace App\Http\Controllers\Trace;
 
 use App\Http\Controllers\Controller;
+use App\Services\TenantContextAuthority;
 use App\Support\TraceRedactor;
 use Illuminate\Http\Request;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class TraceInvestigationController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function index(Request $request): View
     {
+        $tenantId = $this->tenantId($request);
         $q      = trim((string) $request->get('q', ''));
         $by     = $request->get('by', 'trace_id');
         $traces = collect();
 
         if ($q !== '') {
-            $traces = $this->search($q, $by);
+            $traces = $this->search($q, $by, $tenantId);
         }
 
         return view('traces.index', compact('q', 'by', 'traces'));
     }
 
-    public function show(string $traceId): View
+    public function show(Request $request, string $traceId): View
     {
-        $timeline  = $this->buildTimeline($traceId);
-        $alerts    = DB::table('security_alerts')
+        $tenantId = $this->tenantId($request);
+        $alerts    = $this->tenantRows('security_alerts', $tenantId)
             ->where('trace_id', $traceId)
             ->orderBy('detected_at')
             ->get();
-        $incidents = DB::table('security_incidents')
+        $incidents = $this->tenantRows('security_incidents', $tenantId)
             ->where('trace_id', $traceId)
             ->orderBy('first_seen_at')
             ->get();
+        $this->assertTraceVisible($traceId, $tenantId, $alerts->isNotEmpty() || $incidents->isNotEmpty());
+        $timeline  = $this->buildTimeline($traceId, $tenantId);
         $evidence  = DB::table('scenario_evidence')
             ->where('trace_id', $traceId)
             ->orderBy('processed_at')
@@ -62,13 +69,13 @@ class TraceInvestigationController extends Controller
         ));
     }
 
-    private function search(string $q, string $by): \Illuminate\Support\Collection
+    private function search(string $q, string $by, ?string $tenantId): \Illuminate\Support\Collection
     {
         $traceIds = match ($by) {
-            'alert_id'    => DB::table('security_alerts')->where('alert_id', $q)->pluck('trace_id')->filter()->unique(),
-            'incident_id' => DB::table('security_incidents')->where('incident_id', $q)->pluck('trace_id')->filter()->unique(),
-            'actor_key'   => DB::table('security_alerts')->where('actor_key', $q)->pluck('trace_id')->filter()->unique(),
-            'ip'          => DB::table('security_alerts')->where('ip', $q)->pluck('trace_id')->filter()->unique(),
+            'alert_id'    => $this->tenantRows('security_alerts', $tenantId)->where('alert_id', $q)->pluck('trace_id')->filter()->unique(),
+            'incident_id' => $this->tenantRows('security_incidents', $tenantId)->where('incident_id', $q)->pluck('trace_id')->filter()->unique(),
+            'actor_key'   => $this->tenantRows('security_alerts', $tenantId)->where('actor_key', $q)->pluck('trace_id')->filter()->unique(),
+            'ip'          => $this->tenantRows('security_alerts', $tenantId)->where('ip', $q)->pluck('trace_id')->filter()->unique(),
             default       => collect([$q]),
         };
 
@@ -76,14 +83,14 @@ class TraceInvestigationController extends Controller
             return collect();
         }
 
-        $alertStats = DB::table('security_alerts')
+        $alertStats = $this->tenantRows('security_alerts', $tenantId)
             ->whereIn('trace_id', $traceIds)
             ->selectRaw("trace_id, count(*) as alerts_count, min(detected_at) as first_seen, max(detected_at) as last_seen, max(severity) as top_severity")
             ->groupBy('trace_id')
             ->get()
             ->keyBy('trace_id');
 
-        $incidentStats = DB::table('security_incidents')
+        $incidentStats = $this->tenantRows('security_incidents', $tenantId)
             ->whereIn('trace_id', $traceIds)
             ->selectRaw("trace_id, count(*) as incidents_count")
             ->groupBy('trace_id')
@@ -97,7 +104,7 @@ class TraceInvestigationController extends Controller
             ->get()
             ->keyBy('trace_id');
 
-        return $traceIds->map(function (string $tid) use ($alertStats, $incidentStats, $opEventStats) {
+        return $traceIds->map(function (string $tid) use ($alertStats, $incidentStats, $opEventStats, $tenantId) {
             $as = $alertStats->get($tid);
             $is = $incidentStats->get($tid);
             $os = $opEventStats->get($tid);
@@ -106,7 +113,7 @@ class TraceInvestigationController extends Controller
             $incidentCount = (int) ($is?->incidents_count ?? 0);
             $eventCount    = (int) ($os?->events_count ?? 0);
 
-            if ($alertCount === 0 && $incidentCount === 0 && $eventCount === 0) {
+            if ($alertCount === 0 && $incidentCount === 0 && ($tenantId !== null || $eventCount === 0)) {
                 return null;
             }
 
@@ -125,7 +132,7 @@ class TraceInvestigationController extends Controller
         })->filter()->values();
     }
 
-    private function buildTimeline(string $traceId): \Illuminate\Support\Collection
+    private function buildTimeline(string $traceId, ?string $tenantId): \Illuminate\Support\Collection
     {
         $opEvents = DB::table('xdr_operational_events')
             ->where('trace_id', $traceId)
@@ -143,7 +150,7 @@ class TraceInvestigationController extends Controller
                 'source'       => 'operational_events',
             ]);
 
-        $alertEvents = DB::table('security_alerts')
+        $alertEvents = $this->tenantRows('security_alerts', $tenantId)
             ->where('trace_id', $traceId)
             ->get()
             ->map(fn ($a) => (object) [
@@ -158,7 +165,7 @@ class TraceInvestigationController extends Controller
                 'source'       => 'security_alerts',
             ]);
 
-        $incidentEvents = DB::table('security_incidents')
+        $incidentEvents = $this->tenantRows('security_incidents', $tenantId)
             ->where('trace_id', $traceId)
             ->get()
             ->map(fn ($i) => (object) [
@@ -203,5 +210,31 @@ class TraceInvestigationController extends Controller
             ->sortByDesc(fn ($a) => $rank[$a->severity ?? 'low'] ?? 0)
             ->first()
             ?->severity ?? 'none';
+    }
+
+    private function tenantId(Request $request): ?string
+    {
+        return $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
+    }
+
+    private function tenantRows(string $table, ?string $tenantId): Builder
+    {
+        $query = DB::table($table);
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
+        return $query;
+    }
+
+    private function assertTraceVisible(string $traceId, ?string $tenantId, bool $hasOwnedRecord): void
+    {
+        if ($hasOwnedRecord) {
+            return;
+        }
+        $legacyTraceExists = DB::table('xdr_operational_events')->where('trace_id', $traceId)->exists()
+            || DB::table('scenario_evidence')->where('trace_id', $traceId)->exists();
+        if ($tenantId !== null || !$legacyTraceExists) {
+            abort(404);
+        }
     }
 }

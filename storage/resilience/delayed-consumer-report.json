@@ -4,9 +4,9 @@
     "scenario_name": "Delayed Downstream Consumer",
     "scenario_type": "simulation",
     "status": "passed",
-    "started_at": "2026-06-26T07:32:45+00:00",
-    "completed_at": "2026-06-26T07:32:45+00:00",
-    "duration_seconds": 0,
+    "started_at": "2026-07-12T10:26:35+00:00",
+    "completed_at": "2026-07-12T10:26:38+00:00",
+    "duration_seconds": 3,
     "findings": {
         "mode": "simulation",
         "recovery_validated": true,
@@ -53,5 +53,5 @@
             "within_threshold": true
         }
     ],
-    "generated_at": "2026-06-26T07:32:45+00:00"
+    "generated_at": "2026-07-12T10:26:38+00:00"
 }

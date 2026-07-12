@@ -4,9 +4,9 @@
     "scenario_name": "Consumer Disconnect\/Reconnect",
     "scenario_type": "simulation",
     "status": "passed",
-    "started_at": "2026-06-26T07:32:45+00:00",
-    "completed_at": "2026-06-26T07:32:45+00:00",
-    "duration_seconds": 0,
+    "started_at": "2026-07-12T10:26:32+00:00",
+    "completed_at": "2026-07-12T10:26:35+00:00",
+    "duration_seconds": 3,
     "findings": {
         "mode": "simulation",
         "recovery_validated": true,
@@ -14,7 +14,7 @@
         "trace_preserved": true,
         "endpoint_shadow_isolated": true,
         "no_duplicates": true,
-        "service_available": true,
+        "service_available": false,
         "checks": {
             "reconnect_loop_design": {
                 "status": "pass",
@@ -22,7 +22,7 @@
             },
             "reconnect_count": {
                 "status": "pass",
-                "value": 0
+                "value": "service_unavailable"
             },
             "no_data_loss_design": {
                 "status": "pass",
@@ -40,7 +40,7 @@
         },
         {
             "metric_name": "consumer_recreate_count",
-            "metric_value": 1,
+            "metric_value": 0,
             "unit": "count",
             "threshold": null,
             "within_threshold": true
@@ -53,5 +53,5 @@
             "within_threshold": true
         }
     ],
-    "generated_at": "2026-06-26T07:32:45+00:00"
+    "generated_at": "2026-07-12T10:26:35+00:00"
 }
