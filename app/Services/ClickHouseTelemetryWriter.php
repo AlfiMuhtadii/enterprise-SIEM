@@ -34,8 +34,15 @@ class ClickHouseTelemetryWriter
         ));
         $sql = "INSERT INTO telemetry_events FORMAT JSONEachRow\n".$body;
 
+        // date_time_input_format=best_effort: confirmed against a real
+        // ClickHouse instance that its default DateTime64 text parser
+        // rejects plain ISO-8601 ("2026-07-12T00:00:00Z") outright -- see
+        // the identical fix + comment in scripts/xdr_infra_clients.py's
+        // ClickHouseClient.query(), which both write paths' events (this
+        // one included) otherwise hit the exact same way.
         $url = rtrim((string) config('xdr.infrastructure.clickhouse.http_url'), '/')
-            .'/?database='.urlencode((string) config('xdr.infrastructure.clickhouse.database'));
+            .'/?database='.urlencode((string) config('xdr.infrastructure.clickhouse.database'))
+            .'&date_time_input_format=best_effort';
 
         $response = Http::timeout((int) config('xdr.infrastructure.clickhouse.timeout_seconds', 5))
             ->withBasicAuth(

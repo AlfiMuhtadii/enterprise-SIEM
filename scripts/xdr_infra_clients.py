@@ -107,7 +107,19 @@ class ClickHouseClient:
         self.http = HttpClient(timeout=timeout, retries=2, headers={"Authorization": f"Basic {auth}"})
 
     def query(self, sql: str) -> HttpResult:
-        url = f"{self.base_url}/?database={urllib.parse.quote(self.database)}"
+        # date_time_input_format=best_effort: ClickHouse's default DateTime64
+        # text parser only accepts "YYYY-MM-DD HH:MM:SS[.sss]" (no "T"/"Z"),
+        # so a plain ISO-8601 string like this codebase's telemetry events
+        # already carry (e.g. "2026-07-12T00:00:00Z") is rejected outright
+        # with CANNOT_PARSE_INPUT_ASSERTION_FAILED -- confirmed against a
+        # real ClickHouse instance, not assumed. best_effort is a strict
+        # superset (accepts more formats, rejects nothing the strict parser
+        # already accepted), so this is safe to set unconditionally for
+        # every query, not just inserts into telemetry_events.
+        url = (
+            f"{self.base_url}/?database={urllib.parse.quote(self.database)}"
+            "&date_time_input_format=best_effort"
+        )
         return self.http.request("POST", url, sql.encode("utf-8"), {"Content-Type": "text/plain"})
 
     def health(self) -> Dict[str, Any]:
