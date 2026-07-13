@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DetectionBacktestMatch;
 use App\Models\DetectionBacktestRun;
+use App\Services\ClickHouseTelemetryReader;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -64,11 +65,24 @@ class DetectionBacktestService
         $windowEnd = now();
         $windowStart = $windowEnd->copy()->subDays($days);
 
-        $events = DB::table('telemetry_events')
-            ->whereIn('telemetry_type', ['identity', 'cloud', 'saas'])
-            ->whereBetween('ts', [$windowStart, $windowEnd])
-            ->orderBy('ts')
-            ->get();
+        // ARCH-DB-SPLIT (read path): same ClickHouse-when-configured,
+        // Postgres-fallback-on-failure pattern as the other migrated read
+        // paths. Safe to migrate despite reading the same identity/cloud/
+        // saas range the 2 excluded correlation detectors also read —
+        // this service only ever writes to the advisory-only
+        // detection_backtest_runs/detection_backtest_matches tables, never
+        // to security_alerts/security_incidents (see class docblock).
+        $events = null;
+        if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
+            $events = (new ClickHouseTelemetryReader())->identityCloudSaasWindow($windowStart, $windowEnd);
+        }
+        if ($events === null) {
+            $events = DB::table('telemetry_events')
+                ->whereIn('telemetry_type', ['identity', 'cloud', 'saas'])
+                ->whereBetween('ts', [$windowStart, $windowEnd])
+                ->orderBy('ts')
+                ->get();
+        }
 
         $run = DetectionBacktestRun::create([
             'run_id' => 'btr_'.Str::uuid(),

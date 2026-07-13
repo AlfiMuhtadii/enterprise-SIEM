@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ClickHouseTelemetryReader;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -95,28 +96,38 @@ class SocHuntController extends Controller
 
     private function queryTelemetry(array $filters, int $limit)
     {
-        $q = DB::table('telemetry_events')
-            ->where('ts', '>=', now()->subMinutes($filters['minutes']))
-            ->orderByDesc('ts')
-            ->limit($limit);
-        foreach (['host_id', 'process' => 'process_name', 'event_type'] as $key => $column) {
-            if (is_int($key)) {
-                $key = $column;
+        // ARCH-DB-SPLIT (read path): same ClickHouse-when-configured,
+        // Postgres-fallback-on-failure pattern as the dashboard/endpoint
+        // timeline read paths — an analyst's hunt search never just breaks
+        // because ClickHouse happens to be unreachable.
+        $rows = null;
+        if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
+            $rows = (new ClickHouseTelemetryReader())->huntSearch($filters, $limit);
+        }
+        if ($rows === null) {
+            $q = DB::table('telemetry_events')
+                ->where('ts', '>=', now()->subMinutes($filters['minutes']))
+                ->orderByDesc('ts')
+                ->limit($limit);
+            foreach (['host_id', 'process' => 'process_name', 'event_type'] as $key => $column) {
+                if (is_int($key)) {
+                    $key = $column;
+                }
+                if ($filters[$key] !== '') {
+                    $q->where($column, 'ilike', '%'.$filters[$key].'%');
+                }
             }
-            if ($filters[$key] !== '') {
-                $q->where($column, 'ilike', '%'.$filters[$key].'%');
+            if ($filters['user'] !== '') {
+                $q->where('user_name_hash', 'ilike', '%'.$filters['user'].'%');
             }
+            if ($filters['ip'] !== '') {
+                $q->where(fn ($inner) => $inner->where('src_ip', $filters['ip'])->orWhere('dst_ip', $filters['ip']));
+            }
+            if ($filters['domain'] !== '') {
+                $q->whereRaw("payload::text ilike ?", ['%'.$filters['domain'].'%']);
+            }
+            $rows = $q->get();
         }
-        if ($filters['user'] !== '') {
-            $q->where('user_name_hash', 'ilike', '%'.$filters['user'].'%');
-        }
-        if ($filters['ip'] !== '') {
-            $q->where(fn ($inner) => $inner->where('src_ip', $filters['ip'])->orWhere('dst_ip', $filters['ip']));
-        }
-        if ($filters['domain'] !== '') {
-            $q->whereRaw("payload::text ilike ?", ['%'.$filters['domain'].'%']);
-        }
-        $rows = $q->get();
         $alertByHost = DB::table('security_alerts')->where('detected_at', '>=', now()->subMinutes($filters['minutes']))->get()->groupBy('actor_key');
         return $rows->map(function ($row) use ($alertByHost) {
             $row->correlated_alerts = $alertByHost->get($row->host_id, collect())->take(5)->values();

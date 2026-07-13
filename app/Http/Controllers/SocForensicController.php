@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ClickHouseTelemetryReader;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,9 +75,20 @@ class SocForensicController extends Controller
             mkdir($dir, 0777, true);
         }
         $base = $dir.DIRECTORY_SEPARATOR.$job->job_id;
+        // ARCH-DB-SPLIT (read path): same ClickHouse-when-configured,
+        // Postgres-fallback-on-failure pattern as the other migrated read
+        // paths — a forensic artifact must never fail to build just
+        // because ClickHouse happens to be unreachable.
+        $telemetry = null;
+        if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
+            $telemetry = (new ClickHouseTelemetryReader())->forensicHostEvents($job->host_id, 200);
+        }
+        if ($telemetry === null) {
+            $telemetry = DB::table('telemetry_events')->when($job->host_id, fn ($q) => $q->where('host_id', $job->host_id))->orderByDesc('ts')->limit(200)->get();
+        }
         $payload = [
             'job' => $job,
-            'telemetry' => DB::table('telemetry_events')->when($job->host_id, fn ($q) => $q->where('host_id', $job->host_id))->orderByDesc('ts')->limit(200)->get(),
+            'telemetry' => $telemetry,
             'alerts' => DB::table('security_alerts')->when($job->host_id, fn ($q) => $q->whereRaw('evidence::text ilike ?', ['%'.$job->host_id.'%']))->orderByDesc('detected_at')->limit(100)->get(),
             'agent' => $job->agent_id ? DB::table('endpoint_agents')->where('agent_id', $job->agent_id)->first() : null,
         ];
