@@ -103,6 +103,37 @@ services:
           memory: 3g
           cpus: '2.0'
 
+  # OBS-OTEL-TRACING: real OTel collector for the OTLP/HTTP spans already
+  # emitted by all 6 hops (3 Go pipeline services, 2 Python services,
+  # Laravel SOC control plane), off by default -- opt in with
+  # `docker compose --profile observability up -d tempo`, then point
+  # XDR_OTEL_EXPORTER_ENDPOINT at http://tempo:4318/v1/traces (container
+  # network) or http://127.0.0.1:4318/v1/traces (host). Single-binary,
+  # local-disk storage only (infra/analytics/tempo/tempo.yaml) -- a
+  # verification/demo trace store, not a production retention story.
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: detector-tempo
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./infra/analytics/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - detector_tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+      - "127.0.0.1:4318:4318"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+
   grafana:
     image: grafana/grafana:11.1.0
     container_name: detector-grafana
@@ -686,4 +717,5 @@ volumes:
   detector_opensearch_data:
   detector_qdrant_data:
   detector_ollama_data:
+  detector_tempo_data:
   o365-connector-state:

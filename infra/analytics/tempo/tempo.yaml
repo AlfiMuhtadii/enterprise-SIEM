@@ -1,0 +1,30 @@
+# OBS-OTEL-TRACING: minimal single-binary Tempo config for local trace
+# storage/query, matching the "off by default, opt-in" pattern used
+# throughout this platform -- this file only takes effect when the tempo
+# service (docker-compose.yml, "observability" profile) is actually started.
+# Local disk backend only, no object storage -- appropriate for demo/
+# verification, not a production retention story.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+        grpc:
+
+ingester:
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    block_retention: 24h
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal
