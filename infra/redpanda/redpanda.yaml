@@ -1,0 +1,36 @@
+# ENT-SEC-NO-TLS-INTERNAL (phase 8): Pandaproxy TLS.
+#
+# Only the pandaproxy listener topology moves into this file -- everything
+# else (kafka-addr, node-id, smp/memory/overprovisioned Seastar flags) stays
+# on redpanda's `command:` CLI args in docker-compose.yml exactly as before,
+# since pandaproxy TLS is a per-named-listener setting that has no CLI flag
+# equivalent (confirmed: there is no `--pandaproxy-api-tls` flag; it only
+# exists in this YAML). Adding a second, TLS-only listener alongside the
+# existing plaintext one is additive -- the plaintext listener on 8082
+# keeps working unchanged for every current REST consumer; TLS on 8083 is
+# opt-in.
+pandaproxy:
+  pandaproxy_api:
+    - name: internal
+      address: 0.0.0.0
+      port: 8082
+    - name: external_tls
+      address: 0.0.0.0
+      port: 8083
+  advertised_pandaproxy_api:
+    - name: internal
+      address: redpanda
+      port: 8082
+    - name: external_tls
+      address: redpanda
+      port: 8083
+  pandaproxy_api_tls:
+    - name: external_tls
+      enabled: true
+      # Server-side TLS only -- no client certificate required. Matches this
+      # session's convention of additive, low-friction opt-in over forcing a
+      # full mTLS cutover on infrastructure Go/Python clients don't already
+      # have mTLS wiring for.
+      require_client_auth: false
+      cert_file: /etc/redpanda-certs/server.crt
+      key_file: /etc/redpanda-certs/server.key

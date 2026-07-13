@@ -28,6 +28,11 @@ DEFAULT_OUT_DIR = BASE_DIR / "storage" / "certs" / "internal-mtls"
 
 # Every internal service hostname docker-compose resolves today, plus
 # localhost/127.0.0.1 for local (non-compose) testing.
+#
+# ENT-SEC-NO-TLS-INTERNAL (phase 8): "redpanda"/"opensearch" added so this
+# same shared server cert can also terminate TLS on Pandaproxy's new opt-in
+# listener and OpenSearch's opt-in HTTP TLS, instead of minting separate
+# certs for infrastructure that isn't one of our own Go/Python services.
 SERVICE_SANS = [
     "ingestion-gateway",
     "normalizer-worker",
@@ -35,6 +40,8 @@ SERVICE_SANS = [
     "alert-writer-service",
     "incident-builder-service",
     "ai-rag-service",
+    "redpanda",
+    "opensearch",
     "localhost",
     "127.0.0.1",
 ]

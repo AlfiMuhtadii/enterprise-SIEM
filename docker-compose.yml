@@ -1,7 +1,55 @@
 services:
+  # ENT-SEC-NO-TLS-INTERNAL (phase 8): seeds the named volumes redpanda's
+  # pandaproxy TLS config/certs live in. A plain bind mount of a single file
+  # into /etc/redpanda doesn't work here -- `rpk` needs to write a merged
+  # temp config into that same directory at startup, and Docker Desktop's
+  # Windows-host bind-mount layer doesn't support the chown that requires
+  # (confirmed directly: "operation not permitted" / "permission denied" on
+  # a bind mount; a named volume seeded once via this init step works fine).
+  # One-shot: runs once per `docker compose up`, exits, redpanda depends on
+  # its completion.
+  #
+  # Deliberately conditional on the certs actually existing (confirmed live:
+  # pandaproxy_api_tls with enabled:true and a missing cert_file crashes the
+  # ENTIRE broker at startup -- "Failure during startup: Could not read
+  # certificate file" -- not just that one listener). So: certs present ->
+  # copy the real TLS-enabled redpanda.yaml. Certs absent (fresh clone that
+  # hasn't run `python scripts/xdr_generate_internal_mtls_certs.py
+  # --generate` yet) -> write NO config file at all, leaving /etc/redpanda
+  # empty. Confirmed live that an empty /etc/redpanda is byte-for-byte
+  # equivalent to today's behavior (no config file ever existed before this
+  # change) -- redpanda starts from CLI flags alone exactly as before, no
+  # TLS listener, no crash, zero behavior change for anyone who hasn't
+  # opted in.
+  redpanda-config-init:
+    image: alpine:3.20
+    container_name: detector-redpanda-config-init
+    volumes:
+      - detector_redpanda_config:/cfg
+      - detector_redpanda_certs:/certs
+      - ./infra/redpanda/redpanda.yaml:/src/redpanda.yaml:ro
+      - ./storage/certs/internal-mtls:/src/certs:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -f /src/certs/server.crt ]; then
+          cp /src/certs/server.crt /src/certs/server.key /certs/
+          chown -R 101:101 /certs
+          cp /src/redpanda.yaml /cfg/redpanda.yaml
+          chown -R 101:101 /cfg
+        fi
+    restart: "no"
+
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.8
     container_name: detector-redpanda
+    depends_on:
+      redpanda-config-init:
+        condition: service_completed_successfully
+    volumes:
+      - detector_redpanda_config:/etc/redpanda
+      - detector_redpanda_certs:/etc/redpanda-certs:ro
     command:
       - redpanda
       - start
@@ -19,16 +67,21 @@ services:
       - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
       - --advertise-kafka-addr
       - PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
-      - --pandaproxy-addr
-      - 0.0.0.0:8082
-      - --advertise-pandaproxy-addr
-      - 127.0.0.1:8082
     ports:
       - "19092:19092"
       - "9644:9644"
       # Pandaproxy REST API — unauthenticated, internal-only boundary.
       # Exposed on 127.0.0.1 for local demo only. Remove or firewall in non-local deployments.
       - "127.0.0.1:8082:8082"
+      # ENT-SEC-NO-TLS-INTERNAL: opt-in TLS listener (infra/redpanda/redpanda.yaml,
+      # pandaproxy_api_tls, require_client_auth: false -- server-side TLS only).
+      # Additive: 8082 above keeps working unchanged for every current REST
+      # consumer. Only actually comes up once storage/certs/internal-mtls/
+      # exists (python scripts/xdr_generate_internal_mtls_certs.py --generate)
+      # -- redpanda-config-init above only writes the TLS config once certs
+      # are present; until then this port is simply undefined (no listener,
+      # nothing bound) and the broker starts exactly as it always has.
+      - "127.0.0.1:8083:8083"
     healthcheck:
       # Admin HTTP API (port 9644) is more reliable than rpk under consumer reconnect storms.
       # rpk cluster health triggers a full metadata fetch which can timeout when Pandaproxy is busy.
@@ -171,6 +224,80 @@ services:
       - "127.0.0.1:9600:9600"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200 >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+          cpus: '1.5'
+
+  # ENT-SEC-NO-TLS-INTERNAL (phase 8): OpenSearch's HTTP TLS is owned
+  # entirely by the security plugin, and a single node cannot serve HTTP and
+  # HTTPS on the same port at once -- confirmed via research, not assumed:
+  # there is no per-listener mixed mode the way Pandaproxy's REST proxy
+  # supports (see redpanda-config-init above). Flipping the LIVE `opensearch`
+  # service to TLS would therefore be an instant breaking cutover for every
+  # current plaintext consumer (Laravel's `Http::` calls, alert-writer's
+  # index writes) with no transition window. Rather than force that, this is
+  # a genuinely separate, opt-in second node -- a real, independently
+  # verified TLS-enabled OpenSearch an operator can adopt on their own
+  # timeline, without the live default ever being touched.
+  opensearch-tls-certs-init:
+    image: alpine:3.20
+    container_name: detector-opensearch-tls-certs-init
+    profiles: ["security"]
+    volumes:
+      - detector_opensearch_tls_certs:/certs
+      - ./storage/certs/internal-mtls:/src:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -f /src/server.crt ]; then
+          cp /src/server.crt /src/server.key /src/ca.crt /certs/
+          chown -R 1000:1000 /certs
+        fi
+    restart: "no"
+
+  opensearch-tls:
+    image: opensearchproject/opensearch:2.15.0
+    container_name: detector-opensearch-tls
+    profiles: ["security"]
+    depends_on:
+      opensearch-tls-certs-init:
+        condition: service_completed_successfully
+    environment:
+      discovery.type: single-node
+      # ssl_only: TLS termination without adopting full RBAC/user auth --
+      # deliberately NOT full security (no securityadmin.sh bootstrap, no
+      # admin_dn/nodes_dn, no OPENSEARCH_INITIAL_ADMIN_PASSWORD requirement).
+      plugins.security.ssl_only: "true"
+      plugins.security.ssl.http.enabled: "true"
+      plugins.security.ssl.http.pemcert_filepath: certs/server.crt
+      plugins.security.ssl.http.pemkey_filepath: certs/server.key
+      plugins.security.ssl.http.pemtrustedcas_filepath: certs/ca.crt
+      # Transport (node-to-node) TLS is mandatory whenever the security
+      # plugin is on, even for a single node with no other nodes to talk to
+      # -- reusing the same HTTP cert keeps this from needing a second pair.
+      plugins.security.ssl.transport.pemcert_filepath: certs/server.crt
+      plugins.security.ssl.transport.pemkey_filepath: certs/server.key
+      plugins.security.ssl.transport.pemtrustedcas_filepath: certs/ca.crt
+      plugins.security.ssl.transport.enforce_hostname_verification: "false"
+      # The demo-config installer requires OPENSEARCH_INITIAL_ADMIN_PASSWORD
+      # on 2.12+ and would also fight with our own certs -- skip it outright.
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - detector_opensearch_tls_data:/usr/share/opensearch/data
+      - detector_opensearch_tls_certs:/usr/share/opensearch/config/certs:ro
+    ports:
+      - "127.0.0.1:9201:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSk https://127.0.0.1:9200 >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -718,4 +845,8 @@ volumes:
   detector_qdrant_data:
   detector_ollama_data:
   detector_tempo_data:
+  detector_redpanda_config:
+  detector_redpanda_certs:
+  detector_opensearch_tls_data:
+  detector_opensearch_tls_certs:
   o365-connector-state:
