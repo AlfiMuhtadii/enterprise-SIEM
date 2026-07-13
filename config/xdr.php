@@ -81,6 +81,14 @@ return [
             // flag name/values as ingest_telemetry_events.py's --target /
             // XDR_TELEMETRY_WRITE_TARGET so operators configure one thing.
             'telemetry_write_target' => env('XDR_TELEMETRY_WRITE_TARGET', 'postgres'),
+            // DATA-TIERING: off by default -- zero behavior change unless an
+            // operator opts in. When true, SecurityRetentionArchiveService
+            // additionally writes archived rows into ClickHouse's
+            // archived_records table (real, indexed, months-scale search)
+            // alongside the existing local gzip JSONL archive (which stays
+            // the durability safety net either way -- this is an additional
+            // warm-tier index, not a replacement for it).
+            'warm_tier_enabled' => (bool) env('XDR_DATA_TIERING_WARM_TIER_ENABLED', false),
         ],
         'opensearch' => [
             'url' => env('XDR_OPENSEARCH_URL', 'http://127.0.0.1:9200'),

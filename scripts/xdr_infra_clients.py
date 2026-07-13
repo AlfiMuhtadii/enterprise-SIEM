@@ -220,6 +220,35 @@ class ClickHouseClient:
             ORDER BY (tenant_id, host_id, ts, event_id)
             TTL toDateTime(ts) + INTERVAL 30 DAY
             """,
+            # DATA-TIERING (warm tier): the real, indexed, months-scale
+            # searchable tier the phase 1/2 local gzip archive
+            # (SecurityRetentionArchiveService/ArchiveSearchService) was
+            # always documented as not being. One generic table across all
+            # 3 archived source tables (security_events/security_alerts/
+            # security_incidents) rather than one ClickHouse table per
+            # source -- their column shapes differ, so `payload` carries the
+            # full original row as JSON (identical to what the gzip archive
+            # already stores) while `source_table`/`tenant_id`/`archived_at`
+            # are promoted to real, indexed columns for fast range/tenant/
+            # table-scoped queries -- the exact three dimensions
+            # ArchiveSearchService's linear gzip scan already filters on, now
+            # actually indexed instead of grepped. `record_id` kept as
+            # String (not UInt64) since it's used purely for identification/
+            # de-dup, never arithmetic, and callers already have it as a
+            # loosely-typed value from `(array) $row['id']`. No TTL here --
+            # this warm tier's own retention is a separate, later policy
+            # decision, not implicitly inherited from the hot tables' TTLs.
+            """
+            CREATE TABLE IF NOT EXISTS archived_records (
+                source_table LowCardinality(String),
+                tenant_id String DEFAULT '',
+                record_id String,
+                original_ts DateTime64(3),
+                archived_at DateTime64(3) DEFAULT now64(3),
+                payload String
+            ) ENGINE = MergeTree
+            ORDER BY (source_table, tenant_id, original_ts, record_id)
+            """,
         ]
         results = [self.query(stmt) for stmt in statements]
         return {"ok": all(r.ok for r in results), "statuses": [r.status for r in results], "errors": [r.error for r in results if not r.ok]}

@@ -10,16 +10,28 @@ use RuntimeException;
  * DATA-TIERING (phase 1): archive-before-delete for SecurityRetentionCommand.
  * Writes rows about to be pruned to a gzip-compressed JSONL file before
  * deleting them, so retention no longer means "gone forever" — a durable
- * local archive exists first. Full hot/warm/cold tiering (ClickHouse,
- * object storage) remains a separate, larger effort; this is the bounded
- * "never delete without archiving" step that doesn't need any new infra.
+ * local archive exists first.
+ *
+ * Warm tier (added once real infra became available): when
+ * xdr.infrastructure.clickhouse.warm_tier_enabled is true (default false —
+ * zero behavior change), the same rows are ALSO written to ClickHouse's
+ * archived_records table via ClickHouseArchiveWriter, alongside the gzip
+ * file, not instead of it — the gzip archive remains the durability
+ * guarantee; ClickHouse is an additional, real, indexed warm-tier search
+ * path (see ArchiveSearchService for the read side). Cold tier (object
+ * storage archival/restore) remains a separate, larger effort.
  */
 class SecurityRetentionArchiveService
 {
     public const CHUNK_SIZE = 500;
 
-    public function __construct(private readonly string $archiveDir)
+    private readonly ?ClickHouseArchiveWriter $warmTier;
+
+    public function __construct(private readonly string $archiveDir, ?ClickHouseArchiveWriter $warmTier = null)
     {
+        $this->warmTier = config('xdr.infrastructure.clickhouse.warm_tier_enabled', false)
+            ? ($warmTier ?? new ClickHouseArchiveWriter())
+            : null;
     }
 
     /**
@@ -53,12 +65,29 @@ class SecurityRetentionArchiveService
         }
 
         try {
-            (clone $query)->orderBy('id')->chunkById(self::CHUNK_SIZE, function ($rows) use ($handle) {
+            (clone $query)->orderBy('id')->chunkById(self::CHUNK_SIZE, function ($rows) use ($handle, $table, $column, $tenantId, $hasTenantColumn) {
+                $warmTierRows = [];
                 foreach ($rows as $row) {
-                    $line = json_encode((array) $row, JSON_UNESCAPED_SLASHES);
+                    $rowArray = (array) $row;
+                    $line = json_encode($rowArray, JSON_UNESCAPED_SLASHES);
                     if ($line === false || gzwrite($handle, $line."\n") === false) {
                         throw new RuntimeException('Failed to write archive record.');
                     }
+                    if ($this->warmTier !== null) {
+                        $warmTierRows[] = $this->warmTier->mapArchivedRow(
+                            $table,
+                            $rowArray,
+                            $hasTenantColumn ? $tenantId : null,
+                            (string) $rowArray[$column],
+                        );
+                    }
+                }
+                // Best-effort: a warm-tier write failure must never block
+                // deletion — the gzip archive above is the durability
+                // guarantee this whole class exists to provide; ClickHouse
+                // insert() already logs its own failures internally.
+                if ($this->warmTier !== null && $warmTierRows !== []) {
+                    $this->warmTier->insert($warmTierRows);
                 }
             });
         } finally {

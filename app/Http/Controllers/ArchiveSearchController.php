@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ArchiveSearchService;
+use App\Services\ClickHouseArchiveSearchService;
 use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -46,15 +47,41 @@ class ArchiveSearchController extends Controller
                 // 'default' fallback which doesn't apply to this backing store.
                 $tenantId = $this->tenantAuthority->validateAndResolve($request, Auth::user());
 
-                $service = new ArchiveSearchService('storage/app/archives');
-                $result = $service->search(
-                    table: $table,
-                    tenantId: $tenantId,
-                    from: $fromRaw !== '' ? Carbon::parse($fromRaw) : null,
-                    to: $toRaw !== '' ? Carbon::parse($toRaw) : null,
-                    filters: $this->parseFilters($filtersRaw),
-                    limit: $limit,
-                );
+                $from = $fromRaw !== '' ? Carbon::parse($fromRaw) : null;
+                $to = $toRaw !== '' ? Carbon::parse($toRaw) : null;
+                $filters = $this->parseFilters($filtersRaw);
+
+                // DATA-TIERING (warm tier): prefer the real, indexed
+                // ClickHouse path when enabled — falls back to the gzip
+                // scan on any failure (collector down, query error) so an
+                // analyst's search never just breaks because the warm tier
+                // happens to be unreachable; the gzip archive remains a
+                // complete copy of everything regardless.
+                if (config('xdr.infrastructure.clickhouse.warm_tier_enabled', false)) {
+                    $warmResult = (new ClickHouseArchiveSearchService())->search(
+                        table: $table,
+                        tenantId: $tenantId,
+                        from: $from,
+                        to: $to,
+                        filters: $filters,
+                        limit: $limit,
+                    );
+                    if (empty($warmResult['warm_tier_unavailable'])) {
+                        $result = $warmResult;
+                    }
+                }
+
+                if ($result === null) {
+                    $service = new ArchiveSearchService('storage/app/archives');
+                    $result = $service->search(
+                        table: $table,
+                        tenantId: $tenantId,
+                        from: $from,
+                        to: $to,
+                        filters: $filters,
+                        limit: $limit,
+                    );
+                }
             } catch (\Throwable $e) {
                 $error = $e->getMessage();
             }
