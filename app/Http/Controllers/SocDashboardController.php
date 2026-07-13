@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ClickHouseTelemetryReader;
 use App\Services\TenantContextAuthority;
 use App\Support\XdrOperationalMetrics;
 use App\Support\XdrSoakReport;
@@ -220,13 +221,25 @@ class SocDashboardController extends Controller
                 ->count(),
         ];
 
-        $xdrDomainBreakdown = DB::table('telemetry_events')
-            ->select('telemetry_type', DB::raw('count(*) as total'))
-            ->where('ts', '>=', $since)
-            ->whereIn('telemetry_type', ['email', 'identity', 'cloud', 'saas', 'firewall', 'proxy'])
-            ->groupBy('telemetry_type')
-            ->orderByDesc('total')
-            ->get();
+        // ARCH-DB-SPLIT (read path): same ClickHouse-when-configured,
+        // Postgres-fallback-on-failure pattern as SocEndpointTimelineController
+        // — this is the exact query the write-path entry's live
+        // OLTP-contention benchmark used (see REVIEW_COMPLETED.md), so it's
+        // the most directly-motivated read path to actually migrate.
+        $xdrDomainTypes = ['email', 'identity', 'cloud', 'saas', 'firewall', 'proxy'];
+        $xdrDomainBreakdown = null;
+        if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
+            $xdrDomainBreakdown = (new ClickHouseTelemetryReader())->domainBreakdown($since, $xdrDomainTypes);
+        }
+        if ($xdrDomainBreakdown === null) {
+            $xdrDomainBreakdown = DB::table('telemetry_events')
+                ->select('telemetry_type', DB::raw('count(*) as total'))
+                ->where('ts', '>=', $since)
+                ->whereIn('telemetry_type', $xdrDomainTypes)
+                ->groupBy('telemetry_type')
+                ->orderByDesc('total')
+                ->get();
+        }
 
         $xdrRecent = DB::table('security_alerts')
             ->select('alert_id', 'detected_at', 'alert_type', 'severity', 'actor_key', 'incident_id', 'score', 'evidence')

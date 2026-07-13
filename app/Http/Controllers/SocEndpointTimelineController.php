@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ClickHouseTelemetryReader;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +17,23 @@ class SocEndpointTimelineController extends Controller
         $type = trim((string) $request->query('type', ''));
         $since = now()->subMinutes($minutes);
 
-        $telemetry = DB::table('telemetry_events')
-            ->where('host_id', $hostId)
-            ->where('ts', '>=', $since)
-            ->when($type !== '', fn ($q) => $q->where('event_type', $type))
-            ->orderByDesc('ts')
-            ->limit(300)
-            ->get();
+        // ARCH-DB-SPLIT (read path): when telemetry writes are routed to
+        // ClickHouse, read from the same store instead of Postgres, which
+        // has no new rows to show under that mode — falls back to Postgres
+        // on any ClickHouse failure so this page never just breaks.
+        $telemetry = null;
+        if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
+            $telemetry = (new ClickHouseTelemetryReader())->hostTimeline($hostId, $since, $type, 300);
+        }
+        if ($telemetry === null) {
+            $telemetry = DB::table('telemetry_events')
+                ->where('host_id', $hostId)
+                ->where('ts', '>=', $since)
+                ->when($type !== '', fn ($q) => $q->where('event_type', $type))
+                ->orderByDesc('ts')
+                ->limit(300)
+                ->get();
+        }
 
         $alerts = DB::table('security_alerts')
             ->where(function ($q) use ($hostId) {
