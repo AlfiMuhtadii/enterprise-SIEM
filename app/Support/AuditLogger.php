@@ -13,7 +13,8 @@ class AuditLogger
         ?string $targetId = null,
         mixed $before = null,
         mixed $after = null,
-        mixed $meta = null
+        mixed $meta = null,
+        ?string $tenantId = null,
     ): void {
         DB::table('security_audit_trails')->insert([
             'occurred_at' => now(),
@@ -21,6 +22,7 @@ class AuditLogger
             'action' => $action,
             'target_type' => $targetType,
             'target_id' => $targetId,
+            'tenant_id' => $tenantId,
             'before_state' => $before === null ? null : json_encode($before),
             'after_state' => $after === null ? null : json_encode($after),
             'meta' => $meta === null ? null : json_encode($meta),

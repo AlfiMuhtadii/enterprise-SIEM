@@ -57,6 +57,8 @@ class TenantBoundaryService
         'response_plans',
         'entities',
         'threat_hunts',
+        'threat_hunt_queries',
+        'threat_hunt_results',
         // NOTIFY-TENANCY-GAP: per-tenant notification target config
         'tenant_notification_settings',
         // CAP-DECEPTION-HONEYTOKEN tenant isolation
@@ -64,6 +66,17 @@ class TenantBoundaryService
         'honeytoken_hits',
         // EXPORT-TENANCY-GAP: append-only export history
         'export_audit_logs',
+        'soar_playbooks',
+        'soar_playbook_versions',
+        'soar_execution_plans',
+        'soar_execution_steps',
+        'soar_execution_results',
+        'soar_approval_requests',
+        'soar_rollback_plans',
+        'soar_execution_audit',
+        'soar_simulation_results',
+        // TENANT-AUDIT-LEAK: audit trail rows are never updated, only inserted
+        'security_audit_trails',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -80,6 +93,10 @@ class TenantBoundaryService
         'entities',
         // NOTIFY-TENANCY-GAP: notification settings are upserted per tenant
         'tenant_notification_settings',
+        'soar_playbooks',
+        'soar_execution_plans',
+        'soar_execution_steps',
+        'soar_rollback_plans',
     ];
 
     // Append-only ISOLATED tables — tenant_id backfill is FORBIDDEN on these.
@@ -102,13 +119,21 @@ class TenantBoundaryService
         'tenant_membership_audit_events',
         // threat_hunts is append-only per operational policy — tenant_id set at insert only
         'threat_hunts',
+        'threat_hunt_queries',
+        'threat_hunt_results',
         'export_audit_logs',
+        'soar_playbook_versions',
+        'soar_execution_results',
+        'soar_approval_requests',
+        'soar_execution_audit',
+        'soar_simulation_results',
+        // TENANT-AUDIT-LEAK: audit trail rows are never updated, only inserted
+        'security_audit_trails',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap
     public const UNISOLATED_TABLES = [
         'users',
-        'security_audit_trails',
         'telemetry_events',
         'endpoint_agent_heartbeats',
     ];

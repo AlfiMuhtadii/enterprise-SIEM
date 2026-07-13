@@ -229,7 +229,7 @@ class SocDashboardController extends Controller
         $xdrDomainTypes = ['email', 'identity', 'cloud', 'saas', 'firewall', 'proxy'];
         $xdrDomainBreakdown = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
-            $xdrDomainBreakdown = (new ClickHouseTelemetryReader())->domainBreakdown($since, $xdrDomainTypes);
+            $xdrDomainBreakdown = (new ClickHouseTelemetryReader())->domainBreakdown($since, $xdrDomainTypes, $tenantId);
         }
         if ($xdrDomainBreakdown === null) {
             $xdrDomainBreakdown = DB::table('telemetry_events')

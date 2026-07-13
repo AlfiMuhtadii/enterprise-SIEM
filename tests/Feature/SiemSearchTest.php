@@ -282,4 +282,34 @@ class SiemSearchTest extends TestCase
             ->assertOk()
             ->assertSee('at least');
     }
+
+    // =========================================================================
+    // PERF-SIEM-FALLBACK-SCAN: index-level fix so ILIKE fallback search
+    // doesn't force a full sequential scan under enterprise alert volume.
+    // The performance claim itself is verified separately via a live
+    // EXPLAIN ANALYZE benchmark (not a CI-run test -- seeding enough rows
+    // for the planner to naturally prefer an index plan would make this
+    // test slow and flaky); this test only proves the schema migration
+    // itself landed correctly.
+    // =========================================================================
+
+    public function test_pg_trgm_extension_and_indexes_exist_for_all_ilike_columns(): void
+    {
+        $extension = DB::selectOne("SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'");
+        $this->assertNotNull($extension, 'pg_trgm extension must be installed');
+
+        $indexes = collect(DB::select("SELECT indexname FROM pg_indexes WHERE tablename = 'security_alerts'"))
+            ->pluck('indexname');
+
+        foreach ([
+            'security_alerts_tenant_detected_idx',
+            'security_alerts_evidence_trgm_idx',
+            'security_alerts_raw_event_trgm_idx',
+            'security_alerts_alert_type_trgm_idx',
+            'security_alerts_ip_trgm_idx',
+            'security_alerts_detector_name_trgm_idx',
+        ] as $expected) {
+            $this->assertTrue($indexes->contains($expected), "missing index: {$expected}");
+        }
+    }
 }

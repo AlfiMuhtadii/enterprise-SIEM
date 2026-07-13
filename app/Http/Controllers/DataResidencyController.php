@@ -55,7 +55,7 @@ class DataResidencyController extends Controller
             $request->user()->email,
         );
 
-        AuditLogger::log($request->user()->email, 'retention.policy.update', 'tenant_retention_policy', $tenantId, null, $data);
+        AuditLogger::log($request->user()->email, 'retention.policy.update', 'tenant_retention_policy', $tenantId, null, $data, tenantId: $tenantId);
 
         return back()->with('status', 'Retention policy updated.');
     }
@@ -76,7 +76,7 @@ class DataResidencyController extends Controller
             $request->boolean('dry_run', true),
         );
 
-        AuditLogger::log($request->user()->email, 'erasure.request', 'data_erasure_request', $erasureRequest->request_id, null, $data);
+        AuditLogger::log($request->user()->email, 'erasure.request', 'data_erasure_request', $erasureRequest->request_id, null, $data, tenantId: $tenantId);
 
         return back()->with('status', "Erasure request {$erasureRequest->request_id} submitted (pending approval).");
     }

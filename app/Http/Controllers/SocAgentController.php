@@ -117,7 +117,7 @@ class SocAgentController extends Controller
             'updated_at' => now(),
         ]);
         $after = DB::table('endpoint_agents')->where('agent_id', $agentId)->first();
-        AuditLogger::log($request->user()->email, 'agent.policy.assign', 'agent', $agentId, $before, $after);
+        AuditLogger::log($request->user()->email, 'agent.policy.assign', 'agent', $agentId, $before, $after, tenantId: $tenantId);
 
         return back()->with('status', 'Policy assigned.');
     }
@@ -152,7 +152,7 @@ class SocAgentController extends Controller
             'command_id'  => $command->command_id,
             'legacy_type' => $data['command_type'],
             'mapped_type' => $mapped,
-        ]);
+        ], tenantId: $tenantId);
 
         return back()->with('status', 'Command queued via response framework.');
     }

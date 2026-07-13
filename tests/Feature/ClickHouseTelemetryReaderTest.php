@@ -606,4 +606,115 @@ class ClickHouseTelemetryReaderTest extends TestCase
 
         $this->assertSame(1, $run->telemetry_event_count);
     }
+
+    // -------------------------------------------------------------------------
+    // TENANT-CLICKHOUSE-LEAK — hostTimeline/domainBreakdown/huntSearch/
+    // forensicHostEvents accept an optional tenant_id filter
+    // -------------------------------------------------------------------------
+
+    public function test_host_timeline_adds_tenant_filter_when_given(): void
+    {
+        $this->configureClickHouse();
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+
+        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300, 'tenant-x');
+
+        Http::assertSent(function ($request) {
+            $url = (string) $request->url();
+            $body = (string) $request->body();
+
+            return str_contains($body, 'tenant_id = {tenant_id:String}')
+                && str_contains($url, 'param_tenant_id=tenant-x');
+        });
+    }
+
+    public function test_host_timeline_omits_tenant_filter_when_null(): void
+    {
+        $this->configureClickHouse();
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+
+        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300);
+
+        Http::assertSent(fn ($request) => !str_contains((string) $request->body(), 'tenant_id'));
+    }
+
+    public function test_domain_breakdown_adds_tenant_filter_when_given(): void
+    {
+        $this->configureClickHouse();
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+
+        (new ClickHouseTelemetryReader())->domainBreakdown(now()->subDay(), ['identity'], 'tenant-x');
+
+        Http::assertSent(function ($request) {
+            $url = (string) $request->url();
+            $body = (string) $request->body();
+
+            return str_contains($body, 'tenant_id = {tenant_id:String}')
+                && str_contains($url, 'param_tenant_id=tenant-x');
+        });
+    }
+
+    public function test_hunt_search_adds_tenant_filter_when_given(): void
+    {
+        $this->configureClickHouse();
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+
+        (new ClickHouseTelemetryReader())->huntSearch([
+            'minutes' => 60, 'host_id' => '', 'process' => '', 'event_type' => '', 'user' => '', 'ip' => '', 'domain' => '',
+        ], 100, 'tenant-x');
+
+        Http::assertSent(function ($request) {
+            $url = (string) $request->url();
+            $body = (string) $request->body();
+
+            return str_contains($body, 'tenant_id = {tenant_id:String}')
+                && str_contains($url, 'param_tenant_id=tenant-x');
+        });
+    }
+
+    public function test_forensic_host_events_adds_tenant_filter_when_given(): void
+    {
+        $this->configureClickHouse();
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+
+        (new ClickHouseTelemetryReader())->forensicHostEvents('host-forensic', 200, 'tenant-x');
+
+        Http::assertSent(function ($request) {
+            $url = (string) $request->url();
+            $body = (string) $request->body();
+
+            return str_contains($body, 'tenant_id = {tenant_id:String}')
+                && str_contains($url, 'param_tenant_id=tenant-x');
+        });
+    }
+
+    public function test_hunt_route_scopes_clickhouse_query_to_requesting_tenant(): void
+    {
+        $this->configureClickHouse();
+        Config::set('xdr.infrastructure.clickhouse.telemetry_write_target', 'clickhouse');
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+        $user = User::factory()->create(['role' => 'admin']);
+        app(\App\Services\TenantContextAuthority::class)->grantMembership($user->id, 'tenant-hunt-x', $user->id);
+
+        $this->actingAs($user)
+            ->withHeaders(['X-Tenant-ID' => 'tenant-hunt-x'])
+            ->get('/soc/hunts?run=1');
+
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), 'param_tenant_id=tenant-hunt-x'));
+    }
+
+    public function test_endpoint_timeline_route_scopes_clickhouse_query_to_requesting_tenant(): void
+    {
+        $this->configureClickHouse();
+        Config::set('xdr.infrastructure.clickhouse.telemetry_write_target', 'clickhouse');
+        Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
+        $user = User::factory()->create(['role' => 'admin']);
+        app(\App\Services\TenantContextAuthority::class)->grantMembership($user->id, 'tenant-timeline-x', $user->id);
+
+        $this->actingAs($user)
+            ->withHeaders(['X-Tenant-ID' => 'tenant-timeline-x'])
+            ->get('/soc/endpoints/host-tenant-test');
+
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), 'param_tenant_id=tenant-timeline-x'));
+    }
 }

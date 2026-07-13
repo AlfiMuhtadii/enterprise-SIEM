@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ClickHouseTelemetryReader;
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,10 +14,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SocHuntController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function index(Request $request): View
     {
         $filters = $this->filters($request);
-        $results = $request->has('run') ? $this->queryTelemetry($filters, 100) : collect();
+        $results = $request->has('run') ? $this->queryTelemetry($request, $filters, 100) : collect();
 
         if ($request->has('run')) {
             $runId = 'hunt-run-'.Str::uuid();
@@ -70,7 +73,7 @@ class SocHuntController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->filters($request);
-        $rows = $this->queryTelemetry($filters, 1000);
+        $rows = $this->queryTelemetry($request, $filters, 1000);
         AuditLogger::log($request->user()->email, 'hunt.export', 'threat_hunt', null, null, ['filters' => $filters, 'count' => $rows->count()]);
 
         return response()->streamDownload(function () use ($rows) {
@@ -94,15 +97,20 @@ class SocHuntController extends Controller
         ];
     }
 
-    private function queryTelemetry(array $filters, int $limit)
+    private function queryTelemetry(Request $request, array $filters, int $limit)
     {
         // ARCH-DB-SPLIT (read path): same ClickHouse-when-configured,
         // Postgres-fallback-on-failure pattern as the dashboard/endpoint
         // timeline read paths — an analyst's hunt search never just breaks
         // because ClickHouse happens to be unreachable.
+        // TENANT-CLICKHOUSE-LEAK: scopes the ClickHouse query only -- the
+        // Postgres fallback below has no tenant_id column on
+        // telemetry_events at all (a separate, pre-existing, already-tracked
+        // gap this doesn't touch).
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
         $rows = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
-            $rows = (new ClickHouseTelemetryReader())->huntSearch($filters, $limit);
+            $rows = (new ClickHouseTelemetryReader())->huntSearch($filters, $limit, $tenantId);
         }
         if ($rows === null) {
             $q = DB::table('telemetry_events')

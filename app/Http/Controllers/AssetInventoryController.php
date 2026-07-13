@@ -66,7 +66,7 @@ class AssetInventoryController extends Controller
             createdBy: $request->user()->email,
         );
 
-        AuditLogger::log($request->user()->email, 'asset.register', 'asset_inventory', $asset->external_id, null, $data);
+        AuditLogger::log($request->user()->email, 'asset.register', 'asset_inventory', $asset->external_id, null, $data, tenantId: $tenantId);
 
         return back()->with('status', 'Asset registered.');
     }
@@ -88,7 +88,7 @@ class AssetInventoryController extends Controller
             $request->user()->email,
         );
 
-        AuditLogger::log($request->user()->email, 'asset.criticality.set', 'asset_inventory', $asset->external_id, null, $data);
+        AuditLogger::log($request->user()->email, 'asset.criticality.set', 'asset_inventory', $asset->external_id, null, $data, tenantId: $tenantId);
 
         return back()->with('status', "Criticality set to {$criticality->criticality_tier}.");
     }
@@ -105,7 +105,7 @@ class AssetInventoryController extends Controller
         AuditLogger::log($request->user()->email, 'asset.import', 'asset_inventory', $tenantId, null, [
             'imported' => $result['imported'],
             'skipped' => $result['skipped'],
-        ]);
+        ], tenantId: $tenantId);
 
         return back()->with('status', "Imported {$result['imported']} assets, skipped {$result['skipped']}.");
     }

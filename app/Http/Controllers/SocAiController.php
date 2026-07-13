@@ -67,7 +67,7 @@ class SocAiController extends Controller
             'updated_at' => now(),
         ]);
         $after = DB::table('ai_analyst_suggestions')->where('suggestion_id', $suggestionId)->first();
-        AuditLogger::log($request->user()->email, 'ai.review', 'ai_suggestion', $suggestionId, $before, $after);
+        AuditLogger::log($request->user()->email, 'ai.review', 'ai_suggestion', $suggestionId, $before, $after, tenantId: $tenantId);
 
         if ($data['status'] === 'accepted') {
             $ai->ingestApprovedFeedback($suggestionId, $request->user()->email, $data['review_note'] ?? null);

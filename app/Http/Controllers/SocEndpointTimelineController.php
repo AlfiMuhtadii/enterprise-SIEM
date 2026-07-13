@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ClickHouseTelemetryReader;
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,19 +12,26 @@ use Illuminate\View\View;
 
 class SocEndpointTimelineController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function show(Request $request, string $hostId): View
     {
         $minutes = max(15, min(10080, (int) $request->query('minutes', 1440)));
         $type = trim((string) $request->query('type', ''));
         $since = now()->subMinutes($minutes);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
 
         // ARCH-DB-SPLIT (read path): when telemetry writes are routed to
         // ClickHouse, read from the same store instead of Postgres, which
         // has no new rows to show under that mode — falls back to Postgres
         // on any ClickHouse failure so this page never just breaks.
+        // TENANT-CLICKHOUSE-LEAK: $tenantId scopes the ClickHouse query only
+        // -- the Postgres fallback below has no tenant_id column on
+        // telemetry_events at all (TenantBoundaryService::UNISOLATED_TABLES),
+        // a separate, pre-existing, already-tracked gap this doesn't touch.
         $telemetry = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
-            $telemetry = (new ClickHouseTelemetryReader())->hostTimeline($hostId, $since, $type, 300);
+            $telemetry = (new ClickHouseTelemetryReader())->hostTimeline($hostId, $since, $type, 300, $tenantId);
         }
         if ($telemetry === null) {
             $telemetry = DB::table('telemetry_events')

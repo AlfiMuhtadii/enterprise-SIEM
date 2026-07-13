@@ -31,6 +31,22 @@ use Illuminate\Support\Facades\Log;
  * HTTP query binding (`param_x` + `{x:Type}`), never string-interpolated
  * user input, and a null return on any failure so callers can fall back to
  * Postgres rather than show a broken page.
+ *
+ * TENANT-CLICKHOUSE-LEAK: hostTimeline()/domainBreakdown()/huntSearch()/
+ * forensicHostEvents() accept an optional `?string $tenantId` and, when
+ * given, add `AND tenant_id = {tenant_id:String}` — ClickHouse's
+ * telemetry_events has carried `tenant_id` since it was created
+ * (ARCH-DB-SPLIT write path), so this needed no schema change on this
+ * side. `identityCloudSaasWindow()` deliberately has NO tenant parameter:
+ * DetectionBacktestService is a global/admin-only replay tool with no
+ * per-tenant concept in its own Postgres query either, so adding one only
+ * here would make the two backends diverge for the same caller.
+ * Known asymmetry, not a regression introduced here: Postgres's own
+ * telemetry_events has no tenant_id column at all (registered in
+ * TenantBoundaryService::UNISOLATED_TABLES) and cannot be scoped the same
+ * way — under the default telemetry_write_target=postgres, these 4 read
+ * paths remain exactly as unscoped as they always were; passing a tenantId
+ * here only tightens the opt-in ClickHouse path, it never loosens Postgres.
  */
 class ClickHouseTelemetryReader
 {
@@ -42,7 +58,7 @@ class ClickHouseTelemetryReader
      * event_id) was designed around (see xdr_infra_clients.py's
      * setup_schema() comment).
      */
-    public function hostTimeline(string $hostId, Carbon $since, string $eventType, int $limit): ?Collection
+    public function hostTimeline(string $hostId, Carbon $since, string $eventType, int $limit, ?string $tenantId = null): ?Collection
     {
         $conditions = ['host_id = {host_id:String}', 'ts >= {since:DateTime64}'];
         $params = [
@@ -52,6 +68,10 @@ class ClickHouseTelemetryReader
         if ($eventType !== '') {
             $conditions[] = 'event_type = {event_type:String}';
             $params['event_type'] = $eventType;
+        }
+        if ($tenantId !== null) {
+            $conditions[] = 'tenant_id = {tenant_id:String}';
+            $params['tenant_id'] = $tenantId;
         }
 
         $sql = 'SELECT ts, event_type, host_id, process_name, src_ip, dst_ip, dst_port'
@@ -68,7 +88,7 @@ class ClickHouseTelemetryReader
      * benchmark used (see REVIEW_COMPLETED.md): telemetry_events GROUP BY
      * telemetry_type WHERE ts >= ? AND telemetry_type IN (...).
      */
-    public function domainBreakdown(Carbon $since, array $telemetryTypes): ?Collection
+    public function domainBreakdown(Carbon $since, array $telemetryTypes, ?string $tenantId = null): ?Collection
     {
         $placeholders = [];
         $params = ['since' => $since->format('Y-m-d H:i:s.u')];
@@ -78,8 +98,14 @@ class ClickHouseTelemetryReader
             $params[$key] = $type;
         }
 
+        $conditions = ['ts >= {since:DateTime64}', 'telemetry_type IN ('.implode(',', $placeholders).')'];
+        if ($tenantId !== null) {
+            $conditions[] = 'tenant_id = {tenant_id:String}';
+            $params['tenant_id'] = $tenantId;
+        }
+
         $sql = 'SELECT telemetry_type, count(*) as total FROM telemetry_events'
-            .' WHERE ts >= {since:DateTime64} AND telemetry_type IN ('.implode(',', $placeholders).')'
+            .' WHERE '.implode(' AND ', $conditions)
             .' GROUP BY telemetry_type ORDER BY total DESC'
             .' FORMAT JSONEachRow';
 
@@ -94,7 +120,7 @@ class ClickHouseTelemetryReader
      *
      * @param  array{minutes:int,host_id:string,process:string,event_type:string,user:string,ip:string,domain:string}  $filters
      */
-    public function huntSearch(array $filters, int $limit): ?Collection
+    public function huntSearch(array $filters, int $limit, ?string $tenantId = null): ?Collection
     {
         $conditions = ['ts >= {since:DateTime64}'];
         $params = ['since' => now()->subMinutes($filters['minutes'])->format('Y-m-d H:i:s.u')];
@@ -118,6 +144,10 @@ class ClickHouseTelemetryReader
             $conditions[] = 'payload ILIKE {domain:String}';
             $params['domain'] = '%'.$filters['domain'].'%';
         }
+        if ($tenantId !== null) {
+            $conditions[] = 'tenant_id = {tenant_id:String}';
+            $params['tenant_id'] = $tenantId;
+        }
 
         $sql = 'SELECT ts, event_type, telemetry_type, host_id, process_name, src_ip, dst_ip, dst_port,'
             .' user_name_hash, domain, xdr_user, xdr_action, risk_score, event_source'
@@ -133,13 +163,17 @@ class ClickHouseTelemetryReader
      * simple exact-host_id lookup (or the full table when no host is set on
      * the job) — no other filters, no free text.
      */
-    public function forensicHostEvents(?string $hostId, int $limit): ?Collection
+    public function forensicHostEvents(?string $hostId, int $limit, ?string $tenantId = null): ?Collection
     {
         $conditions = [];
         $params = [];
         if ($hostId !== null && $hostId !== '') {
             $conditions[] = 'host_id = {host_id:String}';
             $params['host_id'] = $hostId;
+        }
+        if ($tenantId !== null) {
+            $conditions[] = 'tenant_id = {tenant_id:String}';
+            $params['tenant_id'] = $tenantId;
         }
 
         $sql = 'SELECT ts, event_type, telemetry_type, host_id, process_name, src_ip, dst_ip, dst_port, protocol,'

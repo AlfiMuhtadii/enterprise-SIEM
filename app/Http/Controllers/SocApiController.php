@@ -75,7 +75,15 @@ class SocApiController extends Controller
     public function audit(Request $request): JsonResponse
     {
         $limit = max(1, min(500, (int) $request->query('limit', 100)));
-        return response()->json(DB::table('security_audit_trails')->orderByDesc('occurred_at')->limit($limit)->get());
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+
+        return response()->json(
+            DB::table('security_audit_trails')
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->orderByDesc('occurred_at')
+                ->limit($limit)
+                ->get()
+        );
     }
 
     public function benchmarks(Request $request): JsonResponse

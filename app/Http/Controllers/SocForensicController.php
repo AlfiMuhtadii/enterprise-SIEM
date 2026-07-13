@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ClickHouseTelemetryReader;
+use App\Services\TenantContextAuthority;
 use App\Support\AuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,8 @@ use ZipArchive;
 
 class SocForensicController extends Controller
 {
+    public function __construct(private readonly TenantContextAuthority $tenantAuthority) {}
+
     public function request(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -53,7 +56,8 @@ class SocForensicController extends Controller
             return back()->with('status', 'Forensic collection rejected.');
         }
 
-        $artifact = $this->buildArtifact($job);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
+        $artifact = $this->buildArtifact($job, $tenantId);
         DB::table('forensic_collection_jobs')->where('job_id', $jobId)->update([
             'status' => 'completed',
             'approved_by' => $request->user()->email,
@@ -68,7 +72,7 @@ class SocForensicController extends Controller
         return back()->with('status', 'Forensic bundle completed.');
     }
 
-    private function buildArtifact(object $job): array
+    private function buildArtifact(object $job, ?string $tenantId = null): array
     {
         $dir = storage_path('app/forensics');
         if (!is_dir($dir)) {
@@ -79,9 +83,15 @@ class SocForensicController extends Controller
         // Postgres-fallback-on-failure pattern as the other migrated read
         // paths — a forensic artifact must never fail to build just
         // because ClickHouse happens to be unreachable.
+        // TENANT-CLICKHOUSE-LEAK: scopes the ClickHouse query only -- the
+        // Postgres fallback below has no tenant_id column on
+        // telemetry_events at all (a separate, pre-existing, already-tracked
+        // gap this doesn't touch); forensic_collection_jobs itself also has
+        // no tenant_id column yet, so this uses the approving analyst's own
+        // resolved tenant context.
         $telemetry = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
-            $telemetry = (new ClickHouseTelemetryReader())->forensicHostEvents($job->host_id, 200);
+            $telemetry = (new ClickHouseTelemetryReader())->forensicHostEvents($job->host_id, 200, $tenantId);
         }
         if ($telemetry === null) {
             $telemetry = DB::table('telemetry_events')->when($job->host_id, fn ($q) => $q->where('host_id', $job->host_id))->orderByDesc('ts')->limit(200)->get();

@@ -456,10 +456,19 @@ services:
       redpanda:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "python3 -m py_compile scripts/telemetry_stream_worker.py"]
+      # TELEMETRY-WORKER-COMMIT-AFTER-WRITE: a py_compile-only check just
+      # proves the file has valid syntax, not that the running process is
+      # actually consuming -- a hung/dead consumer would still report
+      # healthy forever. The worker writes a heartbeat file after every
+      # successful durable batch flush (or every ~1s of idle polling via
+      # the bounded consumer_timeout_ms loop); a stale file means the
+      # process is alive but stuck (e.g. exhausting its bounded flush
+      # retries) or already dead.
+      test: ["CMD-SHELL", "python3 -c \"import time,sys; p='storage/app/telemetry_worker_heartbeat'; d=open(p).read().strip() if __import__('os').path.exists(p) else None; sys.exit(0 if d and time.time()-float(d)<90 else 1)\""]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   # ENT-DETECT-ML-NOT-LIVE: the rule+ML hybrid detector for HTTP-request
