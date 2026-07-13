@@ -407,6 +407,179 @@ class TestConsumerGroupStability(unittest.TestCase):
                          f"Default stable group must have no timestamp suffix, got: {group}")
 
 
+# ---------------------------------------------------------------------------
+# PANDAPROXY-OFFSET-RESET-STORM: regression tests for a real bug found via
+# live verification against a real Redpanda v24.2.8 broker -- a *persistent*
+# (not transient) offset_out_of_range previously caused an unbounded,
+# zero-delay recreate loop that produced ~2500 stale consumer groups in
+# under a minute. These prove the fix backs off, caps retries, and stays
+# loud (ERROR-level) about a stalled consumer instead of dying silently.
+# ---------------------------------------------------------------------------
+
+class TestEventLoopOffsetErrorBackoff(unittest.TestCase):
+    def test_backoff_grows_between_consecutive_offset_errors(self):
+        """Each offset_out_of_range recreate must sleep for an increasing,
+        capped backoff -- the original bug recreated with zero delay."""
+        offset_err = _make_offset_err()
+        poll_count = [0]
+        sleep_calls: list = []
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                mock_resp.json.return_value = {
+                    "base_uri": f"http://localhost:8082/consumers/g/instances/n{poll_count[0]}"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            poll_count[0] += 1
+            if poll_count[0] <= 4:
+                raise offset_err
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", return_value=MagicMock()), \
+             patch.object(aw.time, "sleep", side_effect=lambda s: sleep_calls.append(s)):
+            aw.event_loop()
+
+        # 4 offset errors -> backoffs 1, 2, 4, 8 (base=1s, doubling, capped at 60s).
+        self.assertEqual(sleep_calls[:4], [1, 2, 4, 8],
+                         f"Expected doubling backoff starting at 1s, got: {sleep_calls}")
+
+    def test_backoff_caps_at_max_seconds(self):
+        """Backoff must not grow unbounded -- capped at 60s."""
+        offset_err = _make_offset_err()
+        poll_count = [0]
+        sleep_calls: list = []
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                mock_resp.json.return_value = {
+                    "base_uri": f"http://localhost:8082/consumers/g/instances/n{poll_count[0]}"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            poll_count[0] += 1
+            if poll_count[0] <= 12:
+                raise offset_err
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", return_value=MagicMock()), \
+             patch.object(aw.time, "sleep", side_effect=lambda s: sleep_calls.append(s)):
+            aw.event_loop()
+
+        self.assertTrue(all(s <= 60 for s in sleep_calls),
+                        f"Backoff must never exceed 60s cap, got: {sleep_calls}")
+        self.assertIn(60, sleep_calls, "Backoff should reach the 60s cap given enough consecutive errors")
+
+    def test_stops_recreating_after_max_offset_error_retries(self):
+        """A truly persistent offset_out_of_range (never clears) must not
+        create unbounded consumer groups -- the original bug created ~2500
+        stale groups in under a minute against a real broker."""
+        offset_err = _make_offset_err()
+        create_calls: list = []
+        poll_count = [0]
+        MAX_POLLS = 30
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            if "/consumers/" in url and "/subscription" not in url:
+                create_calls.append(url)
+                mock_resp.json.return_value = {
+                    "base_uri": f"http://localhost:8082/consumers/g/instances/n{len(create_calls)}"
+                }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            poll_count[0] += 1
+            if poll_count[0] >= MAX_POLLS:
+                aw.STOP.set()
+            raise offset_err
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.SESSION, "delete", return_value=MagicMock()), \
+             patch.object(aw.time, "sleep", return_value=None):
+            aw.event_loop()
+
+        # _MAX_OFFSET_ERROR_RETRIES=10 -- after that the loop stops recreating
+        # and just sleeps at max backoff, so create_calls must stay bounded
+        # even though the fake broker rejected all 30 polls.
+        self.assertLess(len(create_calls), MAX_POLLS,
+                        f"Consumer group creation must stop once persistently failing, got {len(create_calls)} creates for {MAX_POLLS} polls")
+        self.assertLessEqual(len(create_calls), 12,
+                             f"Expected at most ~11 creates (1 initial + 10 retries) before giving up, got {len(create_calls)}")
+
+
+class TestEventLoopStartupRetry(unittest.TestCase):
+    def test_startup_failure_retries_instead_of_dying_permanently(self):
+        """A transient failure on the very first consumer_create (e.g.
+        Redpanda not yet ready) used to kill event_loop permanently with a
+        bare `return` and no retry -- confirmed live: the consumer never
+        came back even hours after the broker was healthy again."""
+        attempt = [0]
+        create_calls: list = []
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            if "/consumers/" in url and "/subscription" not in url:
+                attempt[0] += 1
+                create_calls.append(url)
+                if attempt[0] < 3:
+                    raise ConnectionError("connection refused")
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {
+                "base_uri": f"http://localhost:8082/consumers/g/instances/n{attempt[0]}"
+            }
+            return mock_resp
+
+        def fake_get(url, headers=None, timeout=None):
+            aw.STOP.set()
+            mock_resp = MagicMock()
+            mock_resp.text = "[]"
+            mock_resp.json.return_value = []
+            mock_resp.raise_for_status.return_value = None
+            return mock_resp
+
+        aw.STOP.clear()
+        aw.DLQ.clear()
+        with patch.object(aw.SESSION, "post", side_effect=fake_post), \
+             patch.object(aw.SESSION, "get", side_effect=fake_get), \
+             patch.object(aw.time, "sleep", return_value=None):
+            aw.event_loop()
+
+        self.assertEqual(attempt[0], 3,
+                         "event_loop must retry consumer_create on startup failure instead of giving up after one try")
+        error_dlq = [e for e in aw.DLQ if "consumer_start_failed" in e.get("error", "")]
+        self.assertGreaterEqual(len(error_dlq), 2,
+                                "Each failed startup attempt should be recorded")
+
+
 class TestHttpSessionPooling(unittest.TestCase):
     """PERF-PYTHON-HTTP: outbound HTTP must go through a reused Session."""
 

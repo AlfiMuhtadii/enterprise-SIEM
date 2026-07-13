@@ -6,6 +6,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app main.py ./
 COPY --chown=app:app xdr_event_contracts.py ./
 COPY --chown=app:app traceparent.py ./
+COPY --chown=app:app otlp_export.py ./
+COPY --chown=app:app pg_pool.py ./
 COPY --chown=app:app incident_aggregation.py ./
 COPY --chown=app:app docker-entrypoint.sh ./
 COPY --chown=app:app docker-healthcheck.py ./

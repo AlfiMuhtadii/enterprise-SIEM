@@ -430,6 +430,23 @@ def event_loop() -> None:
     topic = os.getenv("XDR_ALERTS_CREATED_TOPIC", "alerts.created")
     offset_reset = os.getenv("XDR_INCIDENT_BUILDER_AUTO_OFFSET_RESET", "earliest")
     _MAX_ERRORS_BEFORE_RECREATE = 3
+    # PANDAPROXY-OFFSET-RESET-STORM: a *persistent* offset_out_of_range (as
+    # opposed to a transient one that clears on retry) previously caused an
+    # unbounded, zero-delay recreate loop -- confirmed live against a real
+    # Redpanda v24.2.8 broker: Pandaproxy's REST consumer fails to resolve
+    # "earliest" against a topic whose current log-start-offset has advanced
+    # past 0 (a real Pandaproxy defect -- the native Kafka protocol resolves
+    # this correctly, see ARCH-KAFKA-NATIVE), so *every* fresh group hits the
+    # same error immediately and the old code recreated with zero backoff,
+    # producing thousands of stale consumer groups in under a minute. This
+    # cannot be fixed at the app layer (there is no numeric-offset or
+    # alternate-reset escape hatch this Pandaproxy version accepts), so
+    # instead of retrying forever at full speed, back off exponentially and
+    # cap how many consecutive offset-triggered recreates are attempted
+    # before the loop gives up loudly rather than spinning silently forever.
+    _OFFSET_ERROR_BACKOFF_BASE_SECONDS = 1
+    _OFFSET_ERROR_BACKOFF_MAX_SECONDS = 60
+    _MAX_OFFSET_ERROR_RETRIES = 10
 
     # Stable group name: reused across restarts and across non-offset-error
     # reconnects, so Redpanda resumes from the last committed offset instead
@@ -447,6 +464,10 @@ def event_loop() -> None:
     name = _new_instance_id()
     base_uri: Optional[str] = None
     consecutive_errors = 0
+    offset_error_streak = 0
+
+    def _offset_error_backoff_seconds(streak: int) -> float:
+        return min(_OFFSET_ERROR_BACKOFF_BASE_SECONDS * (2 ** streak), _OFFSET_ERROR_BACKOFF_MAX_SECONDS)
 
     def _setup_consumer(g: str, n: str) -> str:
         uri = consumer_create(g, n, offset_reset=offset_reset)
@@ -461,19 +482,36 @@ def event_loop() -> None:
         f"[incident-builder] consumer starting  topic={topic}  group={group}"
         f"  instance={name}  auto.offset.reset={offset_reset}"
     )
-    try:
-        base_uri = _setup_consumer(group, name)
-    except Exception as exc:
-        METRICS["consumer_errors"] += 1
-        DLQ.append({"ts": now_iso(), "target": topic, "error": f"consumer_start_failed: {exc}"})
-        METRICS["dlq_count"] = len(DLQ)
-        return
+    # A startup failure (e.g. Redpanda/Pandaproxy not yet ready) used to kill
+    # this whole thread permanently with no retry and no visible error log --
+    # confirmed live on the sibling alert-writer-service (same pattern): the
+    # consumer silently never came back even hours after the underlying
+    # broker was healthy again. Retry with the same bounded backoff as the
+    # steady-state loop instead of giving up after one try.
+    startup_attempt = 0
+    while base_uri is None and not STOP.is_set():
+        try:
+            base_uri = _setup_consumer(group, name)
+        except Exception as exc:
+            startup_attempt += 1
+            METRICS["consumer_errors"] += 1
+            DLQ.append({"ts": now_iso(), "target": topic, "error": f"consumer_start_failed: {exc}"})
+            METRICS["dlq_count"] = len(DLQ)
+            backoff = _offset_error_backoff_seconds(startup_attempt - 1)
+            log.error(
+                f"[incident-builder] ERROR: consumer start failed (attempt {startup_attempt}): {exc}"
+                f"  — retrying in {backoff:.0f}s"
+            )
+            time.sleep(backoff)
+    if base_uri is None:
+        return  # STOP was set while retrying startup
 
     while not STOP.is_set():
         try:
             records = consumer_poll(base_uri)
             METRICS["consumer_polls"] += 1
             consecutive_errors = 0
+            offset_error_streak = 0
             alerts = normalize_records(records)
             if alerts:
                 log.info(
@@ -496,17 +534,53 @@ def event_loop() -> None:
             })
             METRICS["dlq_count"] = len(DLQ)
 
-            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok
-            if should_recreate:
-                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_consecutive_errors"
+            if is_offset_err:
+                offset_error_streak += 1
+                # PANDAPROXY-OFFSET-RESET-STORM: a persistent (not transient)
+                # offset_out_of_range means every fresh group will hit the
+                # exact same error forever -- back off exponentially instead
+                # of recreating at full speed, and stop trying once it's
+                # clearly not a fluke so this failure is loud, not a silent
+                # resource drain.
+                if offset_error_streak > _MAX_OFFSET_ERROR_RETRIES:
+                    log.error(
+                        f"[incident-builder] ERROR: offset_out_of_range persisted after"
+                        f" {offset_error_streak} consecutive recreate attempts on topic={topic}"
+                        f"  — giving up group recreation; consumer is now stalled."
+                        f" This usually means Pandaproxy cannot resolve"
+                        f" auto.offset.reset=earliest against this topic's current"
+                        f" log-start-offset (a known Redpanda Pandaproxy limitation on"
+                        f" topics whose earliest offset has advanced past 0)."
+                        f" Sleeping at max backoff ({_OFFSET_ERROR_BACKOFF_MAX_SECONDS}s)"
+                        f" and will keep retrying, but this needs operator attention."
+                    )
+                    time.sleep(_OFFSET_ERROR_BACKOFF_MAX_SECONDS)
+                    continue
+                backoff = _offset_error_backoff_seconds(offset_error_streak - 1)
+                log.warning(
+                    f"[incident-builder] WARN: consumer recovery triggered (offset_out_of_range)"
+                    f"  group={group}  topic={topic}  attempt={offset_error_streak}"
+                    f"  — deleting and recreating in {backoff:.0f}s"
+                )
+                time.sleep(backoff)
+                if base_uri:
+                    consumer_delete(base_uri)
+                group = _fresh_group_for_offset_reset()
+                name = _new_instance_id()
+                consecutive_errors = 0
+                try:
+                    base_uri = _setup_consumer(group, name)
+                except Exception as setup_exc:
+                    log.error(f"[incident-builder] ERROR: consumer recreate failed: {setup_exc}")
+                    METRICS["consumer_errors"] += 1
+            elif consecutive_errors >= _MAX_ERRORS_BEFORE_RECREATE or not dlq_ok:
+                reason = f"{consecutive_errors}_consecutive_errors" if dlq_ok else "dlq_write_failed"
                 log.warning(
                     f"[incident-builder] WARN: consumer recovery triggered ({reason})"
                     f"  group={group}  topic={topic}  — deleting and recreating"
                 )
                 if base_uri:
                     consumer_delete(base_uri)
-                if is_offset_err:
-                    group = _fresh_group_for_offset_reset()
                 name = _new_instance_id()
                 consecutive_errors = 0
                 try:

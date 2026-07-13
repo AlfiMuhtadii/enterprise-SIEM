@@ -184,6 +184,9 @@ func TestNativeConsumeOnceCommitsOffsetSoRecordIsNotRedelivered(t *testing.T) {
 
 	// A fresh consumer under the SAME group must see nothing new -- the
 	// offset was committed, so it starts past the already-processed record.
+	// This also exercises the idle-poll-timeout path: a context that expires
+	// with nothing to consume must NOT surface as an error (see
+	// TestNativeConsumerPollOnIdleTopicReturnsNoErrorAfterContextTimeout).
 	freshConsumer, err := kafkanative.NewConsumer(brokers, "test-group-commit", []string{"telemetry.raw"})
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
@@ -192,11 +195,44 @@ func TestNativeConsumeOnceCommitsOffsetSoRecordIsNotRedelivered(t *testing.T) {
 	pollCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	records, err := freshConsumer.Poll(pollCtx)
-	if err != nil && pollCtx.Err() == nil {
+	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
 	if len(records) != 0 {
 		t.Fatalf("expected no redelivered records after commit, got %d", len(records))
+	}
+}
+
+// TestNativeConsumerPollOnIdleTopicReturnsNoErrorAfterContextTimeout is a
+// regression test for a real bug found via live-pipeline verification
+// against a real Redpanda broker (this scenario was never exercised by the
+// kfake-based tests above, since every one of them always produces a record
+// before polling): franz-go's PollFetches surfaces a context-deadline-
+// exceeded condition as a synthetic FetchError, not as an empty, error-free
+// Fetches. Left unfiltered, every idle poll cycle looked identical to a
+// genuine broker error, and every caller of this package (all of which poll
+// in a bounded-timeout loop) would tear down and rejoin the consumer group
+// every ~30s on an idle topic -- reintroducing, via a different bug, the
+// exact rebalance-storm failure mode this native transport exists to
+// eliminate (PERF-REST-REBALANCE). Confirmed live: without the fix in
+// Consumer.Poll, normalizer-worker and correlation-worker reconnected every
+// ~30-35s indefinitely against a real, completely idle Redpanda topic.
+func TestNativeConsumerPollOnIdleTopicReturnsNoErrorAfterContextTimeout(t *testing.T) {
+	brokers := newKfakeCluster(t, "telemetry.raw")
+	consumer, err := kafkanative.NewConsumer(brokers, "test-group-idle", []string{"telemetry.raw"})
+	if err != nil {
+		t.Fatalf("NewConsumer: %v", err)
+	}
+	defer consumer.Close()
+
+	pollCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	records, err := consumer.Poll(pollCtx)
+	if err != nil {
+		t.Fatalf("Poll on an idle topic must not error just because the context timed out with nothing to consume, got: %v", err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("expected no records from an idle topic, got %d", len(records))
 	}
 }
 

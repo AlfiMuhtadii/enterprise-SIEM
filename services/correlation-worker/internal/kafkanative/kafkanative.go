@@ -19,6 +19,7 @@ package kafkanative
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -101,10 +102,32 @@ func NewConsumer(brokers []string, group string, topics []string) (*Consumer, er
 
 // Poll fetches the next batch of records, blocking until at least one
 // record arrives, ctx is done, or a fetch error occurs.
+//
+// A poll whose context expires before any record arrives is not a
+// broker/protocol failure -- it is simply "no messages this cycle," the
+// expected steady state on an idle topic. franz-go surfaces this case via a
+// synthetic FetchError (Topic="", Partition=-1, wrapping ctx.Err()) rather
+// than an empty, error-free Fetches, so it must be filtered out here.
+// Otherwise every idle poll looks identical to a genuine broker error and
+// callers using a bounded-timeout poll loop (as every caller of this
+// package does) would force a full consumer-group reconnect every single
+// cycle on an idle topic -- reintroducing, via a different bug, the exact
+// rebalance-storm failure mode this native transport was built to
+// eliminate (PERF-REST-REBALANCE). Confirmed against a live idle topic:
+// without this filter, the consumer reconnected every ~30s indefinitely.
 func (c *Consumer) Poll(ctx context.Context) ([]*Record, error) {
 	fetches := c.cl.PollFetches(ctx)
 	if errs := fetches.Errors(); len(errs) > 0 {
-		return nil, fmt.Errorf("kafkanative: poll: %v", errs)
+		var real []error
+		for _, fe := range errs {
+			if fe.Topic == "" && fe.Partition == -1 && (errors.Is(fe.Err, context.DeadlineExceeded) || errors.Is(fe.Err, context.Canceled)) {
+				continue
+			}
+			real = append(real, fe.Err)
+		}
+		if len(real) > 0 {
+			return nil, fmt.Errorf("kafkanative: poll: %v", real)
+		}
 	}
 	return fetches.Records(), nil
 }
