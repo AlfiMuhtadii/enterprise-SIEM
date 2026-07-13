@@ -91,28 +91,6 @@ Findings that are false positives, not applicable to the architecture, or where 
 
 ---
 
-### AGENT-MIGRATE-GO: Migrate Endpoint Agent from Python to Go
-
-- **Category**: Architecture / Language Rewrite
-- **Severity**: N/A (proposal, not a defect)
-- **Source**: REVIEW_BACKLOG.md proposed task, 2026-07-14
-- **Finding**: Endpoint agent is Python stdlib; no Python pre-installed on standard Windows endpoints (real deployment friction), higher memory (~50-100MB) than a compiled binary, and relies on spawning subprocesses (`ps`/`ss`) rather than native OS APIs.
-- **Rejection reason**: The proposed fix is a full big-bang rewrite of an entire service into a different language — exactly the pattern the Architecture Direction Lock names to avoid ("big bang rewrite", "speculative redesign", "unnecessary rewrites", "architecture churn"), not the strangler/incremental approach this codebase otherwise follows everywhere (see ARCH-KAFKA-NATIVE's opt-in native-transport addition alongside the existing REST path, never a wholesale rewrite). More importantly, the specific proposed mechanism — hooking OS-native kernel tracing APIs (ETW on Windows, eBPF on Linux) — directly re-opens **GAP-005** in this same file ("No kernel-level telemetry (non-goal by design)" — Accepted Risk, condition to re-evaluate: **"Never — this is an architectural boundary, not a deferred feature"**) and crosses into the Non-Goals this project explicitly and repeatedly states it is not: "a kernel telemetry platform", "a full EDR". `services/endpoint-agent`'s Python-stdlib design (no credential collection, no packet sniffing, no kernel module, advisory-only) is a deliberate safety boundary documented in Architecture Boundaries and Forbidden Changes, not an oversight to modernize away. The real-world Windows-Python-availability friction is a legitimate packaging concern, but the proposed fix (kernel hooks + full rewrite) is the wrong solution to it — a bundled/frozen Python distribution (PyInstaller-style) would address the "no Python on the box" problem without any of the kernel-boundary or rewrite-risk issues, and is not what this backlog item proposes.
-- **Status**: **REJECTED**
-
----
-
-### PIPE-MIGRATE-GO: Migrate Alert Writer and Incident Builder from Python to Go
-
-- **Category**: Architecture / Language Rewrite
-- **Severity**: N/A (proposal, not a defect)
-- **Source**: REVIEW_BACKLOG.md proposed task, 2026-07-14
-- **Finding**: `alert-writer-service`/`incident-builder-service` are Python/FastAPI while the 3 upstream pipeline services are Go; Python's GIL, per-process memory footprint, and separate dependency/native-Kafka-client management are cited as reasons to unify the stack.
-- **Rejection reason**: Python/FastAPI for these two services is the codebase's *current, deliberate* architecture — Architecture Boundaries' Service Responsibilities table specifies it explicitly, not as legacy debt. A full rewrite is a big-bang rewrite of the write path for real `security_alerts`/`security_incidents` — the single most correctness-sensitive part of the whole pipeline (CLAUDE.md: "preserve replay guarantees, event contract integrity" and the Architecture Direction Lock's "avoid big bang rewrite… architecture churn"). It would need to reproduce, in a second language, every piece of business logic these services own today: fingerprinting/dedup, incident aggregation, DLQ handling, RBAC/audit context, OpenSearch indexing, and the just-added native-Kafka + backoff/circuit-breaker logic from `PANDAPROXY-EARLIEST-RESET-BUG` (`REVIEW_COMPLETED.md`) — a large surface to re-verify for zero-behavior-change, for a benefit that is currently only theoretical (no measured GIL contention or memory pressure at this project's actual scale). Critically, this backlog item's own stated motivation — avoiding Python's separate native-Kafka-client burden — was **already substantially resolved today** by adding native Kafka transport (`kafka_native.py`, `franz-go`-equivalent via `confluent-kafka`) directly to both Python services, at a fraction of the risk of a full rewrite. If real production telemetry someday shows Python throughput is a genuine bottleneck at scale, that would be a fresh, narrower, evidence-based finding — not this broad "rewrite the service" proposal.
-- **Status**: **REJECTED**
-
----
-
 ### TEST-PER-TEST-SEED: "16 classes seed in setUp → heavy DemoSocSeeder re-runs per test method"
 
 - **Category**: Test Infra / False Premise
@@ -127,6 +105,31 @@ Findings that are false positives, not applicable to the architecture, or where 
 ## Section 2 — Deferred
 
 Valid enterprise-relevant findings that are not causing harm at current scale but must be addressed before high-traffic or multi-tenant production deployment.
+
+---
+
+### AGENT-MIGRATE-GO: Migrate Endpoint Agent from Python to Go — reclassified Rejected → Deferred 2026-07-14
+
+- **Category**: Architecture / Language Rewrite
+- **Severity**: Medium (real for a genuine commercial pilot; none today)
+- **Source**: REVIEW_BACKLOG.md proposed task, 2026-07-14
+- **Finding**: Endpoint agent is Python stdlib; no Python pre-installed on standard Windows endpoints (real deployment friction for an actual customer install), higher memory (~50-100MB) than a compiled binary, PyInstaller-bundled `.pyc` decompiles trivially so it offers no real anti-tamper/anti-reverse-engineering protection, and it relies on spawning subprocesses (`ps`/`ss`) rather than native OS APIs.
+- **Originally rejected outright; corrected after review pushback (2026-07-14).** The pushback was right that Go is genuine industry best practice for a real commercial EDR-class sensor (binary size, RAM, decompile resistance vs. an interpreted/bundled agent) — that's not in dispute, and my earlier "PyInstaller as a lighter alternative" suggestion was itself wrong (PyInstaller bundles are trivially unpacked with off-the-shelf tools; it buys no real protection). The finding is valid — it's just not in scope for the current phase. **Deferred, not Rejected**, because: this project has no live pilot/commercial deployment today, `services/endpoint-agent`'s Python-stdlib design is documented as intentional in Architecture Boundaries for the current advisory-only/shadow posture, and rewriting it now would be a big-bang rewrite the Architecture Direction Lock explicitly avoids, for a threat model (attacker reverse-engineering a distributed sensor binary) that doesn't yet apply — there is no adversary and no customer-distributed binary to protect.
+- **What stays a hard boundary regardless of language**: the specific mechanism of hooking OS-native kernel tracing APIs (ETW on Windows, eBPF on Linux) directly re-opens **GAP-005** in this same file ("No kernel-level telemetry (non-goal by design)" — condition to re-evaluate: **"Never — this is an architectural boundary, not a deferred feature"**) and crosses the Non-Goals this project explicitly states it is not: "a kernel telemetry platform", "a full EDR". A future Go rewrite must stay within the *current* agent's exact functional scope (process/persistence/network enumeration via OS APIs, no kernel-level event consumption, no credential collection, no packet sniffing) — the language change is deferrable, the capability boundary is not.
+- **Condition to re-evaluate**: Before the first real commercial/customer pilot deployment of the endpoint agent outside this dev environment — not before, since there is no distribution/tamper threat to defend against yet, and the CLAUDE.md-mandated feedback loop (endpoint agent's 186-test Python suite) would need a full parallel Go rewrite to stay green throughout, which is a substantial, staged undertaking, not a quick swap.
+- **Status**: **DEFERRED**
+
+---
+
+### PIPE-MIGRATE-GO: Migrate Alert Writer and Incident Builder from Python to Go — reclassified Rejected → Deferred 2026-07-14
+
+- **Category**: Architecture / Language Rewrite
+- **Severity**: Low (no measured bottleneck today; real if the platform reaches production scale)
+- **Source**: REVIEW_BACKLOG.md proposed task, 2026-07-14
+- **Finding**: `alert-writer-service`/`incident-builder-service` are Python/FastAPI while the 3 upstream pipeline services are Go; Python's GIL, per-process memory footprint, and running a second language/dependency stack are cited as reasons to unify on Go.
+- **Originally rejected outright; corrected after review pushback (2026-07-14).** The pushback's stack-homogeneity argument (one runtime, one base image, simpler distributed tracing/debugging) is legitimate and matches how a mature platform would eventually consolidate. Reclassified to **Deferred**, not Rejected, because it's a valid, real finding — just not in scope for the current phase: Python/FastAPI for these two services is this codebase's *current, deliberate* architecture (Architecture Boundaries' Service Responsibilities table specifies it explicitly), a full rewrite is a big-bang rewrite of the write path for real `security_alerts`/`security_incidents` (the most correctness-sensitive part of the whole pipeline — "preserve replay guarantees, event contract integrity"), and there is no measured GIL contention or memory pressure at this project's actual scale to justify the regression risk today. This backlog item's own stated motivation — avoiding Python's separate native-Kafka-client burden — was **already substantially addressed the same day** by adding native Kafka transport (`kafka_native.py`, via `confluent-kafka`/`librdkafka`, the same industry-standard approach Netflix/Uber use in Python — the reviewer's own point 2 confirms this is legitimate, not a workaround) directly to both Python services, at a fraction of the risk of a full rewrite.
+- **Condition to re-evaluate**: Before commercial/production launch, gated on real measured evidence (not projected) that Python throughput or GIL contention is an actual bottleneck at production alert/incident volume — and if undertaken, via a staged strangler migration (one service at a time, dual-write/shadow-compare period) per the Architecture Direction Lock, never a big-bang swap of the correctness-critical write path.
+- **Status**: **DEFERRED**
 
 ---
 
