@@ -14,17 +14,21 @@ use Tests\TestCase;
  */
 class XdrRuleRegistryValidatorTest extends TestCase
 {
-    private const REGISTRY_PATH   = 'docs/detection/rules/registry.v1.json';
+    private const REGISTRY_PATH = 'docs/detection/rules/registry.v1.json';
+
     private const VALIDATOR_SCRIPT = 'scripts/xdr_rule_registry_validate.py';
 
-    private const VALID_STATUSES  = ['draft', 'shadow', 'staged_active', 'deprecated'];
+    private const VALID_STATUSES = ['draft', 'shadow', 'staged_active', 'deprecated'];
+
     private const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
-    private const VALID_DOMAINS   = ['identity', 'cloud', 'saas', 'endpoint', 'threat-intel', 'xdr', 'network'];
+
+    private const VALID_DOMAINS = ['identity', 'cloud', 'saas', 'endpoint', 'threat-intel', 'xdr', 'network'];
 
     /** Domains that are permanently shadow-only until an explicit gate review. */
     private const PROTECTED_DOMAINS = ['endpoint', 'threat-intel'];
 
-    private const ACTIVE_ALERT_TOPIC  = 'xdr.alerts';
+    private const ACTIVE_ALERT_TOPIC = 'xdr.alerts';
+
     private const SHADOW_TOPIC_PREFIX = 'xdr.alerts.shadow';
 
     private const REQUIRED_FIELDS = [
@@ -44,8 +48,9 @@ class XdrRuleRegistryValidatorTest extends TestCase
         $path = base_path(self::REGISTRY_PATH);
         $this->assertFileExists($path, 'registry.v1.json must exist');
         $content = file_get_contents($path);
-        $data    = json_decode($content, true);
+        $data = json_decode($content, true);
         $this->assertNotNull($data, 'registry.v1.json must be valid JSON');
+
         return $data;
     }
 
@@ -62,7 +67,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $this->assertFileExists(
             base_path(self::VALIDATOR_SCRIPT),
-            self::VALIDATOR_SCRIPT . ' must exist at the declared path'
+            self::VALIDATOR_SCRIPT.' must exist at the declared path'
         );
     }
 
@@ -99,7 +104,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
 
     public function test_all_rule_ids_are_unique(): void
     {
-        $ids  = array_column($this->rules(), 'rule_id');
+        $ids = array_column($this->rules(), 'rule_id');
         $seen = [];
         $dups = [];
         foreach ($ids as $id) {
@@ -108,7 +113,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
             }
             $seen[$id] = true;
         }
-        $this->assertEmpty($dups, 'Duplicate rule_ids found: ' . implode(', ', $dups));
+        $this->assertEmpty($dups, 'Duplicate rule_ids found: '.implode(', ', $dups));
     }
 
     // -----------------------------------------------------------------------
@@ -121,7 +126,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
         foreach ($this->rules() as $rule) {
             $id = $rule['rule_id'] ?? '<unknown>';
             foreach (self::REQUIRED_FIELDS as $field) {
-                if (!array_key_exists($field, $rule)) {
+                if (! array_key_exists($field, $rule)) {
                     $missing[] = "[$id] missing '$field'";
                 }
             }
@@ -137,7 +142,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $invalid = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['status'] ?? '', self::VALID_STATUSES, true)) {
+            if (! in_array($rule['status'] ?? '', self::VALID_STATUSES, true)) {
                 $invalid[] = "[{$rule['rule_id']}] invalid status '{$rule['status']}'";
             }
         }
@@ -148,7 +153,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $invalid = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['domain'] ?? '', self::VALID_DOMAINS, true)) {
+            if (! in_array($rule['domain'] ?? '', self::VALID_DOMAINS, true)) {
                 $invalid[] = "[{$rule['rule_id']}] invalid domain '{$rule['domain']}'";
             }
         }
@@ -159,7 +164,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $invalid = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['severity'] ?? '', self::VALID_SEVERITIES, true)) {
+            if (! in_array($rule['severity'] ?? '', self::VALID_SEVERITIES, true)) {
                 $invalid[] = "[{$rule['rule_id']}] invalid severity '{$rule['severity']}'";
             }
         }
@@ -179,7 +184,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
                 continue;
             }
             $attack = $rule['mitre_attack'] ?? [];
-            if (!is_array($attack) || count($attack) === 0) {
+            if (! is_array($attack) || count($attack) === 0) {
                 $missing[] = "[{$rule['rule_id']}] mitre_attack is empty for status='$status'";
             }
         }
@@ -190,11 +195,11 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $missing = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
+            if (! in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
                 continue;
             }
             $attack = $rule['mitre_attack'] ?? [];
-            if (!is_array($attack) || count($attack) === 0) {
+            if (! is_array($attack) || count($attack) === 0) {
                 $missing[] = "[{$rule['rule_id']}] endpoint/threat-intel rules require mitre_attack";
             }
         }
@@ -210,7 +215,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
         $invalid = [];
         foreach ($this->rules() as $rule) {
             $c = $rule['confidence'] ?? null;
-            if ($c === null || !is_numeric($c) || (float) $c < 0.0 || (float) $c > 1.0) {
+            if ($c === null || ! is_numeric($c) || (float) $c < 0.0 || (float) $c > 1.0) {
                 $invalid[] = "[{$rule['rule_id']}] confidence '{$c}' is not in [0.0, 1.0]";
             }
         }
@@ -251,7 +256,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
         }
         $this->assertEmpty(
             $violations,
-            'Endpoint rules must not be staged_active — domain soak not approved. Violations: ' . implode(', ', $violations)
+            'Endpoint rules must not be staged_active — domain soak not approved. Violations: '.implode(', ', $violations)
         );
     }
 
@@ -265,7 +270,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
         }
         $this->assertEmpty(
             $violations,
-            'Threat-intel rules must not be staged_active — domain gate not approved. Violations: ' . implode(', ', $violations)
+            'Threat-intel rules must not be staged_active — domain gate not approved. Violations: '.implode(', ', $violations)
         );
     }
 
@@ -273,10 +278,10 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $nonShadow = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
+            if (! in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
                 continue;
             }
-            if (!in_array($rule['status'] ?? '', ['shadow', 'draft', 'deprecated'], true)) {
+            if (! in_array($rule['status'] ?? '', ['shadow', 'draft', 'deprecated'], true)) {
                 $nonShadow[] = "[{$rule['rule_id']}] domain={$rule['domain']} but status={$rule['status']}";
             }
         }
@@ -309,8 +314,8 @@ class XdrRuleRegistryValidatorTest extends TestCase
                 continue;
             }
             $topic = $rule['output_topic'] ?? '';
-            if ($topic && !str_starts_with($topic, self::SHADOW_TOPIC_PREFIX)) {
-                $violations[] = "[{$rule['rule_id']}] output_topic='$topic' does not start with '" . self::SHADOW_TOPIC_PREFIX . "'";
+            if ($topic && ! str_starts_with($topic, self::SHADOW_TOPIC_PREFIX)) {
+                $violations[] = "[{$rule['rule_id']}] output_topic='$topic' does not start with '".self::SHADOW_TOPIC_PREFIX."'";
             }
         }
         $this->assertEmpty($violations, implode("\n", $violations));
@@ -324,7 +329,7 @@ class XdrRuleRegistryValidatorTest extends TestCase
     {
         $violations = [];
         foreach ($this->rules() as $rule) {
-            if (!in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
+            if (! in_array($rule['domain'] ?? '', self::PROTECTED_DOMAINS, true)) {
                 continue;
             }
             if (($rule['shadow_only'] ?? null) !== true) {
@@ -433,9 +438,9 @@ class XdrRuleRegistryValidatorTest extends TestCase
             if (($rule['status'] ?? '') !== 'deprecated') {
                 continue;
             }
-            $hasReason      = !empty(trim((string) ($rule['deprecation_reason'] ?? '')));
-            $hasReplacement = !empty($rule['replacement_rule_id']);
-            if (!$hasReason && !$hasReplacement) {
+            $hasReason = ! empty(trim((string) ($rule['deprecation_reason'] ?? '')));
+            $hasReplacement = ! empty($rule['replacement_rule_id']);
+            if (! $hasReason && ! $hasReplacement) {
                 $missing[] = "[{$rule['rule_id']}] deprecated but missing deprecation_reason and replacement_rule_id";
             }
         }
@@ -463,8 +468,8 @@ class XdrRuleRegistryValidatorTest extends TestCase
             'SAAS_UNUSUAL_ADMIN_ACTIVITY',
         ];
 
-        $rules   = collect($this->rules())->keyBy('rule_id');
-        $wrong   = [];
+        $rules = collect($this->rules())->keyBy('rule_id');
+        $wrong = [];
         foreach ($expected as $id) {
             $rule = $rules->get($id);
             $this->assertNotNull($rule, "Expected rule '$id' not found in registry");
@@ -501,8 +506,8 @@ class XdrRuleRegistryValidatorTest extends TestCase
             'repeated_lolbin_sequence',
             'persistence_reactivation_pattern',
         ];
-        $rules  = collect($this->rules())->keyBy('rule_id');
-        $wrong  = [];
+        $rules = collect($this->rules())->keyBy('rule_id');
+        $wrong = [];
         foreach ($expected as $id) {
             $rule = $rules->get($id);
             $this->assertNotNull($rule, "Expected endpoint rule '$id' not found");
@@ -516,8 +521,8 @@ class XdrRuleRegistryValidatorTest extends TestCase
     public function test_threat_intel_rules_are_all_shadow(): void
     {
         $expected = ['ioc_ip_match', 'ioc_domain_match', 'ioc_file_hash_match'];
-        $rules    = collect($this->rules())->keyBy('rule_id');
-        $wrong    = [];
+        $rules = collect($this->rules())->keyBy('rule_id');
+        $wrong = [];
         foreach ($expected as $id) {
             $rule = $rules->get($id);
             $this->assertNotNull($rule, "Expected IOC rule '$id' not found");

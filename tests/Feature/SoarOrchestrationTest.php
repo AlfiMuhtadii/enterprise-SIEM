@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\SoarApprovalRequest;
 use App\Models\SoarExecutionAudit;
 use App\Models\SoarExecutionPlan;
-use App\Models\SoarExecutionResult;
 use App\Models\SoarExecutionStep;
 use App\Models\SoarPlaybook;
 use App\Models\SoarPlaybookVersion;
@@ -41,16 +39,19 @@ class SoarOrchestrationTest extends TestCase
     use \Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
     private SoarOrchestrationService $svc;
-    private ThreatHuntingService     $hunting;
-    private User                     $user;
-    private User                     $approver;
+
+    private ThreatHuntingService $hunting;
+
+    private User $user;
+
+    private User $approver;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc      = app(SoarOrchestrationService::class);
-        $this->hunting  = app(ThreatHuntingService::class);
-        $this->user     = User::factory()->create();
+        $this->svc = app(SoarOrchestrationService::class);
+        $this->hunting = app(ThreatHuntingService::class);
+        $this->user = User::factory()->create();
         $this->approver = User::factory()->create();
     }
 
@@ -158,7 +159,7 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_playbook_version_is_append_only(): void
     {
-        $pb  = $this->svc->createPlaybook('Test');
+        $pb = $this->svc->createPlaybook('Test');
         $ver = $this->svc->getVersionHistory($pb->playbook_id)->first();
 
         $this->expectException(\LogicException::class);
@@ -168,7 +169,7 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_playbook_version_hash_is_deterministic(): void
     {
-        $pb    = $this->svc->createPlaybook('Test');
+        $pb = $this->svc->createPlaybook('Test');
         $hash1 = SoarPlaybookVersion::hashPlaybook($pb);
         $hash2 = SoarPlaybookVersion::hashPlaybook($pb);
 
@@ -188,7 +189,7 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_create_execution_plan_stores_record(): void
     {
-        $pb   = $this->svc->createPlaybook('Test');
+        $pb = $this->svc->createPlaybook('Test');
         $plan = $this->svc->createExecutionPlan(
             'Respond to phishing',
             playbookId: $pb->playbook_id,
@@ -385,7 +386,7 @@ class SoarOrchestrationTest extends TestCase
     public function test_create_rollback_plan_stores_record(): void
     {
         $plan = $this->svc->createExecutionPlan('Test plan');
-        $rb   = $this->svc->createRollbackPlan(
+        $rb = $this->svc->createRollbackPlan(
             $plan,
             [['action' => 'revoke_token', 'target' => 'user@example.com']],
             'advisory',
@@ -401,7 +402,7 @@ class SoarOrchestrationTest extends TestCase
     public function test_validate_rollback_marks_as_validated(): void
     {
         $plan = $this->svc->createExecutionPlan('Test plan');
-        $rb   = $this->svc->createRollbackPlan($plan, [['step' => 'revert']]);
+        $rb = $this->svc->createRollbackPlan($plan, [['step' => 'revert']]);
         $this->svc->validateRollback($rb);
         $rb->refresh();
 
@@ -429,8 +430,8 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_execution_result_is_append_only(): void
     {
-        $plan   = $this->svc->createExecutionPlan('Test plan');
-        $step   = $this->svc->addStepToplan($plan, 'Notify', 'notify_analyst', 1);
+        $plan = $this->svc->createExecutionPlan('Test plan');
+        $step = $this->svc->addStepToplan($plan, 'Notify', 'notify_analyst', 1);
         $result = $this->svc->recordStepResult($plan, $step, true, 'notification');
 
         $this->expectException(\LogicException::class);
@@ -444,7 +445,7 @@ class SoarOrchestrationTest extends TestCase
 
     public function test_audit_trail_records_plan_creation(): void
     {
-        $plan  = $this->svc->createExecutionPlan('Audit test');
+        $plan = $this->svc->createExecutionPlan('Audit test');
         $audit = $this->svc->getAuditTrail($plan->plan_id);
 
         $this->assertGreaterThanOrEqual(1, $audit->count());
@@ -479,7 +480,7 @@ class SoarOrchestrationTest extends TestCase
     public function test_audit_event_is_append_only(): void
     {
         $plan = $this->svc->createExecutionPlan('Audit test');
-        $ev   = SoarExecutionAudit::where('plan_id', $plan->plan_id)->first();
+        $ev = SoarExecutionAudit::where('plan_id', $plan->plan_id)->first();
 
         $this->expectException(\LogicException::class);
         $ev->description = 'tampered';
@@ -719,7 +720,7 @@ class SoarOrchestrationTest extends TestCase
     {
         $plan = $this->svc->createExecutionPlan('Safety test');
         $step = $this->svc->addStepToplan($plan, 'Notify', 'notify_analyst', 1);
-        $r    = $this->svc->recordStepResult($plan, $step, true, 'notification');
+        $r = $this->svc->recordStepResult($plan, $step, true, 'notification');
 
         $this->assertTrue($r->is_advisory);
     }
@@ -743,5 +744,3 @@ class SoarOrchestrationTest extends TestCase
         }
     }
 }
-
-

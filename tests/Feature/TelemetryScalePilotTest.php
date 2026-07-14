@@ -2,25 +2,24 @@
 
 namespace Tests\Feature;
 
-use App\Models\TelemetryScaleValidationRun;
-use App\Models\TelemetryScaleMetric;
-use App\Models\ReplayScaleRecoveryRun;
 use App\Models\AnalystLoadStabilityReport;
 use App\Models\InfrastructurePressureRun;
-use App\Models\TelemetryGrowthDriftReport;
-use App\Models\ScaleObservationWindow;
 use App\Models\QueueRecoveryValidationReport;
+use App\Models\ReplayScaleRecoveryRun;
 use App\Models\ScalePilotAudit;
+use App\Models\TelemetryGrowthDriftReport;
+use App\Models\TelemetryScaleMetric;
+use App\Models\TelemetryScaleValidationRun;
 use App\Services\TelemetryScalePilotService;
 use App\Services\ThreatHuntingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use LogicException;
-use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
 class TelemetryScalePilotTest extends TestCase
 {
-    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
+    use AssertsAdvisoryOnlyConstraints, RefreshDatabase;
 
     private TelemetryScalePilotService $service;
 
@@ -115,9 +114,9 @@ class TelemetryScalePilotTest extends TestCase
     {
         $run = $this->service->startScaleValidation('t1', 50);
         $this->assertDatabaseHas('scale_pilot_audit', [
-            'run_id'     => $run->run_id,
+            'run_id' => $run->run_id,
             'event_type' => 'run_started',
-            'outcome'    => 'success',
+            'outcome' => 'success',
         ]);
     }
 
@@ -128,12 +127,12 @@ class TelemetryScalePilotTest extends TestCase
     public function test_complete_scale_validation_passes_with_good_metrics(): void
     {
         $run = $this->service->completeScaleValidation('run-001', 't1', [
-            'endpoint_count'           => 50,
-            'scale_profile'            => 'scale_50',
+            'endpoint_count' => 50,
+            'scale_profile' => 'scale_50',
             'telemetry_continuity_pct' => 0.97,
-            'duplicate_rate'           => 0.005,
-            'queue_lag'                => 1000,
-            'storage_pressure_pct'     => 0.50,
+            'duplicate_rate' => 0.005,
+            'queue_lag' => 1000,
+            'storage_pressure_pct' => 0.50,
         ]);
         $this->assertTrue($run->validation_passed);
         $this->assertEquals('completed', $run->status);
@@ -142,8 +141,8 @@ class TelemetryScalePilotTest extends TestCase
     public function test_complete_scale_validation_fails_below_continuity(): void
     {
         $run = $this->service->completeScaleValidation('run-001', 't1', [
-            'endpoint_count'           => 50,
-            'scale_profile'            => 'scale_50',
+            'endpoint_count' => 50,
+            'scale_profile' => 'scale_50',
             'telemetry_continuity_pct' => 0.80,
         ]);
         $this->assertFalse($run->validation_passed);
@@ -246,11 +245,11 @@ class TelemetryScalePilotTest extends TestCase
     {
         $run = $this->service->startScaleValidation('t1', 50);
         $r = $this->service->recordAnalystLoadStability($run->run_id, 't1', [
-            'alert_throughput_per_hour'          => 50.0,
+            'alert_throughput_per_hour' => 50.0,
             'avg_acknowledgment_latency_seconds' => 120.0,
-            'escalation_backlog'                 => 5,
-            'fatigue_detected'                   => false,
-            'queue_growth_rate'                  => 0.5,
+            'escalation_backlog' => 5,
+            'fatigue_detected' => false,
+            'queue_growth_rate' => 0.5,
         ]);
         $this->assertTrue($r->workload_stable);
         $this->assertTrue($r->is_advisory);
@@ -283,10 +282,10 @@ class TelemetryScalePilotTest extends TestCase
     {
         $run = $this->service->startScaleValidation('t1', 50);
         $r = $this->service->recordInfrastructurePressure($run->run_id, 't1', [
-            'cpu_usage_pct'       => 0.60,
-            'memory_growth_mb'    => 100.0,
-            'storage_pressure_pct'=> 0.50,
-            'query_latency_ms'    => 100.0,
+            'cpu_usage_pct' => 0.60,
+            'memory_growth_mb' => 100.0,
+            'storage_pressure_pct' => 0.50,
+            'query_latency_ms' => 100.0,
         ]);
         $this->assertTrue($r->pressure_within_bounds);
         $this->assertTrue($r->is_advisory);
@@ -384,9 +383,9 @@ class TelemetryScalePilotTest extends TestCase
         $run = $this->service->startScaleValidation('t1', 50);
         $w = $this->service->openObservationWindow($run->run_id, 't1', 24);
         $closed = $this->service->closeObservationWindow($w, [
-            'telemetry_continuity_pct'    => 0.97,
+            'telemetry_continuity_pct' => 0.97,
             'replay_recovery_success_pct' => 0.96,
-            'drift_stability_pct'         => 0.98,
+            'drift_stability_pct' => 0.98,
         ]);
         $this->assertEquals('completed', $closed->status);
         $this->assertTrue($closed->criteria_met);
@@ -560,4 +559,3 @@ class TelemetryScalePilotTest extends TestCase
         $this->assertSame('computed', $m->evidence_basis);
     }
 }
-

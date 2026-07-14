@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Services\AdvisoryFindingService;
 use App\Services\DlqReviewService;
 use App\Services\TenantBoundaryService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -78,54 +77,54 @@ class TenantIsolationHardeningTest extends TestCase
 
     public function test_assert_access_passes_when_tenants_match(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $svc->assertAccess('tenant-A', 'tenant-A');
         $this->assertTrue(true);
     }
 
     public function test_assert_access_throws_on_tenant_mismatch(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $this->expectException(TenantBoundaryViolationException::class);
         $svc->assertAccess('tenant-A', 'tenant-B');
     }
 
     public function test_assert_access_allows_null_record_tenant(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $svc->assertAccess(null, 'tenant-B');
         $this->assertTrue(true);
     }
 
     public function test_assert_access_allows_null_request_tenant(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $svc->assertAccess('tenant-A', null);
         $this->assertTrue(true);
     }
 
     public function test_assert_access_allows_both_null(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $svc->assertAccess(null, null);
         $this->assertTrue(true);
     }
 
     public function test_can_access_returns_true_on_match(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $this->assertTrue($svc->canAccess('tenant-A', 'tenant-A'));
     }
 
     public function test_can_access_returns_false_on_mismatch(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $this->assertFalse($svc->canAccess('tenant-A', 'tenant-B'));
     }
 
     public function test_scope_query_adds_where_clause(): void
     {
-        $svc   = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $query = AdvisoryFinding::query();
         $scoped = $svc->scopeQuery($query, 'tenant-A');
 
@@ -135,28 +134,28 @@ class TenantIsolationHardeningTest extends TestCase
 
     public function test_scope_query_is_noop_when_tenant_null(): void
     {
-        $svc      = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $baseline = AdvisoryFinding::query()->toSql();
-        $scoped   = $svc->scopeQuery(AdvisoryFinding::query(), null)->toSql();
+        $scoped = $svc->scopeQuery(AdvisoryFinding::query(), null)->toSql();
 
         $this->assertSame($baseline, $scoped);
     }
 
     public function test_table_has_isolation_for_isolated_table(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $this->assertTrue($svc->tableHasIsolation('advisory_findings'));
     }
 
     public function test_table_has_no_isolation_for_unisolated_table(): void
     {
-        $svc = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $this->assertFalse($svc->tableHasIsolation('users'));
     }
 
     public function test_get_posture_summary_returns_expected_keys(): void
     {
-        $svc     = new TenantBoundaryService();
+        $svc = new TenantBoundaryService;
         $posture = $svc->getPostureSummary();
 
         $this->assertArrayHasKey('rls_enabled', $posture);
@@ -202,73 +201,73 @@ class TenantIsolationHardeningTest extends TestCase
 
     public function test_advisory_show_returns_200_for_matching_tenant(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
     public function test_advisory_show_returns_403_for_mismatched_tenant(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertForbidden();
     }
 
     public function test_advisory_show_allows_null_tenant_record_from_any_context(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload(null));
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-X'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
     public function test_advisory_show_allows_access_without_tenant_header(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
     public function test_advisory_review_returns_403_for_mismatched_tenant(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
         $analyst = User::factory()->create(['role' => 'analyst']);
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->post('/advisory/findings/' . $finding->finding_id . '/review', ['action' => 'review'])
+            ->post('/advisory/findings/'.$finding->finding_id.'/review', ['action' => 'review'])
             ->assertForbidden();
     }
 
     public function test_advisory_review_succeeds_for_matching_tenant(): void
     {
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
         $analyst = User::factory()->create(['role' => 'analyst']);
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->post('/advisory/findings/' . $finding->finding_id . '/review', ['action' => 'review'])
-            ->assertRedirect('/advisory/findings/' . $finding->finding_id);
+            ->post('/advisory/findings/'.$finding->finding_id.'/review', ['action' => 'review'])
+            ->assertRedirect('/advisory/findings/'.$finding->finding_id);
     }
 
     // =========================================================================
@@ -308,66 +307,66 @@ class TenantIsolationHardeningTest extends TestCase
     public function test_dlq_show_returns_200_for_matching_tenant(): void
     {
         $record = $this->createDlqRecord('tenant-A');
-        $admin  = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertOk();
     }
 
     public function test_dlq_show_returns_403_for_mismatched_tenant(): void
     {
         $record = $this->createDlqRecord('tenant-A');
-        $admin  = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertForbidden();
     }
 
     public function test_dlq_show_allows_null_tenant_record_from_any_context(): void
     {
         $record = $this->createDlqRecord(null);
-        $admin  = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-X'])
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertOk();
     }
 
     public function test_dlq_show_allows_access_without_tenant_header(): void
     {
         $record = $this->createDlqRecord('tenant-A');
-        $admin  = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertOk();
     }
 
     public function test_dlq_review_returns_403_for_mismatched_tenant(): void
     {
-        $record  = $this->createDlqRecord('tenant-A');
+        $record = $this->createDlqRecord('tenant-A');
         $analyst = User::factory()->create(['role' => 'analyst']);
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->post('/dlq/records/' . $record->record_id . '/review', ['action' => 'reviewed'])
+            ->post('/dlq/records/'.$record->record_id.'/review', ['action' => 'reviewed'])
             ->assertForbidden();
     }
 
     public function test_dlq_review_succeeds_for_matching_tenant(): void
     {
         $record = $this->createDlqRecord('tenant-A');
-        $admin  = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->post('/dlq/records/' . $record->record_id . '/review', ['action' => 'reviewed'])
-            ->assertRedirect('/dlq/records/' . $record->record_id);
+            ->post('/dlq/records/'.$record->record_id.'/review', ['action' => 'reviewed'])
+            ->assertRedirect('/dlq/records/'.$record->record_id);
     }
 
     // =========================================================================
@@ -391,44 +390,44 @@ class TenantIsolationHardeningTest extends TestCase
 
     public function test_shadow_soak_show_returns_200_for_matching_tenant(): void
     {
-        $run   = $this->createSoakRun('tenant-A');
+        $run = $this->createSoakRun('tenant-A');
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertOk();
     }
 
     public function test_shadow_soak_show_returns_403_for_mismatched_tenant(): void
     {
-        $run   = $this->createSoakRun('tenant-A');
+        $run = $this->createSoakRun('tenant-A');
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertForbidden();
     }
 
     public function test_shadow_soak_show_allows_null_tenant_from_any_context(): void
     {
-        $run   = $this->createSoakRun(null);
+        $run = $this->createSoakRun(null);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-X'])
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertOk();
     }
 
     public function test_shadow_soak_show_allows_access_without_tenant_header(): void
     {
-        $run   = $this->createSoakRun('tenant-A');
+        $run = $this->createSoakRun('tenant-A');
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->actingAs($admin)
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertOk();
     }
 
@@ -439,36 +438,36 @@ class TenantIsolationHardeningTest extends TestCase
     private function makeAdvisoryPayload(?string $tenantId, string $fingerprint = 'fp-tenant-test'): array
     {
         return [
-            'finding_id'       => Str::uuid()->toString(),
-            'rule_id'          => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
-            'domain'           => 'endpoint',
-            'source_topic'     => 'xdr.alerts.shadow.endpoint',
-            'alert_type'       => 'process_injection',
-            'severity'         => 'high',
-            'confidence'       => 0.80,
-            'actor_key'        => 'host-tenant-test',
-            'tenant_id'        => $tenantId,
-            'evidence'         => ['pid' => 1234],
+            'finding_id' => Str::uuid()->toString(),
+            'rule_id' => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
+            'domain' => 'endpoint',
+            'source_topic' => 'xdr.alerts.shadow.endpoint',
+            'alert_type' => 'process_injection',
+            'severity' => 'high',
+            'confidence' => 0.80,
+            'actor_key' => 'host-tenant-test',
+            'tenant_id' => $tenantId,
+            'evidence' => ['pid' => 1234],
             'source_event_ids' => ['evt-001'],
-            'fingerprint'      => $fingerprint,
+            'fingerprint' => $fingerprint,
         ];
     }
 
     private function createDlqRecord(?string $tenantId): DlqRecord
     {
         $svc = app(DlqReviewService::class);
-        $fingerprint = 'dlq-tenant-' . Str::uuid();
+        $fingerprint = 'dlq-tenant-'.Str::uuid();
 
         $svc->upsertFromConsumer([
-            'fingerprint'    => $fingerprint,
+            'fingerprint' => $fingerprint,
             'dlq_event_type' => 'normalization_failure',
-            'source_topic'   => 'telemetry.raw',
-            'raw_payload'    => '{"test":true}',
-            'error_message'  => 'parse error',
+            'source_topic' => 'telemetry.raw',
+            'raw_payload' => '{"test":true}',
+            'error_message' => 'parse error',
             'occurrence_count' => 1,
-            'tenant_id'      => $tenantId,
-            'replayable'     => true,
-            'error_reason'   => null,
+            'tenant_id' => $tenantId,
+            'replayable' => true,
+            'error_reason' => null,
         ]);
 
         return DlqRecord::where('fingerprint', $fingerprint)->firstOrFail();
@@ -477,17 +476,17 @@ class TenantIsolationHardeningTest extends TestCase
     private function createSoakRun(?string $tenantId): ShadowSoakRun
     {
         return ShadowSoakRun::create([
-            'run_id'       => 'soak-' . Str::uuid(),
-            'domain'       => 'endpoint',
+            'run_id' => 'soak-'.Str::uuid(),
+            'domain' => 'endpoint',
             'window_hours' => 24,
-            'status'       => 'completed',
-            'dry_run'      => false,
-            'started_at'   => now()->subHours(24),
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHours(24),
             'completed_at' => now(),
             'initiated_by' => '1',
             'evidence_pass' => true,
             'gate_summary' => ['pass_count' => 3, 'fail_count' => 0],
-            'tenant_id'    => $tenantId,
+            'tenant_id' => $tenantId,
         ]);
     }
 }

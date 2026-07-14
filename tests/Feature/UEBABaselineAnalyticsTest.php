@@ -592,7 +592,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->postJson('/api/ueba/detect', [
-            'entity_key'  => 'testuser@example.com',
+            'entity_key' => 'testuser@example.com',
             'entity_type' => 'user',
         ]);
 
@@ -608,7 +608,7 @@ class UEBABaselineAnalyticsTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->postJson('/api/ueba/detect', [
-            'entity_key'  => 'testhost',
+            'entity_key' => 'testhost',
             'entity_type' => 'host',
         ]);
 
@@ -721,8 +721,8 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_shadow_rules_are_in_registry(): void
     {
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
-        $registry     = json_decode(file_get_contents($registryPath), true);
-        $ruleIds      = array_column($registry['rules'], 'rule_id');
+        $registry = json_decode(file_get_contents($registryPath), true);
+        $ruleIds = array_column($registry['rules'], 'rule_id');
 
         $expectedRules = [
             'UEBA_UNUSUAL_LOGIN_TIME',
@@ -744,7 +744,7 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_all_ueba_rules_are_shadow_only(): void
     {
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
-        $registry     = json_decode(file_get_contents($registryPath), true);
+        $registry = json_decode(file_get_contents($registryPath), true);
 
         $uebaRules = array_filter($registry['rules'], fn ($r) => str_starts_with($r['rule_id'], 'UEBA_'));
 
@@ -763,7 +763,7 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_rules_are_never_staged_active(): void
     {
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
-        $registry     = json_decode(file_get_contents($registryPath), true);
+        $registry = json_decode(file_get_contents($registryPath), true);
 
         $uebaActive = array_filter(
             $registry['rules'],
@@ -777,12 +777,9 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_registry_total_rule_count_is_65(): void
     {
         $registryPath = base_path('docs/detection/rules/registry.v1.json');
-        $registry     = json_decode(file_get_contents($registryPath), true);
+        $registry = json_decode(file_get_contents($registryPath), true);
 
         $this->assertCount(133, $registry['rules'],
             'Registry should have 93 rules after Advanced Detection Coverage Phase 1');
     }
 }
-
-
-

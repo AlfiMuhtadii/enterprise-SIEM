@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\AdvisoryFinding;
 use App\Services\DomainSoakHarnessService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

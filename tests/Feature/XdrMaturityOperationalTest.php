@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Support\XdrCorrelationCutover;
 use App\Models\User;
+use App\Support\XdrCorrelationCutover;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;

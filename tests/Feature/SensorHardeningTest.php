@@ -3,14 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\CollectorHealthEvent;
-use App\Models\CollectorRestartAudit;
 use App\Models\EndpointUpgradeValidation;
 use App\Models\OfflineRecoveryRun;
 use App\Models\PackageSignatureValidation;
-use App\Models\SensorResourceSnapshot;
-use App\Models\TelemetryGapReport;
 use App\Models\TelemetryIntegrityRun;
-use App\Models\TelemetrySequenceValidation;
 use App\Services\SensorHardeningService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -29,11 +25,6 @@ class SensorHardeningTest extends TestCase
     }
 
     // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Hard constraints ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-
-
-
-
-
 
     protected function getAdvisoryServiceClass(): string
     {
@@ -129,9 +120,9 @@ class SensorHardeningTest extends TestCase
         );
 
         $this->assertDatabaseHas('collector_health_events', [
-            'agent_id'     => 'agent-2',
+            'agent_id' => 'agent-2',
             'health_state' => 'degraded',
-            'event_type'   => 'state_transition',
+            'event_type' => 'state_transition',
         ]);
         $this->assertStringStartsWith('che-', $event->event_id);
     }
@@ -209,9 +200,9 @@ class SensorHardeningTest extends TestCase
     {
         $r = $this->svc->reportTelemetryGap('agent-4', 300, estimatedLostEvents: 150, recovered: false);
         $this->assertDatabaseHas('telemetry_gap_reports', [
-            'agent_id'            => 'agent-4',
-            'gap_duration_seconds'=> 300,
-            'recovered'           => false,
+            'agent_id' => 'agent-4',
+            'gap_duration_seconds' => 300,
+            'recovered' => false,
         ]);
         $this->assertStringStartsWith('tgr-', $r->report_id);
     }
@@ -229,7 +220,7 @@ class SensorHardeningTest extends TestCase
     public function test_package_validation_pass_when_hashes_match(): void
     {
         $hash = hash('sha256', 'agent-binary-v2.0');
-        $val  = $this->svc->validatePackageSignature(
+        $val = $this->svc->validatePackageSignature(
             'xdr-agent', '2.0.0', 'platform-eng',
             expectedHash: $hash, observedHash: $hash, signer: 'Acme Corp'
         );
@@ -317,7 +308,7 @@ class SensorHardeningTest extends TestCase
             'agent-6', 3, crashInduced: true, priorHealthState: 'healthy'
         );
         $this->assertDatabaseHas('collector_restart_audit', [
-            'agent_id'      => 'agent-6',
+            'agent_id' => 'agent-6',
             'crash_induced' => true,
         ]);
         $this->assertStringStartsWith('cra-', $a->audit_id);
@@ -461,5 +452,3 @@ class SensorHardeningTest extends TestCase
         }
     }
 }
-
-

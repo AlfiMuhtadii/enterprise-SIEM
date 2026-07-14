@@ -1,0 +1,45 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
+
+parameters:
+    paths:
+        - app
+        - config
+        - database
+        - routes
+
+    # QA-STATIC-ANALYSIS: starts at level 3 (basic dead-code/type checks,
+    # no strict-nullable enforcement) deliberately -- this is an existing,
+    # large, previously-unchecked codebase (5000+ tests, hundreds of
+    # controllers/services). Jumping straight to a strict level would bury
+    # every real finding under thousands of pre-existing ones the baseline
+    # can't distinguish from new regressions. Ratchet up level over time
+    # in separate, dedicated passes, each re-baselined.
+    level: 3
+
+    excludePaths:
+        - database/migrations/*
+
+    # Larastan's DB-schema reflection (comparing model $casts/properties
+    # against the live table schema, and its migration-file scanner that
+    # builds the same schema info from Blueprint calls) hard-crashes the
+    # whole process -- root-caused, not guessed: Larastan's MigrationHelper
+    # feeds every `$table->jsonb(...)` Blueprint call through the
+    # `iamcal/sql-parser` package (a transitive Larastan dependency) to
+    # simulate the resulting schema, and that parser's switch statement has
+    # no case for Postgres's `jsonb` type -- its default branch calls raw
+    # PHP `die()` on an unrecognized field type, killing the analysis
+    # worker outright rather than raising a catchable error (confirmed by
+    # reading vendor/iamcal/sql-parser/src/SQLParser.php directly). This
+    # codebase's migrations use `jsonb` extensively (`$table->jsonb(...)`
+    # across 100+ migrations), so the crash is unavoidable with this
+    # feature on. `checkModelProperties` alone doesn't fully disable it --
+    # `MigrationHelper`'s scan runs unconditionally, gated separately by
+    # `disableMigrationScan`/`disableSchemaScan`. This is an optional
+    # enhancement layered on top of Larastan's real value (PHPDoc/generic
+    # Eloquent method resolution, dead code, undefined methods), so all
+    # three are disabled rather than needing an upstream sql-parser fix.
+    checkModelProperties: false
+    disableMigrationScan: true
+    disableSchemaScan: true

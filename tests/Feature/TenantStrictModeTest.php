@@ -94,7 +94,7 @@ class TenantStrictModeTest extends TestCase
 
     public function test_legacy_no_header_returns_null(): void
     {
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test');
 
         $this->assertNull($this->authority->validateAndResolve($request, $user));
@@ -102,7 +102,7 @@ class TenantStrictModeTest extends TestCase
 
     public function test_legacy_no_header_with_require_context_returns_null(): void
     {
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test');
 
         // Legacy: requireTenantContext has no effect — no exception thrown
@@ -111,7 +111,7 @@ class TenantStrictModeTest extends TestCase
 
     public function test_legacy_zero_membership_user_with_header_passes_through(): void
     {
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-A']);
 
         $this->assertSame('tenant-A', $this->authority->validateAndResolve($request, $user));
@@ -125,7 +125,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test');
 
         // requireTenantContext=false (default): listing routes — no exception
@@ -139,7 +139,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test');
 
         $this->expectException(TenantContextMissingException::class);
@@ -150,7 +150,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-A']);
 
         $this->expectException(TenantSpoofAttemptException::class);
@@ -161,12 +161,12 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
 
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-A']);
-        $result  = $this->authority->validateAndResolve($request, $user, requireTenantContext: true);
+        $result = $this->authority->validateAndResolve($request, $user, requireTenantContext: true);
 
         $this->assertSame('tenant-A', $result);
 
@@ -177,7 +177,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
 
@@ -195,7 +195,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test');
 
         // Admin bypass: no header → null (no scoping); TenantContextMissing never thrown
@@ -208,7 +208,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'any-tenant']);
 
         // Admin has no memberships but is never blocked
@@ -221,7 +221,7 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-X']);
 
         // Admin bypass fires before zero-membership check
@@ -264,7 +264,7 @@ class TenantStrictModeTest extends TestCase
     public function test_legacy_membership_check_still_active_for_nonmember_tenant(): void
     {
         // Membership check (Rule 4) always applies regardless of strict mode
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
 
@@ -283,14 +283,14 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -301,14 +301,14 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
-            ->post('/advisory/findings/' . $finding->finding_id . '/review', ['action' => 'review'])
+            ->post('/advisory/findings/'.$finding->finding_id.'/review', ['action' => 'review'])
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -320,7 +320,7 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -335,13 +335,13 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         // Zero memberships + header in strict mode → TenantSpoofAttemptException
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -352,15 +352,15 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -370,13 +370,13 @@ class TenantStrictModeTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
-        $svc     = app(AdvisoryFindingService::class);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload(null));
 
         // Admin bypass: no header → null → assertAccess(null, null) → passes
         $this->actingAs($admin)
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -391,13 +391,13 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $record = $this->createDlqRecord('tenant-A');
 
         $this->actingAs($analyst)
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -409,7 +409,7 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -424,11 +424,11 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $record  = $this->createDlqRecord('tenant-A');
+        $record = $this->createDlqRecord('tenant-A');
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -443,13 +443,13 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $run = $this->createSoakRun('tenant-A');
 
         $this->actingAs($analyst)
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertForbidden();
 
         config(['xdr.tenancy.strict_mode' => false]);
@@ -461,7 +461,7 @@ class TenantStrictModeTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -479,11 +479,11 @@ class TenantStrictModeTest extends TestCase
     {
         // Legacy (default): no header on show → null → assertAccess(tenant_id, null) → passes
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
@@ -491,12 +491,12 @@ class TenantStrictModeTest extends TestCase
     {
         // Legacy: zero-membership user with matching header → pass-through, then assertAccess OK
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $svc     = app(AdvisoryFindingService::class);
+        $svc = app(AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
@@ -507,36 +507,36 @@ class TenantStrictModeTest extends TestCase
     private function makeAdvisoryPayload(?string $tenantId, string $fingerprint = 'fp-strict-test'): array
     {
         return [
-            'finding_id'       => Str::uuid()->toString(),
-            'rule_id'          => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
-            'domain'           => 'endpoint',
-            'source_topic'     => 'xdr.alerts.shadow.endpoint',
-            'alert_type'       => 'process_injection',
-            'severity'         => 'high',
-            'confidence'       => 0.80,
-            'actor_key'        => 'host-strict-test',
-            'tenant_id'        => $tenantId,
-            'evidence'         => ['pid' => 5555],
+            'finding_id' => Str::uuid()->toString(),
+            'rule_id' => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
+            'domain' => 'endpoint',
+            'source_topic' => 'xdr.alerts.shadow.endpoint',
+            'alert_type' => 'process_injection',
+            'severity' => 'high',
+            'confidence' => 0.80,
+            'actor_key' => 'host-strict-test',
+            'tenant_id' => $tenantId,
+            'evidence' => ['pid' => 5555],
             'source_event_ids' => ['evt-strict'],
-            'fingerprint'      => $fingerprint,
+            'fingerprint' => $fingerprint,
         ];
     }
 
     private function createDlqRecord(?string $tenantId): \App\Models\DlqRecord
     {
-        $svc         = app(DlqReviewService::class);
-        $fingerprint = 'dlq-strict-' . Str::uuid();
+        $svc = app(DlqReviewService::class);
+        $fingerprint = 'dlq-strict-'.Str::uuid();
 
         $svc->upsertFromConsumer([
-            'fingerprint'      => $fingerprint,
-            'dlq_event_type'   => 'normalization_failure',
-            'source_topic'     => 'telemetry.raw',
-            'raw_payload'      => '{"test":true}',
-            'error_message'    => 'parse error',
+            'fingerprint' => $fingerprint,
+            'dlq_event_type' => 'normalization_failure',
+            'source_topic' => 'telemetry.raw',
+            'raw_payload' => '{"test":true}',
+            'error_message' => 'parse error',
             'occurrence_count' => 1,
-            'tenant_id'        => $tenantId,
-            'replayable'       => true,
-            'error_reason'     => null,
+            'tenant_id' => $tenantId,
+            'replayable' => true,
+            'error_reason' => null,
         ]);
 
         return \App\Models\DlqRecord::where('fingerprint', $fingerprint)->firstOrFail();
@@ -545,17 +545,17 @@ class TenantStrictModeTest extends TestCase
     private function createSoakRun(?string $tenantId): ShadowSoakRun
     {
         return ShadowSoakRun::create([
-            'run_id'        => 'soak-strict-' . Str::uuid(),
-            'domain'        => 'endpoint',
-            'window_hours'  => 24,
-            'status'        => 'completed',
-            'dry_run'       => false,
-            'started_at'    => now()->subHours(24),
-            'completed_at'  => now(),
-            'initiated_by'  => '1',
+            'run_id' => 'soak-strict-'.Str::uuid(),
+            'domain' => 'endpoint',
+            'window_hours' => 24,
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHours(24),
+            'completed_at' => now(),
+            'initiated_by' => '1',
             'evidence_pass' => true,
-            'gate_summary'  => ['pass_count' => 3, 'fail_count' => 0],
-            'tenant_id'     => $tenantId,
+            'gate_summary' => ['pass_count' => 3, 'fail_count' => 0],
+            'tenant_id' => $tenantId,
         ]);
     }
 }

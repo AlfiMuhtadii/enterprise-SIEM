@@ -47,9 +47,9 @@ class TenantNullBackfillTest extends TestCase
     public function test_mutable_tables_has_expected_entries(): void
     {
         $this->assertGreaterThanOrEqual(3, count(TenantBoundaryService::MUTABLE_TABLES));
-        $this->assertContains('security_alerts',   TenantBoundaryService::MUTABLE_TABLES);
+        $this->assertContains('security_alerts', TenantBoundaryService::MUTABLE_TABLES);
         $this->assertContains('security_incidents', TenantBoundaryService::MUTABLE_TABLES);
-        $this->assertContains('dlq_records',        TenantBoundaryService::MUTABLE_TABLES);
+        $this->assertContains('dlq_records', TenantBoundaryService::MUTABLE_TABLES);
     }
 
     public function test_append_only_isolated_tables_constant_is_defined(): void
@@ -107,11 +107,11 @@ class TenantNullBackfillTest extends TestCase
     public function test_backfill_assigns_tenant_to_null_security_alerts(): void
     {
         DB::table('security_alerts')->insert([
-            'alert_id'    => 'backfill-test-001',
+            'alert_id' => 'backfill-test-001',
             'detected_at' => now()->format('Y-m-d H:i:sP'),
-            'alert_type'  => 'IDENTITY_MFA_FAILURE_BURST',
-            'severity'    => 'high',
-            'tenant_id'   => null,
+            'alert_type' => 'IDENTITY_MFA_FAILURE_BURST',
+            'severity' => 'high',
+            'tenant_id' => null,
         ]);
 
         $this->artisan('tenant:backfill-nulls', ['--tenant' => 'demo-tenant'])
@@ -124,11 +124,11 @@ class TenantNullBackfillTest extends TestCase
     public function test_dry_run_does_not_write_to_security_alerts(): void
     {
         DB::table('security_alerts')->insert([
-            'alert_id'    => 'backfill-dry-001',
+            'alert_id' => 'backfill-dry-001',
             'detected_at' => now()->format('Y-m-d H:i:sP'),
-            'alert_type'  => 'CLOUD_MASS_DOWNLOAD',
-            'severity'    => 'medium',
-            'tenant_id'   => null,
+            'alert_type' => 'CLOUD_MASS_DOWNLOAD',
+            'severity' => 'medium',
+            'tenant_id' => null,
         ]);
 
         $this->artisan('tenant:backfill-nulls', ['--tenant' => 'demo-tenant', '--dry-run' => true])
@@ -143,12 +143,12 @@ class TenantNullBackfillTest extends TestCase
     public function test_backfill_assigns_tenant_to_null_dlq_records(): void
     {
         DB::table('dlq_records')->insert([
-            'record_id'     => 'dlq-backfill-001',
-            'fingerprint'   => Str::uuid()->toString(),
+            'record_id' => 'dlq-backfill-001',
+            'fingerprint' => Str::uuid()->toString(),
             'first_seen_at' => now()->format('Y-m-d H:i:sP'),
-            'last_seen_at'  => now()->format('Y-m-d H:i:sP'),
-            'tenant_id'     => null,
-            'status'        => 'new',
+            'last_seen_at' => now()->format('Y-m-d H:i:sP'),
+            'tenant_id' => null,
+            'status' => 'new',
         ]);
 
         $this->artisan('tenant:backfill-nulls', ['--tenant' => 'ops-tenant'])
@@ -163,11 +163,11 @@ class TenantNullBackfillTest extends TestCase
     public function test_backfill_is_idempotent(): void
     {
         DB::table('security_alerts')->insert([
-            'alert_id'    => 'backfill-idem-001',
+            'alert_id' => 'backfill-idem-001',
             'detected_at' => now()->format('Y-m-d H:i:sP'),
-            'alert_type'  => 'IDENTITY_PRIVILEGE_ESCALATION',
-            'severity'    => 'critical',
-            'tenant_id'   => null,
+            'alert_type' => 'IDENTITY_PRIVILEGE_ESCALATION',
+            'severity' => 'critical',
+            'tenant_id' => null,
         ]);
 
         // First run
@@ -185,11 +185,11 @@ class TenantNullBackfillTest extends TestCase
     public function test_backfill_does_not_overwrite_existing_tenant(): void
     {
         DB::table('security_alerts')->insert([
-            'alert_id'    => 'backfill-existing-001',
+            'alert_id' => 'backfill-existing-001',
             'detected_at' => now()->format('Y-m-d H:i:sP'),
-            'alert_type'  => 'CLOUD_NEW_ACCESS_KEY',
-            'severity'    => 'medium',
-            'tenant_id'   => 'original-tenant',
+            'alert_type' => 'CLOUD_NEW_ACCESS_KEY',
+            'severity' => 'medium',
+            'tenant_id' => 'original-tenant',
         ]);
 
         $this->artisan('tenant:backfill-nulls', ['--tenant' => 'new-tenant'])

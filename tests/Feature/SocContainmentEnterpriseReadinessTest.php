@@ -13,7 +13,7 @@ class SocContainmentEnterpriseReadinessTest extends TestCase
 
     public function test_containment_response_is_approval_gated_and_simulated(): void
     {
-        $analyst  = User::factory()->create(['role' => 'analyst']);
+        $analyst = User::factory()->create(['role' => 'analyst']);
         $approver = User::factory()->create(['role' => 'analyst']);
 
         $this->actingAs($analyst)->post('/soc/responses', [

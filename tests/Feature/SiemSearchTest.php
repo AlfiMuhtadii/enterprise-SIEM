@@ -9,12 +9,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 use Tests\TestCase;
+use Tests\Traits\AssertsAdvisoryOnlyConstraints;
 
 class SiemSearchTest extends TestCase
 {
-    use RefreshDatabase, AssertsAdvisoryOnlyConstraints;
+    use AssertsAdvisoryOnlyConstraints, RefreshDatabase;
 
     private SiemSearchService $service;
 
@@ -75,7 +75,7 @@ class SiemSearchTest extends TestCase
         Http::assertSent(function ($request) {
             $body = $request->data();
             $hasSimpleQueryString = isset($body['query']['bool']['must'][0]['simple_query_string']);
-            $hasNoLegacyQueryString = !isset($body['query']['bool']['must'][0]['query_string']);
+            $hasNoLegacyQueryString = ! isset($body['query']['bool']['must'][0]['query_string']);
             $hasTimeout = isset($body['timeout']);
 
             return $hasSimpleQueryString && $hasNoLegacyQueryString && $hasTimeout;

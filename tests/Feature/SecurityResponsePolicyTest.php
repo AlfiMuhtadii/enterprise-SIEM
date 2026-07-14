@@ -93,7 +93,7 @@ class SecurityResponsePolicyTest extends TestCase
     }
 
     /**
-     * @param array<string, array<string, string>> $entries
+     * @param  array<string, array<string, string>>  $entries
      */
     public function test_malformed_expiry_is_treated_as_inactive_fail_closed(): void
     {
@@ -119,7 +119,7 @@ class SecurityResponsePolicyTest extends TestCase
     private function writePolicy(string $name, array $entries): void
     {
         File::put(
-            $this->policyDir . DIRECTORY_SEPARATOR . $name . '.json',
+            $this->policyDir.DIRECTORY_SEPARATOR.$name.'.json',
             json_encode([
                 'version' => 1,
                 'updated_at' => now()->toIso8601String(),

@@ -55,7 +55,7 @@ class TraceTenantIsolationTest extends TestCase
         foreach (['', '/timeline', '/evidence', '/alerts', '/incidents'] as $suffix) {
             $this->actingAs($this->analyst)
                 ->withHeaders(['X-Tenant-ID' => 'tenant-a'])
-                ->getJson('/api/traces/trace-b' . $suffix)
+                ->getJson('/api/traces/trace-b'.$suffix)
                 ->assertNotFound();
         }
     }

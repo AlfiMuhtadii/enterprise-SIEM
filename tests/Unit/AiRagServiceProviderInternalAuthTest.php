@@ -32,7 +32,7 @@ class AiRagServiceProviderInternalAuthTest extends TestCase
         Config::set('soc.ai_internal_token', 'test-internal-token');
         $this->fakeAiRagResponse();
 
-        (new AiRagServiceProvider())->generate('investigation_steps', [
+        (new AiRagServiceProvider)->generate('investigation_steps', [
             'incident' => ['incident_id' => 'inc-1'],
             'alerts' => [],
         ]);
@@ -48,7 +48,7 @@ class AiRagServiceProviderInternalAuthTest extends TestCase
         Config::set('soc.ai_internal_token', '');
         $this->fakeAiRagResponse();
 
-        (new AiRagServiceProvider())->generate('investigation_steps', [
+        (new AiRagServiceProvider)->generate('investigation_steps', [
             'incident' => ['incident_id' => 'inc-1'],
             'alerts' => [],
         ]);
@@ -67,7 +67,7 @@ class AiRagServiceProviderInternalAuthTest extends TestCase
             '*/v1/analyze' => Http::response(['detail' => 'unauthorized'], 401),
         ]);
 
-        $result = (new AiRagServiceProvider())->generate('investigation_steps', [
+        $result = (new AiRagServiceProvider)->generate('investigation_steps', [
             'incident' => ['incident_id' => 'inc-1'],
             'alerts' => [],
         ]);

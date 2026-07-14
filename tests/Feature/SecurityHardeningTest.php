@@ -70,7 +70,7 @@ class SecurityHardeningTest extends TestCase
         $originalCreatedAt = $event->created_at;
 
         $this->assertDatabaseHas('security_hardening_events', [
-            'id'         => $event->id,
+            'id' => $event->id,
             'event_type' => $originalType,
         ]);
 
@@ -166,11 +166,11 @@ class SecurityHardeningTest extends TestCase
     public function test_sign_and_verify_event_roundtrip(): void
     {
         $event = [
-            'event_id'      => 'evt-001',
-            'event_type'    => 'xdr.alert.raised',
-            'occurred_at'   => '2026-05-17T12:00:00Z',
-            'trace_id'      => 'trace-abc',
-            'source_service'=> 'correlation-worker',
+            'event_id' => 'evt-001',
+            'event_type' => 'xdr.alert.raised',
+            'occurred_at' => '2026-05-17T12:00:00Z',
+            'trace_id' => 'trace-abc',
+            'source_service' => 'correlation-worker',
         ];
         $sig = InternalAuthService::signEvent($event);
         $this->assertTrue(InternalAuthService::verifyEvent($event, $sig, false));
@@ -179,10 +179,10 @@ class SecurityHardeningTest extends TestCase
     public function test_event_signature_is_deterministic(): void
     {
         $event = [
-            'event_id'    => 'evt-002',
-            'event_type'  => 'xdr.alert.raised',
+            'event_id' => 'evt-002',
+            'event_type' => 'xdr.alert.raised',
             'occurred_at' => '2026-05-17T12:00:00Z',
-            'trace_id'    => 'trace-xyz',
+            'trace_id' => 'trace-xyz',
         ];
         $sig1 = InternalAuthService::signEvent($event);
         $sig2 = InternalAuthService::signEvent($event);
@@ -215,21 +215,21 @@ class SecurityHardeningTest extends TestCase
     public function test_event_signature_verify_fails_for_invalid_signature(): void
     {
         $event = [
-            'event_id'    => 'evt-004',
-            'event_type'  => 'xdr.alert.raised',
+            'event_id' => 'evt-004',
+            'event_type' => 'xdr.alert.raised',
             'occurred_at' => '2026-05-17T12:00:00Z',
-            'trace_id'    => 'trace-abc',
+            'trace_id' => 'trace-abc',
         ];
-        $this->assertFalse(InternalAuthService::verifyEvent($event, 'sha256=' . str_repeat('0', 64), false));
+        $this->assertFalse(InternalAuthService::verifyEvent($event, 'sha256='.str_repeat('0', 64), false));
     }
 
     public function test_event_signature_verify_fails_for_tampered_event(): void
     {
         $event = [
-            'event_id'    => 'evt-005',
-            'event_type'  => 'xdr.alert.raised',
+            'event_id' => 'evt-005',
+            'event_type' => 'xdr.alert.raised',
             'occurred_at' => '2026-05-17T12:00:00Z',
-            'trace_id'    => 'trace-abc',
+            'trace_id' => 'trace-abc',
         ];
         $sig = InternalAuthService::signEvent($event);
 
@@ -242,15 +242,15 @@ class SecurityHardeningTest extends TestCase
     {
         // verifyEvent with logFailure=true must not throw — it logs a hardening event
         $event = [
-            'event_id'      => 'evt-006',
-            'event_type'    => 'xdr.alert.raised',
-            'occurred_at'   => '2026-05-17T12:00:00Z',
-            'trace_id'      => 'trace-abc',
-            'source_service'=> 'test-svc',
+            'event_id' => 'evt-006',
+            'event_type' => 'xdr.alert.raised',
+            'occurred_at' => '2026-05-17T12:00:00Z',
+            'trace_id' => 'trace-abc',
+            'source_service' => 'test-svc',
         ];
         $threw = false;
         try {
-            $result = InternalAuthService::verifyEvent($event, 'sha256=' . str_repeat('f', 64), true);
+            $result = InternalAuthService::verifyEvent($event, 'sha256='.str_repeat('f', 64), true);
             $this->assertFalse($result);
         } catch (\Throwable $e) {
             $threw = true;
@@ -261,29 +261,29 @@ class SecurityHardeningTest extends TestCase
     public function test_event_signature_failure_records_hardening_event(): void
     {
         $event = [
-            'event_id'      => 'evt-007',
-            'event_type'    => 'xdr.alert.raised',
-            'occurred_at'   => '2026-05-17T12:00:00Z',
-            'trace_id'      => 'trace-log-test',
-            'source_service'=> 'test-svc',
+            'event_id' => 'evt-007',
+            'event_type' => 'xdr.alert.raised',
+            'occurred_at' => '2026-05-17T12:00:00Z',
+            'trace_id' => 'trace-log-test',
+            'source_service' => 'test-svc',
         ];
-        InternalAuthService::verifyEvent($event, 'sha256=' . str_repeat('b', 64), true);
+        InternalAuthService::verifyEvent($event, 'sha256='.str_repeat('b', 64), true);
 
         $this->assertDatabaseHas('security_hardening_events', [
             'event_type' => 'signature_failure',
-            'trace_id'   => 'trace-log-test',
+            'trace_id' => 'trace-log-test',
         ]);
     }
 
     public function test_trace_id_preserved_through_event_signature(): void
     {
-        $traceId = 'trace-preserve-' . uniqid();
+        $traceId = 'trace-preserve-'.uniqid();
         $event = [
-            'event_id'      => 'evt-trace-test',
-            'event_type'    => 'xdr.alert.raised',
-            'occurred_at'   => now()->toIso8601String(),
-            'trace_id'      => $traceId,
-            'source_service'=> 'correlation-worker',
+            'event_id' => 'evt-trace-test',
+            'event_type' => 'xdr.alert.raised',
+            'occurred_at' => now()->toIso8601String(),
+            'trace_id' => $traceId,
+            'source_service' => 'correlation-worker',
         ];
         $sig = InternalAuthService::signEvent($event);
 
@@ -300,7 +300,7 @@ class SecurityHardeningTest extends TestCase
     public function test_secrets_validation_returns_structure(): void
     {
         $service = app(SecretsValidationService::class);
-        $result  = $service->validate();
+        $result = $service->validate();
 
         $this->assertArrayHasKey('ok', $result);
         $this->assertArrayHasKey('errors', $result);
@@ -312,7 +312,7 @@ class SecurityHardeningTest extends TestCase
     {
         putenv('XDR_INGEST_SECRET=dev-secret-change-me');
         $service = app(SecretsValidationService::class);
-        $result  = $service->validate();
+        $result = $service->validate();
         putenv('XDR_INGEST_SECRET=');
 
         $warnings = implode(' ', $result['warnings']);
@@ -326,9 +326,9 @@ class SecurityHardeningTest extends TestCase
         putenv('XDR_INTERNAL_AUTH_SECRET=');
 
         $service = app(SecretsValidationService::class);
-        $result  = $service->validate();
+        $result = $service->validate();
 
-        putenv('XDR_INTERNAL_AUTH_SECRET=' . ($saved ?: ''));
+        putenv('XDR_INTERNAL_AUTH_SECRET='.($saved ?: ''));
 
         $warnings = implode(' ', $result['warnings']);
         $this->assertStringContainsString('XDR_INTERNAL_AUTH_SECRET', $warnings);
@@ -338,7 +338,7 @@ class SecurityHardeningTest extends TestCase
     {
         // In test env SOC_WEBHOOK_SECRET is typically unset
         $service = app(SecretsValidationService::class);
-        $result  = $service->validate();
+        $result = $service->validate();
 
         $allMessages = array_merge($result['errors'], $result['warnings']);
         $webhookWarned = collect($allMessages)->contains(
@@ -350,7 +350,7 @@ class SecurityHardeningTest extends TestCase
     public function test_secrets_validation_and_record_creates_hardening_event(): void
     {
         $service = app(SecretsValidationService::class);
-        $before  = SecurityHardeningEvent::where('event_type', 'startup_validation')->count();
+        $before = SecurityHardeningEvent::where('event_type', 'startup_validation')->count();
 
         // Force at least one warning (XDR_INGEST_SECRET not set = warning)
         $service->validateAndRecord();
@@ -534,7 +534,7 @@ class SecurityHardeningTest extends TestCase
 
     public function test_event_envelope_schema_includes_event_signature_field(): void
     {
-        $raw  = file_get_contents(base_path('docs/contracts/events/event-envelope.v1.schema.json'));
+        $raw = file_get_contents(base_path('docs/contracts/events/event-envelope.v1.schema.json'));
         $data = json_decode($raw, true);
         $this->assertArrayHasKey('event_signature', $data['properties']);
         $this->assertStringContainsString('sha256=', $data['properties']['event_signature']['description']);

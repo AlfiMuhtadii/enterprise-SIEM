@@ -65,7 +65,7 @@ class StabilityEvidenceFreezeV3Test extends TestCase
 
     public function test_dry_run_gate_ids_cover_ev3_01_to_ev3_22(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $gateIds = array_column($result['gates'], 'gate_id');
         for ($i = 1; $i <= 22; $i++) {
             $expected = sprintf('EV3-%02d', $i);
@@ -84,7 +84,7 @@ class StabilityEvidenceFreezeV3Test extends TestCase
     public function test_dry_run_pass_score_between_0_and_1(): void
     {
         $result = $this->service->freeze(true);
-        $score  = $result['summary']['pass_score'];
+        $score = $result['summary']['pass_score'];
         $this->assertGreaterThanOrEqual(0.0, $score);
         $this->assertLessThanOrEqual(1.0, $score);
     }
@@ -99,7 +99,7 @@ class StabilityEvidenceFreezeV3Test extends TestCase
 
     public function test_dry_run_phases_cover_e045_to_e054(): void
     {
-        $result   = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $phaseIds = array_column($result['phases'], 'enterprise_id');
         foreach (['E045', 'E046', 'E047', 'E048', 'E049', 'E050', 'E051', 'E052', 'E053', 'E054'] as $eid) {
             $this->assertContains($eid, $phaseIds, "Phase {$eid} missing");
@@ -142,21 +142,21 @@ class StabilityEvidenceFreezeV3Test extends TestCase
 
     public function test_dry_run_returns_allowed_claims(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $allowed = array_filter($result['claims'], fn ($c) => $c['claim_type'] === 'allowed');
         $this->assertNotEmpty($allowed);
     }
 
     public function test_dry_run_returns_forbidden_claims(): void
     {
-        $result    = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $forbidden = array_filter($result['claims'], fn ($c) => $c['claim_type'] === 'forbidden');
         $this->assertNotEmpty($forbidden);
     }
 
     public function test_dry_run_allowed_claim_count_matches_summary(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $allowed = count(array_filter($result['claims'], fn ($c) => $c['claim_type'] === 'allowed'));
         $this->assertSame($allowed, $result['summary']['allowed_claim_count']);
     }
@@ -171,7 +171,7 @@ class StabilityEvidenceFreezeV3Test extends TestCase
 
     public function test_dry_run_gap_registry_has_fixture_gap(): void
     {
-        $result       = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $descriptions = array_column($result['gaps'], 'description');
         $hasFixtureGap = false;
         foreach ($descriptions as $d) {
@@ -185,9 +185,9 @@ class StabilityEvidenceFreezeV3Test extends TestCase
 
     public function test_dry_run_gap_registry_has_soak_gap(): void
     {
-        $result       = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $descriptions = array_column($result['gaps'], 'description');
-        $hasSoakGap   = false;
+        $hasSoakGap = false;
         foreach ($descriptions as $d) {
             if (str_contains($d, 'soak')) {
                 $hasSoakGap = true;

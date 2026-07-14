@@ -2,18 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\SoakValidationRun;
-use App\Models\SoakValidationMetric;
-use App\Models\ChaosSimulationRun;
-use App\Models\ChaosFailureEvent;
-use App\Models\RecoveryValidationArtifact;
-use App\Models\OperationalDriftReport;
-use App\Models\ReplayRecoveryRun;
-use App\Models\TelemetryContinuityReport;
 use App\Models\BoundedFailureScenario;
+use App\Services\EntityRiskScoringService;
 use App\Services\SoakChaosValidationService;
 use App\Services\ThreatHuntingService;
-use App\Services\EntityRiskScoringService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -33,11 +25,6 @@ class SoakChaosValidationTest extends TestCase
     // =========================================================================
     // Hard constraint ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no forbidden operations
     // =========================================================================
-
-
-
-
-
 
     protected function getAdvisoryServiceClass(): string
     {
@@ -76,10 +63,10 @@ class SoakChaosValidationTest extends TestCase
     public function test_soak_run_passes_when_metrics_in_bounds(): void
     {
         $run = $this->service->recordSoakRun('6h', 360, 'completed', [
-            'memory_growth_mb'          => 100.0,
-            'duplicate_event_rate'      => 0.005,
-            'telemetry_gap_rate'        => 0.02,
-            'retry_amplification_factor'=> 1.5,
+            'memory_growth_mb' => 100.0,
+            'duplicate_event_rate' => 0.005,
+            'telemetry_gap_rate' => 0.02,
+            'retry_amplification_factor' => 1.5,
         ]);
 
         $this->assertTrue($run->passed);
@@ -458,13 +445,13 @@ class SoakChaosValidationTest extends TestCase
     public function test_bounded_failure_scenario_is_mutable(): void
     {
         $scenario = BoundedFailureScenario::create([
-            'scenario_key'        => 'worker_restart_test',
-            'name'                => 'Worker Restart',
-            'component'           => 'worker',
-            'max_duration_seconds'=> 120,
-            'enabled'             => true,
-            'requires_approval'   => true,
-            'destructive'         => false,
+            'scenario_key' => 'worker_restart_test',
+            'name' => 'Worker Restart',
+            'component' => 'worker',
+            'max_duration_seconds' => 120,
+            'enabled' => true,
+            'requires_approval' => true,
+            'destructive' => false,
         ]);
 
         $scenario->enabled = false;
@@ -615,5 +602,3 @@ class SoakChaosValidationTest extends TestCase
         $this->assertSame('computed', $run->evidence_basis);
     }
 }
-
-

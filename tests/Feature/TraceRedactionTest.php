@@ -22,75 +22,76 @@ class TraceRedactionTest extends TestCase
 
     private function seedAlert(string $traceId, array $override = []): string
     {
-        $alertId = 'alert-' . substr($traceId, 0, 12) . '-' . uniqid();
+        $alertId = 'alert-'.substr($traceId, 0, 12).'-'.uniqid();
         DB::table('security_alerts')->insert(array_merge([
-            'alert_id'          => $alertId,
+            'alert_id' => $alertId,
             'alert_fingerprint' => md5($alertId),
-            'alert_type'        => 'IDENTITY_MFA_FAILURE_BURST',
-            'severity'          => 'high',
-            'detected_at'       => now()->toIsoString(),
-            'actor_key'         => 'scenario-actor@test.local',
-            'ip'                => '10.0.0.1',
-            'score'             => 0.9,
-            'detector_name'     => 'xdr-correlation',
-            'detector_version'  => 'go-shadow',
-            'evidence'          => '{}',
-            'raw_event'         => '{}',
-            'trace_id'          => $traceId,
-            'created_at'        => now(),
-            'updated_at'        => now(),
+            'alert_type' => 'IDENTITY_MFA_FAILURE_BURST',
+            'severity' => 'high',
+            'detected_at' => now()->toIsoString(),
+            'actor_key' => 'scenario-actor@test.local',
+            'ip' => '10.0.0.1',
+            'score' => 0.9,
+            'detector_name' => 'xdr-correlation',
+            'detector_version' => 'go-shadow',
+            'evidence' => '{}',
+            'raw_event' => '{}',
+            'trace_id' => $traceId,
+            'created_at' => now(),
+            'updated_at' => now(),
         ], $override));
+
         return $alertId;
     }
 
     private function seedOpEvent(string $traceId, string $payloadJson = '{}'): void
     {
         DB::table('xdr_operational_events')->insert([
-            'event_id'       => 'evt-' . uniqid(),
-            'event_type'     => 'alert.created',
+            'event_id' => 'evt-'.uniqid(),
+            'event_type' => 'alert.created',
             'schema_version' => 1,
-            'source_topic'   => 'alerts.created',
+            'source_topic' => 'alerts.created',
             'source_service' => 'alert-writer-service',
-            'trace_id'       => $traceId,
-            'occurred_at'    => now()->toIsoString(),
-            'payload'        => $payloadJson,
-            'metadata'       => '{}',
-            'replayable'     => true,
-            'published_at'   => now(),
-            'created_at'     => now(),
-            'updated_at'     => now(),
+            'trace_id' => $traceId,
+            'occurred_at' => now()->toIsoString(),
+            'payload' => $payloadJson,
+            'metadata' => '{}',
+            'replayable' => true,
+            'published_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 
     private function seedEvidence(string $traceId, \App\Models\User $user, string $payloadJson = '{}'): void
     {
         DB::table('scenario_runs')->insert([
-            'scenario_id'      => 'failed_login_burst',
-            'user_id'          => $user->id,
-            'status'           => 'completed',
-            'run_mode'         => 'stub',
-            'trace_id'         => $traceId,
-            'config'           => '{}',
-            'results'          => '{}',
-            'alerts_detected'  => 0,
+            'scenario_id' => 'failed_login_burst',
+            'user_id' => $user->id,
+            'status' => 'completed',
+            'run_mode' => 'stub',
+            'trace_id' => $traceId,
+            'config' => '{}',
+            'results' => '{}',
+            'alerts_detected' => 0,
             'detection_passed' => false,
-            'created_at'       => now(),
-            'updated_at'       => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
         $runId = DB::getPdo()->lastInsertId();
 
         DB::table('scenario_evidence')->insert([
             'scenario_run_id' => $runId,
-            'stage'           => 'ingestion',
-            'stage_type'      => 'real_pipeline_stage',
-            'event_id'        => 'ev-' . uniqid(),
-            'trace_id'        => $traceId,
-            'status'          => 'detected',
-            'payload'         => $payloadJson,
-            'processed_at'    => now()->toIsoString(),
-            'latency_ms'      => 12,
-            'created_at'      => now(),
-            'updated_at'      => now(),
+            'stage' => 'ingestion',
+            'stage_type' => 'real_pipeline_stage',
+            'event_id' => 'ev-'.uniqid(),
+            'trace_id' => $traceId,
+            'status' => 'detected',
+            'payload' => $payloadJson,
+            'processed_at' => now()->toIsoString(),
+            'latency_ms' => 12,
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
     }
 
@@ -162,11 +163,11 @@ class TraceRedactionTest extends TestCase
     public function test_redactor_preserves_investigative_identifiers(): void
     {
         $row = (object) [
-            'actor_key'  => 'scenario-actor@test.local',
-            'ip'         => '10.0.0.1',
+            'actor_key' => 'scenario-actor@test.local',
+            'ip' => '10.0.0.1',
             'alert_type' => 'IDENTITY_MFA_FAILURE_BURST',
-            'severity'   => 'high',
-            'trace_id'   => 'abc-123',
+            'severity' => 'high',
+            'trace_id' => 'abc-123',
         ];
         $out = TraceRedactor::row($row);
         $this->assertSame('scenario-actor@test.local', $out->actor_key);
@@ -180,7 +181,7 @@ class TraceRedactionTest extends TestCase
     {
         $row = (object) [
             'payload' => '{"authorization":"Bearer tok","safe_field":"ok"}',
-            'stage'   => 'ingestion',
+            'stage' => 'ingestion',
         ];
         $out = TraceRedactor::row($row);
         // payload decoded from JSON string → array, sensitive key redacted
@@ -205,9 +206,9 @@ class TraceRedactionTest extends TestCase
     {
         $original = (object) [
             'payload' => '{"password":"secret","user":"bob"}',
-            'evidence'=> '{"authorization":"Bearer x"}',
+            'evidence' => '{"authorization":"Bearer x"}',
         ];
-        $payloadBefore  = $original->payload;
+        $payloadBefore = $original->payload;
         $evidenceBefore = $original->evidence;
 
         TraceRedactor::row($original);
@@ -218,7 +219,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_redactor_deep_does_not_mutate_input_array(): void
     {
-        $input  = ['password' => 'secret', 'user' => 'bob'];
+        $input = ['password' => 'secret', 'user' => 'bob'];
         $before = $input['password'];
 
         TraceRedactor::deep($input);
@@ -275,11 +276,11 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_alerts_api_redacts_sensitive_evidence_fields(): void
     {
-        $traceId  = 'redact-test-' . uniqid();
+        $traceId = 'redact-test-'.uniqid();
         $evidence = json_encode([
             'authorization' => 'Bearer supersecret-tok',
-            'risk_score'    => 0.95,
-            'involved_users'=> ['alice'],
+            'risk_score' => 0.95,
+            'involved_users' => ['alice'],
         ]);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
 
@@ -298,10 +299,10 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_alerts_api_redacts_raw_event_tokens(): void
     {
-        $traceId  = 'redact-raw-' . uniqid();
+        $traceId = 'redact-raw-'.uniqid();
         $rawEvent = json_encode([
             'x_api_key' => 'apikey-raw-value',
-            'method'    => 'POST',
+            'method' => 'POST',
         ]);
         $this->seedAlert($traceId, ['raw_event' => $rawEvent]);
 
@@ -317,9 +318,9 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_alerts_api_redacts_email_values_in_evidence(): void
     {
-        $traceId  = 'redact-email-' . uniqid();
+        $traceId = 'redact-email-'.uniqid();
         $evidence = json_encode([
-            'sender'     => 'victim@corp.example.com',
+            'sender' => 'victim@corp.example.com',
             'alert_type' => 'PHISHING',
         ]);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
@@ -336,10 +337,10 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_alerts_api_preserves_actor_key_and_ip(): void
     {
-        $traceId = 'redact-preserve-' . uniqid();
+        $traceId = 'redact-preserve-'.uniqid();
         $this->seedAlert($traceId, [
             'actor_key' => 'soc-analyst@company.com',
-            'ip'        => '192.168.99.1',
+            'ip' => '192.168.99.1',
         ]);
 
         $response = $this->actingAs($this->admin())
@@ -357,7 +358,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_show_api_redacts_alert_evidence(): void
     {
-        $traceId  = 'show-redact-' . uniqid();
+        $traceId = 'show-redact-'.uniqid();
         $evidence = json_encode(['password' => 'plaintext-pwd', 'score' => 0.8]);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
 
@@ -375,10 +376,10 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_timeline_api_redacts_operational_event_payload(): void
     {
-        $traceId = 'timeline-redact-' . uniqid();
+        $traceId = 'timeline-redact-'.uniqid();
         $payload = json_encode([
-            'secret'      => 'pipeline-secret-value',
-            'source'      => 'normalizer-worker',
+            'secret' => 'pipeline-secret-value',
+            'source' => 'normalizer-worker',
             'event_count' => 42,
         ]);
         $this->seedOpEvent($traceId, $payload);
@@ -400,7 +401,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_timeline_api_redacts_alert_evidence_inline(): void
     {
-        $traceId  = 'timeline-alert-redact-' . uniqid();
+        $traceId = 'timeline-alert-redact-'.uniqid();
         $evidence = json_encode(['authorization' => 'Bearer inline-tok', 'rule' => 'BURST']);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
 
@@ -422,11 +423,11 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_evidence_api_redacts_scenario_payload(): void
     {
-        $traceId = 'evidence-redact-' . uniqid();
+        $traceId = 'evidence-redact-'.uniqid();
         $payload = json_encode([
-            'x_auth_token'   => 'evidence-token-xyz',
+            'x_auth_token' => 'evidence-token-xyz',
             'telemetry_type' => 'cloud',
-            'event_count'    => 5,
+            'event_count' => 5,
         ]);
         $this->seedEvidence($traceId, $this->admin(), $payload);
         $this->seedAlert($traceId);
@@ -444,10 +445,10 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_evidence_api_redacts_email_in_payload(): void
     {
-        $traceId = 'evidence-email-' . uniqid();
+        $traceId = 'evidence-email-'.uniqid();
         $payload = json_encode([
             'recipient' => 'target@corp.example.com',
-            'action'    => 'objectAccess',
+            'action' => 'objectAccess',
         ]);
         $this->seedEvidence($traceId, $this->admin(), $payload);
         $this->seedAlert($traceId);
@@ -467,7 +468,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_search_results_do_not_expose_evidence_payloads(): void
     {
-        $traceId  = 'search-safe-' . uniqid();
+        $traceId = 'search-safe-'.uniqid();
         $evidence = json_encode(['secret' => 'should-never-appear-in-search']);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
 
@@ -485,7 +486,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_trace_search_ui_page_does_not_expose_evidence_payloads(): void
     {
-        $traceId  = 'search-ui-safe-' . uniqid();
+        $traceId = 'search-ui-safe-'.uniqid();
         $evidence = json_encode(['password' => 'must-not-appear-on-search-page']);
         $this->seedAlert($traceId, ['evidence' => $evidence]);
 
@@ -502,9 +503,9 @@ class TraceRedactionTest extends TestCase
 
     public function test_raw_database_data_unchanged_after_alerts_api_call(): void
     {
-        $traceId     = 'immutable-' . uniqid();
+        $traceId = 'immutable-'.uniqid();
         $rawEvidence = json_encode(['authorization' => 'Bearer original-secret', 'score' => 1.0]);
-        $alertId     = $this->seedAlert($traceId, ['evidence' => $rawEvidence]);
+        $alertId = $this->seedAlert($traceId, ['evidence' => $rawEvidence]);
 
         // Call the API (which applies redaction)
         $this->actingAs($this->admin())
@@ -519,9 +520,9 @@ class TraceRedactionTest extends TestCase
 
     public function test_raw_database_data_unchanged_after_evidence_api_call(): void
     {
-        $traceId    = 'immutable-ev-' . uniqid();
+        $traceId = 'immutable-ev-'.uniqid();
         $rawPayload = json_encode(['x_auth_token' => 'raw-token-value', 'safe' => 'data']);
-        $user       = $this->admin();
+        $user = $this->admin();
         $this->seedEvidence($traceId, $user, $rawPayload);
         $this->seedAlert($traceId);
 
@@ -536,7 +537,7 @@ class TraceRedactionTest extends TestCase
 
     public function test_raw_database_data_unchanged_after_timeline_api_call(): void
     {
-        $traceId   = 'immutable-tl-' . uniqid();
+        $traceId = 'immutable-tl-'.uniqid();
         $rawPayload = json_encode(['secret' => 'pipeline-raw-secret']);
         $this->seedOpEvent($traceId, $rawPayload);
         $this->seedAlert($traceId);

@@ -120,7 +120,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_grant_membership_creates_active_record(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $membership = $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -132,24 +132,24 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_grant_membership_appends_audit_event(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $membership = $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
 
         $this->assertDatabaseHas('tenant_membership_audit_events', [
             'membership_id' => $membership->membership_id,
-            'event_type'    => 'granted',
-            'actor_id'      => $admin->id,
+            'event_type' => 'granted',
+            'actor_id' => $admin->id,
         ]);
     }
 
     public function test_grant_membership_is_idempotent_for_active_membership(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
-        $first  = $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
+        $first = $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
         $second = $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
 
         $this->assertSame($first->id, $second->id);
@@ -159,7 +159,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_grant_membership_reactivates_revoked_membership(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -173,7 +173,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_re_grant_appends_re_granted_audit_event(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -182,7 +182,7 @@ class TenantContextAuthorityTest extends TestCase
 
         $this->assertDatabaseHas('tenant_membership_audit_events', [
             'event_type' => 're_granted',
-            'user_id'    => $user->id,
+            'user_id' => $user->id,
         ]);
     }
 
@@ -192,7 +192,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_revoke_membership_deactivates_record(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -205,7 +205,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_revoke_membership_appends_revoked_audit_event(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -213,13 +213,13 @@ class TenantContextAuthorityTest extends TestCase
 
         $this->assertDatabaseHas('tenant_membership_audit_events', [
             'event_type' => 'revoked',
-            'user_id'    => $user->id,
+            'user_id' => $user->id,
         ]);
     }
 
     public function test_revoke_nonexistent_membership_throws(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
@@ -232,7 +232,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_get_user_tenants_returns_active_tenants(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -247,7 +247,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_get_user_tenants_excludes_revoked(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -272,7 +272,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_validate_and_resolve_returns_null_when_no_header(): void
     {
-        $user    = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $request = Request::create('/test');
 
         $this->assertNull($this->authority->validateAndResolve($request, $user));
@@ -280,7 +280,7 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_validate_and_resolve_admin_bypasses_membership_check(): void
     {
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'any-tenant']);
 
         $this->assertSame('any-tenant', $this->authority->validateAndResolve($request, $admin));
@@ -298,7 +298,7 @@ class TenantContextAuthorityTest extends TestCase
     public function test_validate_and_resolve_accepts_valid_membership(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-A']);
@@ -309,7 +309,7 @@ class TenantContextAuthorityTest extends TestCase
     public function test_validate_and_resolve_throws_for_non_member_tenant(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $request = Request::create('/test', 'GET', [], [], [], ['HTTP_X-TENANT-ID' => 'tenant-B']);
@@ -321,7 +321,7 @@ class TenantContextAuthorityTest extends TestCase
     public function test_validate_and_resolve_user_with_multiple_tenants_can_switch(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
         $this->authority->grantMembership($analyst->id, 'tenant-B', $admin->id);
 
@@ -335,7 +335,7 @@ class TenantContextAuthorityTest extends TestCase
     public function test_validate_and_resolve_revoked_membership_triggers_spoof_exception(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
         $this->authority->grantMembership($analyst->id, 'tenant-B', $admin->id);
         $this->authority->revokeMembership($analyst->id, 'tenant-B', $admin->id);
@@ -384,13 +384,13 @@ class TenantContextAuthorityTest extends TestCase
 
     public function test_membership_audit_event_model_has_no_timestamps(): void
     {
-        $model = new TenantMembershipAuditEvent();
+        $model = new TenantMembershipAuditEvent;
         $this->assertFalse($model->timestamps);
     }
 
     public function test_membership_audit_events_accumulate_across_lifecycle(): void
     {
-        $user  = User::factory()->create(['role' => 'analyst']);
+        $user = User::factory()->create(['role' => 'analyst']);
         $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($user->id, 'tenant-A', $admin->id);
@@ -408,41 +408,41 @@ class TenantContextAuthorityTest extends TestCase
     public function test_advisory_show_403_when_user_claims_unjoined_tenant(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         // Grant tenant-A only; finding is also on tenant-A
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(\App\Services\AdvisoryFindingService::class);
+        $svc = app(\App\Services\AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         // Analyst claims tenant-B (not a member) — spoof attempt
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertForbidden();
     }
 
     public function test_advisory_show_200_when_user_claims_joined_tenant(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(\App\Services\AdvisoryFindingService::class);
+        $svc = app(\App\Services\AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-A'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
     public function test_dlq_show_403_when_user_claims_unjoined_tenant(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
@@ -450,14 +450,14 @@ class TenantContextAuthorityTest extends TestCase
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/dlq/records/' . $record->record_id)
+            ->get('/dlq/records/'.$record->record_id)
             ->assertForbidden();
     }
 
     public function test_shadow_soak_show_403_when_user_claims_unjoined_tenant(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
@@ -465,59 +465,59 @@ class TenantContextAuthorityTest extends TestCase
 
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/shadow-soak/' . $run->run_id)
+            ->get('/shadow-soak/'.$run->run_id)
             ->assertForbidden();
     }
 
     public function test_advisory_show_403_when_revoked_membership_is_claimed(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
 
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
         $this->authority->grantMembership($analyst->id, 'tenant-B', $admin->id);
         $this->authority->revokeMembership($analyst->id, 'tenant-B', $admin->id);
 
-        $svc     = app(\App\Services\AdvisoryFindingService::class);
+        $svc = app(\App\Services\AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-B', 'fp-revoked'));
 
         // User has tenant-A active, tenant-B revoked — claiming tenant-B is a spoof
         $this->actingAs($analyst)
             ->withHeaders(['X-Tenant-ID' => 'tenant-B'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertForbidden();
     }
 
     public function test_admin_bypasses_spoofing_check_and_can_use_any_tenant(): void
     {
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $analyst = User::factory()->create(['role' => 'analyst']);
 
         // Grant analyst only tenant-A; admin has no explicit memberships
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(\App\Services\AdvisoryFindingService::class);
+        $svc = app(\App\Services\AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-Z'));
 
         // Admin can access any tenant without a membership
         $this->actingAs($admin)
             ->withHeaders(['X-Tenant-ID' => 'tenant-Z'])
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
     public function test_no_header_bypasses_authority_check_even_with_memberships(): void
     {
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
-        $svc     = app(\App\Services\AdvisoryFindingService::class);
+        $svc = app(\App\Services\AdvisoryFindingService::class);
         $finding = $svc->upsertFromShadow($this->makeAdvisoryPayload('tenant-A'));
 
         // No header → validateAndResolve returns null → assertAccess('tenant-A', null) → passes
         $this->actingAs($analyst)
-            ->get('/advisory/findings/' . $finding->finding_id)
+            ->get('/advisory/findings/'.$finding->finding_id)
             ->assertOk();
     }
 
@@ -528,36 +528,36 @@ class TenantContextAuthorityTest extends TestCase
     private function makeAdvisoryPayload(?string $tenantId, string $fingerprint = 'fp-authority-test'): array
     {
         return [
-            'finding_id'       => Str::uuid()->toString(),
-            'rule_id'          => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
-            'domain'           => 'endpoint',
-            'source_topic'     => 'xdr.alerts.shadow.endpoint',
-            'alert_type'       => 'process_injection',
-            'severity'         => 'high',
-            'confidence'       => 0.80,
-            'actor_key'        => 'host-authority-test',
-            'tenant_id'        => $tenantId,
-            'evidence'         => ['pid' => 9999],
+            'finding_id' => Str::uuid()->toString(),
+            'rule_id' => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
+            'domain' => 'endpoint',
+            'source_topic' => 'xdr.alerts.shadow.endpoint',
+            'alert_type' => 'process_injection',
+            'severity' => 'high',
+            'confidence' => 0.80,
+            'actor_key' => 'host-authority-test',
+            'tenant_id' => $tenantId,
+            'evidence' => ['pid' => 9999],
             'source_event_ids' => ['evt-999'],
-            'fingerprint'      => $fingerprint,
+            'fingerprint' => $fingerprint,
         ];
     }
 
     private function createDlqRecord(?string $tenantId): \App\Models\DlqRecord
     {
-        $svc         = app(\App\Services\DlqReviewService::class);
-        $fingerprint = 'dlq-auth-' . Str::uuid();
+        $svc = app(\App\Services\DlqReviewService::class);
+        $fingerprint = 'dlq-auth-'.Str::uuid();
 
         $svc->upsertFromConsumer([
-            'fingerprint'     => $fingerprint,
-            'dlq_event_type'  => 'normalization_failure',
-            'source_topic'    => 'telemetry.raw',
-            'raw_payload'     => '{"test":true}',
-            'error_message'   => 'parse error',
+            'fingerprint' => $fingerprint,
+            'dlq_event_type' => 'normalization_failure',
+            'source_topic' => 'telemetry.raw',
+            'raw_payload' => '{"test":true}',
+            'error_message' => 'parse error',
             'occurrence_count' => 1,
-            'tenant_id'       => $tenantId,
-            'replayable'      => true,
-            'error_reason'    => null,
+            'tenant_id' => $tenantId,
+            'replayable' => true,
+            'error_reason' => null,
         ]);
 
         return \App\Models\DlqRecord::where('fingerprint', $fingerprint)->firstOrFail();
@@ -566,17 +566,17 @@ class TenantContextAuthorityTest extends TestCase
     private function createSoakRun(?string $tenantId): \App\Models\ShadowSoakRun
     {
         return \App\Models\ShadowSoakRun::create([
-            'run_id'        => 'soak-auth-' . Str::uuid(),
-            'domain'        => 'endpoint',
-            'window_hours'  => 24,
-            'status'        => 'completed',
-            'dry_run'       => false,
-            'started_at'    => now()->subHours(24),
-            'completed_at'  => now(),
-            'initiated_by'  => '1',
+            'run_id' => 'soak-auth-'.Str::uuid(),
+            'domain' => 'endpoint',
+            'window_hours' => 24,
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHours(24),
+            'completed_at' => now(),
+            'initiated_by' => '1',
             'evidence_pass' => true,
-            'gate_summary'  => ['pass_count' => 3, 'fail_count' => 0],
-            'tenant_id'     => $tenantId,
+            'gate_summary' => ['pass_count' => 3, 'fail_count' => 0],
+            'tenant_id' => $tenantId,
         ]);
     }
 }

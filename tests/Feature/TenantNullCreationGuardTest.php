@@ -53,7 +53,7 @@ class TenantNullCreationGuardTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test');
 
         $this->expectException(\App\Exceptions\TenantContextMissingException::class);
@@ -68,7 +68,7 @@ class TenantNullCreationGuardTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test', 'GET', [], [], [], [
             'HTTP_X-TENANT-ID' => TenantContextAuthority::GLOBAL_SCOPE,
         ]);
@@ -88,7 +88,7 @@ class TenantNullCreationGuardTest extends TestCase
     {
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test', 'GET', [], [], [], [
             'HTTP_X-TENANT-ID' => 'tenant-A',
         ]);
@@ -134,7 +134,7 @@ class TenantNullCreationGuardTest extends TestCase
         // requireExplicitScope=false (default): admin no header still returns null (reads unaffected)
         config(['xdr.tenancy.strict_mode' => true]);
 
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test');
 
         $result = $this->authority->validateAndResolve(
@@ -151,7 +151,7 @@ class TenantNullCreationGuardTest extends TestCase
     public function test_legacy_admin_no_header_require_explicit_scope_still_returns_null(): void
     {
         // Legacy mode: requireExplicitScope has no effect — admin no header → null
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $request = Request::create('/test');
 
         $result = $this->authority->validateAndResolve(
@@ -192,8 +192,8 @@ class TenantNullCreationGuardTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => null,
         ]);
 
@@ -212,8 +212,8 @@ class TenantNullCreationGuardTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => 'tenant-X',
         ]);
 
@@ -306,8 +306,8 @@ class TenantNullCreationGuardTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => null,
         ]);
     }
@@ -315,7 +315,7 @@ class TenantNullCreationGuardTest extends TestCase
     public function test_legacy_store_member_no_header_creates_null_tenant_id(): void
     {
         $engineer = User::factory()->create(['role' => 'detection_engineer']);
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($engineer->id, 'tenant-A', $admin->id);
 
         $this->actingAs($engineer)
@@ -324,8 +324,8 @@ class TenantNullCreationGuardTest extends TestCase
 
         // Legacy: no header → null tenant_id (backward compat)
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => null,
         ]);
     }
@@ -345,17 +345,17 @@ class TenantNullCreationGuardTest extends TestCase
     {
         // Create a soak run with null tenant_id
         \App\Models\ShadowSoakRun::create([
-            'run_id'        => 'audit-test-' . Str::uuid(),
-            'domain'        => 'endpoint',
-            'window_hours'  => 1,
-            'status'        => 'completed',
-            'dry_run'       => false,
-            'started_at'    => now()->subHour(),
-            'completed_at'  => now(),
-            'initiated_by'  => '1',
+            'run_id' => 'audit-test-'.Str::uuid(),
+            'domain' => 'endpoint',
+            'window_hours' => 1,
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHour(),
+            'completed_at' => now(),
+            'initiated_by' => '1',
             'evidence_pass' => false,
-            'gate_summary'  => [],
-            'tenant_id'     => null,
+            'gate_summary' => [],
+            'tenant_id' => null,
         ]);
 
         $this->artisan('tenant:null-audit')
@@ -370,7 +370,7 @@ class TenantNullCreationGuardTest extends TestCase
 
     public function test_null_audit_command_output_option_writes_json(): void
     {
-        $path = storage_path('test_tenant_null_audit_' . Str::uuid() . '.json');
+        $path = storage_path('test_tenant_null_audit_'.Str::uuid().'.json');
 
         $this->artisan('tenant:null-audit', ['--output' => $path])
             ->assertExitCode(0);
@@ -387,26 +387,26 @@ class TenantNullCreationGuardTest extends TestCase
 
     public function test_null_audit_command_does_not_mutate_records(): void
     {
-        $runId = 'audit-mutation-check-' . Str::uuid();
+        $runId = 'audit-mutation-check-'.Str::uuid();
         \App\Models\ShadowSoakRun::create([
-            'run_id'        => $runId,
-            'domain'        => 'endpoint',
-            'window_hours'  => 1,
-            'status'        => 'completed',
-            'dry_run'       => false,
-            'started_at'    => now()->subHour(),
-            'completed_at'  => now(),
-            'initiated_by'  => '1',
+            'run_id' => $runId,
+            'domain' => 'endpoint',
+            'window_hours' => 1,
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHour(),
+            'completed_at' => now(),
+            'initiated_by' => '1',
             'evidence_pass' => false,
-            'gate_summary'  => [],
-            'tenant_id'     => null,
+            'gate_summary' => [],
+            'tenant_id' => null,
         ]);
 
         $this->artisan('tenant:null-audit')->assertExitCode(1);
 
         // Record unchanged after audit
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'run_id'    => $runId,
+            'run_id' => $runId,
             'tenant_id' => null,
         ]);
     }

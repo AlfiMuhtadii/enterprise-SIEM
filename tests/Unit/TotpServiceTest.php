@@ -24,7 +24,7 @@ class TotpServiceTest extends TestCase
 
     public function test_base32_round_trip(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $original = random_bytes(20);
         $encoded = $this->callPrivate($service, 'base32Encode', [$original]);
         $decoded = $this->callPrivate($service, 'base32Decode', [$encoded]);
@@ -33,7 +33,7 @@ class TotpServiceTest extends TestCase
 
     public function test_base32_encode_matches_known_vector(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         // RFC 4648 test vector: "12345678901234567890" -> base32.
         $encoded = $this->callPrivate($service, 'base32Encode', ['12345678901234567890']);
         $this->assertSame('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', $encoded);
@@ -45,7 +45,7 @@ class TotpServiceTest extends TestCase
         // T=59s (period 30s) -> counter=1 -> published 8-digit code 94287082.
         // This service truncates to 6 digits, so the expected value is the
         // last 6 digits of that RFC-published number: 287082.
-        $service = new TotpService();
+        $service = new TotpService;
         $base32Secret = $this->callPrivate($service, 'base32Encode', ['12345678901234567890']);
         $code = $this->callPrivate($service, 'generateCode', [$base32Secret, 1]);
         $this->assertSame('287082', $code);
@@ -53,7 +53,7 @@ class TotpServiceTest extends TestCase
 
     public function test_verify_accepts_current_code(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
         $counter = intdiv(time(), 30);
         $code = $this->callPrivate($service, 'generateCode', [$secret, $counter]);
@@ -63,7 +63,7 @@ class TotpServiceTest extends TestCase
 
     public function test_verify_accepts_code_within_drift_window(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
         $counter = intdiv(time(), 30) - 1; // one period in the past
         $code = $this->callPrivate($service, 'generateCode', [$secret, $counter]);
@@ -73,7 +73,7 @@ class TotpServiceTest extends TestCase
 
     public function test_verify_rejects_code_outside_drift_window(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
         $counter = intdiv(time(), 30) - 5; // well outside a 1-step window
         $code = $this->callPrivate($service, 'generateCode', [$secret, $counter]);
@@ -83,7 +83,7 @@ class TotpServiceTest extends TestCase
 
     public function test_verify_rejects_wrong_code(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
 
         $this->assertFalse($service->verify($secret, '000000'));
@@ -91,7 +91,7 @@ class TotpServiceTest extends TestCase
 
     public function test_verify_rejects_malformed_input(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
 
         $this->assertFalse($service->verify($secret, 'abcdef'));
@@ -101,7 +101,7 @@ class TotpServiceTest extends TestCase
 
     public function test_provisioning_uri_contains_secret_and_issuer(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $secret = $service->generateSecret();
         $uri = $service->provisioningUri('alice@example.com', 'Detector XDR', $secret);
 
@@ -112,7 +112,7 @@ class TotpServiceTest extends TestCase
 
     public function test_generated_secrets_are_unique(): void
     {
-        $service = new TotpService();
+        $service = new TotpService;
         $this->assertNotSame($service->generateSecret(), $service->generateSecret());
     }
 }

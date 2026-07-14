@@ -14,7 +14,7 @@ class SocResponseWorkflowTest extends TestCase
 
     public function test_response_recommendation_can_be_approved_into_agent_command(): void
     {
-        $analyst  = User::factory()->create(['role' => 'analyst']);
+        $analyst = User::factory()->create(['role' => 'analyst']);
         $approver = User::factory()->create(['role' => 'analyst']);
         DB::table('endpoint_agents')->insert([
             'agent_id' => 'agent-response-1',

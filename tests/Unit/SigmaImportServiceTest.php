@@ -15,21 +15,21 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_parse_rejects_non_mapping_yaml(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $this->expectException(InvalidArgumentException::class);
         $service->parse("- just\n- a\n- list\n");
     }
 
     public function test_parse_rejects_missing_required_sigma_fields(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $this->expectException(InvalidArgumentException::class);
         $service->parse("title: Incomplete Rule\n");
     }
 
     public function test_compile_powershell_encoded_command_maps_to_endpoint_domain(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('powershell_encoded_command.yml'));
         $entry = $service->compile($sigma);
 
@@ -45,7 +45,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_okta_rule_maps_to_identity_domain_not_shadow_only(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('okta_mfa_bypass_attempt.yml'));
         $entry = $service->compile($sigma);
 
@@ -57,7 +57,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_all_required_registry_fields_present(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('powershell_encoded_command.yml'));
         $entry = $service->compile($sigma);
 
@@ -76,7 +76,7 @@ class SigmaImportServiceTest extends TestCase
         // Even if the source Sigma rule claims status: stable, this compiler
         // must never emit staged_active — that requires a domain-specific
         // 6h soak PASS, which an import can never satisfy on its own.
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('powershell_encoded_command.yml'));
         $this->assertSame('stable', $sigma['status']); // sanity: fixture does claim "stable"
         $entry = $service->compile($sigma);
@@ -85,7 +85,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_deduplicates_rule_id_against_existing(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('powershell_encoded_command.yml'));
         $first = $service->compile($sigma);
         $second = $service->compile($sigma, [$first['rule_id']]);
@@ -95,7 +95,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_falls_back_to_medium_severity_for_unknown_level(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse("title: Weird Level Rule\nlogsource: {product: windows, category: process_creation}\ndetection: {selection: {Image: 'x'}, condition: selection}\nlevel: unheard_of\n");
         $entry = $service->compile($sigma);
 
@@ -104,7 +104,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_handles_falsepositives_as_scalar_string(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse("title: Scalar FP Rule\nlogsource: {product: windows, category: process_creation}\ndetection: {selection: {Image: 'x'}, condition: selection}\nlevel: low\nfalsepositives: Unknown\n");
         $entry = $service->compile($sigma);
 
@@ -113,7 +113,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_preserves_sigma_source_for_future_hand_implementation(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse($this->fixture('powershell_encoded_command.yml'));
         $entry = $service->compile($sigma);
 
@@ -124,7 +124,7 @@ class SigmaImportServiceTest extends TestCase
 
     public function test_compile_aws_product_maps_to_cloud_domain(): void
     {
-        $service = new SigmaImportService();
+        $service = new SigmaImportService;
         $sigma = $service->parse("title: Suspicious CloudTrail API Call\nlogsource: {product: aws, service: cloudtrail}\ndetection: {selection: {eventName: 'DeleteTrail'}, condition: selection}\nlevel: high\n");
         $entry = $service->compile($sigma);
 

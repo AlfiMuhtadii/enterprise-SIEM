@@ -199,9 +199,9 @@ class UEBABaselineAnalyticsTenantIsolationTest extends TestCase
         $response = $this->actingAs($user)
             ->withHeaders(['X-Tenant-ID' => 'tenant-a'])
             ->postJson(route('api.ueba.compute'), [
-                'entity_key'  => 'apiuser@x.test',
+                'entity_key' => 'apiuser@x.test',
                 'entity_type' => 'user',
-                'dimension'   => 'login_frequency',
+                'dimension' => 'login_frequency',
             ]);
 
         $response->assertOk();

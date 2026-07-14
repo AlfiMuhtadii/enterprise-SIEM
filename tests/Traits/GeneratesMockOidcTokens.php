@@ -103,7 +103,7 @@ trait GeneratesMockOidcTokens
     }
 
     /**
-     * @param array<string, mixed> $claimOverrides
+     * @param  array<string, mixed>  $claimOverrides
      */
     private function signMockOidcIdToken(array $claimOverrides = []): string
     {
@@ -129,7 +129,7 @@ trait GeneratesMockOidcTokens
      * signature doesn't match the IdP's published JWKS, not just that a
      * well-formed claim set is accepted.
      *
-     * @param array<string, mixed> $claimOverrides
+     * @param  array<string, mixed>  $claimOverrides
      */
     private function signRogueOidcIdToken(array $claimOverrides = []): string
     {

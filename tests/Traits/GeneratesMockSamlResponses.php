@@ -102,8 +102,8 @@ trait GeneratesMockSamlResponses
      * onelogin/php-saml against config('saml.idp.x509cert') -- the embedded
      * <ds:KeyInfo> certificate is never the actual trust root.
      *
-     * @param array<string, mixed> $opts idp_entity_id, sp_entity_id, acs_url,
-     *   email, in_response_to, keypair (override signer -- for rogue-signer tests)
+     * @param  array<string, mixed>  $opts  idp_entity_id, sp_entity_id, acs_url,
+     *                                      email, in_response_to, keypair (override signer -- for rogue-signer tests)
      */
     private function buildMockSamlResponseXml(array $opts = []): string
     {
@@ -155,13 +155,13 @@ trait GeneratesMockSamlResponses
 </samlp:Response>
 XML;
 
-        $doc = new DOMDocument();
+        $doc = new DOMDocument;
         $doc->preserveWhiteSpace = false;
         $doc->loadXML($xml);
 
         $assertionNode = $doc->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Assertion')->item(0);
 
-        $sig = new XMLSecurityDSig();
+        $sig = new XMLSecurityDSig;
         $sig->setCanonicalMethod(XMLSecurityDSig::EXC_C14N);
         $sig->addReferenceList(
             [$assertionNode],

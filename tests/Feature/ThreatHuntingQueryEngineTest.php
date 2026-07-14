@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\EndpointAgent;
-use App\Models\EndpointBehavioralFinding;
 use App\Models\EndpointPersistenceItem;
 use App\Models\EndpointProcessEntry;
 use App\Models\EndpointProcessSnapshot;
@@ -42,14 +41,14 @@ class ThreatHuntingQueryEngineTest extends TestCase
     private function makeSnapshot(EndpointAgent $agent): EndpointProcessSnapshot
     {
         return EndpointProcessSnapshot::create([
-            'snapshot_id'   => EndpointProcessSnapshot::generateSnapshotId(),
-            'agent_id'      => $agent->id,
-            'collected_at'  => now(),
+            'snapshot_id' => EndpointProcessSnapshot::generateSnapshotId(),
+            'agent_id' => $agent->id,
+            'collected_at' => now(),
             'process_count' => 0,
-            'shell_count'   => 0,
+            'shell_count' => 0,
             'long_lived_count' => 0,
             'suspicious_count' => 0,
-            'trace_id'      => 'trace-hunt-test',
+            'trace_id' => 'trace-hunt-test',
         ]);
     }
 
@@ -115,17 +114,17 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_max_results_enforced(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $snapshot = $this->makeSnapshot($agent);
 
         // Insert 10 process entries
         for ($i = 0; $i < 10; $i++) {
             EndpointProcessEntry::create([
-                'snapshot_id'  => $snapshot->id,
-                'agent_id'     => $agent->id,
+                'snapshot_id' => $snapshot->id,
+                'agent_id' => $agent->id,
                 'process_name' => "test-process-{$i}",
-                'trace_id'     => 'trace-maxresults',
-                'created_at'   => now(),
+                'trace_id' => 'trace-maxresults',
+                'created_at' => now(),
             ]);
         }
 
@@ -136,10 +135,10 @@ class ThreatHuntingQueryEngineTest extends TestCase
     public function test_max_results_cannot_exceed_hard_cap(): void
     {
         $hunt = $this->svc()->executeHunt([
-            'query_domain'  => 'processes',
+            'query_domain' => 'processes',
             'query_filters' => [],
-            'max_results'   => 9999,  // exceeds hard cap
-            'title'         => 'Test cap',
+            'max_results' => 9999,  // exceeds hard cap
+            'title' => 'Test cap',
         ]);
 
         $query = ThreatHuntQuery::where('hunt_id', $hunt->id)->first();
@@ -149,11 +148,11 @@ class ThreatHuntingQueryEngineTest extends TestCase
     public function test_time_range_window_clamped_to_30_days(): void
     {
         $hunt = $this->svc()->executeHunt([
-            'query_domain'     => 'processes',
-            'query_filters'    => [],
+            'query_domain' => 'processes',
+            'query_filters' => [],
             'time_range_start' => now()->subDays(90)->toIso8601String(),
-            'time_range_end'   => now()->toIso8601String(),
-            'title'            => 'Time range clamp test',
+            'time_range_end' => now()->toIso8601String(),
+            'title' => 'Time range clamp test',
         ]);
 
         $query = ThreatHuntQuery::where('hunt_id', $hunt->id)->first();
@@ -172,9 +171,9 @@ class ThreatHuntingQueryEngineTest extends TestCase
     {
         $user = $this->admin();
         $hunt = $this->svc()->executeHunt([
-            'query_domain'  => 'processes',
+            'query_domain' => 'processes',
             'query_filters' => [],
-            'title'         => 'Test Hunt',
+            'title' => 'Test Hunt',
         ], $user);
 
         $this->assertNotNull($hunt);
@@ -185,9 +184,9 @@ class ThreatHuntingQueryEngineTest extends TestCase
     public function test_hunt_creates_query_record(): void
     {
         $hunt = $this->svc()->executeHunt([
-            'query_domain'  => 'persistence_items',
+            'query_domain' => 'persistence_items',
             'query_filters' => [['field' => 'item_type', 'operator' => '=', 'value' => 'systemd_service']],
-            'title'         => 'Persistence Hunt',
+            'title' => 'Persistence Hunt',
         ]);
 
         $query = ThreatHuntQuery::where('hunt_id', $hunt->id)->first();
@@ -198,22 +197,22 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_hunt_results_stored_as_snapshots(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $snapshot = $this->makeSnapshot($agent);
 
         EndpointProcessEntry::create([
-            'snapshot_id'  => $snapshot->id,
-            'agent_id'     => $agent->id,
+            'snapshot_id' => $snapshot->id,
+            'agent_id' => $agent->id,
             'process_name' => 'bash',
-            'is_shell'     => true,
-            'trace_id'     => 'trace-bash-hunt',
-            'created_at'   => now(),
+            'is_shell' => true,
+            'trace_id' => 'trace-bash-hunt',
+            'created_at' => now(),
         ]);
 
         $hunt = $this->svc()->executeHunt([
-            'query_domain'  => 'processes',
+            'query_domain' => 'processes',
             'query_filters' => [['field' => 'process_name', 'operator' => '=', 'value' => 'bash']],
-            'title'         => 'Find bash',
+            'title' => 'Find bash',
         ]);
 
         $this->assertGreaterThan(0, $hunt->result_count);
@@ -237,8 +236,8 @@ class ThreatHuntingQueryEngineTest extends TestCase
     {
         $hunt = $this->svc()->executeHunt([
             'query_domain' => 'processes',
-            'title'        => 'Trace test',
-            'trace_id'     => 'trace-hunt-propagation',
+            'title' => 'Trace test',
+            'trace_id' => 'trace-hunt-propagation',
         ]);
         $this->assertEquals('trace-hunt-propagation', $hunt->trace_id);
     }
@@ -249,12 +248,12 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_process_name_contains_filter(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $snapshot = $this->makeSnapshot($agent);
 
         foreach (['curl', 'wget', 'sshd', 'nginx'] as $name) {
             EndpointProcessEntry::create([
-                'snapshot_id'  => $snapshot->id, 'agent_id' => $agent->id,
+                'snapshot_id' => $snapshot->id, 'agent_id' => $agent->id,
                 'process_name' => $name, 'trace_id' => 'trace-x', 'created_at' => now(),
             ]);
         }
@@ -270,7 +269,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_is_shell_filter(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $snapshot = $this->makeSnapshot($agent);
 
         EndpointProcessEntry::create(['snapshot_id' => $snapshot->id, 'agent_id' => $agent->id,
@@ -330,7 +329,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
             'query_domain' => 'processes', 'title' => 'Original',
         ]);
         $originalResultCount = $original->result_count;
-        $originalTitle       = $original->title;
+        $originalTitle = $original->title;
 
         $this->svc()->replayHunt($original);
 
@@ -345,7 +344,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_host_pivot_returns_agent_data(): void
     {
-        $agent  = $this->makeAgent();
+        $agent = $this->makeAgent();
         $result = $this->svc()->pivotHost($agent->agent_id);
         $this->assertArrayHasKey('agent', $result);
         $this->assertEquals($agent->agent_id, $result['agent']['agent_id']);
@@ -353,7 +352,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_process_pivot_returns_occurrences(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $snapshot = $this->makeSnapshot($agent);
         EndpointProcessEntry::create([
             'snapshot_id' => $snapshot->id, 'agent_id' => $agent->id,
@@ -463,9 +462,9 @@ class ThreatHuntingQueryEngineTest extends TestCase
     {
         $response = $this->actingAs($this->admin())
             ->postJson('/api/threat-hunts/query', [
-                'query_domain'  => 'processes',
+                'query_domain' => 'processes',
                 'query_filters' => [],
-                'title'         => 'API Test Hunt',
+                'title' => 'API Test Hunt',
             ]);
         $response->assertStatus(201);
         $response->assertJsonStructure(['hunt_id', 'status', 'result_count', 'trace_id']);
@@ -476,7 +475,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
         $response = $this->actingAs($this->admin())
             ->postJson('/api/threat-hunts/query', [
                 'query_domain' => 'invalid_domain_xyz',
-                'title'        => 'Bad domain',
+                'title' => 'Bad domain',
             ]);
         $response->assertStatus(422);
     }
@@ -499,7 +498,7 @@ class ThreatHuntingQueryEngineTest extends TestCase
 
     public function test_api_pivot_returns_structure(): void
     {
-        $agent    = $this->makeAgent();
+        $agent = $this->makeAgent();
         $response = $this->actingAs($this->admin())
             ->getJson("/api/threat-hunts/pivot/host?id={$agent->agent_id}");
         $response->assertStatus(200);

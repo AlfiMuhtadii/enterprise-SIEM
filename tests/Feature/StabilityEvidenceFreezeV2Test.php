@@ -110,7 +110,7 @@ class StabilityEvidenceFreezeV2Test extends TestCase
 
     public function test_dry_run_phases_cover_e045_to_e048(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $phaseIds = array_column($result['phases'], 'enterprise_id');
         foreach (['E045', 'E046', 'E047', 'E048'] as $eid) {
             $this->assertContains($eid, $phaseIds);
@@ -119,8 +119,8 @@ class StabilityEvidenceFreezeV2Test extends TestCase
 
     public function test_dry_run_gate_ids_cover_ef01_to_ef12(): void
     {
-        $result   = $this->service->freeze(true);
-        $gateIds  = array_column($result['gates'], 'gate_id');
+        $result = $this->service->freeze(true);
+        $gateIds = array_column($result['gates'], 'gate_id');
         for ($i = 1; $i <= 12; $i++) {
             $expected = sprintf('EF-%02d', $i);
             $this->assertContains($expected, $gateIds, "Gate {$expected} missing");

@@ -1,0 +1,3856 @@
+parameters:
+	ignoreErrors:
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$dry_run\\.$#"
+			count: 1
+			path: app/Console/Commands/DataErasureExecuteCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$request_id\\.$#"
+			count: 1
+			path: app/Console/Commands/DataErasureExecuteCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Console/Commands/DataErasureExecuteCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$dlq_event_type\\.$#"
+			count: 1
+			path: app/Console/Commands/DlqReplayCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$raw_payload\\.$#"
+			count: 1
+			path: app/Console/Commands/DlqReplayCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$record_id\\.$#"
+			count: 1
+			path: app/Console/Commands/DlqReplayCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$source_topic\\.$#"
+			count: 1
+			path: app/Console/Commands/DlqReplayCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$risk_score\\.$#"
+			count: 1
+			path: app/Console/Commands/EasmScanCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$finding_key\\.$#"
+			count: 1
+			path: app/Console/Commands/EasmScanCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Console/Commands/EasmScanCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Console/Commands/EasmScanCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$url\\.$#"
+			count: 1
+			path: app/Console/Commands/EasmScanCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$matrix_run_id\\.$#"
+			count: 4
+			path: app/Console/Commands/PilotEvidenceFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$matrix_score\\.$#"
+			count: 1
+			path: app/Console/Commands/PilotEvidenceFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$operator_id\\.$#"
+			count: 1
+			path: app/Console/Commands/PilotEvidenceFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$required_gates_pass\\.$#"
+			count: 1
+			path: app/Console/Commands/PilotEvidenceFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Console/Commands/PilotEvidenceFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Console/Commands/ResilienceValidateCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$scenario_name\\.$#"
+			count: 1
+			path: app/Console/Commands/ResilienceValidateCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Console/Commands/ResilienceValidateCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeCheck\\:\\:\\$passed\\.$#"
+			count: 1
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeCheck\\:\\:\\$result\\.$#"
+			count: 1
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeCoverageReport\\:\\:\\$meets_pass_threshold\\.$#"
+			count: 1
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeCoverageReport\\:\\:\\$overall_score\\.$#"
+			count: 2
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$completed_at\\.$#"
+			count: 1
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$freeze_version\\.$#"
+			count: 1
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Console/Commands/SecurityHardeningFreezeCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$evidence_pass\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$gates_checked\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$gates_passed\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$recommendation_note\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$high_confidence_rate\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$suppression_rate\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$total_findings\\.$#"
+			count: 1
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Console/Commands/ShadowSoakCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$tenant_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Advisory/AdvisoryFindingsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/AiKnowledgeSeedController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$action_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$blast_radius_score\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$execution_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$execution_safety_score\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$requires_dual_approval\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$rollback_supported\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$target_entity_key\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$target_entity_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionEvent\\:\\:\\$actor_name\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionEvent\\:\\:\\$event_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionEvent\\:\\:\\$from_state\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionEvent\\:\\:\\$to_state\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$blast_radius_entities\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$estimated_impact_score\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$impacted_services\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$rollback_available\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$simulation_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$simulation_notes\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$warnings\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ActiveResponseApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$stage\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$stage_confidence\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$stage_order\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackStageTimeline\\:\\:\\$timeline_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$actor_key\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$alert_ids\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$attack_stages\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$confidence_score\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlation_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlation_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$involved_hosts\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$involved_ips\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$involved_users\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$time_window_end\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$time_window_start\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$trace_ids\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/CrossDomainApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$agent_id\\.$#"
+			count: 3
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$enrolled_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$health_state\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$host_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$command_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$command_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$command_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$dispatched_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$trace_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointAgentApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$process_count\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointBehavioralApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$snapshot_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/EndpointBehavioralApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$event_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/NetworkAnalyticsApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\FirewallEvent\\:\\:\\$event_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/NetworkAnalyticsApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ProxyEvent\\:\\:\\$event_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/NetworkAnalyticsApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$event_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/SocWorkflowApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationCollaborator\\:\\:\\$collab_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/SocWorkflowApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$description\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$executed_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$hunt_id\\.$#"
+			count: 3
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$replay_scope\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$result_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$title\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$trace_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntResult\\:\\:\\$result_data\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntResult\\:\\:\\$result_type\\.$#"
+			count: 1
+			path: app/Http/Controllers/Api/ThreatHuntApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AssetCriticality\\:\\:\\$criticality_tier\\.$#"
+			count: 1
+			path: app/Http/Controllers/AssetInventoryController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AssetInventory\\:\\:\\$external_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/AssetInventoryController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 6
+			path: app/Http/Controllers/AssetInventoryController.php
+
+		-
+			message: "#^Relation 'criticality' is not found in App\\\\Models\\\\AssetInventory model\\.$#"
+			count: 1
+			path: app/Http/Controllers/AssetInventoryController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_enabled\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/AuthenticatedSessionController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/ConfirmablePasswordController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 3
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_confirmed_at\\.$#"
+			count: 2
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_enabled\\.$#"
+			count: 3
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_secret\\.$#"
+			count: 2
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\User\\>\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\User\\>\\:\\:\\$mfa_enabled\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\User\\>\\:\\:\\$mfa_secret\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/MfaController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/OidcSsoController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_enabled\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/OidcSsoController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/SamlSsoController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_enabled\\.$#"
+			count: 1
+			path: app/Http/Controllers/Auth/SamlSsoController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$request_id\\.$#"
+			count: 7
+			path: app/Http/Controllers/DataResidencyController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 8
+			path: app/Http/Controllers/DataResidencyController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PlatformShowcaseExport\\:\\:\\$export_content\\.$#"
+			count: 1
+			path: app/Http/Controllers/DemoPlatformPackagingController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionBacktestRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Detection/DetectionBacktestController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 5
+			path: app/Http/Controllers/Detection/DetectionRuleController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$tenant_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Dlq/DlqController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$health_state\\.$#"
+			count: 1
+			path: app/Http/Controllers/Endpoint/EndpointAgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Http/Controllers/Endpoint/EndpointAgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointFleetPolicy\\:\\:\\$policy_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Endpoint/EndpointFleetController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$command_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Endpoint/EndpointResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$investigation_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Investigation/InvestigationController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$role\\.$#"
+			count: 2
+			path: app/Http/Controllers/MsspTenantController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email_verified_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/ProfileController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 2
+			path: app/Http/Controllers/RedpandaHealthController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$job_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Resilience/OperationsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionExecution\\:\\:\\$rows_eligible\\.$#"
+			count: 1
+			path: app/Http/Controllers/Resilience/OperationsController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Resilience/ResilienceController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$scenario_name\\.$#"
+			count: 1
+			path: app/Http/Controllers/Resilience/ResilienceController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Resilience/ResilienceController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$execution_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Response/ActiveResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionRollback\\:\\:\\$rollback_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Response/ActiveResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$simulation_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Response/ActiveResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponsePlan\\:\\:\\$plan_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Response/ResponsePlanController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$event_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$processed_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$rule_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$stage\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$trace_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$alerts_detected\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$completed_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$detection_passed\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$failure_reason\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$recommendation\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$run_mode\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$scenario_id\\.$#"
+			count: 3
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$trace_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$validation_result\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$scenario_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioRunController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Http/Controllers/Scenario/ScenarioRunController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/Security/SecurityHardeningFreezeController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$hunt_id\\.$#"
+			count: 4
+			path: app/Http/Controllers/Security/ThreatHuntController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$result_count\\.$#"
+			count: 2
+			path: app/Http/Controllers/Security/ThreatHuntController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$evidence_pass\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShadowSoak/ShadowSoakController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$domain\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShadowSoak/ShadowSoakController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$dry_run\\.$#"
+			count: 1
+			path: app/Http/Controllers/ShadowSoak/ShadowSoakController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/ShadowSoak/ShadowSoakController.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$steps\\.$#"
+			count: 1
+			path: app/Http/Controllers/Soar/SoarOrchestrationController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/SocAgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$command_id\\.$#"
+			count: 1
+			path: app/Http/Controllers/SocAgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 3
+			path: app/Http/Controllers/SocAgentController.php
+
+		-
+			message: "#^Call to an undefined method Illuminate\\\\Contracts\\\\Pagination\\\\LengthAwarePaginator\\:\\:withQueryString\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/SocAgentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 4
+			path: app/Http/Controllers/SocAiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 3
+			path: app/Http/Controllers/SocApiController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 2
+			path: app/Http/Controllers/SocEndpointTimelineController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 2
+			path: app/Http/Controllers/SocExportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 6
+			path: app/Http/Controllers/SocForensicController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 5
+			path: app/Http/Controllers/SocHuntController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 3
+			path: app/Http/Controllers/SocIncidentController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 3
+			path: app/Http/Controllers/SocKnowledgeBaseController.php
+
+		-
+			message: "#^Call to an undefined method Illuminate\\\\Contracts\\\\Pagination\\\\LengthAwarePaginator\\:\\:withQueryString\\(\\)\\.$#"
+			count: 1
+			path: app/Http/Controllers/SocKnowledgeBaseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 5
+			path: app/Http/Controllers/SocPlaybookController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 2
+			path: app/Http/Controllers/SocReportController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$command_id\\.$#"
+			count: 2
+			path: app/Http/Controllers/SocResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 10
+			path: app/Http/Controllers/SocResponseController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/SocRuleController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 9
+			path: app/Http/Controllers/SocThreatIntelController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 7
+			path: app/Http/Controllers/SocTuningController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Controllers/TenantStrictModeReadinessController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$anomaly_type\\.$#"
+			count: 2
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$baseline_value\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$confidence\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$deviation\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$dimension\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$observed_value\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BaselineAnomalyScore\\:\\:\\$scored_at\\.$#"
+			count: 1
+			path: app/Http/Controllers/UEBA/UEBAController.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Middleware/EnforceRevokedSessions.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$role\\.$#"
+			count: 1
+			path: app/Http/Middleware/EnsureAdmin.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Middleware/EnsureMfaVerified.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$mfa_enabled\\.$#"
+			count: 1
+			path: app/Http/Middleware/EnsureMfaVerified.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Http/Middleware/EnsureSocPermission.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$scenario_id\\.$#"
+			count: 1
+			path: app/Jobs/ExecuteScenarioRunJob.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Jobs/ExecuteScenarioRunJob.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Jobs/ExecuteScenarioRunJob.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$trace_id\\.$#"
+			count: 3
+			path: app/Jobs/ExecuteScenarioRunJob.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdversarialValidationRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/AdversarialValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdversarialValidationRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/AdversarialValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Models/AdvisoryFinding.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/AdvisoryFinding.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackChainTimeline\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/AttackChainTimeline.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AttackChainTimeline\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/AttackChainTimeline.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportAccessLog\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/AuditExportAccessLog.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$expires_at\\.$#"
+			count: 1
+			path: app/Models/AuditExportRequest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CapacityProjectionRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/CapacityProjectionRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CardinalityPressureReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/CardinalityPressureReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ChainedDetectionGraph\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ChainedDetectionGraph.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ChainedDetectionGraph\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/ChainedDetectionGraph.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CollectorHealthEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/CollectorHealthEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CollectorHealthEvent\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/CollectorHealthEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CollectorRestartAudit\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/CollectorRestartAudit.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CollectorRestartAudit\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/CollectorRestartAudit.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossHostCorrelationRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/CrossHostCorrelationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossHostCorrelationRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/CrossHostCorrelationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DegradedModeEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/DegradedModeEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentReadinessRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/DeploymentReadinessRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentReadinessRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/DeploymentReadinessRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionConfidenceReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/DetectionConfidenceReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionConfidenceReport\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/DetectionConfidenceReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionRule\\:\\:\\$stage\\.$#"
+			count: 2
+			path: app/Models/DetectionRule.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionSuppression\\:\\:\\$expires_at\\.$#"
+			count: 1
+			path: app/Models/DetectionSuppression.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$raw_payload\\.$#"
+			count: 1
+			path: app/Models/DlqRecord.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$replayable\\.$#"
+			count: 2
+			path: app/Models/DlqRecord.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Models/DlqRecord.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/DlqReplayJob.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DuplicateEventReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/DuplicateEventReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Models/EndpointResponseCommand.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSpoolSnapshot\\:\\:\\$spool_disk_bytes\\.$#"
+			count: 1
+			path: app/Models/EndpointSpoolSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointUpgradeValidation\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/EndpointUpgradeValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointUpgradeValidation\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/EndpointUpgradeValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$peer_group_key\\.$#"
+			count: 1
+			path: app/Models/EntityBehaviorBaseline.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Models/EntityBehaviorBaseline.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EnvironmentDriftReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/EnvironmentDriftReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EnvironmentDriftReport\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/EnvironmentDriftReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EvasionResilienceReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/EvasionResilienceReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EvasionResilienceReport\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/EvasionResilienceReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EvidenceIntegrityFailure\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/EvidenceIntegrityFailure.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EvidenceIntegrityRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/EvidenceIntegrityRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoNogoDecision\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/GoNogoDecision.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoNogoDecision\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/GoNogoDecision.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GovernanceReviewFinding\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/GovernanceReviewFinding.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InfrastructureCostEstimate\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/InfrastructureCostEstimate.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationEvidenceLink\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/InvestigationEvidenceLink.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationGraphEdge\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/InvestigationGraphEdge.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationGraphNode\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/InvestigationGraphNode.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationTimelineEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/InvestigationTimelineEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$domain_entropy\\.$#"
+			count: 1
+			path: app/Models/NetworkDestinationProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$queried_domain\\.$#"
+			count: 1
+			path: app/Models/NetworkDestinationProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$tld\\.$#"
+			count: 1
+			path: app/Models/NetworkDestinationProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\NetworkDestinationProfile\\:\\:\\$host_count\\.$#"
+			count: 1
+			path: app/Models/NetworkDestinationProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OfflineRecoveryRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/OfflineRecoveryRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OfflineRecoveryRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/OfflineRecoveryRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OperationalRunbookVersion\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/OperationalRunbookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OperationalRunbookVersion\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/OperationalRunbookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PackageSignatureValidation\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/PackageSignatureValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PackageSignatureValidation\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/PackageSignatureValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PeerGroupProfile\\:\\:\\$peer_group_key\\.$#"
+			count: 1
+			path: app/Models/PeerGroupProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PeerGroupProfile\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Models/PeerGroupProfile.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PiiAccessAudit\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/PiiAccessAudit.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\QueryPerformanceSnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/QueryPerformanceSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RecoveryValidationRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/RecoveryValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseApprovalRequest\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseApprovalRequest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseApprovalRequest\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseApprovalRequest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseAuditEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseAuditEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseAuditEvent\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseAuditEvent.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseManifest\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseManifest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseManifest\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/ReleaseManifest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplayAmplificationReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ReplayAmplificationReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplayEconomicsRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/ReplayEconomicsRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$completed_at\\.$#"
+			count: 1
+			path: app/Models/ResilienceRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Models/ResilienceRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/ResilienceRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$approval_expires_at\\.$#"
+			count: 1
+			path: app/Models/ResponseExecution.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$approver_1_id\\.$#"
+			count: 2
+			path: app/Models/ResponseExecution.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$approver_2_id\\.$#"
+			count: 1
+			path: app/Models/ResponseExecution.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$requires_dual_approval\\.$#"
+			count: 1
+			path: app/Models/ResponseExecution.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Models/ResponseExecution.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$append_only_protected\\.$#"
+			count: 1
+			path: app/Models/RetentionPolicy.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/RetentionPolicy.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RollbackValidationRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/RollbackValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RollbackValidationRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/RollbackValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioEvidence\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/ScenarioEvidence.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$completed_at\\.$#"
+			count: 1
+			path: app/Models/ScenarioRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$scenario_id\\.$#"
+			count: 1
+			path: app/Models/ScenarioRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Models/ScenarioRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Models/ScenarioRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScenarioRun\\:\\:\\$validation_result\\.$#"
+			count: 1
+			path: app/Models/ScenarioRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SensorResourceSnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SensorResourceSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SensorResourceSnapshot\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/SensorResourceSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarApprovalRequest\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SoarApprovalRequest.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionAudit\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SoarExecutionAudit.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionResult\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SoarExecutionResult.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$dual_approval_required\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$execution_scope\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$playbook_id\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$simulation_required\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$version\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybookVersion\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SoarPlaybookVersion.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarSimulationResult\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/SoarSimulationResult.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StorageCapacitySnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/StorageCapacitySnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StoragePressureSnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/StoragePressureSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamConsumerLagSnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/StreamConsumerLagSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TacticProgressionSnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TacticProgressionSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TacticProgressionSnapshot\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/TacticProgressionSnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryCapacitySnapshot\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TelemetryCapacitySnapshot.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryGapReport\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TelemetryGapReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryGapReport\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/TelemetryGapReport.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryIntegrityRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TelemetryIntegrityRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryIntegrityRun\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/TelemetryIntegrityRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetrySequenceValidation\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TelemetrySequenceValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetrySequenceValidation\\:\\:\\$updated_at\\.$#"
+			count: 1
+			path: app/Models/TelemetrySequenceValidation.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TenantIsolationValidationRun\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Models/TenantIsolationValidationRun.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Watchlist\\:\\:\\$expires_at\\.$#"
+			count: 1
+			path: app/Models/Watchlist.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$action_type\\.$#"
+			count: 7
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$approver_1_id\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$blast_radius_score\\.$#"
+			count: 2
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$created_by\\.$#"
+			count: 3
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$execution_id\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$requires_dual_approval\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$rollback_deadline_at\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$rollback_supported\\.$#"
+			count: 3
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$simulation_completed_at\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$status\\.$#"
+			count: 10
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$target_entity_id\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$target_entity_key\\.$#"
+			count: 4
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$target_entity_type\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$tenant_id\\.$#"
+			count: 8
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecution\\:\\:\\$trace_id\\.$#"
+			count: 4
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionRollback\\:\\:\\$rollback_id\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponseExecutionSimulation\\:\\:\\$simulation_id\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\User\\>\\:\\:\\$email\\.$#"
+			count: 1
+			path: app/Services/ActiveResponseExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$confidence\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$domain\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$finding_id\\.$#"
+			count: 5
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$occurrence_count\\.$#"
+			count: 2
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$promotion_blocker\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$promotion_candidate\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$review_note\\.$#"
+			count: 3
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$reviewed_at\\.$#"
+			count: 3
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$reviewed_by\\.$#"
+			count: 3
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$rule_id\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$status\\.$#"
+			count: 3
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$tenant_id\\.$#"
+			count: 5
+			path: app/Services/AdvisoryFindingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationErgonomicView\\:\\:\\$bookmark_count\\.$#"
+			count: 1
+			path: app/Services/AnalystOptimizationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AssetInventory\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/AssetContextService.php
+
+		-
+			message: "#^Relation 'criticality' is not found in App\\\\Models\\\\AssetInventory model\\.$#"
+			count: 1
+			path: app/Services/AssetContextService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BackupMetadata\\:\\:\\$backup_id\\.$#"
+			count: 2
+			path: app/Services/BackupRecoveryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BackupMetadata\\:\\:\\$checksum\\.$#"
+			count: 1
+			path: app/Services/BackupRecoveryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BackupMetadata\\:\\:\\$size_bytes\\.$#"
+			count: 1
+			path: app/Services/BackupRecoveryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\BackupMetadata\\:\\:\\$storage_path\\.$#"
+			count: 1
+			path: app/Services/BackupRecoveryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$connection_count\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$destination_reuse_score\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$detected_at\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$pattern_id\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$process_name\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$remote_ip\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$remote_port\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$confidence\\.$#"
+			count: 3
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$detected_at\\.$#"
+			count: 3
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$evidence\\.$#"
+			count: 3
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$finding_id\\.$#"
+			count: 3
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$finding_type\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$title\\.$#"
+			count: 3
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$trace_id\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$chain_id\\.$#"
+			count: 2
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$chain_length\\.$#"
+			count: 2
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$chain_score\\.$#"
+			count: 2
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$chain_steps\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$detected_at\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$involves_outbound\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$involves_persistence\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointExecutionChain\\:\\:\\$involves_shell\\.$#"
+			count: 1
+			path: app/Services/BehavioralAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CommercialReleaseHistory\\:\\:\\$release_id\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentPackageProfile\\:\\:\\$checksum\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentPackageProfile\\:\\:\\$environment\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentPackageProfile\\:\\:\\$package_profile_id\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentPackageProfile\\:\\:\\$package_version\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentPackageProfile\\:\\:\\$profile_name\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentReadinessReport\\:\\:\\$readiness_report_id\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SupportBundleExport\\:\\:\\$bundle_export_id\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TenantOnboardingRun\\:\\:\\$onboarding_run_id\\.$#"
+			count: 1
+			path: app/Services/CommercialReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$approved_at\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$approved_by\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$export_id\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$pii_masked\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$requested_by\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$scope\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AuditExportRequest\\:\\:\\$scope_id\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GovernanceAccessReview\\:\\:\\$review_id\\.$#"
+			count: 1
+			path: app/Services/ComplianceGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$actor_key\\.$#"
+			count: 1
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$confidence_score\\.$#"
+			count: 1
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlation_id\\.$#"
+			count: 3
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlation_type\\.$#"
+			count: 2
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$trace_id\\.$#"
+			count: 2
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\EndpointAgent\\>\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBeaconPattern\\:\\:\\$remote_ip\\.$#"
+			count: 1
+			path: app/Services/CrossDomainCorrelationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$dry_run\\.$#"
+			count: 3
+			path: app/Services/DataResidencyErasureService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$request_id\\.$#"
+			count: 3
+			path: app/Services/DataResidencyErasureService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$requested_by\\.$#"
+			count: 1
+			path: app/Services/DataResidencyErasureService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$status\\.$#"
+			count: 4
+			path: app/Services/DataResidencyErasureService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DataErasureRequest\\:\\:\\$tenant_id\\.$#"
+			count: 2
+			path: app/Services/DataResidencyErasureService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionBacktestRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Services/DetectionBacktestService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionQualityMetric\\:\\:\\$quality_score\\.$#"
+			count: 2
+			path: app/Services/DetectionEngineeringService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionReplayPack\\:\\:\\$pack_id\\.$#"
+			count: 1
+			path: app/Services/DetectionEngineeringService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionReplayPack\\:\\:\\$rule_id\\.$#"
+			count: 1
+			path: app/Services/DetectionEngineeringService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DetectionReplayResult\\:\\:\\$result_id\\.$#"
+			count: 1
+			path: app/Services/DetectionEngineeringService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IdempotencyValidationRecord\\:\\:\\$processing_state\\.$#"
+			count: 1
+			path: app/Services/DistributedReliabilityService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplayThrottleState\\:\\:\\$current_retry_count\\.$#"
+			count: 1
+			path: app/Services/DistributedReliabilityService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReplayThrottleState\\:\\:\\$retry_budget_limit\\.$#"
+			count: 1
+			path: app/Services/DistributedReliabilityService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$batch_limit\\.$#"
+			count: 6
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$dry_run\\.$#"
+			count: 2
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$from_offset\\.$#"
+			count: 6
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$job_id\\.$#"
+			count: 3
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$risk_score\\.$#"
+			count: 1
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$source_partition\\.$#"
+			count: 1
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$status\\.$#"
+			count: 3
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$to_offset\\.$#"
+			count: 4
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqReplayJob\\:\\:\\$topic\\.$#"
+			count: 3
+			path: app/Services/DlqReplayService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$dlq_event_type\\.$#"
+			count: 2
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$occurrence_count\\.$#"
+			count: 1
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$raw_payload\\.$#"
+			count: 1
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$record_id\\.$#"
+			count: 11
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$replayable\\.$#"
+			count: 1
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$source_topic\\.$#"
+			count: 1
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$status\\.$#"
+			count: 4
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DlqRecord\\:\\:\\$tenant_id\\.$#"
+			count: 7
+			path: app/Services/DlqReviewService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\AdvisoryFinding\\:\\:\\$severity\\.$#"
+			count: 2
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$evidence_pass\\.$#"
+			count: 2
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$gates_checked\\.$#"
+			count: 1
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$gates_passed\\.$#"
+			count: 1
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakDomainAssessment\\:\\:\\$pass_rate\\.$#"
+			count: 1
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$high_confidence_rate\\.$#"
+			count: 2
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$rule_coverage_rate\\.$#"
+			count: 2
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$suppressed_findings\\.$#"
+			count: 1
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$suppression_rate\\.$#"
+			count: 4
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakEvidenceSnapshot\\:\\:\\$total_findings\\.$#"
+			count: 2
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$domain\\.$#"
+			count: 18
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$run_id\\.$#"
+			count: 13
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$tenant_id\\.$#"
+			count: 9
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ShadowSoakRun\\:\\:\\$window_hours\\.$#"
+			count: 4
+			path: app/Services/DomainSoakHarnessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$confidence\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$description\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$evidence\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmFinding\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmScanRun\\:\\:\\$finished_at\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmScanRun\\:\\:\\$scan_policy\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmScanRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$tenant_id\\.$#"
+			count: 3
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$url\\.$#"
+			count: 1
+			path: app/Services/EasmPassiveScanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$asset_id\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$last_computed_at\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$previous_score\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$risk_score\\.$#"
+			count: 4
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$risk_tier\\.$#"
+			count: 3
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$total_scans\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmAssetRiskScore\\:\\:\\$trend_direction\\.$#"
+			count: 2
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$finding_count_total\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$new_findings\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$overall_status\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$posture_score\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$regressed_findings\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$resolved_findings\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$risk_tier\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmPostureSnapshot\\:\\:\\$snapshot_at\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EasmScanRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$hostname\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$name\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$tenant_id\\.$#"
+			count: 7
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\WebsiteAsset\\:\\:\\$url\\.$#"
+			count: 1
+			path: app/Services/EasmPostureHistoryService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$agent_id\\.$#"
+			count: 2
+			path: app/Services/EndpointAgentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$health_state\\.$#"
+			count: 2
+			path: app/Services/EndpointAgentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$host_id\\.$#"
+			count: 1
+			path: app/Services/EndpointAgentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$ip_address\\.$#"
+			count: 1
+			path: app/Services/EndpointAgentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EndpointAgentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$correlation_confidence\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$pid\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$process_name\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$proto\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$remote_ip\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$remote_port\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$is_new\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_key\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_name\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_path\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_type\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$command_line\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$duration_seconds\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$executable_path\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$is_long_lived\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$is_shell\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$is_suspicious\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$parent_process_name\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$pid\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$ppid\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$process_name\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$user\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$collected_at\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$long_lived_count\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$process_count\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$shell_count\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$snapshot_id\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$suspicious_count\\.$#"
+			count: 1
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessSnapshot\\:\\:\\$trace_id\\.$#"
+			count: 2
+			path: app/Services/EndpointBehavioralService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$agent_version\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$enrolled_at\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$enrollment_token_hash\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$ip_address\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$last_seen_at\\.$#"
+			count: 2
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$platform\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgentHeartbeat\\:\\:\\$heartbeat_at\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgentPolicyAssignment\\:\\:\\$assigned_at\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgentPolicyAssignment\\:\\:\\$config_hash\\.$#"
+			count: 2
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgentPolicyAssignment\\:\\:\\$policy_id\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointFleetPolicy\\:\\:\\$config_hash\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointFleetPolicy\\:\\:\\$policy_id\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointFleetPolicy\\:\\:\\$policy_version\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSpoolSnapshot\\:\\:\\$dropped_events\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSpoolSnapshot\\:\\:\\$recorded_at\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSpoolSnapshot\\:\\:\\$spool_capped\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSpoolSnapshot\\:\\:\\$spool_disk_bytes\\.$#"
+			count: 1
+			path: app/Services/EndpointFleetService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$command_id\\.$#"
+			count: 3
+			path: app/Services/EndpointResponseCommandService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$created_by\\.$#"
+			count: 1
+			path: app/Services/EndpointResponseCommandService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$status\\.$#"
+			count: 6
+			path: app/Services/EndpointResponseCommandService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointResponseCommand\\:\\:\\$trace_id\\.$#"
+			count: 3
+			path: app/Services/EndpointResponseCommandService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointSoakPlan\\:\\:\\$plan_run_id\\.$#"
+			count: 1
+			path: app/Services/EndpointSoakPlanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$event_type\\.$#"
+			count: 1
+			path: app/Services/EndpointStreamingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$occurred_at\\.$#"
+			count: 2
+			path: app/Services/EndpointStreamingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$created_by\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$direction\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$dry_run\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$integration_id\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$started_at\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$sync_type\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\IntegrationSyncEvent\\:\\:\\$trace_id\\.$#"
+			count: 2
+			path: app/Services/EnterpriseIntegrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessGateEvaluation\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$approved_by\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$finalized_at\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$gates_failed\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$gates_passed\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$gates_warned\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$matrix_run_id\\.$#"
+			count: 6
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$matrix_score\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$operator_id\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$required_gates_pass\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$reviewer_notes\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$status\\.$#"
+			count: 2
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotReadinessMatrixRun\\:\\:\\$total_gates\\.$#"
+			count: 1
+			path: app/Services/EnterprisePilotReadinessMatrixService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ClusterTopologyReport\\:\\:\\$topology_report_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DistributedReplayContinuity\\:\\:\\$replay_continuity_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\FailoverCoordinationHistory\\:\\:\\$failover_coordination_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\HaValidationRun\\:\\:\\$ha_run_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InfrastructureCostReport\\:\\:\\$cost_report_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ScaleProfileValidationRun\\:\\:\\$scale_run_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryDistributionReport\\:\\:\\$distribution_report_id\\.$#"
+			count: 1
+			path: app/Services/EnterpriseScaleHaService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\:\\:\\$display_name\\.$#"
+			count: 1
+			path: app/Services/EntityGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Services/EntityGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EntityGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Services/EntityGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/EntityGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$created_at\\.$#"
+			count: 2
+			path: app/Services/EscalationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$investigation_id\\.$#"
+			count: 4
+			path: app/Services/EscalationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$severity\\.$#"
+			count: 2
+			path: app/Services/EscalationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$to_analyst_id\\.$#"
+			count: 2
+			path: app/Services/EscalationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\XdrReadinessCertification\\:\\:\\$certification_id\\.$#"
+			count: 2
+			path: app/Services/FinalXdrCertificationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Honeytoken\\:\\:\\$honeytoken_id\\.$#"
+			count: 3
+			path: app/Services/HoneytokenService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Honeytoken\\:\\:\\$label\\.$#"
+			count: 2
+			path: app/Services/HoneytokenService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Honeytoken\\:\\:\\$tenant_id\\.$#"
+			count: 2
+			path: app/Services/HoneytokenService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Honeytoken\\:\\:\\$token_type\\.$#"
+			count: 2
+			path: app/Services/HoneytokenService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Honeytoken\\:\\:\\$token_value\\.$#"
+			count: 2
+			path: app/Services/HoneytokenService.php
+
+		-
+			message: "#^Unsafe call to private method App\\\\Services\\\\InternalAuthService\\:\\:secret\\(\\) through static\\:\\:\\.$#"
+			count: 3
+			path: app/Services/InternalAuthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlated_at\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\CrossDomainCorrelation\\:\\:\\$correlation_id\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\:\\:\\$display_name\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\:\\:\\$entity_key\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Entity\\|Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<int, App\\\\Models\\\\Entity\\>\\:\\:\\$entity_key\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationGraphNode\\:\\:\\$node_id\\.$#"
+			count: 4
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetrospectiveHuntQuery\\:\\:\\$domain\\.$#"
+			count: 2
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetrospectiveHuntQuery\\:\\:\\$query_id\\.$#"
+			count: 1
+			path: app/Services/InvestigationGraphService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$priority\\.$#"
+			count: 1
+			path: app/Services/InvestigationOrchestratorService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Services/InvestigationOrchestratorService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$state\\.$#"
+			count: 3
+			path: app/Services/InvestigationOrchestratorService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationAssignment\\:\\:\\$assigned_to_user_id\\.$#"
+			count: 1
+			path: app/Services/InvestigationOrchestratorService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$domain_entropy\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$queried_domain\\.$#"
+			count: 4
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$tld\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$trace_id\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DnsEvent\\:\\:\\$user\\.$#"
+			count: 2
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\FirewallEvent\\:\\:\\$destination_port\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\NetworkDestinationProfile\\:\\:\\$contact_count\\.$#"
+			count: 2
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\NetworkDestinationProfile\\:\\:\\$host_count\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\NetworkDestinationProfile\\:\\:\\$is_rare\\.$#"
+			count: 2
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ProxyEvent\\:\\:\\$domain\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ProxyEvent\\:\\:\\$user\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ProxyEvent\\:\\:\\$user_agent\\.$#"
+			count: 1
+			path: app/Services/NetworkAnalyticsService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\NotificationEvent\\:\\:\\$trace_id\\.$#"
+			count: 2
+			path: app/Services/NotificationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\QueueLagMetric\\:\\:\\$consumer_group\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\QueueLagMetric\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\QueueLagMetric\\:\\:\\$lag_count\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\QueueLagMetric\\:\\:\\$topic\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamPressureMetric\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamPressureMetric\\:\\:\\$metric_type\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamPressureMetric\\:\\:\\$service_name\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamPressureMetric\\:\\:\\$unit\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StreamPressureMetric\\:\\:\\$value\\.$#"
+			count: 1
+			path: app/Services/OperationsHealthService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Phase1SoakFreezeRun\\:\\:\\$freeze_run_id\\.$#"
+			count: 1
+			path: app/Services/Phase1SoakEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\LivePilotRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\LivePilotRun\\:\\:\\$target_endpoint_count\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotHealthCheckpoint\\:\\:\\$endpoint_stability_pct\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotHealthCheckpoint\\:\\:\\$health_ok\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotHealthCheckpoint\\:\\:\\$replay_recovery_success_pct\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotHealthCheckpoint\\:\\:\\$rollback_readiness_score\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\PilotHealthCheckpoint\\:\\:\\$telemetry_continuity_pct\\.$#"
+			count: 1
+			path: app/Services/PilotExecutionService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OnboardingApprovalRequest\\:\\:\\$requested_by\\.$#"
+			count: 1
+			path: app/Services/PilotReadinessService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OnboardingApprovalRequest\\:\\:\\$self_approve_blocked\\.$#"
+			count: 1
+			path: app/Services/PilotReadinessService.php
+
+		-
+			message: "#^Call to an undefined method Illuminate\\\\Database\\\\ConnectionInterface\\:\\:getDriverName\\(\\)\\.$#"
+			count: 2
+			path: app/Services/PostgresTenantSessionContext.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoakPlanRun\\:\\:\\$plan_run_id\\.$#"
+			count: 1
+			path: app/Services/RealDomainSoakPlanService.php
+
+		-
+			message: "#^Called 'count' on Laravel collection, but could have been retrieved as a query\\.$#"
+			count: 2
+			path: app/Services/RealDomainSoakPlanService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RealEndpointEnrollment\\:\\:\\$enrollment_id\\.$#"
+			count: 1
+			path: app/Services/RealEndpointEnrollmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RealEndpointEnrollment\\:\\:\\$hostname\\.$#"
+			count: 2
+			path: app/Services/RealEndpointEnrollmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RealEndpointEnrollment\\:\\:\\$is_real\\.$#"
+			count: 1
+			path: app/Services/RealEndpointEnrollmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RealEndpointEnrollment\\:\\:\\$os_platform\\.$#"
+			count: 1
+			path: app/Services/RealEndpointEnrollmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RealEndpointEnrollment\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/RealEndpointEnrollmentService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseCandidateManifest\\:\\:\\$rc_version\\.$#"
+			count: 2
+			path: app/Services/ReleaseCandidateStabilizationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\DeploymentReadinessRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EnvironmentDriftReport\\:\\:\\$report_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\GoNogoDecision\\:\\:\\$decision_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\OperationalRunbook\\:\\:\\$runbook_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseApprovalRequest\\:\\:\\$release_id\\.$#"
+			count: 2
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseApprovalRequest\\:\\:\\$request_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ReleaseApprovalRequest\\:\\:\\$requested_by\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RollbackValidationRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Services/ReleaseGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$run_id\\.$#"
+			count: 1
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$scenario_id\\.$#"
+			count: 2
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$scenario_name\\.$#"
+			count: 1
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$scenario_type\\.$#"
+			count: 1
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$started_at\\.$#"
+			count: 1
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResilienceRun\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Services/ResilienceValidationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ResponsePlan\\:\\:\\$state\\.$#"
+			count: 8
+			path: app/Services/ResponsePlanningService.php
+
+		-
+			message: "#^Method App\\\\Services\\\\ResponsePlanningService\\:\\:recordApproval\\(\\) invoked with 7 parameters, 4\\-6 required\\.$#"
+			count: 1
+			path: app/Services/ResponsePlanningService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionExecution\\:\\:\\$execution_id\\.$#"
+			count: 2
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$append_only_protected\\.$#"
+			count: 1
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$batch_size\\.$#"
+			count: 1
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$domain\\.$#"
+			count: 4
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$policy_id\\.$#"
+			count: 5
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$retention_days\\.$#"
+			count: 4
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$target_table\\.$#"
+			count: 3
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\RetentionPolicy\\:\\:\\$time_column\\.$#"
+			count: 3
+			path: app/Services/RetentionGovernanceService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ExternalIntegration\\:\\:\\$provider\\.$#"
+			count: 2
+			path: app/Services/SaasIdentityNormalizationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeCheck\\:\\:\\$passed\\.$#"
+			count: 1
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$controls_failed\\.$#"
+			count: 2
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$controls_passed\\.$#"
+			count: 2
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$controls_total\\.$#"
+			count: 2
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$coverage_score\\.$#"
+			count: 1
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$freeze_version\\.$#"
+			count: 1
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$run_id\\.$#"
+			count: 13
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SecurityHardeningFreezeRun\\:\\:\\$run_state\\.$#"
+			count: 1
+			path: app/Services/SecurityHardeningEvidenceFreezeService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$assigned_to\\.$#"
+			count: 1
+			path: app/Services/SlaTrackingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$created_at\\.$#"
+			count: 2
+			path: app/Services/SlaTrackingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$investigation_id\\.$#"
+			count: 2
+			path: app/Services/SlaTrackingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Investigation\\:\\:\\$severity\\.$#"
+			count: 1
+			path: app/Services/SlaTrackingService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Support\\\\HigherOrderCollectionProxy\\<string, App\\\\Models\\\\SlaBreach, Illuminate\\\\Database\\\\Eloquent\\\\Collection\\<\\(int\\|string\\), App\\\\Models\\\\SlaBreach\\>\\>\\:\\:\\$count\\.$#"
+			count: 1
+			path: app/Services/SlaTrackingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$approver_1_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$blast_radius_score\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$created_by\\.$#"
+			count: 3
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$dual_approval_required\\.$#"
+			count: 2
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$plan_id\\.$#"
+			count: 13
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$playbook_id\\.$#"
+			count: 9
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$rollback_ready\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$simulation_completed\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$status\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$target_entity_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$tenant_id\\.$#"
+			count: 12
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionStep\\:\\:\\$action_type\\.$#"
+			count: 4
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionStep\\:\\:\\$is_simulation_only\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionStep\\:\\:\\$step_id\\.$#"
+			count: 2
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionStep\\:\\:\\$step_name\\.$#"
+			count: 3
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$playbook_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$version\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarRollbackPlan\\:\\:\\$plan_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$dual_approval_required\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$simulation_required\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EscalationEvent\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationCollaborator\\:\\:\\$analyst_id\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationCollaborator\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationCollaborator\\:\\:\\$investigation_id\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationCollaborator\\:\\:\\$role\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\InvestigationWatcher\\:\\:\\$created_at\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$name\\.$#"
+			count: 2
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\Watchlist\\:\\:\\$watchlist_id\\.$#"
+			count: 2
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Relation 'assignedAnalyst' is not found in App\\\\Models\\\\Investigation model\\.$#"
+			count: 1
+			path: app/Services/SocCollaborationService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StabilityFreezeRun\\:\\:\\$freeze_run_id\\.$#"
+			count: 1
+			path: app/Services/StabilityEvidenceFreezeV2Service.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StabilityFreezeV3Run\\:\\:\\$freeze_run_id\\.$#"
+			count: 1
+			path: app/Services/StabilityEvidenceFreezeV3Service.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\StabilityFreezeV4Run\\:\\:\\$freeze_run_id\\.$#"
+			count: 1
+			path: app/Services/StabilityEvidenceFreezeV4Service.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TelemetryScaleValidationRun\\:\\:\\$run_id\\.$#"
+			count: 2
+			path: app/Services/TelemetryScalePilotService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$role\\.$#"
+			count: 1
+			path: app/Services/TenantContextAuthority.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\UserTenantMembership\\:\\:\\$is_active\\.$#"
+			count: 2
+			path: app/Services/TenantContextAuthority.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\UserTenantMembership\\:\\:\\$membership_id\\.$#"
+			count: 3
+			path: app/Services/TenantContextAuthority.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\TenantNotificationSetting\\:\\:\\$enabled\\.$#"
+			count: 1
+			path: app/Services/TenantNotificationResolver.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$confidence\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$evidence\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointBehavioralFinding\\:\\:\\$finding_id\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$correlation_confidence\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$proto\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$remote_ip\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointNetworkCorrelation\\:\\:\\$remote_port\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$agent_id\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$first_seen_at\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$is_new\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_key\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_name\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$item_type\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointPersistenceItem\\:\\:\\$last_seen_at\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$duration_seconds\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$is_shell\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$is_suspicious\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$parent_process_name\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$pid\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointProcessEntry\\:\\:\\$user\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$event_type\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$occurred_at\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$parent_pid\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$process_name\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$process_pid\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EndpointStreamEvent\\:\\:\\$sequence_id\\.$#"
+			count: 3
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$observation_count\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$relationship_type\\.$#"
+			count: 2
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$source_entity_id\\.$#"
+			count: 5
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityRelationship\\:\\:\\$target_entity_id\\.$#"
+			count: 4
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$hunt_id\\.$#"
+			count: 3
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$tenant_id\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$title\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntQuery\\:\\:\\$max_results\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntQuery\\:\\:\\$query_domain\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntQuery\\:\\:\\$time_range_end\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHuntQuery\\:\\:\\$time_range_start\\.$#"
+			count: 1
+			path: app/Services/ThreatHuntingService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$baseline_mad\\.$#"
+			count: 1
+			path: app/Services/UEBABaselineService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$baseline_median\\.$#"
+			count: 1
+			path: app/Services/UEBABaselineService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$peer_group_key\\.$#"
+			count: 3
+			path: app/Services/UEBABaselineService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\EntityBehaviorBaseline\\:\\:\\$sample_count\\.$#"
+			count: 1
+			path: app/Services/UEBABaselineService.php
+
+		-
+			message: "#^Access to an undefined property App\\\\Models\\\\User\\:\\:\\$role\\.$#"
+			count: 1
+			path: app/Support/Rbac.php

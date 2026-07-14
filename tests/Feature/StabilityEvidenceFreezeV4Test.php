@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\StabilityFreezeV4Run;
 use App\Models\User;
 use App\Services\StabilityEvidenceFreezeV4Service;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,7 +64,7 @@ class StabilityEvidenceFreezeV4Test extends TestCase
 
     public function test_dry_run_gate_ids_cover_ev4_01_to_ev4_16(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $gateIds = array_column($result['gates'], 'gate_id');
         for ($i = 1; $i <= 16; $i++) {
             $expected = sprintf('EV4-%02d', $i);
@@ -103,7 +102,7 @@ class StabilityEvidenceFreezeV4Test extends TestCase
 
     public function test_dry_run_phases_cover_e055_to_e058(): void
     {
-        $result   = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $phaseIds = array_column($result['phases'], 'enterprise_id');
         foreach (['E055', 'E056', 'E057', 'E058'] as $id) {
             $this->assertContains($id, $phaseIds, "Phase {$id} missing");
@@ -114,14 +113,14 @@ class StabilityEvidenceFreezeV4Test extends TestCase
 
     public function test_dry_run_returns_at_least_5_allowed_claims(): void
     {
-        $result  = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $allowed = array_filter($result['claims'], fn ($c) => $c['claim_type'] === 'allowed');
         $this->assertGreaterThanOrEqual(5, count($allowed));
     }
 
     public function test_dry_run_returns_at_least_3_forbidden_claims(): void
     {
-        $result   = $this->service->freeze(true);
+        $result = $this->service->freeze(true);
         $forbidden = array_filter($result['claims'], fn ($c) => $c['claim_type'] === 'forbidden');
         $this->assertGreaterThanOrEqual(3, count($forbidden));
     }
@@ -137,7 +136,7 @@ class StabilityEvidenceFreezeV4Test extends TestCase
     public function test_dry_run_gap_01_severity_is_high(): void
     {
         $result = $this->service->freeze(true);
-        $gap1   = array_values(array_filter($result['gaps'], fn ($g) => $g['gap_id'] === 'GAP-01'))[0] ?? null;
+        $gap1 = array_values(array_filter($result['gaps'], fn ($g) => $g['gap_id'] === 'GAP-01'))[0] ?? null;
         $this->assertNotNull($gap1);
         $this->assertSame('high', strtolower($gap1['severity']));
     }
@@ -145,7 +144,7 @@ class StabilityEvidenceFreezeV4Test extends TestCase
     public function test_dry_run_gap_02_severity_is_medium(): void
     {
         $result = $this->service->freeze(true);
-        $gap2   = array_values(array_filter($result['gaps'], fn ($g) => $g['gap_id'] === 'GAP-02'))[0] ?? null;
+        $gap2 = array_values(array_filter($result['gaps'], fn ($g) => $g['gap_id'] === 'GAP-02'))[0] ?? null;
         $this->assertNotNull($gap2);
         $this->assertSame('medium', strtolower($gap2['severity']));
     }

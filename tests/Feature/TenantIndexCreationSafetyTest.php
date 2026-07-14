@@ -44,7 +44,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -59,7 +59,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -75,7 +75,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $svc = app(AdvisoryFindingService::class);
@@ -166,7 +166,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -181,7 +181,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -197,7 +197,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $svc = app(DlqReviewService::class);
@@ -249,7 +249,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -264,7 +264,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $this->actingAs($analyst)
@@ -280,7 +280,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $analyst = User::factory()->create(['role' => 'analyst']);
-        $admin   = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($analyst->id, 'tenant-A', $admin->id);
 
         $runA = $this->createSoakRun('tenant-A', 'soak-022-tenant-a');
@@ -332,7 +332,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $engineer = User::factory()->create(['role' => 'detection_engineer']);
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($engineer->id, 'tenant-A', $admin->id);
 
         $this->actingAs($engineer)
@@ -347,7 +347,7 @@ class TenantIndexCreationSafetyTest extends TestCase
         config(['xdr.tenancy.strict_mode' => true]);
 
         $engineer = User::factory()->create(['role' => 'detection_engineer']);
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($engineer->id, 'tenant-A', $admin->id);
 
         $this->actingAs($engineer)
@@ -357,8 +357,8 @@ class TenantIndexCreationSafetyTest extends TestCase
 
         // Run was created with the correct tenant_id
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => 'tenant-A',
         ]);
 
@@ -400,7 +400,7 @@ class TenantIndexCreationSafetyTest extends TestCase
     {
         // Legacy mode: store without header creates null tenant_id (migration backward compat)
         $engineer = User::factory()->create(['role' => 'detection_engineer']);
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($engineer->id, 'tenant-A', $admin->id);
 
         $this->actingAs($engineer)
@@ -409,8 +409,8 @@ class TenantIndexCreationSafetyTest extends TestCase
 
         // Legacy: no header → null → record created with null tenant_id
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => null,
         ]);
     }
@@ -419,7 +419,7 @@ class TenantIndexCreationSafetyTest extends TestCase
     {
         // Legacy mode: if header is provided and valid, tenant_id is still set
         $engineer = User::factory()->create(['role' => 'detection_engineer']);
-        $admin    = User::factory()->create(['role' => 'admin']);
+        $admin = User::factory()->create(['role' => 'admin']);
         $this->authority->grantMembership($engineer->id, 'tenant-A', $admin->id);
 
         $this->actingAs($engineer)
@@ -428,8 +428,8 @@ class TenantIndexCreationSafetyTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('shadow_soak_runs', [
-            'domain'    => 'endpoint',
-            'dry_run'   => true,
+            'domain' => 'endpoint',
+            'dry_run' => true,
             'tenant_id' => 'tenant-A',
         ]);
     }
@@ -441,50 +441,50 @@ class TenantIndexCreationSafetyTest extends TestCase
     private function makeAdvisoryPayload(?string $tenantId, string $fingerprint = 'fp-022-default'): array
     {
         return [
-            'finding_id'       => Str::uuid()->toString(),
-            'rule_id'          => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
-            'domain'           => 'endpoint',
-            'source_topic'     => 'xdr.alerts.shadow.endpoint',
-            'alert_type'       => 'process_injection',
-            'severity'         => 'high',
-            'confidence'       => 0.80,
-            'actor_key'        => 'host-022-test',
-            'tenant_id'        => $tenantId,
-            'evidence'         => ['pid' => 1234],
+            'finding_id' => Str::uuid()->toString(),
+            'rule_id' => 'ENDPOINT_PROCESS_INJECTION_DETECTED',
+            'domain' => 'endpoint',
+            'source_topic' => 'xdr.alerts.shadow.endpoint',
+            'alert_type' => 'process_injection',
+            'severity' => 'high',
+            'confidence' => 0.80,
+            'actor_key' => 'host-022-test',
+            'tenant_id' => $tenantId,
+            'evidence' => ['pid' => 1234],
             'source_event_ids' => ['evt-022'],
-            'fingerprint'      => $fingerprint,
+            'fingerprint' => $fingerprint,
         ];
     }
 
     private function makeDlqPayload(?string $tenantId, string $fingerprint = 'fp-dlq-022'): array
     {
         return [
-            'fingerprint'      => $fingerprint,
-            'dlq_event_type'   => 'normalization_failure',
-            'source_topic'     => 'telemetry.raw',
-            'raw_payload'      => '{"test":true}',
-            'error_message'    => 'parse error',
+            'fingerprint' => $fingerprint,
+            'dlq_event_type' => 'normalization_failure',
+            'source_topic' => 'telemetry.raw',
+            'raw_payload' => '{"test":true}',
+            'error_message' => 'parse error',
             'occurrence_count' => 1,
-            'tenant_id'        => $tenantId,
-            'replayable'       => true,
-            'error_reason'     => null,
+            'tenant_id' => $tenantId,
+            'replayable' => true,
+            'error_reason' => null,
         ];
     }
 
-    private function createSoakRun(?string $tenantId, string $runId = null): ShadowSoakRun
+    private function createSoakRun(?string $tenantId, ?string $runId = null): ShadowSoakRun
     {
         return ShadowSoakRun::create([
-            'run_id'        => $runId ?? 'soak-022-' . Str::uuid(),
-            'domain'        => 'endpoint',
-            'window_hours'  => 24,
-            'status'        => 'completed',
-            'dry_run'       => false,
-            'started_at'    => now()->subHours(24),
-            'completed_at'  => now(),
-            'initiated_by'  => '1',
+            'run_id' => $runId ?? 'soak-022-'.Str::uuid(),
+            'domain' => 'endpoint',
+            'window_hours' => 24,
+            'status' => 'completed',
+            'dry_run' => false,
+            'started_at' => now()->subHours(24),
+            'completed_at' => now(),
+            'initiated_by' => '1',
             'evidence_pass' => true,
-            'gate_summary'  => ['pass_count' => 3, 'fail_count' => 0],
-            'tenant_id'     => $tenantId,
+            'gate_summary' => ['pass_count' => 3, 'fail_count' => 0],
+            'tenant_id' => $tenantId,
         ]);
     }
 }

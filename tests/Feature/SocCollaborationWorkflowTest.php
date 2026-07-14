@@ -2,13 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\AnalystHandoff;
 use App\Models\EscalationEvent;
 use App\Models\Investigation;
 use App\Models\InvestigationCollaborator;
-use App\Models\InvestigationWatcher;
-use App\Models\SlaBreach;
-use App\Models\SlaEvent;
 use App\Models\SlaPolicy;
 use App\Models\User;
 use App\Models\Watchlist;
@@ -72,11 +68,12 @@ class SocCollaborationWorkflowTest extends TestCase
     private function makeInvestigation(?User $analyst = null): Investigation
     {
         $a = $analyst ?? $this->analyst();
+
         return Investigation::factory()->create([
             'assigned_to' => $a->id,
-            'created_by'  => $a->id,
-            'state'       => 'triaged',
-            'severity'    => 'high',
+            'created_by' => $a->id,
+            'state' => 'triaged',
+            'severity' => 'high',
         ]);
     }
 
@@ -171,9 +168,9 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_add_collaborator_creates_record(): void
     {
-        $inv    = $this->makeInvestigation();
-        $analyst= $this->analyst();
-        $addedBy= $this->admin();
+        $inv = $this->makeInvestigation();
+        $analyst = $this->analyst();
+        $addedBy = $this->admin();
 
         $collab = $this->collab()->addCollaborator(
             $inv->investigation_id, $analyst->id, InvestigationCollaborator::ROLE_COLLABORATOR, $addedBy
@@ -182,8 +179,8 @@ class SocCollaborationWorkflowTest extends TestCase
         $this->assertStringStartsWith('collab-', $collab->collab_id);
         $this->assertDatabaseHas('investigation_collaborators', [
             'investigation_id' => $inv->investigation_id,
-            'analyst_id'       => $analyst->id,
-            'role'             => 'collaborator',
+            'analyst_id' => $analyst->id,
+            'role' => 'collaborator',
         ]);
     }
 
@@ -196,9 +193,9 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_collaboration_history_is_append_only(): void
     {
-        $inv    = $this->makeInvestigation();
-        $analyst= $this->analyst();
-        $addedBy= $this->admin();
+        $inv = $this->makeInvestigation();
+        $analyst = $this->analyst();
+        $addedBy = $this->admin();
 
         $collab = $this->collab()->addCollaborator(
             $inv->investigation_id, $analyst->id, InvestigationCollaborator::ROLE_COLLABORATOR, $addedBy
@@ -209,9 +206,9 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_archive_collaborator_adds_new_inactive_record(): void
     {
-        $inv    = $this->makeInvestigation();
-        $analyst= $this->analyst();
-        $addedBy= $this->admin();
+        $inv = $this->makeInvestigation();
+        $analyst = $this->analyst();
+        $addedBy = $this->admin();
 
         $active = $this->collab()->addCollaborator($inv->investigation_id, $analyst->id, 'collaborator', $addedBy);
         $archived = $this->collab()->archiveCollaborator($active->collab_id, $addedBy);
@@ -223,8 +220,8 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_add_watcher_creates_append_only_record(): void
     {
-        $inv    = $this->makeInvestigation();
-        $analyst= $this->analyst();
+        $inv = $this->makeInvestigation();
+        $analyst = $this->analyst();
 
         $watcher = $this->collab()->addWatcher($inv->investigation_id, $analyst->id, $this->admin(), 'Monitor closely');
         $this->assertNull($watcher->updated_at, 'Watcher record must be append-only');
@@ -236,8 +233,8 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_create_escalation_requires_explicit_operator_action(): void
     {
-        $inv    = $this->makeInvestigation();
-        $analyst= $this->analyst();
+        $inv = $this->makeInvestigation();
+        $analyst = $this->analyst();
 
         $event = $this->escalation()->createEscalation(
             $inv->investigation_id, $analyst, null, 'Suspicious lateral movement', 'high'
@@ -250,19 +247,19 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_escalation_event_is_append_only(): void
     {
-        $inv   = $this->makeInvestigation();
+        $inv = $this->makeInvestigation();
         $event = $this->escalation()->createEscalation($inv->investigation_id, $this->analyst(), null, 'reason', 'high');
         $this->assertNull($event->updated_at, 'Escalation events must be append-only');
     }
 
     public function test_acknowledge_escalation_creates_new_event(): void
     {
-        $inv   = $this->makeInvestigation();
-        $from  = $this->analyst();
-        $to    = $this->analyst();
+        $inv = $this->makeInvestigation();
+        $from = $this->analyst();
+        $to = $this->analyst();
 
         $created = $this->escalation()->createEscalation($inv->investigation_id, $from, $to->id, 'reason', 'high');
-        $acked   = $this->escalation()->acknowledgeEscalation($created->escalation_id, $to, 'On it');
+        $acked = $this->escalation()->acknowledgeEscalation($created->escalation_id, $to, 'On it');
 
         $this->assertSame(EscalationEvent::EVENT_ACKNOWLEDGED, $acked->event_type);
         $this->assertNotNull($acked->acknowledged_at);
@@ -273,10 +270,10 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_reroute_escalation_creates_routed_event(): void
     {
-        $inv   = $this->makeInvestigation();
-        $from  = $this->analyst();
+        $inv = $this->makeInvestigation();
+        $from = $this->analyst();
 
-        $created  = $this->escalation()->createEscalation($inv->investigation_id, $from, null, 'reason', 'high');
+        $created = $this->escalation()->createEscalation($inv->investigation_id, $from, null, 'reason', 'high');
         $rerouted = $this->escalation()->rerouteEscalation($created->escalation_id, 999, $from, 'Better analyst');
 
         $this->assertSame(EscalationEvent::EVENT_ROUTED, $rerouted->event_type);
@@ -288,8 +285,8 @@ class SocCollaborationWorkflowTest extends TestCase
         // Result is a collection of advisory findings — no auto-action
         $this->assertInstanceOf(\Illuminate\Support\Collection::class, $timedOut);
         foreach ($timedOut as $t) {
-            $this->assertTrue($t['advisory_only'],   'Timed-out escalations must be advisory_only');
-            $this->assertTrue($t['no_auto_action'],  'Timed-out escalations must have no_auto_action=true');
+            $this->assertTrue($t['advisory_only'], 'Timed-out escalations must be advisory_only');
+            $this->assertTrue($t['no_auto_action'], 'Timed-out escalations must have no_auto_action=true');
         }
     }
 
@@ -299,7 +296,7 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_valid_workflow_transition_creates_event(): void
     {
-        $inv     = $this->makeInvestigation();
+        $inv = $this->makeInvestigation();
         $analyst = $this->analyst();
 
         $event = $this->escalation()->transitionWorkflowState(
@@ -317,7 +314,7 @@ class SocCollaborationWorkflowTest extends TestCase
     {
         $inv = $this->makeInvestigation();
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches("/Cannot transition/i");
+        $this->expectExceptionMessageMatches('/Cannot transition/i');
         $this->escalation()->transitionWorkflowState(
             $inv->investigation_id,
             EscalationEvent::STATE_CLOSED,
@@ -354,7 +351,7 @@ class SocCollaborationWorkflowTest extends TestCase
         $this->assertTrue((bool) $wl->active);
         $this->assertDatabaseHas('watchlist_events', [
             'watchlist_id' => $wl->watchlist_id,
-            'event_type'   => WatchlistEvent::TYPE_CREATED,
+            'event_type' => WatchlistEvent::TYPE_CREATED,
         ]);
     }
 
@@ -373,7 +370,7 @@ class SocCollaborationWorkflowTest extends TestCase
         $this->assertFalse((bool) $deactivated->active);
         $this->assertDatabaseHas('watchlist_events', [
             'watchlist_id' => $wl->watchlist_id,
-            'event_type'   => WatchlistEvent::TYPE_DEACTIVATED,
+            'event_type' => WatchlistEvent::TYPE_DEACTIVATED,
         ]);
     }
 
@@ -391,7 +388,7 @@ class SocCollaborationWorkflowTest extends TestCase
         $this->assertFalse((bool) $wl->fresh()->active, 'Expired watchlist must be deactivated');
         $this->assertDatabaseHas('watchlist_events', [
             'watchlist_id' => $wl->watchlist_id,
-            'event_type'   => WatchlistEvent::TYPE_EXPIRED,
+            'event_type' => WatchlistEvent::TYPE_EXPIRED,
         ]);
     }
 
@@ -440,7 +437,7 @@ class SocCollaborationWorkflowTest extends TestCase
     {
         $this->sla()->seedDefaultPolicies();
         $policy = SlaPolicy::first();
-        $event  = $this->sla()->recordSlaStart('INV-001', $policy->policy_id);
+        $event = $this->sla()->recordSlaStart('INV-001', $policy->policy_id);
         $this->assertNull($event->updated_at, 'SLA events must be append-only');
     }
 
@@ -457,7 +454,7 @@ class SocCollaborationWorkflowTest extends TestCase
     public function test_create_handoff_records_unresolved_count(): void
     {
         $from = $this->analyst();
-        $to   = $this->analyst();
+        $to = $this->analyst();
 
         $handoff = $this->collab()->createHandoff($from, $to, 'End of shift summary', 'Notes here');
 
@@ -480,8 +477,8 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_share_with_analyst_creates_reviewer_collaborator(): void
     {
-        $inv    = $this->makeInvestigation();
-        $owner  = $this->analyst();
+        $inv = $this->makeInvestigation();
+        $owner = $this->analyst();
         $target = $this->analyst();
 
         $collab = $this->collab()->shareWithAnalyst($inv->investigation_id, $target->id, $owner);
@@ -492,9 +489,9 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_sharing_requires_explicit_actor_attribution(): void
     {
-        $inv    = $this->makeInvestigation();
+        $inv = $this->makeInvestigation();
         $target = $this->analyst();
-        $owner  = $this->analyst();
+        $owner = $this->analyst();
 
         $collab = $this->collab()->shareWithAnalyst($inv->investigation_id, $target->id, $owner);
         $this->assertSame($owner->id, $collab->added_by, 'Sharing must record explicit actor attribution');
@@ -502,8 +499,8 @@ class SocCollaborationWorkflowTest extends TestCase
 
     public function test_shared_investigations_visible_to_reviewer(): void
     {
-        $inv    = $this->makeInvestigation();
-        $owner  = $this->analyst();
+        $inv = $this->makeInvestigation();
+        $owner = $this->analyst();
         $target = $this->analyst();
 
         $this->collab()->shareWithAnalyst($inv->investigation_id, $target->id, $owner);
@@ -522,64 +519,64 @@ class SocCollaborationWorkflowTest extends TestCase
     public function test_soc_operations_dashboard_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.dashboard'))
-             ->assertOk();
+            ->get(route('soc.workflow.dashboard'))
+            ->assertOk();
     }
 
     public function test_analyst_queue_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.queue'))
-             ->assertOk();
+            ->get(route('soc.workflow.queue'))
+            ->assertOk();
     }
 
     public function test_escalation_center_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.escalation'))
-             ->assertOk();
+            ->get(route('soc.workflow.escalation'))
+            ->assertOk();
     }
 
     public function test_watchlist_center_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.watchlist'))
-             ->assertOk();
+            ->get(route('soc.workflow.watchlist'))
+            ->assertOk();
     }
 
     public function test_sla_monitoring_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.sla'))
-             ->assertOk();
+            ->get(route('soc.workflow.sla'))
+            ->assertOk();
     }
 
     public function test_shift_handoff_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.handoff'))
-             ->assertOk();
+            ->get(route('soc.workflow.handoff'))
+            ->assertOk();
     }
 
     public function test_collaboration_timeline_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.timeline'))
-             ->assertOk();
+            ->get(route('soc.workflow.timeline'))
+            ->assertOk();
     }
 
     public function test_analyst_workload_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.workload'))
-             ->assertOk();
+            ->get(route('soc.workflow.workload'))
+            ->assertOk();
     }
 
     public function test_shared_investigations_accessible(): void
     {
         $this->actingAs($this->admin())
-             ->get(route('soc.workflow.shared'))
-             ->assertOk();
+            ->get(route('soc.workflow.shared'))
+            ->assertOk();
     }
 
     public function test_soc_workflow_routes_require_authentication(): void
@@ -590,17 +587,17 @@ class SocCollaborationWorkflowTest extends TestCase
     public function test_api_operations_summary_returns_advisory_note(): void
     {
         $this->actingAs($this->admin())
-             ->getJson(route('api.soc.workflow.summary'))
-             ->assertOk()
-             ->assertJsonFragment(['advisory_note' => 'Analyst-driven collaborative workflows only. No autonomous SOC operations.']);
+            ->getJson(route('api.soc.workflow.summary'))
+            ->assertOk()
+            ->assertJsonFragment(['advisory_note' => 'Analyst-driven collaborative workflows only. No autonomous SOC operations.']);
     }
 
     public function test_api_escalation_queue_returns_no_auto_action_note(): void
     {
         $this->actingAs($this->admin())
-             ->getJson(route('api.soc.workflow.escalations'))
-             ->assertOk()
-             ->assertJsonFragment(['advisory_note' => 'No automatic escalation execution. All escalations require operator action.']);
+            ->getJson(route('api.soc.workflow.escalations'))
+            ->assertOk()
+            ->assertJsonFragment(['advisory_note' => 'No automatic escalation execution. All escalations require operator action.']);
     }
 
     // -----------------------------------------------------------------------
@@ -610,16 +607,16 @@ class SocCollaborationWorkflowTest extends TestCase
     public function test_no_autonomous_escalation_in_escalation_service(): void
     {
         $src = file_get_contents(app_path('Services/EscalationService.php'));
-        $this->assertStringNotContainsString('auto_assign',        $src);
+        $this->assertStringNotContainsString('auto_assign', $src);
         $this->assertStringNotContainsString('autonomous_escalat', $src);
-        $this->assertStringNotContainsString('auto_execute',       $src);
-        $this->assertStringContainsString('advisory only',         strtolower($src));
+        $this->assertStringNotContainsString('auto_execute', $src);
+        $this->assertStringContainsString('advisory only', strtolower($src));
     }
 
     public function test_no_analyst_impersonation_in_collaboration_service(): void
     {
         $src = file_get_contents(app_path('Services/SocCollaborationService.php'));
-        $this->assertStringNotContainsString('act_as_user',      $src);
+        $this->assertStringNotContainsString('act_as_user', $src);
         $this->assertStringNotContainsString('impersonate_user', $src);
         $this->assertStringContainsString('added_by', $src, 'All collaboration must record explicit actor');
     }
@@ -635,16 +632,16 @@ class SocCollaborationWorkflowTest extends TestCase
     public function test_no_auto_response_in_sla_service(): void
     {
         $src = file_get_contents(app_path('Services/SlaTrackingService.php'));
-        $this->assertStringNotContainsString('auto_close',     $src);
-        $this->assertStringNotContainsString('auto_assign',    $src);
-        $this->assertStringNotContainsString('auto_response',  $src);
-        $this->assertStringContainsString('advisory',          strtolower($src));
+        $this->assertStringNotContainsString('auto_close', $src);
+        $this->assertStringNotContainsString('auto_assign', $src);
+        $this->assertStringNotContainsString('auto_response', $src);
+        $this->assertStringContainsString('advisory', strtolower($src));
     }
 
     public function test_collaboration_service_no_unrestricted_export(): void
     {
         $src = file_get_contents(app_path('Services/SocCollaborationService.php'));
         $this->assertStringNotContainsString('unrestricted_export', $src);
-        $this->assertStringNotContainsString('anonymous_share',     $src);
+        $this->assertStringNotContainsString('anonymous_share', $src);
     }
 }

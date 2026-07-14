@@ -18,7 +18,7 @@ class TenantStrictModeReadinessTest extends TestCase
 
     public function test_assess_returns_required_keys(): void
     {
-        $svc    = app(TenantStrictModeReadinessService::class);
+        $svc = app(TenantStrictModeReadinessService::class);
         $result = $svc->assess('test');
 
         $this->assertArrayHasKey('assessment_id', $result);
@@ -43,7 +43,7 @@ class TenantStrictModeReadinessTest extends TestCase
     public function test_assess_persists_gate_result_rows(): void
     {
         $result = app(TenantStrictModeReadinessService::class)->assess('test');
-        $count  = DB::table('tenant_strict_mode_gate_results')
+        $count = DB::table('tenant_strict_mode_gate_results')
             ->where('assessment_id', $result['assessment_id'])
             ->count();
         $this->assertSame(count(TenantStrictModeReadinessService::GATES), $count);
@@ -94,14 +94,14 @@ class TenantStrictModeReadinessTest extends TestCase
     public function test_gate01_fails_when_mutable_table_has_null_tenant_id(): void
     {
         DB::table('security_alerts')->insert([
-            'alert_id'     => 'GATE01-TEST-' . uniqid(),
-            'alert_type'   => 'TEST',
-            'severity'     => 'low',
-            'evidence'     => json_encode([]),
-            'detected_at'  => now()->format('Y-m-d H:i:sP'),
-            'tenant_id'    => null,
-            'created_at'   => now()->format('Y-m-d H:i:sP'),
-            'updated_at'   => now()->format('Y-m-d H:i:sP'),
+            'alert_id' => 'GATE01-TEST-'.uniqid(),
+            'alert_type' => 'TEST',
+            'severity' => 'low',
+            'evidence' => json_encode([]),
+            'detected_at' => now()->format('Y-m-d H:i:sP'),
+            'tenant_id' => null,
+            'created_at' => now()->format('Y-m-d H:i:sP'),
+            'updated_at' => now()->format('Y-m-d H:i:sP'),
         ]);
 
         $gateResults = app(TenantStrictModeReadinessService::class)->assess('test')['gate_results'];
@@ -161,9 +161,9 @@ class TenantStrictModeReadinessTest extends TestCase
 
     public function test_get_gate_results_for_assessment(): void
     {
-        $svc    = app(TenantStrictModeReadinessService::class);
+        $svc = app(TenantStrictModeReadinessService::class);
         $result = $svc->assess('test');
-        $gates  = $svc->getGateResults($result['assessment_id']);
+        $gates = $svc->getGateResults($result['assessment_id']);
         $this->assertCount(count(TenantStrictModeReadinessService::GATES), $gates);
     }
 
@@ -174,13 +174,13 @@ class TenantStrictModeReadinessTest extends TestCase
     public function test_record_backfill_run_persists_row(): void
     {
         app(TenantStrictModeReadinessService::class)->recordBackfillRun([
-            'dry_run'            => true,
+            'dry_run' => true,
             'tenant_id_assigned' => null,
-            'table_results'      => [],
-            'total_null_before'  => 0,
-            'total_updated'      => 0,
-            'total_null_after'   => 0,
-            'outcome'            => 'DRY_RUN_PENDING',
+            'table_results' => [],
+            'total_null_before' => 0,
+            'total_updated' => 0,
+            'total_null_after' => 0,
+            'outcome' => 'DRY_RUN_PENDING',
         ]);
         $this->assertDatabaseCount('tenant_backfill_audit_runs', 1);
     }
@@ -267,9 +267,9 @@ class TenantStrictModeReadinessTest extends TestCase
 
     public function test_assessment_row_is_append_only(): void
     {
-        $svc    = app(TenantStrictModeReadinessService::class);
+        $svc = app(TenantStrictModeReadinessService::class);
         $result = $svc->assess('test');
-        $id     = DB::table('tenant_strict_mode_assessments')
+        $id = DB::table('tenant_strict_mode_assessments')
             ->where('assessment_id', $result['assessment_id'])
             ->value('id');
 

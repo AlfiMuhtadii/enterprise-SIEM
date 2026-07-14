@@ -94,7 +94,7 @@ class UEBAStatisticsTest extends TestCase
 
     public function test_percentile_rank_from_baseline_midpoint(): void
     {
-        $baseline = new EntityBehaviorBaseline();
+        $baseline = new EntityBehaviorBaseline;
         $baseline->baseline_p10 = 0.0;
         $baseline->baseline_p90 = 10.0;
 
@@ -105,7 +105,7 @@ class UEBAStatisticsTest extends TestCase
 
     public function test_percentile_rank_from_baseline_clamps_to_zero_and_hundred(): void
     {
-        $baseline = new EntityBehaviorBaseline();
+        $baseline = new EntityBehaviorBaseline;
         $baseline->baseline_p10 = 0.0;
         $baseline->baseline_p90 = 10.0;
 
@@ -115,7 +115,7 @@ class UEBAStatisticsTest extends TestCase
 
     public function test_percentile_rank_from_baseline_handles_zero_range(): void
     {
-        $baseline = new EntityBehaviorBaseline();
+        $baseline = new EntityBehaviorBaseline;
         $baseline->baseline_p10 = 5.0;
         $baseline->baseline_p90 = 5.0;
 

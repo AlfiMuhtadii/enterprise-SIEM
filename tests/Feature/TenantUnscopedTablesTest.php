@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Services\TenantBoundaryService;
-use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
 
 class TenantUnscopedTablesTest extends TestCase
 {
