@@ -15,7 +15,7 @@
      keyboard/screen-reader users bypass the sidebar nav on every page that
      extends this layout, rather than tabbing through it every time. --}}
 <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-cyan-600 focus:px-4 focus:py-2 focus:text-white">
-    Skip to main content
+    {{ __('Skip to main content') }}
 </a>
 
 <div class="flex min-h-screen" x-data="{ mobileOpen: false }" @keydown.escape.window="mobileOpen = false">

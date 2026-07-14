@@ -47,6 +47,17 @@
             @endif
         </div>
 
+        <div>
+            <x-input-label for="locale" :value="__('Language')" />
+            <select id="locale" name="locale" class="mt-1 block w-full rounded-xl border border-cyan-100/35 bg-cyan-100/5 px-3 py-2 text-sm text-cyan-50 shadow-sm focus:border-cyan-300 focus:ring-cyan-300">
+                <option value="" @selected(old('locale', $user->locale) === null)>{{ __('Browser / session default') }}</option>
+                @foreach (\App\Http\Middleware\SetUserLocale::SUPPORTED_LOCALES as $code)
+                    <option value="{{ $code }}" @selected(old('locale', $user->locale) === $code)>{{ strtoupper($code) }}</option>
+                @endforeach
+            </select>
+            <x-input-error class="mt-2" :messages="$errors->get('locale')" />
+        </div>
+
         <div class="flex items-center gap-4">
             <x-primary-button>{{ __('Save') }}</x-primary-button>
 

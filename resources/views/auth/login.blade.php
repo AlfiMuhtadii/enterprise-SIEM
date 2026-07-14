@@ -1,8 +1,8 @@
 <x-guest-layout>
     <div class="mb-6 space-y-2 text-center">
-        <span class="brand-chip">Detector Console</span>
-        <h1 class="text-2xl font-semibold text-main-ui">Sign in to Security Demo</h1>
-        <p class="text-sm text-muted-ui">Use seeded credentials: <span class="mono-ui">admin@example.com / password</span></p>
+        <span class="brand-chip">{{ __('Detector Console') }}</span>
+        <h1 class="text-2xl font-semibold text-main-ui">{{ __('Sign in to Security Demo') }}</h1>
+        <p class="text-sm text-muted-ui">{{ __('Use seeded credentials:') }} <span class="mono-ui">admin@example.com / password</span></p>
     </div>
 
     <x-auth-session-status class="mb-4" :status="session('status')" />
