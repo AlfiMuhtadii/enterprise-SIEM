@@ -1,0 +1,174 @@
+# CI-SAST-DEPSCAN: dependency-update PRs + vulnerability alerts across
+# every first-party package manager in this repo. Distinct from
+# ENT-SDLC-NO-SUPPLYCHAIN (which covers built-image SBOM + signing) --
+# this is source-level dependency freshness/vuln surfacing, not image
+# provenance.
+version: 2
+updates:
+  # Laravel SOC control plane
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "php"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "javascript"]
+
+  # Go pipeline services
+  - package-ecosystem: "gomod"
+    directory: "/services/ingestion-gateway"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/normalizer-worker"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/correlation-worker"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/log-connector-cloudtrail"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/log-connector-gcp-audit"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/log-connector-guardduty"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/log-connector-o365"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/services/log-connector-syslog"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/tools/attack-simulator"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+  - package-ecosystem: "gomod"
+    directory: "/tools/xdr-scenario-runner"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "go"]
+
+  # Python services
+  - package-ecosystem: "pip"
+    directory: "/services/ai-rag-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "python"]
+  - package-ecosystem: "pip"
+    directory: "/services/alert-writer-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "python"]
+  - package-ecosystem: "pip"
+    directory: "/services/incident-builder-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "python"]
+  - package-ecosystem: "pip"
+    directory: "/scripts"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "python"]
+
+  # First-party Docker images -- base-image digest/tag updates
+  - package-ecosystem: "docker"
+    directory: "/infra/production"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/infra/telemetry-worker"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/ai-rag-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/alert-writer-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/correlation-worker"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/incident-builder-service"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/ingestion-gateway"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/log-connector-cloudtrail"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/log-connector-gcp-audit"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/log-connector-guardduty"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/log-connector-o365"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/log-connector-syslog"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/services/normalizer-worker"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+  - package-ecosystem: "docker"
+    directory: "/tools/attack-simulator"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "docker"]
+
+  # This workflow file itself
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]
