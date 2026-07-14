@@ -11,7 +11,14 @@
 </head>
 <body class="antialiased">
 
-<div class="flex min-h-screen" x-data="{ mobileOpen: false }">
+{{-- A11Y-WCAG: standard skip-link -- visually hidden until focused, lets
+     keyboard/screen-reader users bypass the sidebar nav on every page that
+     extends this layout, rather than tabbing through it every time. --}}
+<a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-cyan-600 focus:px-4 focus:py-2 focus:text-white">
+    Skip to main content
+</a>
+
+<div class="flex min-h-screen" x-data="{ mobileOpen: false }" @keydown.escape.window="mobileOpen = false">
 
     {{-- ── Sidebar ──────────────────────────────────────────────────────── --}}
     @include('layouts.navigation')
@@ -28,6 +35,7 @@
         x-transition:leave-end="opacity-0"
         class="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm lg:hidden"
         style="display:none"
+        aria-hidden="true"
     ></div>
 
     {{-- ── Main area ────────────────────────────────────────────────────── --}}
@@ -39,8 +47,10 @@
                 @click="mobileOpen = !mobileOpen"
                 class="p-1.5 rounded-lg text-cyan-300 hover:bg-cyan-900/40 transition-colors"
                 aria-label="Toggle sidebar"
+                aria-controls="sidebar-nav"
+                :aria-expanded="mobileOpen.toString()"
             >
-                <svg class="h-5 w-5" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                <svg class="h-5 w-5" stroke="currentColor" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
@@ -58,7 +68,7 @@
         @endif
 
         {{-- Content --}}
-        <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main id="main-content" class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
             <div class="mx-auto max-w-7xl">
                 {{ $slot }}
             </div>

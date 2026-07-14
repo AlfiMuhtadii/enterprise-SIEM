@@ -13,8 +13,9 @@
         <!-- Email Address -->
         <div>
             <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username"
+                :aria-invalid="$errors->has('email') ? 'true' : null" :aria-describedby="$errors->has('email') ? 'email-error' : null" />
+            <x-input-error id="email-error" :messages="$errors->get('email')" class="mt-2" />
         </div>
 
         <!-- Password -->
@@ -24,9 +25,10 @@
             <x-text-input id="password" class="block mt-1 w-full"
                             type="password"
                             name="password"
-                            required autocomplete="current-password" />
+                            required autocomplete="current-password"
+                            :aria-invalid="$errors->has('password') ? 'true' : null" :aria-describedby="$errors->has('password') ? 'password-error' : null" />
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-input-error id="password-error" :messages="$errors->get('password')" class="mt-2" />
         </div>
 
         <!-- Remember Me -->

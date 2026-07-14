@@ -13,14 +13,17 @@
     @endif
 </head>
 <body class="antialiased">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-cyan-600 focus:px-4 focus:py-2 focus:text-white">
+        Skip to main content
+    </a>
     <div class="relative min-h-screen overflow-hidden px-4 py-10 sm:px-6">
-        <div class="pointer-events-none absolute inset-0">
+        <div class="pointer-events-none absolute inset-0" aria-hidden="true">
             <div class="float-slow absolute -left-16 top-20 h-52 w-52 rounded-full bg-cyan-300/15 blur-3xl"></div>
             <div class="float-slow absolute right-0 top-10 h-64 w-64 rounded-full bg-emerald-300/15 blur-3xl"></div>
             <div class="absolute bottom-0 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-300/10 blur-3xl"></div>
         </div>
 
-        <div class="relative mx-auto flex w-full max-w-md flex-col justify-center gap-5">
+        <main id="main-content" class="relative mx-auto flex w-full max-w-md flex-col justify-center gap-5">
             <div class="mx-auto">
                 <a href="/">
                     <x-application-logo class="h-16 w-16 fill-current text-cyan-200" />
@@ -30,7 +33,7 @@
             <div class="glass-card w-full overflow-hidden px-6 py-7 sm:px-7">
                 {{ $slot }}
             </div>
-        </div>
+        </main>
     </div>
 </body>
 </html>

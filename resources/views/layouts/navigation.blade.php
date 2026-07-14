@@ -4,12 +4,14 @@
     Desktop: fixed left sidebar, always visible via lg:translate-x-0
 --}}
 <aside
+    id="sidebar-nav"
     :class="mobileOpen ? 'translate-x-0' : '-translate-x-full'"
     class="fixed inset-y-0 left-0 z-30 flex w-64 flex-col
            transition-transform duration-200 ease-in-out
            lg:translate-x-0
            border-r border-cyan-800/30"
     style="background: var(--bg-1);"
+    aria-label="Sidebar"
 >
 
     {{-- ── Logo ──────────────────────────────────────────────────────────── --}}
@@ -24,7 +26,7 @@
     </div>
 
     {{-- ── Nav ───────────────────────────────────────────────────────────── --}}
-    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-4" x-data="{ groups: {} }">
+    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-4" x-data="{ groups: {} }" aria-label="Primary">
 
         {{-- ── Core ─────────────────────────────────────────────────────── --}}
         <div>
