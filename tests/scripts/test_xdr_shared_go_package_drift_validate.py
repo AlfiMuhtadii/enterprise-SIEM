@@ -1,8 +1,9 @@
 """INTERNAL-RUNTIME-SDK: scripts/xdr_shared_go_package_drift_validate.py.
 
 Exercises the drift check against temporary canonical/dependent directories
-rather than the real tools/shared-go/mtls + services/*/internal/mtls trees,
-so these tests never depend on (or risk mutating) real source."""
+for two synthetic families, rather than the real tools/shared-go/{mtls,
+deliver} + services/*/internal/{mtls,deliver} trees, so these tests never
+depend on (or risk mutating) real source."""
 from __future__ import annotations
 
 import sys
@@ -22,31 +23,36 @@ class TestSharedGoPackageDriftValidate(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name)
 
-        self.canonical_dir = self.root / "tools" / "shared-go" / "mtls"
-        self.canonical_dir.mkdir(parents=True)
-        (self.canonical_dir / "mtls.go").write_text("package mtls\n// canonical\n")
-        (self.canonical_dir / "mtls_test.go").write_text("package mtls\n// canonical test\n")
+        self.families = {}
+        for family_name, dep_names in [("famone", ["service-a", "service-b"]), ("famtwo", ["service-c"])]:
+            canonical_dir = self.root / "tools" / "shared-go" / family_name
+            canonical_dir.mkdir(parents=True)
+            (canonical_dir / "helper.go").write_text("package helper\n// canonical\n")
+            (canonical_dir / "helper_test.go").write_text("package helper\n// canonical test\n")
 
-        self.dep_dirs = []
-        for name in ["service-a", "service-b"]:
-            dep_dir = self.root / "services" / name / "internal" / "mtls"
-            dep_dir.mkdir(parents=True)
-            (dep_dir / "mtls.go").write_text("package mtls\n// canonical\n")
-            (dep_dir / "mtls_test.go").write_text("package mtls\n// canonical test\n")
-            self.dep_dirs.append(dep_dir)
+            dep_dirs = []
+            for dep_name in dep_names:
+                dep_dir = self.root / "services" / dep_name / "internal" / family_name
+                dep_dir.mkdir(parents=True)
+                (dep_dir / "helper.go").write_text("package helper\n// canonical\n")
+                (dep_dir / "helper_test.go").write_text("package helper\n// canonical test\n")
+                dep_dirs.append(dep_dir)
+
+            self.families[family_name] = {
+                "canonical_dir": canonical_dir,
+                "files": ["helper.go", "helper_test.go"],
+                "dependents": dep_dirs,
+            }
 
         self._orig_root = drift.ROOT
-        self._orig_canonical = drift.CANONICAL_DIR
-        self._orig_dependents = drift.DEPENDENT_DIRS
+        self._orig_families = drift.FAMILIES
         drift.ROOT = self.root
-        drift.CANONICAL_DIR = self.canonical_dir
-        drift.DEPENDENT_DIRS = self.dep_dirs
+        drift.FAMILIES = self.families
         self.addCleanup(self._restore_module_state)
 
     def _restore_module_state(self):
         drift.ROOT = self._orig_root
-        drift.CANONICAL_DIR = self._orig_canonical
-        drift.DEPENDENT_DIRS = self._orig_dependents
+        drift.FAMILIES = self._orig_families
 
     def _run(self, argv):
         old_argv = sys.argv
@@ -56,33 +62,55 @@ class TestSharedGoPackageDriftValidate(unittest.TestCase):
         finally:
             sys.argv = old_argv
 
-    def test_passes_when_all_dependents_match_canonical(self):
+    def test_passes_when_all_families_match_canonical(self):
         self.assertEqual(self._run([]), 0)
 
-    def test_fails_when_a_dependent_has_drifted(self):
-        (self.dep_dirs[0] / "mtls.go").write_text("package mtls\n// DRIFTED\n")
+    def test_fails_when_one_family_has_drifted(self):
+        dep_dirs = self.families["famone"]["dependents"]
+        (dep_dirs[0] / "helper.go").write_text("package helper\n// DRIFTED\n")
 
         self.assertEqual(self._run([]), 1)
 
     def test_fails_when_a_dependent_file_is_missing(self):
-        (self.dep_dirs[1] / "mtls_test.go").unlink()
+        dep_dirs = self.families["famtwo"]["dependents"]
+        (dep_dirs[0] / "helper_test.go").unlink()
 
         self.assertEqual(self._run([]), 1)
 
-    def test_sync_overwrites_every_dependent_with_canonical_content(self):
-        (self.dep_dirs[0] / "mtls.go").write_text("package mtls\n// DRIFTED\n")
-        (self.dep_dirs[1] / "mtls_test.go").unlink()
+    def test_family_flag_scopes_check_to_a_single_family(self):
+        dep_dirs = self.families["famone"]["dependents"]
+        (dep_dirs[0] / "helper.go").write_text("package helper\n// DRIFTED\n")
+
+        # famone has drifted, but famtwo hasn't -- scoping to famtwo only
+        # must not see famone's drift.
+        self.assertEqual(self._run(["--family", "famtwo"]), 0)
+        self.assertEqual(self._run(["--family", "famone"]), 1)
+        self.assertEqual(self._run([]), 1)
+
+    def test_sync_overwrites_every_dependent_in_every_family_with_canonical_content(self):
+        self.families["famone"]["dependents"][0].joinpath("helper.go").write_text("package helper\n// DRIFTED\n")
+        self.families["famtwo"]["dependents"][0].joinpath("helper_test.go").unlink()
 
         self.assertEqual(self._run(["--sync"]), 0)
 
-        for dep_dir in self.dep_dirs:
-            self.assertEqual((dep_dir / "mtls.go").read_text(), (self.canonical_dir / "mtls.go").read_text())
-            self.assertEqual((dep_dir / "mtls_test.go").read_text(), (self.canonical_dir / "mtls_test.go").read_text())
+        for family in self.families.values():
+            for dep_dir in family["dependents"]:
+                for filename in family["files"]:
+                    self.assertEqual((dep_dir / filename).read_text(), (family["canonical_dir"] / filename).read_text())
 
         self.assertEqual(self._run([]), 0)
 
+    def test_sync_with_family_flag_only_touches_that_family(self):
+        self.families["famone"]["dependents"][0].joinpath("helper.go").write_text("package helper\n// DRIFTED\n")
+        self.families["famtwo"]["dependents"][0].joinpath("helper.go").write_text("package helper\n// ALSO DRIFTED\n")
+
+        self.assertEqual(self._run(["--sync", "--family", "famone"]), 0)
+
+        self.assertEqual(self._run(["--family", "famone"]), 0)
+        self.assertEqual(self._run(["--family", "famtwo"]), 1)
+
     def test_errors_when_canonical_source_is_missing(self):
-        (self.canonical_dir / "mtls.go").unlink()
+        (self.families["famone"]["canonical_dir"] / "helper.go").unlink()
 
         self.assertEqual(self._run([]), 2)
 
