@@ -18,8 +18,15 @@ use RuntimeException;
  * archived_records table via ClickHouseArchiveWriter, alongside the gzip
  * file, not instead of it — the gzip archive remains the durability
  * guarantee; ClickHouse is an additional, real, indexed warm-tier search
- * path (see ArchiveSearchService for the read side). Cold tier (object
- * storage archival/restore) remains a separate, larger effort.
+ * path (see ArchiveSearchService for the read side).
+ *
+ * Cold tier (added once real infra became available): when
+ * xdr.infrastructure.cold_tier.enabled is true (default false — zero
+ * behavior change), the finished local gzip file is ALSO uploaded to an
+ * S3-compatible object store via ColdArchiveWriter, once writing completes
+ * — best-effort, alongside the local file and the warm tier if enabled, not
+ * instead of either. The local gzip archive remains the durability
+ * guarantee regardless of cold-tier state.
  */
 class SecurityRetentionArchiveService
 {
@@ -27,10 +34,15 @@ class SecurityRetentionArchiveService
 
     private readonly ?ClickHouseArchiveWriter $warmTier;
 
-    public function __construct(private readonly string $archiveDir, ?ClickHouseArchiveWriter $warmTier = null)
+    private readonly ?ColdArchiveWriter $coldTier;
+
+    public function __construct(private readonly string $archiveDir, ?ClickHouseArchiveWriter $warmTier = null, ?ColdArchiveWriter $coldTier = null)
     {
         $this->warmTier = config('xdr.infrastructure.clickhouse.warm_tier_enabled', false)
             ? ($warmTier ?? new ClickHouseArchiveWriter())
+            : null;
+        $this->coldTier = config('xdr.infrastructure.cold_tier.enabled', false)
+            ? ($coldTier ?? new ColdArchiveWriter())
             : null;
     }
 
@@ -93,6 +105,11 @@ class SecurityRetentionArchiveService
         } finally {
             gzclose($handle);
         }
+
+        // Best-effort, same as the warm tier above: a cold-tier upload
+        // failure must never block deletion — it runs only after the local
+        // gzip file is fully written and closed.
+        $this->coldTier?->upload($path, $table, $hasTenantColumn ? $tenantId : null);
 
         return $query->delete();
     }

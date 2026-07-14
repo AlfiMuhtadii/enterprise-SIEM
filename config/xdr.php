@@ -90,6 +90,21 @@ return [
             // warm-tier index, not a replacement for it).
             'warm_tier_enabled' => (bool) env('XDR_DATA_TIERING_WARM_TIER_ENABLED', false),
         ],
+        // DATA-TIERING (cold tier): off by default -- zero behavior change
+        // unless an operator opts in. When true, SecurityRetentionArchiveService
+        // additionally uploads the finished local gzip archive file to an
+        // S3-compatible object store (config/filesystems.php's "s3" disk --
+        // set AWS_ENDPOINT/AWS_BUCKET/AWS_USE_PATH_STYLE_ENDPOINT=true for a
+        // local MinIO instance, see docker-compose.yml's "data-tiering"
+        // profile) after it's fully written, alongside the local file (which
+        // stays the durability guarantee either way) and the ClickHouse warm
+        // tier if also enabled. This is a best-effort offload, not a
+        // replacement -- an upload failure never blocks the archive/delete.
+        'cold_tier' => [
+            'enabled' => (bool) env('XDR_DATA_TIERING_COLD_TIER_ENABLED', false),
+            'disk' => env('XDR_DATA_TIERING_COLD_TIER_DISK', 's3'),
+            'prefix' => env('XDR_DATA_TIERING_COLD_TIER_PREFIX', 'archive'),
+        ],
         'opensearch' => [
             'url' => env('XDR_OPENSEARCH_URL', 'http://127.0.0.1:9200'),
             'user' => env('XDR_OPENSEARCH_USER', ''),
