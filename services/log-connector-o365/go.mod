@@ -1,3 +1,3 @@
 module detector-xdr-log-connector-o365
 
-go 1.24
+go 1.26

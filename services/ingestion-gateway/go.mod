@@ -1,6 +1,6 @@
 module detector-xdr-ingestion-gateway
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/twmb/franz-go v1.21.5

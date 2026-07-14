@@ -1,6 +1,6 @@
 module github.com/alfimuhtadii/detector/attack-simulator
 
-go 1.22
+go 1.26
 
 require (
 	github.com/twmb/franz-go v1.16.1
