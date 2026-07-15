@@ -43,16 +43,6 @@ class ApiVersioningTest extends TestCase
         ])->assertOk()->assertJsonStructure(['ok', 'agent_id', 'agent_secret']);
     }
 
-    public function test_v1_items_route_matches_unprefixed_route_output(): void
-    {
-        $v1 = $this->getJson('/api/v1/items?page=1&limit=5');
-        $unprefixed = $this->getJson('/api/items?page=1&limit=5');
-
-        $v1->assertOk();
-        $unprefixed->assertOk();
-        $this->assertSame($v1->json(), $unprefixed->json());
-    }
-
     public function test_agent_enrollment_token_is_still_enforced_under_v1(): void
     {
         Config::set('soc.agent_enrollment_token', 'test-token');

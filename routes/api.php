@@ -27,35 +27,6 @@ $apiRoutes = function () {
         return $request->user();
     });
 
-    Route::get('/items', function (Request $request) {
-        $page = max(1, (int) $request->query('page', 1));
-        $limit = min(100, max(1, (int) $request->query('limit', 10)));
-
-        $items = collect(range(1, 100))->map(function (int $id) {
-            return [
-                'id' => $id,
-                'name' => 'Item '.$id,
-            ];
-        });
-
-        $offset = ($page - 1) * $limit;
-        $data = $items->slice($offset, $limit)->values();
-
-        return response()->json([
-            'page' => $page,
-            'limit' => $limit,
-            'total' => $items->count(),
-            'data' => $data,
-        ]);
-    });
-
-    Route::get('/items/{id}', function (int $id) {
-        return response()->json([
-            'id' => $id,
-            'name' => 'Item '.$id,
-        ]);
-    });
-
     Route::prefix('agents')->middleware('throttle:api')->group(function () {
         Route::post('/register', [AgentIngestionController::class, 'register']);
         Route::post('/config', [AgentIngestionController::class, 'config']);
