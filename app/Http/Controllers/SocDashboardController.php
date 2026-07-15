@@ -170,12 +170,20 @@ class SocDashboardController extends Controller
             ->havingRaw('count(*) >= 50')
             ->count();
 
+        // TENANT-HUNT-CORRELATION-ISOLATION: soc_hunt_run_sessions now
+        // carries tenant_id; $scopeTelemetry is the generic OR-null closure
+        // already defined above (append-only tables), reused here rather
+        // than duplicating it under a new name.
         $investigationSummary = [
-            'active_hunts_24h' => DB::table('soc_hunt_run_sessions')->where('started_at', '>=', now()->subDay())->count(),
-            'hunt_matches_24h' => (int) DB::table('soc_hunt_run_sessions')->where('started_at', '>=', now()->subDay())->sum('result_count'),
+            'active_hunts_24h' => $scopeTelemetry(DB::table('soc_hunt_run_sessions'))->where('started_at', '>=', now()->subDay())->count(),
+            'hunt_matches_24h' => (int) $scopeTelemetry(DB::table('soc_hunt_run_sessions'))->where('started_at', '>=', now()->subDay())->sum('result_count'),
             'endpoint_sessions_24h' => DB::table('endpoint_investigation_sessions')->where('started_at', '>=', now()->subDay())->count(),
-            'forensic_pending' => DB::table('forensic_collection_jobs')->where('status', 'pending_approval')->count(),
-            'forensic_completed_24h' => DB::table('forensic_collection_jobs')->where('completed_at', '>=', now()->subDay())->count(),
+            // TENANT-FORENSIC-ISOLATION: forensic_collection_jobs now
+            // carries tenant_id; $scopeAlerts is a generic strict-scoping
+            // closure (matches this table's MUTABLE_TABLES classification),
+            // reused here rather than duplicating it under a new name.
+            'forensic_pending' => $scopeAlerts(DB::table('forensic_collection_jobs'))->where('status', 'pending_approval')->count(),
+            'forensic_completed_24h' => $scopeAlerts(DB::table('forensic_collection_jobs'))->where('completed_at', '>=', now()->subDay())->count(),
             'timeline_spike_hosts_1h' => $timelineSpikeHosts,
             'agent_integrity_warnings' => DB::table('endpoint_agents')
                 ->where(function ($q) {

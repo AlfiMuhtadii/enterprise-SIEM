@@ -80,6 +80,14 @@ class TenantBoundaryService
         // TENANT-POSTGRES-FALLBACK-TELEMETRY: written via insertOrIgnore()
         // (PHP) / ON CONFLICT (event_id) DO NOTHING (Python) -- insert-only.
         'telemetry_events',
+        // TENANT-FORENSIC-ISOLATION: tenant_id set at request(), status/
+        // approved_by/artifact_path updated afterward by decide() -- mutable
+        // like endpoint_agents, not append-only.
+        'forensic_collection_jobs',
+        // TENANT-HUNT-CORRELATION-ISOLATION: insert-only (no UPDATE
+        // statement anywhere in the codebase) -- append-only.
+        'soc_hunt_sessions',
+        'soc_hunt_run_sessions',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -100,6 +108,8 @@ class TenantBoundaryService
         'soar_execution_plans',
         'soar_execution_steps',
         'soar_rollback_plans',
+        // TENANT-FORENSIC-ISOLATION: see ISOLATED_TABLES comment above.
+        'forensic_collection_jobs',
     ];
 
     // Append-only ISOLATED tables — tenant_id backfill is FORBIDDEN on these.
@@ -135,6 +145,9 @@ class TenantBoundaryService
         // TENANT-POSTGRES-FALLBACK-TELEMETRY: same insert-only rationale as
         // above, applied here since this row appears in both isolation lists.
         'telemetry_events',
+        // TENANT-HUNT-CORRELATION-ISOLATION: see ISOLATED_TABLES comment above.
+        'soc_hunt_sessions',
+        'soc_hunt_run_sessions',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap

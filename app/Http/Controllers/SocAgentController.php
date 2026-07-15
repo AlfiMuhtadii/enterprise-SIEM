@@ -49,7 +49,14 @@ class SocAgentController extends Controller
             'policies' => DB::table('agent_policies')->orderByDesc('is_default')->orderBy('name')->get(),
             'commands' => DB::table('agent_commands')->orderByDesc('queued_at')->limit(100)->get(),
             'responses' => DB::table('soc_response_workflows')->orderByDesc('created_at')->limit(100)->get(),
-            'forensicJobs' => DB::table('forensic_collection_jobs')->orderByDesc('created_at')->limit(100)->get(),
+            // TENANT-FORENSIC-ISOLATION: forensic_collection_jobs now carries
+            // tenant_id; scoped the same way endpoint_agents/tamperAlerts
+            // below already are.
+            'forensicJobs' => DB::table('forensic_collection_jobs')
+                ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get(),
             'streamMetrics' => DB::table('agent_stream_metrics')->orderByDesc('reported_at')->limit(100)->get(),
             'releases' => DB::table('agent_releases')->orderByDesc('released_at')->get(),
             'tamperAlerts' => DB::table('security_alerts')

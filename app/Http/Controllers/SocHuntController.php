@@ -20,11 +20,16 @@ class SocHuntController extends Controller
     {
         $filters = $this->filters($request);
         $results = $request->has('run') ? $this->queryTelemetry($request, $filters, 100) : collect();
+        // TENANT-HUNT-CORRELATION-ISOLATION: resolved once here (separately
+        // from queryTelemetry()'s own resolution) for the run-session insert
+        // and the savedHunts/huntRuns listing scoping below.
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
 
         if ($request->has('run')) {
             $runId = 'hunt-run-'.Str::uuid();
             DB::table('soc_hunt_run_sessions')->insert([
                 'run_id' => $runId,
+                'tenant_id' => $tenantId,
                 'executed_by' => $request->user()->email,
                 'started_at' => now(),
                 'completed_at' => now(),
@@ -40,8 +45,16 @@ class SocHuntController extends Controller
         return view('soc.hunts.index', [
             'filters' => $filters,
             'results' => $results,
-            'savedHunts' => DB::table('soc_hunt_sessions')->orderByDesc('updated_at')->limit(50)->get(),
-            'huntRuns' => DB::table('soc_hunt_run_sessions')->orderByDesc('started_at')->limit(50)->get(),
+            'savedHunts' => DB::table('soc_hunt_sessions')
+                ->when($tenantId !== null, fn ($q) => $q->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
+                ->orderByDesc('updated_at')
+                ->limit(50)
+                ->get(),
+            'huntRuns' => DB::table('soc_hunt_run_sessions')
+                ->when($tenantId !== null, fn ($q) => $q->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
+                ->orderByDesc('started_at')
+                ->limit(50)
+                ->get(),
             'templates' => $this->templates(),
         ]);
     }
@@ -52,10 +65,12 @@ class SocHuntController extends Controller
             'name' => ['required', 'string', 'max:160'],
             'template_key' => ['nullable', 'string', 'max:80'],
         ]);
+        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
         $filters = $this->filters($request);
         $huntId = 'hunt-'.Str::uuid();
         DB::table('soc_hunt_sessions')->insert([
             'hunt_id' => $huntId,
+            'tenant_id' => $tenantId,
             'name' => $data['name'],
             'template_key' => $data['template_key'] ?? null,
             'created_by' => $request->user()->email,
@@ -136,7 +151,14 @@ class SocHuntController extends Controller
             }
             $rows = $q->get();
         }
-        $alertByHost = DB::table('security_alerts')->where('detected_at', '>=', now()->subMinutes($filters['minutes']))->get()->groupBy('actor_key');
+        // TENANT-HUNT-CORRELATION-ISOLATION: security_alerts is a
+        // MUTABLE_TABLES entry (Phase-3-backfilled) -- scoped strictly,
+        // matching SocAgentController's own security_alerts convention.
+        $alertByHost = DB::table('security_alerts')
+            ->where('detected_at', '>=', now()->subMinutes($filters['minutes']))
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->get()
+            ->groupBy('actor_key');
         return $rows->map(function ($row) use ($alertByHost) {
             $row->correlated_alerts = $alertByHost->get($row->host_id, collect())->take(5)->values();
             return $row;
