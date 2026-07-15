@@ -25,10 +25,12 @@ class SocEndpointTimelineController extends Controller
         // ClickHouse, read from the same store instead of Postgres, which
         // has no new rows to show under that mode — falls back to Postgres
         // on any ClickHouse failure so this page never just breaks.
-        // TENANT-CLICKHOUSE-LEAK: $tenantId scopes the ClickHouse query only
-        // -- the Postgres fallback below has no tenant_id column on
-        // telemetry_events at all (TenantBoundaryService::UNISOLATED_TABLES),
-        // a separate, pre-existing, already-tracked gap this doesn't touch.
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: telemetry_events now carries
+        // tenant_id on the Postgres side too, so the fallback below is
+        // scoped the same way the ClickHouse path already was
+        // (TENANT-CLICKHOUSE-LEAK) — null tenant_id rows remain visible
+        // regardless of $tenantId, matching TenantBoundaryService's
+        // documented legacy/unscoped convention.
         $telemetry = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
             $telemetry = (new ClickHouseTelemetryReader())->hostTimeline($hostId, $since, $type, 300, $tenantId);
@@ -38,6 +40,7 @@ class SocEndpointTimelineController extends Controller
                 ->where('host_id', $hostId)
                 ->where('ts', '>=', $since)
                 ->when($type !== '', fn ($q) => $q->where('event_type', $type))
+                ->when($tenantId !== null, fn ($q) => $q->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
                 ->orderByDesc('ts')
                 ->limit(300)
                 ->get();

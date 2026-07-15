@@ -26,6 +26,14 @@ class SocDashboardController extends Controller
 
         $scopeIncidents = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
         $scopeAlerts    = fn ($q) => $tenantId !== null ? $q->where('tenant_id', $tenantId) : $q;
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: telemetry_events is
+        // append-only (never backfilled), so — unlike the two mutable,
+        // Phase-3-backfilled tables above — legacy null-tenant rows stay
+        // visible forever, matching TenantBoundaryService's documented
+        // convention and the same ->orWhereNull('tenant_id') pattern
+        // SocEndpointTimelineController/SocForensicController/SocHuntController
+        // already use for this exact table.
+        $scopeTelemetry = fn ($q) => $tenantId !== null ? $q->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')) : $q;
 
         $incidentsQuery = $scopeIncidents(DB::table('security_incidents'))->where('last_seen_at', '>=', $since);
         if ($q !== '') {
@@ -195,26 +203,26 @@ class SocDashboardController extends Controller
                 ->where('last_seen_at', '>=', $since)
                 ->whereRaw("metadata->>'source' = 'xdr_correlation'")
                 ->count(),
-            'identity_risk' => DB::table('telemetry_events')
+            'identity_risk' => $scopeTelemetry(DB::table('telemetry_events'))
                 ->where('ts', '>=', $since)
                 ->where('telemetry_type', 'identity')
                 ->where('risk_score', '>=', 0.7)
                 ->count(),
-            'cloud_risk' => DB::table('telemetry_events')
+            'cloud_risk' => $scopeTelemetry(DB::table('telemetry_events'))
                 ->where('ts', '>=', $since)
                 ->where('telemetry_type', 'cloud')
                 ->where('risk_score', '>=', 0.7)
                 ->count(),
-            'email_threats' => DB::table('telemetry_events')
+            'email_threats' => $scopeTelemetry(DB::table('telemetry_events'))
                 ->where('ts', '>=', $since)
                 ->where('telemetry_type', 'email')
                 ->where('risk_score', '>=', 0.7)
                 ->count(),
-            'saas_activity' => DB::table('telemetry_events')
+            'saas_activity' => $scopeTelemetry(DB::table('telemetry_events'))
                 ->where('ts', '>=', $since)
                 ->where('telemetry_type', 'saas')
                 ->count(),
-            'proxy_anomalies' => DB::table('telemetry_events')
+            'proxy_anomalies' => $scopeTelemetry(DB::table('telemetry_events'))
                 ->where('ts', '>=', $since)
                 ->whereIn('telemetry_type', ['firewall', 'proxy'])
                 ->where('risk_score', '>=', 0.6)
@@ -232,7 +240,7 @@ class SocDashboardController extends Controller
             $xdrDomainBreakdown = (new ClickHouseTelemetryReader())->domainBreakdown($since, $xdrDomainTypes, $tenantId);
         }
         if ($xdrDomainBreakdown === null) {
-            $xdrDomainBreakdown = DB::table('telemetry_events')
+            $xdrDomainBreakdown = $scopeTelemetry(DB::table('telemetry_events'))
                 ->select('telemetry_type', DB::raw('count(*) as total'))
                 ->where('ts', '>=', $since)
                 ->whereIn('telemetry_type', $xdrDomainTypes)

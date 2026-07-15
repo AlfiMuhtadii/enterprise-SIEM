@@ -77,6 +77,9 @@ class TenantBoundaryService
         'soar_simulation_results',
         // TENANT-AUDIT-LEAK: audit trail rows are never updated, only inserted
         'security_audit_trails',
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: written via insertOrIgnore()
+        // (PHP) / ON CONFLICT (event_id) DO NOTHING (Python) -- insert-only.
+        'telemetry_events',
     ];
 
     // Subset of ISOLATED_TABLES where UPDATE tenant_id is permitted.
@@ -129,12 +132,14 @@ class TenantBoundaryService
         'soar_simulation_results',
         // TENANT-AUDIT-LEAK: audit trail rows are never updated, only inserted
         'security_audit_trails',
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: same insert-only rationale as
+        // above, applied here since this row appears in both isolation lists.
+        'telemetry_events',
     ];
 
     // Tables that still lack tenant_id — documented isolation gap
     public const UNISOLATED_TABLES = [
         'users',
-        'telemetry_events',
         'endpoint_agent_heartbeats',
     ];
 

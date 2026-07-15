@@ -83,18 +83,23 @@ class SocForensicController extends Controller
         // Postgres-fallback-on-failure pattern as the other migrated read
         // paths — a forensic artifact must never fail to build just
         // because ClickHouse happens to be unreachable.
-        // TENANT-CLICKHOUSE-LEAK: scopes the ClickHouse query only -- the
-        // Postgres fallback below has no tenant_id column on
-        // telemetry_events at all (a separate, pre-existing, already-tracked
-        // gap this doesn't touch); forensic_collection_jobs itself also has
-        // no tenant_id column yet, so this uses the approving analyst's own
-        // resolved tenant context.
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: the Postgres fallback below is
+        // now scoped the same way the ClickHouse path already was
+        // (TENANT-CLICKHOUSE-LEAK), using the approving analyst's own
+        // resolved tenant context; forensic_collection_jobs itself still has
+        // no tenant_id column, a separate, pre-existing, already-tracked gap
+        // this doesn't touch.
         $telemetry = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
             $telemetry = (new ClickHouseTelemetryReader())->forensicHostEvents($job->host_id, 200, $tenantId);
         }
         if ($telemetry === null) {
-            $telemetry = DB::table('telemetry_events')->when($job->host_id, fn ($q) => $q->where('host_id', $job->host_id))->orderByDesc('ts')->limit(200)->get();
+            $telemetry = DB::table('telemetry_events')
+                ->when($job->host_id, fn ($q) => $q->where('host_id', $job->host_id))
+                ->when($tenantId !== null, fn ($q) => $q->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
+                ->orderByDesc('ts')
+                ->limit(200)
+                ->get();
         }
         $payload = [
             'job' => $job,

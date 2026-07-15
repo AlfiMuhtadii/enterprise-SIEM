@@ -251,6 +251,7 @@ class AgentIngestionController extends Controller
             }
             $rows[] = [
                 'ts' => $event['ts'],
+                'tenant_id' => $agent->tenant_id,
                 'event_id' => substr((string) $event['event_id'], 0, 80),
                 'telemetry_type' => $event['telemetry_type'],
                 'event_type' => substr((string) $event['event_type'], 0, 80),

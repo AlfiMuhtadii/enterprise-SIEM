@@ -74,10 +74,26 @@ class TestMapRowDict(unittest.TestCase):
         }
         tup = m.map_row(event)
         d = m.map_row_dict(event)
-        self.assertEqual(tup[1], d["event_id"])
-        self.assertEqual(tup[19], d["cloud_account"])
-        self.assertEqual(tup[20], d["xdr_action"])
-        self.assertEqual(tup[21], d["xdr_result"])
+        self.assertEqual(tup[2], d["event_id"])
+        self.assertEqual(tup[20], d["cloud_account"])
+        self.assertEqual(tup[21], d["xdr_action"])
+        self.assertEqual(tup[22], d["xdr_result"])
+
+    def test_map_row_reads_tenant_id_and_leaves_it_none_when_absent(self):
+        # Unlike map_row_dict (ClickHouse, absent -> ""), map_row's Postgres
+        # tuple leaves tenant_id as None when absent -- NULL is Postgres's
+        # own null-tenant convention in this codebase, not an empty string.
+        with_tenant = m.map_row({
+            "ts": "2026-07-12T00:00:00Z", "event_id": "e1", "telemetry_type": "identity",
+            "event_type": "login", "host_id": "h1", "tenant_id": "tenant-a",
+        })
+        self.assertEqual(with_tenant[1], "tenant-a")
+
+        without_tenant = m.map_row({
+            "ts": "2026-07-12T00:00:00Z", "event_id": "e2", "telemetry_type": "identity",
+            "event_type": "login", "host_id": "h1",
+        })
+        self.assertIsNone(without_tenant[1])
 
 
 class TestInsertBatchClickhouse(unittest.TestCase):

@@ -21,13 +21,13 @@ from xdr_infra_clients import ClickHouseClient
 
 INSERT_SQL = """
 INSERT INTO telemetry_events (
-    ts, event_id, telemetry_type, event_type, host_id, src_ip, dst_ip,
+    ts, tenant_id, event_id, telemetry_type, event_type, host_id, src_ip, dst_ip,
     dst_port, protocol, process_name, user_name_hash,
     xdr_user, xdr_host, source_ip, destination_ip, domain, file_hash,
     email_sender, email_recipient, cloud_account, xdr_action, xdr_result,
     risk_score, event_source, payload, created_at, updated_at
 ) VALUES (
-    %s, %s, %s, %s, %s, %s, %s,
+    %s, %s, %s, %s, %s, %s, %s, %s,
     %s, %s, %s, %s,
     %s, %s, %s, %s, %s, %s,
     %s, %s, %s, %s, %s,
@@ -98,6 +98,7 @@ def normalize_float(value: Any) -> Optional[float]:
 def map_row(event: Dict[str, Any]) -> Tuple[Any, ...]:
     return (
         str(event.get("ts", "")),
+        normalize_str(event.get("tenant_id"), 64),
         normalize_str(event.get("event_id"), 80),
         normalize_str(event.get("telemetry_type"), 32),
         normalize_str(event.get("event_type"), 80),
@@ -131,8 +132,9 @@ def map_row_dict(event: Dict[str, Any]) -> Dict[str, Any]:
     so it lines up with ClickHouseClient.insert_json_each_row(). tenant_id
     is read directly off the event if present (telemetry_event_contract.py
     does not require it -- absent means '', ClickHouse's documented default
-    for an unscoped/legacy event, matching this codebase's null-tenant
-    convention elsewhere)."""
+    for an unscoped/legacy event; map_row()'s Postgres path now reads the
+    same event["tenant_id"] field, but leaves it None when absent -- NULL is
+    Postgres's own null-tenant convention here, not an empty string)."""
     return {
         "ts": str(event.get("ts", "")),
         "event_id": normalize_str(event.get("event_id"), 80) or "",

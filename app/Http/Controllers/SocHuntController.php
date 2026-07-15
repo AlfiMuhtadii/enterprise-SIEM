@@ -103,10 +103,9 @@ class SocHuntController extends Controller
         // Postgres-fallback-on-failure pattern as the dashboard/endpoint
         // timeline read paths — an analyst's hunt search never just breaks
         // because ClickHouse happens to be unreachable.
-        // TENANT-CLICKHOUSE-LEAK: scopes the ClickHouse query only -- the
-        // Postgres fallback below has no tenant_id column on
-        // telemetry_events at all (a separate, pre-existing, already-tracked
-        // gap this doesn't touch).
+        // TENANT-POSTGRES-FALLBACK-TELEMETRY: the Postgres fallback below is
+        // now scoped the same way the ClickHouse path already was
+        // (TENANT-CLICKHOUSE-LEAK).
         $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: false);
         $rows = null;
         if (config('xdr.infrastructure.clickhouse.telemetry_write_target') === 'clickhouse') {
@@ -115,6 +114,7 @@ class SocHuntController extends Controller
         if ($rows === null) {
             $q = DB::table('telemetry_events')
                 ->where('ts', '>=', now()->subMinutes($filters['minutes']))
+                ->when($tenantId !== null, fn ($q2) => $q2->where(fn ($inner) => $inner->where('tenant_id', $tenantId)->orWhereNull('tenant_id')))
                 ->orderByDesc('ts')
                 ->limit($limit);
             foreach (['host_id', 'process' => 'process_name', 'event_type'] as $key => $column) {
