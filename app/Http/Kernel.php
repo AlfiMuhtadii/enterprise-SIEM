@@ -40,6 +40,17 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\SetUserLocale::class,
+            // SEC-SESSION-INVALIDATION: no-ops for guest/unauthenticated
+            // requests (checks $request->hasSession() && $request->user()
+            // first) -- for authenticated ones, compares a password hash
+            // stored in THIS session against the user's current password on
+            // every request, logging this session out if they've diverged.
+            // Paired with Auth::logoutOtherDevices() in
+            // PasswordController::update()/MfaController::disable(), this is
+            // what actually makes "other devices" logout take effect on
+            // their next request -- logoutOtherDevices() alone only
+            // regenerates the remember-me token.
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
         ],
 
         'api' => [

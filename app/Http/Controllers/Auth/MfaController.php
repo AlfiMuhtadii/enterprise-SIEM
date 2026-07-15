@@ -75,13 +75,18 @@ class MfaController extends Controller
 
     public function disable(Request $request): RedirectResponse
     {
-        $request->validate(['password' => ['required', 'current_password']]);
+        $validated = $request->validate(['password' => ['required', 'current_password']]);
 
         $user = $request->user();
         $user->mfa_secret = null;
         $user->mfa_enabled = false;
         $user->mfa_confirmed_at = null;
         $user->save();
+
+        // SEC-SESSION-INVALIDATION: disabling MFA removes a security factor
+        // -- a session hijacked while MFA was still active must not survive
+        // it silently regaining password-only access on every other device.
+        Auth::logoutOtherDevices($validated['password']);
 
         SecurityLogger::log('mfa_disabled', [
             'request_id' => SecurityLogger::requestId(),
