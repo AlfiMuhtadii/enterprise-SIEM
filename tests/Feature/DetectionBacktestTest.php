@@ -191,6 +191,76 @@ class DetectionBacktestTest extends TestCase
         $this->assertSame(0, DB::table('security_incidents')->count());
     }
 
+    /**
+     * PERF-BACKTEST-OOM: the actor's matching events straddle a Postgres
+     * chunkById() page boundary (CHUNK_SIZE rows), proving the per-actor
+     * accumulator correctly carries state across chunks instead of
+     * resetting or double-counting at the boundary.
+     */
+    public function test_actor_events_spanning_a_chunk_boundary_still_accumulate_correctly(): void
+    {
+        $total = DetectionBacktestService::CHUNK_SIZE + 5;
+        $rows = [];
+        for ($i = 0; $i < $total; $i++) {
+            $rows[] = [
+                'ts' => now(),
+                'event_id' => 'evt-chunk-'.$i,
+                'telemetry_type' => 'identity',
+                'event_type' => 'login_failed',
+                'xdr_user' => 'chunk_actor',
+                'payload' => json_encode([]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('telemetry_events')->insert($rows);
+
+        $run = app(DetectionBacktestService::class)->run(['IDENTITY_MFA_FAILURE_BURST'], 7);
+
+        $this->assertSame($total, $run->telemetry_event_count);
+        $match = DB::table('detection_backtest_matches')
+            ->where('run_id', $run->run_id)
+            ->where('actor_key', 'chunk_actor')
+            ->first();
+        $this->assertNotNull($match);
+        $this->assertSame($total, $match->event_count);
+    }
+
+    /**
+     * Same boundary concern as above, but for the distinct-value-SET
+     * accumulator (failed_event_sources) rather than a plain counter:
+     * nina's first distinct-source failed login lands in the first
+     * chunk, padding events push the boundary past it, and her second
+     * distinct-source failed login lands in a later chunk.
+     */
+    public function test_failed_login_across_services_accumulates_correctly_across_chunk_boundary(): void
+    {
+        $this->seedEvent('identity', ['event_type' => 'login_failed', 'xdr_user' => 'nina', 'event_source' => 'okta']);
+        $this->seedEvent('identity', ['event_type' => 'login_failed', 'xdr_user' => 'nina', 'event_source' => 'okta']);
+
+        $padding = [];
+        for ($i = 0; $i < DetectionBacktestService::CHUNK_SIZE + 10; $i++) {
+            $padding[] = [
+                'ts' => now(),
+                'event_id' => 'evt-pad-'.$i,
+                'telemetry_type' => 'identity',
+                'event_type' => 'login_success',
+                'xdr_user' => 'padding_'.$i,
+                'payload' => json_encode([]),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        DB::table('telemetry_events')->insert($padding);
+
+        $this->seedEvent('identity', ['event_type' => 'login_failed', 'xdr_user' => 'nina', 'event_source' => 'azuread']);
+        $this->seedEvent('identity', ['event_type' => 'login_failed', 'xdr_user' => 'nina', 'event_source' => 'azuread']);
+
+        $run = app(DetectionBacktestService::class)->run(['IDENTITY_FAILED_LOGIN_ACROSS_SERVICES'], 7);
+
+        $this->assertDatabaseHas('detection_backtest_matches', ['run_id' => $run->run_id, 'actor_key' => 'nina']);
+    }
+
     public function test_index_route_requires_permission(): void
     {
         $viewer = User::factory()->create(['role' => 'viewer']);

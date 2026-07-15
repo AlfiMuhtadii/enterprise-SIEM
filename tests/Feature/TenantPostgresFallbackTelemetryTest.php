@@ -25,7 +25,7 @@ use Tests\TestCase;
  *
  * Deliberately NOT scoped (documented, not an oversight): OpsHealthController,
  * the Xdr* CLI commands, and DetectionBacktestService -- global/ops-level or
- * intentionally cross-tenant (matching identityCloudSaasWindow()'s existing
+ * intentionally cross-tenant (matching identityCloudSaasWindowPage()'s existing
  * no-tenant-param design on the ClickHouse side).
  */
 class TenantPostgresFallbackTelemetryTest extends TestCase

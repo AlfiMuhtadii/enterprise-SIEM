@@ -44,7 +44,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300);
+        (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), '', 300);
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();
@@ -62,7 +62,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), 'connection_delta', 300);
+        (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), 'connection_delta', 300);
 
         Http::assertSent(function ($request) {
             $body = (string) $request->body();
@@ -81,7 +81,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
             200
         )]);
 
-        $rows = (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300);
+        $rows = (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), '', 300);
 
         $this->assertCount(1, $rows);
         $this->assertSame('connection_delta', $rows[0]->event_type);
@@ -93,7 +93,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('down', 500)]);
 
-        $rows = (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300);
+        $rows = (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), '', 300);
 
         $this->assertNull($rows);
     }
@@ -107,7 +107,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->domainBreakdown(now()->subDay(), ['identity', 'cloud']);
+        (new ClickHouseTelemetryReader)->domainBreakdown(now()->subDay(), ['identity', 'cloud']);
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();
@@ -129,7 +129,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
             200
         )]);
 
-        $rows = (new ClickHouseTelemetryReader())->domainBreakdown(now()->subDay(), ['identity']);
+        $rows = (new ClickHouseTelemetryReader)->domainBreakdown(now()->subDay(), ['identity']);
 
         $this->assertCount(1, $rows);
         $this->assertSame('identity', $rows[0]->telemetry_type);
@@ -141,7 +141,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('down', 500)]);
 
-        $rows = (new ClickHouseTelemetryReader())->domainBreakdown(now()->subDay(), ['identity']);
+        $rows = (new ClickHouseTelemetryReader)->domainBreakdown(now()->subDay(), ['identity']);
 
         $this->assertNull($rows);
     }
@@ -259,7 +259,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->huntSearch([
+        (new ClickHouseTelemetryReader)->huntSearch([
             'minutes' => 60, 'host_id' => '', 'process' => '', 'event_type' => '', 'user' => '', 'ip' => '', 'domain' => '',
         ], 100);
 
@@ -276,7 +276,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->huntSearch([
+        (new ClickHouseTelemetryReader)->huntSearch([
             'minutes' => 60, 'host_id' => 'host-a', 'process' => 'chrome', 'event_type' => 'login',
             'user' => 'alice', 'ip' => '10.0.0.1', 'domain' => 'evil.test',
         ], 100);
@@ -306,7 +306,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
             200
         )]);
 
-        $rows = (new ClickHouseTelemetryReader())->huntSearch([
+        $rows = (new ClickHouseTelemetryReader)->huntSearch([
             'minutes' => 60, 'host_id' => '', 'process' => '', 'event_type' => '', 'user' => '', 'ip' => '', 'domain' => '',
         ], 100);
 
@@ -319,7 +319,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('down', 500)]);
 
-        $rows = (new ClickHouseTelemetryReader())->huntSearch([
+        $rows = (new ClickHouseTelemetryReader)->huntSearch([
             'minutes' => 60, 'host_id' => '', 'process' => '', 'event_type' => '', 'user' => '', 'ip' => '', 'domain' => '',
         ], 100);
 
@@ -335,7 +335,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->forensicHostEvents('host-forensic', 200);
+        (new ClickHouseTelemetryReader)->forensicHostEvents('host-forensic', 200);
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();
@@ -352,9 +352,9 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->forensicHostEvents(null, 200);
+        (new ClickHouseTelemetryReader)->forensicHostEvents(null, 200);
 
-        Http::assertSent(fn ($request) => !str_contains((string) $request->body(), 'WHERE'));
+        Http::assertSent(fn ($request) => ! str_contains((string) $request->body(), 'WHERE'));
     }
 
     public function test_forensic_host_events_returns_decoded_rows(): void
@@ -365,7 +365,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
             200
         )]);
 
-        $rows = (new ClickHouseTelemetryReader())->forensicHostEvents('host-forensic', 200);
+        $rows = (new ClickHouseTelemetryReader)->forensicHostEvents('host-forensic', 200);
 
         $this->assertCount(1, $rows);
         $this->assertSame('evil.exe', $rows[0]->process_name);
@@ -376,7 +376,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('down', 500)]);
 
-        $rows = (new ClickHouseTelemetryReader())->forensicHostEvents('host-forensic', 200);
+        $rows = (new ClickHouseTelemetryReader)->forensicHostEvents('host-forensic', 200);
 
         $this->assertNull($rows);
     }
@@ -385,24 +385,24 @@ class ClickHouseTelemetryReaderTest extends TestCase
     // ClickHouseTelemetryReader — identity/cloud/saas backtest window
     // -------------------------------------------------------------------------
 
-    public function test_identity_cloud_saas_window_sends_parameterized_query(): void
+    public function test_identity_cloud_saas_window_page_sends_parameterized_query(): void
     {
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->identityCloudSaasWindow(now()->subDays(7), now());
+        (new ClickHouseTelemetryReader)->identityCloudSaasWindowPage(now()->subDays(7), now(), 2000, 0);
 
         Http::assertSent(function ($request) {
             $body = (string) $request->body();
 
             return str_contains($body, "telemetry_type IN ('identity','cloud','saas')")
                 && str_contains($body, 'ts BETWEEN {start:DateTime64} AND {end:DateTime64}')
-                && str_contains($body, 'ORDER BY ts ASC')
-                && !str_contains($body, 'LIMIT');
+                && str_contains($body, 'ORDER BY ts ASC, event_id ASC')
+                && str_contains($body, 'LIMIT {limit:UInt64} OFFSET {offset:UInt64}');
         });
     }
 
-    public function test_identity_cloud_saas_window_returns_decoded_rows(): void
+    public function test_identity_cloud_saas_window_page_returns_decoded_rows(): void
     {
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response(
@@ -410,18 +410,18 @@ class ClickHouseTelemetryReaderTest extends TestCase
             200
         )]);
 
-        $rows = (new ClickHouseTelemetryReader())->identityCloudSaasWindow(now()->subDays(7), now());
+        $rows = (new ClickHouseTelemetryReader)->identityCloudSaasWindowPage(now()->subDays(7), now(), 2000, 0);
 
         $this->assertCount(1, $rows);
         $this->assertSame('leo', $rows[0]->xdr_user);
     }
 
-    public function test_identity_cloud_saas_window_returns_null_on_failure(): void
+    public function test_identity_cloud_saas_window_page_returns_null_on_failure(): void
     {
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('down', 500)]);
 
-        $rows = (new ClickHouseTelemetryReader())->identityCloudSaasWindow(now()->subDays(7), now());
+        $rows = (new ClickHouseTelemetryReader)->identityCloudSaasWindowPage(now()->subDays(7), now(), 2000, 0);
 
         $this->assertNull($rows);
     }
@@ -617,7 +617,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300, 'tenant-x');
+        (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), '', 300, 'tenant-x');
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();
@@ -633,9 +633,9 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->hostTimeline('host-a', now()->subHour(), '', 300);
+        (new ClickHouseTelemetryReader)->hostTimeline('host-a', now()->subHour(), '', 300);
 
-        Http::assertSent(fn ($request) => !str_contains((string) $request->body(), 'tenant_id'));
+        Http::assertSent(fn ($request) => ! str_contains((string) $request->body(), 'tenant_id'));
     }
 
     public function test_domain_breakdown_adds_tenant_filter_when_given(): void
@@ -643,7 +643,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->domainBreakdown(now()->subDay(), ['identity'], 'tenant-x');
+        (new ClickHouseTelemetryReader)->domainBreakdown(now()->subDay(), ['identity'], 'tenant-x');
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();
@@ -659,7 +659,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->huntSearch([
+        (new ClickHouseTelemetryReader)->huntSearch([
             'minutes' => 60, 'host_id' => '', 'process' => '', 'event_type' => '', 'user' => '', 'ip' => '', 'domain' => '',
         ], 100, 'tenant-x');
 
@@ -677,7 +677,7 @@ class ClickHouseTelemetryReaderTest extends TestCase
         $this->configureClickHouse();
         Http::fake(['ch.test:8123/*' => Http::response('', 200)]);
 
-        (new ClickHouseTelemetryReader())->forensicHostEvents('host-forensic', 200, 'tenant-x');
+        (new ClickHouseTelemetryReader)->forensicHostEvents('host-forensic', 200, 'tenant-x');
 
         Http::assertSent(function ($request) {
             $url = (string) $request->url();

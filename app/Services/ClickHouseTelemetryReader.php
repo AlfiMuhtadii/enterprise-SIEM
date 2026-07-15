@@ -37,7 +37,7 @@ use Illuminate\Support\Facades\Log;
  * given, add `AND tenant_id = {tenant_id:String}` — ClickHouse's
  * telemetry_events has carried `tenant_id` since it was created
  * (ARCH-DB-SPLIT write path), so this needed no schema change on this
- * side. `identityCloudSaasWindow()` deliberately has NO tenant parameter:
+ * side. `identityCloudSaasWindowPage()` deliberately has NO tenant parameter:
  * DetectionBacktestService is a global/admin-only replay tool with no
  * per-tenant concept in its own Postgres query either, so adding one only
  * here would make the two backends diverge for the same caller.
@@ -187,24 +187,31 @@ class ClickHouseTelemetryReader
     }
 
     /**
-     * Mirrors DetectionBacktestService::run()'s replay window: the fixed
-     * identity/cloud/saas telemetry_type set is a hard-coded PHP constant,
-     * not user input, so it's inlined directly rather than parameterized —
-     * same convention as this class's other hard-coded SQL keywords. No
-     * LIMIT: the backtest evaluates the entire window in memory via
-     * Collection::groupBy, mirroring DetectionBacktestService's own query.
+     * PERF-BACKTEST-OOM: mirrors DetectionBacktestService::run()'s replay
+     * window, paginated -- the fixed identity/cloud/saas telemetry_type set
+     * is a hard-coded PHP constant, not user input, so it's inlined
+     * directly rather than parameterized, same convention as this class's
+     * other hard-coded SQL keywords. `ORDER BY ts ASC, event_id ASC` gives
+     * a stable sort (ts alone is not guaranteed unique under real
+     * telemetry volume) so LIMIT/OFFSET pages never skip or repeat a row
+     * across page boundaries. event_id is selected so the caller can
+     * detect a short/empty page (end of window) without a separate count
+     * query.
      */
-    public function identityCloudSaasWindow(Carbon $start, Carbon $end): ?Collection
+    public function identityCloudSaasWindowPage(Carbon $start, Carbon $end, int $limit, int $offset): ?Collection
     {
-        $sql = "SELECT ts, telemetry_type, event_type, host_id, xdr_user, source_ip, src_ip, risk_score, xdr_action, xdr_result, event_source, cloud_account"
+        $sql = 'SELECT ts, event_id, telemetry_type, event_type, host_id, xdr_user, source_ip, src_ip, risk_score, xdr_action, xdr_result, event_source, cloud_account'
             .' FROM telemetry_events'
             ." WHERE telemetry_type IN ('identity','cloud','saas') AND ts BETWEEN {start:DateTime64} AND {end:DateTime64}"
-            .' ORDER BY ts ASC'
+            .' ORDER BY ts ASC, event_id ASC'
+            .' LIMIT {limit:UInt64} OFFSET {offset:UInt64}'
             .' FORMAT JSONEachRow';
 
         return $this->query($sql, [
             'start' => $start->format('Y-m-d H:i:s.u'),
             'end' => $end->format('Y-m-d H:i:s.u'),
+            'limit' => $limit,
+            'offset' => $offset,
         ]);
     }
 
@@ -234,7 +241,7 @@ class ClickHouseTelemetryReader
             return null;
         }
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             Log::warning('clickhouse telemetry read failed', [
                 'status' => $response->status(),
                 'body' => substr($response->body(), 0, 500),
