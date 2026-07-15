@@ -134,19 +134,13 @@ class SiemSearchService
     }
 
     /**
-     * TraceRedactor::row() only deep-redacts JSON_PAYLOAD_FIELDS when they
-     * arrive as JSON strings (the Postgres column shape). OpenSearch hits
-     * decode those fields to arrays already, which would otherwise bypass
-     * redaction entirely — re-encode them so the same redaction path applies.
+     * PERF-REDACTION-OVERHEAD: TraceRedactor::row() now deep-redacts
+     * JSON_PAYLOAD_FIELDS whether they arrive as JSON strings (the Postgres
+     * column shape) or already-decoded arrays (OpenSearch's _source shape)
+     * -- no re-encoding needed here any more to force the string path.
      */
     private function toRedactableRow(array $source): \stdClass
     {
-        foreach (TraceRedactor::JSON_PAYLOAD_FIELDS as $field) {
-            if (isset($source[$field]) && !is_string($source[$field])) {
-                $source[$field] = json_encode($source[$field]);
-            }
-        }
-
         return (object) $source;
     }
 }

@@ -61,6 +61,15 @@ final class TraceRedactor
         foreach (get_object_vars($row) as $key => $value) {
             if (in_array($key, self::JSON_PAYLOAD_FIELDS, true) && is_string($value)) {
                 $out->$key = self::decodeAndRedact($value);
+            } elseif (in_array($key, self::JSON_PAYLOAD_FIELDS, true) && (is_array($value) || $value instanceof \stdClass)) {
+                // PERF-REDACTION-OVERHEAD: callers whose source already
+                // decodes payload fields to arrays (e.g. OpenSearch _source)
+                // used to re-encode them to a JSON string here just so the
+                // is_string() branch above would decode it straight back --
+                // deep() already operates on arrays/objects directly, so
+                // that round trip was pure overhead. Same redaction rules,
+                // no re-encode/re-decode.
+                $out->$key = self::deep($value, redactEmails: true);
             } elseif (self::isSensitiveKey($key)) {
                 $out->$key = self::REDACTED;
             } else {
@@ -120,6 +129,14 @@ final class TraceRedactor
             return $out;
         }
         if ($redactEmails && is_string($value)) {
+            // PERF-REDACTION-OVERHEAD: every EMAIL_REGEX match requires an
+            // '@' character, so skip the (comparatively expensive) regex
+            // engine entirely for the common case of a string with none --
+            // str_contains() is a cheap byte scan. Same output either way.
+            if (! str_contains($value, '@')) {
+                return $value;
+            }
+
             return preg_replace(self::EMAIL_REGEX, self::EMAIL_PLACEHOLDER, $value) ?? $value;
         }
         return $value;

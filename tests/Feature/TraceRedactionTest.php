@@ -192,6 +192,64 @@ class TraceRedactionTest extends TestCase
         $this->assertSame('ingestion', $out->stage);
     }
 
+    // -----------------------------------------------------------------------
+    // PERF-REDACTION-OVERHEAD: TraceRedactor::row() now redacts
+    // JSON_PAYLOAD_FIELDS that arrive already-decoded (array/stdClass)
+    // without an encode-then-decode round trip -- same output as the
+    // JSON-string path above, just without the wasted serialization.
+    // -----------------------------------------------------------------------
+
+    public function test_redactor_redacts_already_decoded_array_payload_field(): void
+    {
+        $row = (object) [
+            'evidence' => ['authorization' => 'Bearer tok', 'safe_field' => 'ok'],
+            'stage' => 'ingestion',
+        ];
+        $out = TraceRedactor::row($row);
+
+        $this->assertIsArray($out->evidence);
+        $this->assertSame(TraceRedactor::REDACTED, $out->evidence['authorization']);
+        $this->assertSame('ok', $out->evidence['safe_field']);
+        $this->assertSame('ingestion', $out->stage);
+    }
+
+    public function test_redactor_redacts_emails_inside_already_decoded_array_payload(): void
+    {
+        $row = (object) ['evidence' => ['sender' => 'victim@corp.com', 'score' => 0.9]];
+        $out = TraceRedactor::row($row);
+
+        $this->assertSame(TraceRedactor::EMAIL_PLACEHOLDER, $out->evidence['sender']);
+        $this->assertSame(0.9, $out->evidence['score']);
+    }
+
+    public function test_redactor_redacts_already_decoded_nested_array_payload_field(): void
+    {
+        $row = (object) [
+            'evidence' => ['request' => ['headers' => ['Authorization' => 'Bearer nested-tok']]],
+        ];
+        $out = TraceRedactor::row($row);
+
+        $this->assertSame(TraceRedactor::REDACTED, $out->evidence['request']['headers']['Authorization']);
+    }
+
+    public function test_redactor_array_payload_field_does_not_mutate_input(): void
+    {
+        $original = (object) ['evidence' => ['password' => 'secret', 'user' => 'bob']];
+        $before = $original->evidence;
+
+        TraceRedactor::row($original);
+
+        $this->assertSame($before, $original->evidence);
+    }
+
+    public function test_redactor_masks_email_value_without_at_sign_is_a_noop(): void
+    {
+        // No '@' at all -- must short-circuit before the regex, and produce
+        // the exact same (unchanged) output as running the regex would.
+        $result = TraceRedactor::deep(['note' => 'no email here'], redactEmails: true);
+        $this->assertSame('no email here', $result['note']);
+    }
+
     public function test_redactor_redacts_emails_inside_json_payload(): void
     {
         $row = (object) [
