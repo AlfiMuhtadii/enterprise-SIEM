@@ -1,14 +1,18 @@
 param(
     [string]$Python = "python",
     [string]$RepoPath = "C:\Detector",
-    [string]$ServerUrl = "http://127.0.0.1:8000",
-    [string]$EnrollmentToken = "",
-    [int]$Interval = 60
+    [string]$ConfigPath = ""
 )
 
 $ErrorActionPreference = "Stop"
-$script = Join-Path $RepoPath "scripts\endpoint_telemetry_agent.py"
-$args = "`"$script`" --daemon --server-url `"$ServerUrl`" --enrollment-token `"$EnrollmentToken`" --interval $Interval --state-file `"$RepoPath\storage\app\endpoint_agent_state.json`" --buffer-file `"$RepoPath\storage\app\endpoint_agent_retry_queue.jsonl`""
+$script = Join-Path $RepoPath "services\endpoint-agent\agent.py"
+if ([string]::IsNullOrEmpty($ConfigPath)) {
+    $ConfigPath = Join-Path $RepoPath "services\endpoint-agent\config.json"
+}
+if (-not (Test-Path $ConfigPath)) {
+    throw "Config file not found at $ConfigPath -- copy services\endpoint-agent\config.json.example and edit it first."
+}
+$args = "`"$script`" --config `"$ConfigPath`""
 
 New-Service -Name "DetectorEndpointAgent" -BinaryPathName "$Python $args" -DisplayName "Detector Endpoint Agent" -StartupType Automatic
 Start-Service DetectorEndpointAgent

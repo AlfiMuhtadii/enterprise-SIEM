@@ -291,17 +291,27 @@ Supported validation themes:
 
 ### Safe Endpoint Telemetry Collection
 
-Snapshot mode:
+Copy `services\endpoint-agent\config.json.example` to `config.json` first.
+
+Snapshot mode (single collection cycle, then exit):
 
 ```powershell
-python scripts\endpoint_telemetry_agent.py --output storage\logs\endpoint_snapshot.jsonl --host-id lab-host-1
+python services\endpoint-agent\agent.py --config services\endpoint-agent\config.json --once
 ```
 
-Streaming/delta mode:
+Continuous mode (`collection_interval_seconds` in `config.json` controls cadence; set
+`"telemetry": {"file": true}` and `"watch_paths": ["storage\\app"]` for file-change telemetry):
 
 ```powershell
-python scripts\endpoint_telemetry_agent.py --stream --host-id lab-host-1 --watch-path storage\app --output storage\logs\endpoint_stream.jsonl
+python services\endpoint-agent\agent.py --config services\endpoint-agent\config.json
 ```
+
+**Known gap for multi-host lab simulation:** the retired `endpoint_telemetry_agent.py`
+accepted `--host-id` to simulate multiple distinct hosts from one machine. `agent.py`
+derives `HOST_ID` from the real machine's stable identity (`/etc/machine-id` on Linux,
+`wmic csproduct UUID` on Windows) with no override flag — running several "lab hosts"
+from a single physical/VM instance is not currently supported; each instance needs its
+own machine (or container/VM) to get a distinct host_id.
 
 ### Endpoint/DNS/Proxy Shadow Validation
 

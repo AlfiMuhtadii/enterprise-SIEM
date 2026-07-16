@@ -2,23 +2,38 @@
 
 ## Streaming Endpoint Agent
 
-Run streaming mode:
+The canonical agent (`services/endpoint-agent/agent.py`) is config-driven, not CLI-flag-driven —
+copy `services/endpoint-agent/config.json.example` to `config.json`, edit it, then run:
 
 ```powershell
-python scripts/endpoint_telemetry_agent.py --daemon --stream --server-url http://127.0.0.1:8000 --enrollment-token local-agent-token --interval 10
+python services/endpoint-agent/agent.py --config services/endpoint-agent/config.json
 ```
 
-Optional file watching:
+Optional file watching — in `config.json`, set `"telemetry": {"file": true}` and list
+directories under `watch_paths`:
 
-```powershell
-python scripts/endpoint_telemetry_agent.py --daemon --stream --watch-path C:\temp --tail-file C:\Windows\System32\winevt\Logs\Security.evtx
+```json
+{
+  "telemetry": { "file": true },
+  "watch_paths": ["C:\\temp"]
+}
 ```
 
-Linux auth/audit tailing:
+`log_paths` is a DNS-only fallback (tails syslog/messages for DNS-query lines when
+`dns_fixture_path` is unset) — it is not a generic log tailer:
 
-```bash
-python3 scripts/endpoint_telemetry_agent.py --daemon --stream --tail-file /var/log/auth.log --tail-file /var/log/audit/audit.log
+```json
+{
+  "log_paths": ["/var/log/syslog", "/var/log/messages"]
+}
 ```
+
+**Known gap (not carried over from the retired `endpoint_telemetry_agent.py`):** generic
+Linux `auth.log`/`audit.log` tailing for arbitrary security-event lines has no equivalent in
+`agent.py` today — Windows gets dedicated Security/Sysmon/PowerShell-log collectors
+(`collect_windows_security_events`/`collect_windows_sysmon`/`collect_windows_powershell_events`),
+but Linux has no analogous auth/audit collector. Tracked as follow-up scope, not silently
+dropped.
 
 Streaming mode supports:
 
@@ -58,13 +73,13 @@ All decisions are audited.
 Windows package:
 
 ```powershell
-python scripts/build_agent_package.py --platform windows --env staging --server-url https://detector.example --enrollment-token TOKEN
+python scripts/build_agent_package.py --platform windows --env staging --ingestion-gateway-url https://ingest.detector.example --soc-api-url https://detector.example --enrollment-token TOKEN
 ```
 
 Linux package:
 
 ```powershell
-python scripts/build_agent_package.py --platform linux --env production --server-url https://detector.example --enrollment-token TOKEN
+python scripts/build_agent_package.py --platform linux --env production --ingestion-gateway-url https://ingest.detector.example --soc-api-url https://detector.example --enrollment-token TOKEN
 ```
 
 The package includes:

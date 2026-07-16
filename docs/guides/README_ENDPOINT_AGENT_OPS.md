@@ -12,48 +12,49 @@ SOC_AGENT_HEARTBEAT_INTERVAL_SECONDS=60
 SOC_AGENT_OFFLINE_AFTER_SECONDS=180
 ```
 
-Run one enrollment/daemon command:
+Copy `services/endpoint-agent/config.json.example` to `config.json`, set
+`enrollment_token` to the same value, then run:
 
 ```powershell
-python scripts/endpoint_telemetry_agent.py --daemon --server-url http://127.0.0.1:8000 --enrollment-token replace-with-strong-token --interval 60
+python services/endpoint-agent/agent.py --config services/endpoint-agent/config.json
 ```
 
-The agent stores local state in:
-
-```text
-storage/app/endpoint_agent_state.json
-```
-
-The retry queue is stored in:
-
-```text
-storage/app/endpoint_agent_retry_queue.jsonl
-```
+The agent stores local state and buffer at the paths configured in `config.json`
+(`state_path`/`buffer_path`, defaulting to `/var/lib/xdr-agent/state.json` and
+`/var/lib/xdr-agent/buffer.jsonl` if unset).
 
 ## Secure Shipping
 
-The server exposes:
+Telemetry goes to the ingestion gateway, not directly to Laravel:
+
+```text
+POST {ingestion_gateway_url}/v1/ingest
+```
+
+signed with:
+
+```text
+X-XDR-Timestamp: <unix ts>
+X-XDR-Signature: sha256=HMAC_SHA256(ingestion_gateway_secret, "<ts>." + raw_json_body)
+```
+
+Enrollment, heartbeats, behavioral snapshots, and command polling/ack go to the Laravel
+SOC control-plane:
 
 ```text
 POST /api/agents/register
-POST /api/agents/heartbeat
-POST /api/agents/telemetry
+POST /api/agents/{agentId}/heartbeat
+POST /api/agents/{agentId}/behavioral-snapshot
+GET  /api/agents/{agentId}/commands
+POST /api/agents/{agentId}/commands/{commandId}/ack
+POST /api/agents/{agentId}/commands/{commandId}/result
 ```
 
-Registration uses `X-Agent-Enrollment-Token`.
-
-Heartbeat and telemetry use:
-
-```text
-X-Agent-Id
-X-Agent-Timestamp
-X-Agent-Signature
-```
-
-The signature is:
+Registration uses `Authorization: Bearer <enrollment_token>`. Heartbeat/behavioral-snapshot/
+command-ack/command-result requests add:
 
 ```text
-HMAC_SHA256(agent_secret, timestamp + "." + raw_json_body)
+X-Agent-Signature: sha256=HMAC_SHA256(enrollment_token, sort_keys_json_body)
 ```
 
 ## Daemon Behavior
@@ -71,10 +72,11 @@ The daemon supports:
 
 ## Windows Service
 
-Install:
+Install (place a filled-in `config.json` at `services\endpoint-agent\config.json` under
+`-RepoPath` first, or pass `-ConfigPath` to point elsewhere):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File deploy/agent/windows/install-agent-service.ps1 -RepoPath D:\project\Detector -ServerUrl http://127.0.0.1:8000 -EnrollmentToken replace-with-strong-token
+powershell -ExecutionPolicy Bypass -File deploy/agent/windows/install-agent-service.ps1 -RepoPath D:\project\Detector
 ```
 
 Uninstall:
@@ -93,12 +95,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now detector-endpoint-agent
 ```
 
-Edit `/etc/systemd/system/detector-endpoint-agent.service` to set:
-
-- `DETECTOR_SERVER_URL`
-- `SOC_AGENT_ENROLLMENT_TOKEN`
-- working directory
-- service user
+Place a filled-in `config.json` (copied from `services/endpoint-agent/config.json.example`,
+with `ingestion_gateway_url`/`ingestion_gateway_secret`/`soc_api_url`/`enrollment_token`/
+`state_path`/`buffer_path` set) at `/etc/detector/agent/config.json` before starting the
+service — the unit file's `ExecStart` reads its configuration from that path, not from
+environment variables. Also confirm the working directory and `User=`/`Group=` in the unit
+file match your deployment.
 
 ## SOC Visibility
 

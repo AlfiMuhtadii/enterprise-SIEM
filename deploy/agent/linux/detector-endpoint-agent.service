@@ -1,3 +1,8 @@
+# Place a filled-in config.json at /etc/detector/agent/config.json before starting
+# this unit -- copy services/endpoint-agent/config.json.example and set at least
+# ingestion_gateway_url, ingestion_gateway_secret, soc_api_url, enrollment_token,
+# state_path, and buffer_path (e.g. under /var/lib/detector/, owned by the
+# detector user/group below).
 [Unit]
 Description=Detector Lightweight Endpoint Agent
 After=network-online.target
@@ -6,9 +11,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/detector
-Environment=DETECTOR_SERVER_URL=http://127.0.0.1:8000
-Environment=SOC_AGENT_ENROLLMENT_TOKEN=change-me
-ExecStart=/usr/bin/python3 /opt/detector/scripts/endpoint_telemetry_agent.py --daemon --interval 60 --state-file /var/lib/detector/endpoint_agent_state.json --buffer-file /var/lib/detector/endpoint_agent_retry_queue.jsonl
+ExecStart=/usr/bin/python3 /opt/detector/services/endpoint-agent/agent.py --config /etc/detector/agent/config.json
 Restart=always
 RestartSec=10
 User=detector

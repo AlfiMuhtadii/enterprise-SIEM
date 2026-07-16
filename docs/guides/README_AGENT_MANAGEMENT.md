@@ -82,10 +82,11 @@ All command queue actions are audited.
 
 ## Agent Daemon Policy Pull
 
-Run daemon:
+Run daemon (config-driven — copy `services/endpoint-agent/config.json.example` to
+`config.json` and set `soc_api_url`/`enrollment_token` first):
 
 ```powershell
-python scripts/endpoint_telemetry_agent.py --daemon --server-url http://127.0.0.1:8000 --enrollment-token local-agent-token
+python services/endpoint-agent/agent.py --config services/endpoint-agent/config.json
 ```
 
 The agent reports:

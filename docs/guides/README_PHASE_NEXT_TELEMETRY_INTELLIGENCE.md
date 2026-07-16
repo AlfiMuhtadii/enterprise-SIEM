@@ -4,19 +4,25 @@ This phase adds operational depth without replacing the existing SOC platform.
 
 ## Lightweight Endpoint Telemetry Agent
 
-Collect one endpoint snapshot:
+Collect one endpoint snapshot (config-driven — copy
+`services/endpoint-agent/config.json.example` to `config.json` first):
 
 ```powershell
-python scripts/endpoint_telemetry_agent.py --output storage/logs/endpoint_agent.jsonl
+python services/endpoint-agent/agent.py --config services/endpoint-agent/config.json --once
 ```
 
-Continuous short collection:
+Run continuously (`collection_interval_seconds` in `config.json` controls cadence):
 
 ```powershell
-python scripts/endpoint_telemetry_agent.py --iterations 5 --interval 10 --output storage/logs/endpoint_agent.jsonl
+python services/endpoint-agent/agent.py --config services/endpoint-agent/config.json
 ```
 
-The agent writes normalized telemetry JSONL for:
+Each cycle ships events to `ingestion_gateway_url`; if the gateway is unreachable the events
+land as JSONL at `buffer_path` instead of being dropped (unlike the old `--output`
+local-file-only mode, this is a retry buffer, not a standing local mirror — shipped events
+are not written locally on success).
+
+The agent writes normalized telemetry for:
 
 - process snapshots
 - network connection snapshots
