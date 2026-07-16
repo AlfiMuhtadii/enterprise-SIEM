@@ -83,6 +83,39 @@ jobs:
       - name: Run Laravel tests
         run: php artisan test
 
+  static-analysis:
+    name: PHP / Static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-php-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Style + static analysis as gates. Both pass today: Pint is clean and
+      # PHPStan (Larastan level 3) runs against phpstan-baseline.neon, so only
+      # NEW findings beyond the accepted baseline fail the build.
+      - name: Pint (code style)
+        run: ./vendor/bin/pint --test
+
+      - name: PHPStan / Larastan
+        run: ./vendor/bin/phpstan analyse --no-progress --no-interaction
+
   frontend:
     name: Frontend / Vite
     runs-on: ubuntu-latest
