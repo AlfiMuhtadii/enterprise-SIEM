@@ -1,7 +1,11 @@
 # Tenant Null Migration Plan
 
-**Status:** Planning document. No destructive migration has been run.
-**Last updated:** 2026-06-23 (BACKLOG-TENANCY-020)
+**Status:** Phase 3 canonical tenant decided and backfill procedure executed against
+the dev DB (0 null rows — nothing to migrate there). No destructive migration has
+been run against any environment; the dev DB's zero-row result is not itself proof
+the procedure is safe against real data — re-run and re-verify before staging/production.
+**Last updated:** 2026-07-16 (Phase 3 execution — see `docs/security/RLS_DECISION_RECORD.md`
+for the full rationale and current gate status)
 
 ---
 
@@ -54,34 +58,45 @@ single-tenant deployments and protects existing data from being silently hidden.
 - X-Tenant-ID is now validated against user memberships (selector, not authority).
 - Null-tenant records remain accessible (backward compat).
 
-### Phase 3 — Default Tenant Assignment (PLANNED)
+### Phase 3 — Default Tenant Assignment (2026-07-16 — canonical tenant decided, procedure executed against dev DB)
 **Goal:** Assign every null-tenant record a `tenant_id` so no record is unscoped.
 
 **Steps:**
-1. Decide on the canonical "default" tenant identifier
-   (e.g., `'default'`, the organisation UUID, or a well-known constant).
-2. Write a non-destructive Artisan command:
+1. ✓ Canonical default tenant identifier decided: **`system`**. Chosen so
+   legacy/system audit-style records stay admin/system-visible without ever
+   being mixed into a real client tenant's data.
+2. ✓ The non-destructive Artisan command already existed (`ENTERPRISE-046`):
    ```
-   php artisan tenant:backfill-nulls --tenant=<tenant_id> --dry-run
-   php artisan tenant:backfill-nulls --tenant=<tenant_id>
+   php artisan tenant:backfill-preflight              # read-only audit, always safe
+   php artisan tenant:backfill-nulls --tenant=system --dry-run
+   php artisan tenant:backfill-nulls --tenant=system
    ```
 3. The command issues `UPDATE table SET tenant_id = ? WHERE tenant_id IS NULL`
-   for each affected table. This is a mutable UPDATE (allowed on non-append-only
-   tables like `security_alerts` and `security_incidents`).
-4. Append-only tables (`advisory_finding_events`, `dlq_normalization_events`,
-   `tenant_membership_audit_events`, all `shadow_soak_*` event tables) must NOT
-   be updated. The event rows are immutable audit records. Only parent mutable
-   tables are backfilled.
-5. Validate with: `SELECT count(*) FROM security_alerts WHERE tenant_id IS NULL`
-   (should return 0 after backfill).
-6. Run the full test suite: `php artisan migrate:fresh --force && php artisan test`
+   for each of `TenantBoundaryService::MUTABLE_TABLES` (13 tables, batched).
+   This is a mutable UPDATE (allowed on non-append-only tables like
+   `security_alerts` and `security_incidents`).
+4. Append-only tables (`TenantBoundaryService::APPEND_ONLY_ISOLATED_TABLES`)
+   are never touched by the command — enforced in code, not just by convention.
+5. ✓ Ran against the real dev DB 2026-07-16: preflight showed 0 null rows
+   across all 13 mutable tables (this DB has no accumulated pre-BACKLOG-019
+   data), then ran `tenant:backfill-nulls --tenant=system` for real anyway to
+   exercise the full procedure — 0 rows updated, all tables `CLEAN`.
+   **This is not proof the procedure is safe against real data** — it only
+   proves the tooling runs cleanly end-to-end. Re-run against staging/
+   production, where real null rows are expected to exist.
+6. Full suite: `php artisan test --parallel --recreate-databases` (unaffected —
+   backfill is a DB-only operation against `detector`, not `detector_test`;
+   this step doesn't touch application code).
 
-**Prerequisite:** At least one tenant has been provisioned in
-`user_tenant_memberships` and tested end-to-end in a staging environment.
+**Prerequisite for staging/production runs:** At least one tenant has been
+provisioned in `user_tenant_memberships` and tested end-to-end in that
+environment. **Not required for admin-role visibility** —
+`TenantContextAuthority::isAdminBypass()` already lets `admin`-role users see
+any tenant's data including `system`, without a membership row.
 
 **Estimated downtime:** None — UPDATE on nullable column does not require a lock
 beyond the row-level lock held for each UPDATE batch. Use batched UPDATEs
-(`LIMIT 1000`) on large tables to avoid lock escalation.
+(`LIMIT 1000`, the command's default) on large tables to avoid lock escalation.
 
 ### Phase 4 — NOT NULL Constraint (PLANNED, after Phase 3)
 **Goal:** Enforce that all new records have a tenant_id.

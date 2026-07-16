@@ -1,8 +1,8 @@
 # RLS Decision Record — Tenant Isolation Architecture
 
 **Task:** ENTERPRISE-040  
-**Decision date:** 2026-06-25  
-**Status:** DECIDED — app-layer isolation enforced; PostgreSQL RLS deferred to Phase 5  
+**Decision date:** 2026-06-25 (Phase 3 canonical tenant decided 2026-07-16)  
+**Status:** DECIDED — app-layer isolation enforced; PostgreSQL RLS deferred to Phase 5. Phase 3 (default tenant = `system`) executed against the dev DB (0 rows to backfill); Phase 4/5 not started.  
 **Decision owner:** Platform architecture
 
 ---
@@ -119,15 +119,17 @@ these tables are written by system paths, not directly queryable by users.
 ### Documented Isolation Gap (UNISOLATED — missing tenant_id)
 
 These tables **lack** a `tenant_id` column entirely. They must receive a `tenant_id`
-column and backfill before multi-tenant production is safe.
+column and backfill before multi-tenant production is safe. (Re-audited 2026-07-16 —
+3 of the original 5 rows here are now closed; see `TenantBoundaryService::
+UNISOLATED_TABLES` for the current live list.)
 
 | Table | Gap reason | Risk in current posture | Required action |
 |---|---|---|---|
-| `security_audit_trails` | Column not yet added | Low — single-tenant pilot | Phase 3: add tenant_id |
-| `telemetry_events` | Column not yet added | Low — single-tenant pilot | Phase 3: add tenant_id |
-| `endpoint_agents` | Column not yet added | Low — single-tenant pilot | Phase 3: add tenant_id |
-| `endpoint_agent_heartbeats` | Column not yet added | Low — single-tenant pilot | Phase 3: add tenant_id |
-| `users` | User model is global | Low — auth is per-user not per-tenant | Phase 3: evaluate scope |
+| `endpoint_agent_heartbeats` | Column not yet added | Low — single-tenant pilot | Add tenant_id + backfill |
+| ~~`security_audit_trails`~~ | Closed — has `tenant_id` (append-only, `TENANT-AUDIT-LEAK`) | — | Done |
+| ~~`telemetry_events`~~ | Closed — has `tenant_id` (append-only, `TENANT-POSTGRES-FALLBACK-TELEMETRY`) | — | Done |
+| ~~`endpoint_agents`~~ | Closed — has `tenant_id` (mutable) | — | Done |
+| ~~`users`~~ | Not actually a gap — see Accepted Risk Register below | — | Closed, re-scoped |
 
 ### Global / System (no tenant scope required)
 
@@ -171,14 +173,51 @@ This pass-through will be removed in Phase 4 after all null records are backfill
 - `requireExplicitScope=true` on all store routes (admin must declare intent)
 - `_global` sentinel for explicit null-tenant creation (admin-only)
 
-### Phase 3 — Default Tenant Assignment (PLANNED — blocks Phase 4 and 5)
-- Decide canonical default tenant identifier
-- Write `php artisan tenant:backfill-nulls --tenant=<id> [--dry-run]`
-- Backfill all null-tenant records in mutable tables (no append-only updates)
-- Add `tenant_id` to gap tables: `security_audit_trails`, `telemetry_events`,
-  `endpoint_agents`, `endpoint_agent_heartbeats`
-- Provision all regular users in `user_tenant_memberships`
-- Enable `XDR_TENANT_STRICT_MODE=true` in staging; run full test suite
+### Phase 3 — Default Tenant Assignment (2026-07-16 — canonical tenant decided and backfill executed; strict-mode staging rollout still open)
+- ✓ **Canonical default tenant identifier decided: `system`.** All legacy/system
+  audit-style records that predate per-tenant scoping backfill to `tenant_id =
+  'system'` rather than a real client tenant — this keeps them queryable by
+  admins/system context without ever mixing into a real client's visible data.
+- ✓ `php artisan tenant:backfill-nulls --tenant=<id> [--dry-run]` already existed
+  (`ENTERPRISE-046`), batched, dry-run-capable, scoped to `MUTABLE_TABLES` only.
+- ✓ Ran `php artisan tenant:backfill-preflight` against the real dev DB before
+  backfilling (advisory, read-only) — **0 null-tenant rows found across all 13
+  `MUTABLE_TABLES`**, so this DB has no accumulated pre-BACKLOG-019 legacy data
+  to migrate (consistent with the 2026-07-12 GAP-003 audit finding). Ran
+  `php artisan tenant:backfill-nulls --tenant=system` for real anyway to
+  formally execute and validate the procedure end-to-end with the chosen
+  tenant ID — 0 rows updated (nothing to update), all tables report `CLEAN`.
+  **This step must be re-run in staging/production before enabling strict
+  mode there**, since those environments may hold real legacy data this dev
+  DB doesn't.
+- Gap tables, re-audited 2026-07-16 (3 of 4 already resolved since this plan
+  was written): `security_audit_trails` ✓ has `tenant_id` (append-only,
+  `TENANT-AUDIT-LEAK`), `telemetry_events` ✓ has `tenant_id` (append-only,
+  `TENANT-POSTGRES-FALLBACK-TELEMETRY`), `endpoint_agents` ✓ has `tenant_id`
+  (mutable). Still open: `endpoint_agent_heartbeats` (`TenantBoundaryService::
+  UNISOLATED_TABLES`) — not addressed in this pass, a separate follow-up.
+- `users`: re-scoped as **not a gap** — `user_tenant_memberships` is the
+  correct place for user↔tenant association (a proper many-to-many join,
+  since a user may legitimately belong to more than one tenant), not a
+  single `tenant_id` column directly on `users`. The original Phase 3 plan's
+  framing of this as a gap predates `user_tenant_memberships` existing.
+- **Admin/global visibility already works without new membership rows**:
+  `TenantContextAuthority::isAdminBypass()` lets `admin`-role users pass any
+  `X-Tenant-ID` header (including `system`) straight through without a
+  `user_tenant_memberships` check (`app/Services/TenantContextAuthority.php`
+  line ~116) — so admins already retain full visibility into `system`-tenant
+  data by role, with zero new provisioning needed. Only a non-admin
+  (`analyst`/`user`/`viewer`) role that needs to see `system`-tenant data
+  would need an explicit `UserTenantMembership` row — no such requirement
+  exists yet, and there's currently no dedicated Artisan command or admin UI
+  for granting membership (only direct `UserTenantMembership::create()` via
+  seeders/tinker/tests today); building that is out of scope for this pass.
+- **Still open, not attempted in this pass:** provisioning `user_tenant_
+  memberships` for *regular* (non-admin) users, and enabling
+  `XDR_TENANT_STRICT_MODE=true` in staging with a full test-suite run. Both
+  remain real Phase 3 checklist items — deliberately deferred rather than
+  done, since this dev DB currently has zero users to provision and no
+  staging environment exists here to flip strict mode on and validate.
 
 ### Phase 4 — NOT NULL Constraint (PLANNED — requires Phase 3 complete)
 - `ALTER TABLE ... ALTER COLUMN tenant_id SET NOT NULL` on primary data tables
@@ -205,11 +244,16 @@ This pass-through will be removed in Phase 4 after all null records are backfill
 
 RLS (Phase 5) cannot be activated until ALL of the following are satisfied:
 
-- [ ] Phase 3 backfill complete — zero null `tenant_id` in all isolated tables
+- [x] Phase 3 canonical default tenant decided (`system`) and backfill procedure
+      executed against the dev DB (0 null rows found/confirmed clean, 2026-07-16)
+      — **must be re-run against staging/production before this gate is truly
+      satisfied there**, since an empty dev DB proves nothing about real data
 - [ ] Phase 4 NOT NULL constraint active on `security_alerts`, `security_incidents`
-- [ ] All regular users provisioned in `user_tenant_memberships`
+- [ ] All regular (non-admin) users provisioned in `user_tenant_memberships` —
+      admin-role users already bypass membership checks entirely and need none
 - [ ] `XDR_TENANT_STRICT_MODE=true` passes full test suite in CI
-- [ ] `tenant_id` column added to gap tables (see Documented Isolation Gap above)
+- [ ] `tenant_id` column added to gap tables — 3 of 4 done (`security_audit_trails`,
+      `telemetry_events`, `endpoint_agents`); `endpoint_agent_heartbeats` still open
 - [ ] Artisan commands and Go/Python services updated for system context on DB write paths
 - [ ] Laravel DB session middleware written and tested for `SET app.tenant_id`
 - [ ] Bypass role (`xdr_admin BYPASSRLS`) created and Artisan uses it
@@ -226,9 +270,9 @@ Exits 1 if any FAIL-severity check fails.
 | Risk | Condition | Re-evaluation trigger |
 |---|---|---|
 | No DB-level RLS | Single-tenant pilot only; no live multi-tenant traffic | Any production multi-tenant onboarding |
-| Null tenant_id records accessible cross-tenant | Backward compat for pre-019 records | Phase 3 backfill completed |
-| `users` lacks `tenant_id` | Global user model; per-user auth sufficient for pilot | Multi-tenant user isolation required |
-| `security_audit_trails` lacks `tenant_id` | Audit trails are global for pilot | Per-tenant audit export required |
+| Null tenant_id records accessible cross-tenant | Backward compat for pre-019 records — dev DB confirmed clean (0 null rows) 2026-07-16, but staging/production have not been backfilled yet | Phase 3 backfill re-run and confirmed clean in staging/production |
+| `users` lacks its own `tenant_id` column | Not actually a gap — `user_tenant_memberships` is the correct many-to-many join for user↔tenant association (a user may belong to more than one tenant); re-scoped 2026-07-16 | N/A — closed, was a stale framing of the original plan |
+| `endpoint_agent_heartbeats` lacks `tenant_id` | Heartbeats are global for pilot; `security_audit_trails`/`telemetry_events`/`endpoint_agents` were closed since this row was written | Multi-tenant endpoint fleet isolation required |
 
 ---
 
