@@ -5,9 +5,18 @@ on:
     branches: ["**"]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-test-validate:
+  php-tests:
+    name: PHP / Laravel
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -34,24 +43,17 @@ jobs:
           extensions: pdo_pgsql
           coverage: none
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Cache Composer packages
+        uses: actions/cache@v4
         with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-php-${{ hashFiles('composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Prepare environment
+      - name: Prepare test environment
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
@@ -70,30 +72,158 @@ jobs:
       - name: PHP syntax lint
         run: git ls-files "*.php" | xargs -n 1 php -l
 
-      - name: Python syntax lint
-        run: python -m compileall -q scripts
-
-      - name: Environment profile validation
-        run: |
-          python scripts/validate_environment.py --profile local --env-file .env.example
-          python scripts/validate_environment.py --profile production --env-file .env.production.example --allow-placeholders
-
       - name: Route cache validation
         run: |
           php artisan route:cache
           php artisan route:clear
 
-      - name: Run automated tests
+      # No manual migrate:fresh: phpunit.xml pins DB_DATABASE=detector_test and
+      # RefreshDatabase migrates it fresh once at suite start (a manual migrate here
+      # would double-migrate — see docs/guides/TESTING.md / claude.md test-database section).
+      - name: Run Laravel tests
         run: php artisan test
+
+  frontend:
+    name: Frontend / Vite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Build frontend assets
         run: npm run build
 
-      - name: Docker Compose validation
-        run: docker compose -f infra/production/docker-compose.production.yml config --quiet
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: public/build/
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Production image build verification
-        run: docker compose -f infra/production/docker-compose.production.yml build app
+  python-tests:
+    name: Python / ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - endpoint_agent
+          - alert_writer
+          - incident_builder
+          - ai_rag
+          - scripts
+          - xdr_topic_bootstrap
+          - demo_feed
+          - demo_causal_verify
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The alert_writer / incident_builder suites import their service main.py,
+      # which imports `requests` at module load. Other suites are stdlib-only and
+      # stub fastapi/pydantic/psycopg, so `requests` is the one real runtime dep.
+      - name: Install Python test dependencies
+        run: python -m pip install --quiet requests==2.34.2
+
+      - name: Compile first-party Python
+        run: python -m compileall -q scripts services
+
+      - name: Run Python suite
+        run: python -m unittest discover -s tests/${{ matrix.suite }} -p "test_*.py" -v
+
+  go-tests:
+    name: Go / ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CGO_ENABLED: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - services/ingestion-gateway
+          - services/normalizer-worker
+          - services/correlation-worker
+          - services/log-connector-syslog
+          - services/log-connector-cloudtrail
+          - services/log-connector-guardduty
+          - services/log-connector-gcp-audit
+          - services/log-connector-o365
+          - tools/attack-simulator
+          - tools/xdr-scenario-runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+          cache-dependency-path: |
+            services/ingestion-gateway/go.sum
+            services/normalizer-worker/go.sum
+            services/correlation-worker/go.sum
+            tools/attack-simulator/go.sum
+            tools/xdr-scenario-runner/go.sum
+
+      - name: Run Go vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: Run Go tests with race detector
+        working-directory: ${{ matrix.module }}
+        run: go test -race ./...
+
+  governance:
+    name: Contracts / Governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate environment profiles
+        run: |
+          python scripts/validate_environment.py --profile local --env-file .env.example
+          python scripts/validate_environment.py --profile production --env-file .env.production.example --allow-placeholders
+
+      - name: Validate detection registry
+        run: python scripts/xdr_rule_registry_validate.py
+
+      - name: Validate XDR contracts
+        run: python scripts/xdr_contract_validate.py --output reports/ci_xdr_contract_validation.json
+
+      - name: Validate fleet simulation
+        run: python scripts/xdr_fleet_simulation_validate.py
 
       - name: Portable export validation
         run: python scripts/export_portable_detector.py --output dist/detector-portable-ci --clean
@@ -106,3 +236,64 @@ jobs:
           python scripts/telemetry_event_contract.py --file storage/logs/ci_sysmon.jsonl
           python scripts/telemetry_enrichment.py --input storage/logs/ci_sysmon.jsonl --output storage/logs/ci_sysmon_enriched.jsonl
           python scripts/threat_hunt.py --jsonl storage/logs/ci_sysmon_enriched.jsonl --output reports/ci_threat_hunt.json
+
+      - name: Upload governance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-evidence
+          path: |
+            reports/*.json
+            storage/logs/ci_*.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+  compose-image:
+    name: Compose / Production Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build frontend assets for image context
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate current Compose topology
+        run: |
+          docker compose config --quiet
+          docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          docker compose -f infra/production/docker-compose.production.yml config --quiet
+
+      - name: Build current production application image
+        run: docker compose --profile app build app
+
+      - name: Production image vulnerability scan
+        run: |
+          APP_IMAGE_ID="$(docker compose images -q app)"
+          test -n "$APP_IMAGE_ID"
+          python scripts/xdr_container_image_scan.py --image "$APP_IMAGE_ID" --output reports/ci_container_image_scan.json
+
+      - name: Upload image scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-image-scan
+          path: reports/ci_container_image_scan.json
+          if-no-files-found: warn
+          retention-days: 14

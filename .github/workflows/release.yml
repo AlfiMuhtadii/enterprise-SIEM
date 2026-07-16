@@ -1,0 +1,116 @@
+name: release
+
+# CD (continuous delivery of build artifacts): on a semver tag, build every
+# deployable image and publish it to GitHub Container Registry (GHCR). No external
+# secrets required — GHCR auth uses the built-in GITHUB_TOKEN. This publishes
+# artifacts; it does NOT deploy to any live environment (that step needs a target +
+# environment-protected secrets and is intentionally left to a separate, gated
+# deploy workflow so a tag can never push straight to production).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (defaults to run number for manual runs)"
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    name: Build & push ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: app
+            context: .
+            dockerfile: infra/production/Dockerfile
+            needs_frontend: true
+          - name: ingestion-gateway
+            context: services/ingestion-gateway
+            dockerfile: services/ingestion-gateway/Dockerfile
+            needs_frontend: false
+          - name: normalizer-worker
+            context: services/normalizer-worker
+            dockerfile: services/normalizer-worker/Dockerfile
+            needs_frontend: false
+          - name: correlation-worker
+            context: services/correlation-worker
+            dockerfile: services/correlation-worker/Dockerfile
+            needs_frontend: false
+          - name: alert-writer-service
+            context: services/alert-writer-service
+            dockerfile: services/alert-writer-service/Dockerfile
+            needs_frontend: false
+          - name: incident-builder-service
+            context: services/incident-builder-service
+            dockerfile: services/incident-builder-service/Dockerfile
+            needs_frontend: false
+          - name: ai-rag-service
+            context: services/ai-rag-service
+            dockerfile: services/ai-rag-service/Dockerfile
+            needs_frontend: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The production app image COPYs the built Vite assets from the build context,
+      # so they must exist before the image build (mirrors the compose-image CI job).
+      - name: Setup Node
+        if: matrix.needs_frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build frontend assets
+        if: matrix.needs_frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/detector-${{ matrix.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
