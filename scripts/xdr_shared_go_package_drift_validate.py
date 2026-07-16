@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
-"""INTERNAL-RUNTIME-SDK: drift check for Go helper code duplicated across
+"""INTERNAL-RUNTIME-SDK: drift check for helper code duplicated across
 first-party services.
 
-Each "family" below is a Go helper confirmed byte-identical across the
-services that copy it, but manually copied, so a future security/
-correctness fix applied to one copy and not the others would silently
-drift and go unnoticed:
+Despite the filename (this started Go-only), the mechanism is language-
+agnostic -- it's just byte-for-byte file comparison and copying between a
+canonical directory and each dependent's own copy, so it covers Python
+families too (see python-service-adapters below). Each family is a helper
+confirmed byte-identical across the services that copy it, but manually
+copied, so a future security/correctness fix applied to one copy and not
+the others would silently drift and go unnoticed:
 
-  - mtls: internal/mtls/{mtls.go,mtls_test.go}, 8 services (3 core pipeline
-    workers + 5 log-connectors).
-  - deliver: internal/deliver/{deliver.go,deliver_test.go}, the 5
+  - mtls: internal/mtls/{mtls.go,mtls_test.go}, 8 Go services (3 core
+    pipeline workers + 5 log-connectors).
+  - deliver: internal/deliver/{deliver.go,deliver_test.go}, the 5 Go
     log-connectors' bounded-retry delivery primitive (CONN-DELIVERY-LOSS).
+  - python-service-adapters: event-contract/tracing/OTLP/pool/Kafka helper
+    modules duplicated between alert-writer-service and
+    incident-builder-service (the 2 Python event-pipeline writers).
 
-Real cross-module Go package extraction (a shared module + `replace`
-directives) was evaluated and rejected for both families: every Go
-service's docker-compose.yml build `context` is the service's own
-directory (e.g. `./services/correlation-worker`), so a
-`replace ... => ../../<shared>` directive would resolve fine for a
-local/CI `go build` (whole repo on disk) but break the Docker build
-entirely (COPY cannot reach outside its build context). Fixing that would
-mean widening every Go Dockerfile's build context to the repo root -- a
-materially larger, separate, riskier change, not part of this bounded
-phase.
+Real cross-module extraction (a shared Go module + `replace` directives, or
+a real installable Python package) was evaluated and rejected for every
+family here: every service's docker-compose.yml build `context` is the
+service's own directory (e.g. `./services/correlation-worker`), so a
+dependency pointing outside it resolves fine for a local/CI build (whole
+repo on disk) but breaks the Docker build entirely (COPY cannot reach
+outside its build context). Fixing that would mean widening every
+Dockerfile's build context to the repo root -- a materially larger,
+separate, riskier change, not part of this bounded phase.
 
-Instead: tools/shared-go/<family>/ is the canonical, independently
-buildable/testable source for each family (its own go.mod). This script is
-the actual guardrail -- it fails if a dependent's copy differs at all from
-the canonical source, so a copy-paste fix applied to only one service can
-no longer merge silently. Run with --sync to update all dependents from the
-canonical source (the correct way to make a legitimate change); --family
-scopes either mode to a single family (default: check/sync all of them).
+Instead: tools/shared-go/<family>/ or tools/shared-python/<family>/ is the
+canonical, independently buildable/testable source for each family. This
+script is the actual guardrail -- it fails if a dependent's copy differs at
+all from the canonical source, so a copy-paste fix applied to only one
+service can no longer merge silently. Run with --sync to update all
+dependents from the canonical source (the correct way to make a legitimate
+change); --family scopes either mode to a single family (default:
+check/sync all of them).
 """
 from __future__ import annotations
 
@@ -65,6 +71,14 @@ FAMILIES: dict[str, dict] = {
             ROOT / "services" / "log-connector-guardduty" / "internal" / "deliver",
             ROOT / "services" / "log-connector-o365" / "internal" / "deliver",
             ROOT / "services" / "log-connector-syslog" / "internal" / "deliver",
+        ],
+    },
+    "python-service-adapters": {
+        "canonical_dir": ROOT / "tools" / "shared-python" / "service-adapters",
+        "files": ["xdr_event_contracts.py", "traceparent.py", "otlp_export.py", "pg_pool.py", "kafka_native.py"],
+        "dependents": [
+            ROOT / "services" / "alert-writer-service",
+            ROOT / "services" / "incident-builder-service",
         ],
     },
 }
