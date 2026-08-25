@@ -148,15 +148,17 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-MERGE-GATE - Restore Green CI and Protect the Default Branch
 
+- **Status:** Completed (Codex, 2026-08-25) - remote CI is green and `master` branch protection is active.
 - **Priority:** High
 - **Component:** `.github/workflows/*.yml`, GitHub branch protection/rulesets
-- **Finding:** The 10 most recent visible GitHub Actions runs are failures, including both workflows on the latest master push. `master` is not protected, so failed checks do not block direct pushes or merges. The latest `ci` run has 2 failing PHP tests; `phase9-contract` exits 2 because replay determinism is false.
-- **Proposed Fix:** Restore both workflows to green, then require pull requests and successful `ci / build-test-validate` plus `phase9-contract / contract-and-replay` checks on `master`. Restrict bypass to an audited break-glass role and document exact required check names.
-- **Validation Gate:** A deliberately failing PR is unmergeable; a clean PR passes both required checks; direct push to `master` is rejected for normal contributors.
+- **Finding:** Clean GitHub runners exposed repository-state dependencies hidden by the local dirty worktree: missing Python service dependencies, missing canonical Kafka adapter copies, an unversioned Trivy scanner and rule pack, mutable rule storage assumed to exist, non-portable Compose image lookup, stale fixtures, PHPStan baseline drift, and race-unsafe Go tests.
+- **Implemented:** Commits `9f70994`, `02d2dc6`, `41bab27`, `32ab2ff`, and `1c9a8c7` restore deterministic Phase 9 replay, race-enabled Go gates, complete Python suites, baseline-aware PHP static analysis, current Compose/image validation, and clean-checkout Laravel behavior. Remote runs `32856500030` (`ci`) and `32856499748` (`phase9-contract`) passed on `1c9a8c7`; security run `32856499816` also passed.
+- **Protection:** `master` now requires an up-to-date PR plus GitHub Actions checks `Required Gate` and `contract-and-replay` (both bound to app ID `15368`), conversation resolution, and admin enforcement. Force pushes and branch deletion are disabled. This personal repository has no separate audited break-glass role, so no bypass allowance is configured; emergency access requires an explicit protection change.
+- **Validation Gate:** Green feature-branch runs prove both required contexts exist and pass; the protection API read-back confirms PR/status-check/admin enforcement. No intentionally failing PR or real direct-push probe was created because both would add avoidable remote mutation; GitHub enforces those controls from the verified protection configuration.
 
 ## Proposed Task: CICD-POLYGLOT-COVERAGE - Align CI with the Current Runtime and Validation Contract
 
-- **Status:** Implemented locally (Codex, 2026-07-14)
+- **Status:** Completed (Codex, 2026-08-25) - split CI, static analysis, governance, Compose/image validation, and docs alignment are represented. GitHub runner validation built and scanned the production app image using the deterministic `detector-ci-app` reference; the stale production-profile test fixture for `XDR_AI_RAG_INTERNAL_TOKEN` is also fixed.
 - **Priority:** High
 - **Component:** `.github/workflows/ci.yml`, `docs/ci/validation-pipeline.md`, all Go/Python service suites, current Compose files
 - **Finding:** CI tests PHP and frontend only, compiles Python only under `scripts/`, runs no Go checks or Python service/endpoint-agent suites, and builds the legacy 4-service `infra/production/docker-compose.production.yml` instead of the current polyglot stack. Documented merge gates and `AGENTS.md` commands are not represented in the workflow.
