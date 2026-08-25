@@ -167,7 +167,8 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-IMMUTABLE-DELIVERY / K8S-FOUNDATION-GATE - Establish Release Artifacts Before Orchestration Migration
 
-- **Status:** Ongoing (Codex, 2026-08-25) - auditing and implementing the bounded immutable-delivery CI phase; Kubernetes adoption remains gated.
+- **Status:** Proposed (reduced; immutable-artifact phase completed by Codex, 2026-08-25) - the release workflow now gates publication on an exact existing SemVer tag whose commit is contained in `master`, builds all 13 first-party runtime images by canonical digest, emits BuildKit SBOM/provenance, signs and immediately verifies every digest with keyless Cosign/OIDC, creates GitHub artifact attestations, and validates a deterministic retained release manifest before attaching immutable release/commit tags. All release actions are pinned to full revisions, manual dispatch defaults to a non-publishing gate, and no deployment or Kubernetes mutation was added.
+- **Remaining Scope:** Establish a real protected staging target and deployment-side signature/digest verification, define a justified blocking vulnerability threshold, and prove rolling rollback without event loss. Kubernetes remains gated on those controls plus multi-host stateful recovery evidence.
 - **Priority:** Medium (becomes High before SLA/commercial deployment)
 - **Component:** GitHub Actions, container registry, image signing/provenance, deployment environments, future Helm/GitOps assets
 - **Finding:** There is no CD workflow, immutable image publication, environment promotion, deployment approval, artifact retention, or automated rollback evidence. Kubernetes prerequisites are absent, while stateful dependencies remain single-node and HA validation is open.
