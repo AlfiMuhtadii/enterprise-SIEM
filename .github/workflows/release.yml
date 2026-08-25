@@ -65,6 +65,13 @@ jobs:
             exit 1
           fi
 
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${publish}" == "true" ]]; then
+            if [[ "${GITHUB_REF_TYPE}" != "tag" || "${GITHUB_REF_NAME}" != "${release_tag}" ]]; then
+              echo "::error::Manual publication must be dispatched on the same tag supplied in the tag input."
+              exit 1
+            fi
+          fi
+
           if [[ -z "${release_tag}" ]]; then
             release_tag="v0.0.0-dry-run.${GITHUB_RUN_ID}"
           fi
@@ -171,7 +178,7 @@ jobs:
       IMAGE: ghcr.io/${{ needs.release-gate.outputs.registry_namespace }}/detector-${{ matrix.name }}
       RELEASE_TAG: ${{ needs.release-gate.outputs.release_tag }}
       RELEASE_COMMIT: ${{ needs.release-gate.outputs.commit }}
-      CERTIFICATE_IDENTITY_REGEXP: ^https://github.com/${{ github.repository }}/.github/workflows/release\.yml@refs/(heads|tags)/.+$
+      CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/tags/${{ needs.release-gate.outputs.release_tag }}
       OIDC_ISSUER: https://token.actions.githubusercontent.com
     steps:
       - name: Checkout release commit
@@ -240,8 +247,11 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           cosign verify \
-            --certificate-identity-regexp "${CERTIFICATE_IDENTITY_REGEXP}" \
+            --certificate-identity "${CERTIFICATE_IDENTITY}" \
             --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            --certificate-github-workflow-sha "${RELEASE_COMMIT}" \
+            --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
+            --certificate-github-workflow-ref "refs/tags/${RELEASE_TAG}" \
             "${IMAGE}@${DIGEST}"
 
       - name: Generate GitHub artifact attestation
@@ -264,7 +274,7 @@ jobs:
             --commit "${RELEASE_COMMIT}" \
             --digest "${DIGEST}" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
-            --certificate-identity-regexp "${CERTIFICATE_IDENTITY_REGEXP}" \
+            --certificate-identity "${CERTIFICATE_IDENTITY}" \
             --oidc-issuer "${OIDC_ISSUER}" \
             --attestation-url "${ATTESTATION_URL}" \
             --output "release-evidence/${{ matrix.name }}.json"

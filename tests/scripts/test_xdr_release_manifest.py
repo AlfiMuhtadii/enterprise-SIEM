@@ -6,6 +6,7 @@ from scripts.xdr_release_manifest import (
     ManifestError,
     aggregate_fragments,
     validate_fragment,
+    validate_manifest,
 )
 
 
@@ -21,7 +22,7 @@ def evidence(service: str) -> dict:
         "digest": f"sha256:{index:064x}",
         "workflow_run_id": "12345",
         "signature": {
-            "certificate_identity_regexp": "^https://github.com/example/repo/.+$",
+            "certificate_identity": "https://github.com/example/repo/.github/workflows/release.yml@refs/tags/v1.2.3-rc.1",
             "oidc_issuer": "https://token.actions.githubusercontent.com",
         },
         "attestation": {"url": f"https://github.com/example/repo/attestations/{index}"},
@@ -74,6 +75,13 @@ class ReleaseManifestTest(unittest.TestCase):
         fragment["digest"] = "latest"
         with self.assertRaisesRegex(ManifestError, "invalid digest"):
             validate_fragment(fragment)
+
+    def test_validate_manifest_rejects_tampered_release_metadata(self) -> None:
+        manifest = aggregate_fragments(self.fragments)
+        manifest["release"]["commit"] = "b" * 40
+
+        with self.assertRaisesRegex(ManifestError, "release metadata does not match"):
+            validate_manifest(manifest)
 
 
 if __name__ == "__main__":

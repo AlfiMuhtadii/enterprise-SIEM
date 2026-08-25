@@ -77,7 +77,7 @@ def validate_fragment(fragment: dict[str, Any]) -> dict[str, Any]:
     signature = fragment.get("signature")
     if not isinstance(signature, dict):
         raise ManifestError("signature must be an object")
-    _require_text(signature.get("certificate_identity_regexp"), "signature.certificate_identity_regexp")
+    _require_text(signature.get("certificate_identity"), "signature.certificate_identity")
     _require_text(signature.get("oidc_issuer"), "signature.oidc_issuer")
 
     attestation = fragment.get("attestation")
@@ -98,7 +98,7 @@ def build_fragment(args: argparse.Namespace) -> dict[str, Any]:
         "digest": args.digest,
         "workflow_run_id": args.workflow_run_id,
         "signature": {
-            "certificate_identity_regexp": args.certificate_identity_regexp,
+            "certificate_identity": args.certificate_identity,
             "oidc_issuer": args.oidc_issuer,
         },
         "attestation": {"url": args.attestation_url},
@@ -141,6 +141,22 @@ def aggregate_fragments(fragments: Iterable[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def validate_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    if manifest.get("schema_version") != 1:
+        raise ManifestError("manifest schema_version must be 1")
+    release = manifest.get("release")
+    images = manifest.get("images")
+    if not isinstance(release, dict):
+        raise ManifestError("release must be an object")
+    if not isinstance(images, list):
+        raise ManifestError("images must be an array")
+
+    normalized = aggregate_fragments(images)
+    if release != normalized["release"]:
+        raise ManifestError("release metadata does not match image evidence")
+    return normalized
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -170,7 +186,7 @@ def _parser() -> argparse.ArgumentParser:
         "commit",
         "digest",
         "workflow-run-id",
-        "certificate-identity-regexp",
+        "certificate-identity",
         "oidc-issuer",
         "attestation-url",
     ):
