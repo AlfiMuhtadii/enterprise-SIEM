@@ -2,13 +2,7 @@ name: phase9-contract
 
 on:
   push:
-    paths:
-      - "scripts/**"
-      - ".github/workflows/phase9-contract.yml"
   pull_request:
-    paths:
-      - "scripts/**"
-      - ".github/workflows/phase9-contract.yml"
 
 jobs:
   contract-and-replay:
@@ -31,4 +25,5 @@ jobs:
 
       - name: Replay Determinism Test
         run: |
-          python scripts/golden_replay_test.py --output storage/app/golden_replay_report_ci.json
+          python -m unittest tests.scripts.test_golden_replay_test -v
+          python scripts/golden_replay_test.py --rules-only --output storage/app/golden_replay_report_ci.json

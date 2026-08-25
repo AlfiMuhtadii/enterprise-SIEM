@@ -343,12 +343,10 @@ func TestNormalizeBatchSpanParentMatchesInboundTraceparent(t *testing.T) {
 func TestExportSpansSendsRealOtlpRequestToCollector(t *testing.T) {
 	w := newTestWorker(t, "http://unused")
 
-	var requestCount int32
-	var capturedBody []byte
+	capturedBodies := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
 		body, _ := io.ReadAll(r.Body)
-		capturedBody = body
+		capturedBodies <- body
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -357,11 +355,10 @@ func TestExportSpansSendsRealOtlpRequestToCollector(t *testing.T) {
 	_, _, spans := w.normalizeBatch([]map[string]any{normalizedRawEvent("evt-a")})
 	w.exportSpans(spans, time.Now(), time.Now())
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) && atomic.LoadInt32(&requestCount) == 0 {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if atomic.LoadInt32(&requestCount) == 0 {
+	var capturedBody []byte
+	select {
+	case capturedBody = <-capturedBodies:
+	case <-time.After(time.Second):
 		t.Fatal("expected exportSpans to reach the collector")
 	}
 	var decoded map[string]any
@@ -373,9 +370,9 @@ func TestExportSpansSendsRealOtlpRequestToCollector(t *testing.T) {
 func TestExportSpansNoOpForEmptySpanSlice(t *testing.T) {
 	w := newTestWorker(t, "http://unused")
 
-	var called bool
+	var called atomic.Bool
 	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		called = true
+		called.Store(true)
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -383,7 +380,7 @@ func TestExportSpansNoOpForEmptySpanSlice(t *testing.T) {
 
 	w.exportSpans(nil, time.Now(), time.Now())
 	time.Sleep(50 * time.Millisecond)
-	if called {
+	if called.Load() {
 		t.Error("expected no HTTP call for an empty span slice")
 	}
 }

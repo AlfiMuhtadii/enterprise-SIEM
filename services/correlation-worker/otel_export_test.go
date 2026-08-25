@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -32,13 +33,10 @@ func waitForCondition(t *testing.T, timeout time.Duration, cond func() bool) {
 }
 
 func TestExportAlertSpansSendsOneSpanPerAlertToCollector(t *testing.T) {
-	var requestCount int32
-	var capturedBody []byte
+	capturedBodies := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		capturedBody = buf
+		body, _ := io.ReadAll(r.Body)
+		capturedBodies <- body
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -55,7 +53,12 @@ func TestExportAlertSpansSendsOneSpanPerAlertToCollector(t *testing.T) {
 
 	w.exportAlertSpans(alerts, time.Now(), time.Now())
 
-	waitForCondition(t, time.Second, func() bool { return atomic.LoadInt32(&requestCount) >= 1 })
+	var capturedBody []byte
+	select {
+	case capturedBody = <-capturedBodies:
+	case <-time.After(time.Second):
+		t.Fatal("expected exportAlertSpans to reach the OTLP collector")
+	}
 
 	var decoded map[string]any
 	if err := json.Unmarshal(capturedBody, &decoded); err != nil {
@@ -77,9 +80,9 @@ func TestExportAlertSpansNoOpWhenExporterDisabled(t *testing.T) {
 }
 
 func TestExportAlertSpansNoOpForEmptyAlerts(t *testing.T) {
-	var called bool
+	var called atomic.Bool
 	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		called = true
+		called.Store(true)
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -87,7 +90,7 @@ func TestExportAlertSpansNoOpForEmptyAlerts(t *testing.T) {
 	w := &Worker{otelExporter: &otlpexport.Exporter{Endpoint: collector.URL, ServiceName: "correlation-worker"}}
 	w.exportAlertSpans(nil, time.Now(), time.Now())
 	time.Sleep(50 * time.Millisecond)
-	if called {
+	if called.Load() {
 		t.Error("expected no HTTP call for an empty alerts slice")
 	}
 }
@@ -133,9 +136,9 @@ func TestCorrelateHTTPExportsSpansForProducedAlerts(t *testing.T) {
 }
 
 func TestCorrelateHTTPDoesNotExportWhenNoAlertsProduced(t *testing.T) {
-	var called bool
+	var called atomic.Bool
 	collector := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		called = true
+		called.Store(true)
 		rw.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -153,7 +156,7 @@ func TestCorrelateHTTPDoesNotExportWhenNoAlertsProduced(t *testing.T) {
 	w.correlateHTTP(rr, req)
 
 	time.Sleep(100 * time.Millisecond)
-	if called {
+	if called.Load() {
 		t.Error("expected no OTLP export when correlate() produces zero alerts")
 	}
 }

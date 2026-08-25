@@ -43,6 +43,11 @@ jobs:
           extensions: pdo_pgsql
           coverage: none
 
+      - name: Setup Python for cross-runtime contract tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Cache Composer packages
         uses: actions/cache@v4
         with:
@@ -149,7 +154,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+      PYTHONPYCACHEPREFIX: /tmp/xdr-pycache
     strategy:
       fail-fast: false
       matrix:
@@ -204,6 +209,8 @@ jobs:
           - services/log-connector-o365
           - tools/attack-simulator
           - tools/xdr-scenario-runner
+          - tools/shared-go/mtls
+          - tools/shared-go/deliver
 
     steps:
       - name: Checkout
@@ -234,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+      PYTHONPYCACHEPREFIX: /tmp/xdr-pycache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -243,6 +250,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Validate shared runtime helper drift
+        run: |
+          python -m compileall -q tools/shared-python/service-adapters
+          python scripts/xdr_shared_go_package_drift_validate.py
 
       - name: Validate environment profiles
         run: |
@@ -286,7 +298,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
+      PYTHONPYCACHEPREFIX: /tmp/xdr-pycache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -314,13 +326,18 @@ jobs:
           docker compose -f infra/production/docker-compose.production.yml config --quiet
 
       - name: Build current production application image
-        run: docker compose --profile app build app
+        run: docker compose --project-name detector-ci --profile app build app
 
       - name: Production image vulnerability scan
         run: |
-          APP_IMAGE_ID="$(docker compose images -q app)"
-          test -n "$APP_IMAGE_ID"
-          python scripts/xdr_container_image_scan.py --image "$APP_IMAGE_ID" --output reports/ci_container_image_scan.json
+          mapfile -t APP_IMAGE_IDS < <(
+            docker image ls --quiet --no-trunc \
+              --filter "label=com.docker.compose.project=detector-ci" \
+              --filter "label=com.docker.compose.service=app" \
+              | sort -u
+          )
+          test "${#APP_IMAGE_IDS[@]}" -eq 1
+          python scripts/xdr_container_image_scan.py --image "${APP_IMAGE_IDS[0]}" --output reports/ci_container_image_scan.json
 
       - name: Upload image scan evidence
         if: always()
@@ -330,3 +347,45 @@ jobs:
           path: reports/ci_container_image_scan.json
           if-no-files-found: warn
           retention-days: 14
+
+  required-gate:
+    name: Required Gate
+    if: ${{ always() }}
+    needs:
+      - php-tests
+      - static-analysis
+      - frontend
+      - python-tests
+      - go-tests
+      - governance
+      - compose-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify all CI groups passed
+        env:
+          PHP_TESTS_RESULT: ${{ needs.php-tests.result }}
+          STATIC_ANALYSIS_RESULT: ${{ needs.static-analysis.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          PYTHON_TESTS_RESULT: ${{ needs.python-tests.result }}
+          GO_TESTS_RESULT: ${{ needs.go-tests.result }}
+          GOVERNANCE_RESULT: ${{ needs.governance.result }}
+          COMPOSE_IMAGE_RESULT: ${{ needs.compose-image.result }}
+        run: |
+          failed=0
+          for variable in \
+            PHP_TESTS_RESULT \
+            STATIC_ANALYSIS_RESULT \
+            FRONTEND_RESULT \
+            PYTHON_TESTS_RESULT \
+            GO_TESTS_RESULT \
+            GOVERNANCE_RESULT \
+            COMPOSE_IMAGE_RESULT
+          do
+            result="${!variable}"
+            printf '%s=%s\n' "$variable" "$result"
+            if [ "$result" != "success" ]; then
+              failed=1
+            fi
+          done
+          exit "$failed"

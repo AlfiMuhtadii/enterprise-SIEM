@@ -4,8 +4,8 @@ Golden-run replay for end-to-end detector validation.
 
 - Validates schema contract.
 - Replays 4 datasets: normal, bruteforce, scan, injection.
-- Checks rules determinism against expected baseline.
-- Checks ML stability using deterministic signature (if model is available).
+- Checks rule determinism against the expected baseline.
+- Checks ML labels and score signatures only when a model is available.
 """
 
 from __future__ import annotations
@@ -38,6 +38,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default="storage/app/ai_detector_model.pkl")
     parser.add_argument("--output", default="storage/app/golden_replay_report.json")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--rules-only",
+        action="store_true",
+        help="Skip optional local ML artifacts and validate only deterministic rule output.",
+    )
     parser.add_argument("--generate-samples", action="store_true")
     parser.add_argument("--write-baseline", action="store_true")
     return parser.parse_args()
@@ -224,27 +229,50 @@ def replay_one(name: str, rows: List[Dict[str, Any]], model: Optional[Dict[str, 
     }
 
 
-def compare_expected(actual: Dict[str, Any], expected: Dict[str, Any]) -> Dict[str, Any]:
-    mismatches: List[str] = []
+def compare_expected(
+    actual: Dict[str, Any], expected: Dict[str, Any], *, compare_ml: bool = True
+) -> Dict[str, Any]:
+    rule_mismatches: List[str] = []
+    ml_mismatches: List[str] = []
     for key in sorted(set(actual.keys()) | set(expected.keys())):
         if key not in expected:
-            mismatches.append(f"unexpected dataset in actual: {key}")
+            rule_mismatches.append(f"unexpected dataset in actual: {key}")
             continue
         if key not in actual:
-            mismatches.append(f"missing dataset in actual: {key}")
+            rule_mismatches.append(f"missing dataset in actual: {key}")
             continue
 
-        a_rules = actual[key].get("rules", {})
-        e_rules = expected[key].get("rules", {})
-        if a_rules != e_rules:
-            mismatches.append(f"{key}: rules mismatch actual={a_rules} expected={e_rules}")
+        for field in ("events", "invalid", "rules"):
+            actual_value = actual[key].get(field)
+            expected_value = expected[key].get(field)
+            if actual_value != expected_value:
+                rule_mismatches.append(
+                    f"{key}: {field} mismatch actual={actual_value} expected={expected_value}"
+                )
+
+        if not compare_ml:
+            continue
+
+        actual_counts = actual[key].get("ml_counts", {})
+        expected_counts = expected[key].get("ml_counts", {})
+        if actual_counts != expected_counts:
+            ml_mismatches.append(
+                f"{key}: ml_counts mismatch actual={actual_counts} expected={expected_counts}"
+            )
 
         e_sig = expected[key].get("ml_signature")
         a_sig = actual[key].get("ml_signature")
         if e_sig and a_sig != e_sig:
-            mismatches.append(f"{key}: ml_signature mismatch actual={a_sig} expected={e_sig}")
+            ml_mismatches.append(f"{key}: ml_signature mismatch actual={a_sig} expected={e_sig}")
 
-    return {"ok": len(mismatches) == 0, "mismatches": mismatches}
+    mismatches = [*rule_mismatches, *ml_mismatches]
+    return {
+        "ok": len(mismatches) == 0,
+        "rules_ok": len(rule_mismatches) == 0,
+        "ml_checked": compare_ml,
+        "ml_ok": len(ml_mismatches) == 0 if compare_ml else None,
+        "mismatches": mismatches,
+    }
 
 
 def main() -> int:
@@ -266,8 +294,10 @@ def main() -> int:
             print(f"ERROR: missing dataset file: {input_dir / name}")
             return 1
 
-    model = maybe_load_model(model_path)
-    if model is None:
+    model = None if args.rules_only else maybe_load_model(model_path)
+    if args.rules_only:
+        print("INFO: explicit rules-only mode; ML replay is not part of this gate.")
+    elif model is None:
         print("WARNING: model not found, replay runs in rules-only mode.")
 
     actual: Dict[str, Any] = {}
@@ -279,6 +309,7 @@ def main() -> int:
     report: Dict[str, Any] = {
         "seed": args.seed,
         "model_loaded": model is not None,
+        "validation_mode": "rules+ml" if model is not None else "rules-only",
         "datasets": actual,
     }
 
@@ -292,7 +323,7 @@ def main() -> int:
             print(f"ERROR: expected baseline not found: {expected_path}")
             return 1
         expected = json.loads(expected_path.read_text(encoding="utf-8"))
-        cmp = compare_expected(actual, expected)
+        cmp = compare_expected(actual, expected, compare_ml=model is not None)
         report["comparison"] = cmp
         status_ok = bool(cmp["ok"])
 
@@ -300,7 +331,7 @@ def main() -> int:
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"Output: {output_path}")
     if report.get("comparison"):
-        print(f"DeterministicRules: {report['comparison']['ok']}")
+        print(f"DeterministicReplay: {report['comparison']['ok']}")
     return 0 if status_ok else 2
 
 

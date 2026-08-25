@@ -46,11 +46,13 @@ python scripts/security_event_contract.py --file scripts/golden_runs/scan.jsonl
 python scripts/security_event_contract.py --file scripts/golden_runs/injection.jsonl
 ```
 
-Replay determinism (rules + ML stability):
+Replay determinism for the versioned rules baseline:
 
 ```bash
-python scripts/golden_replay_test.py --output storage/app/golden_replay_report.json
+python scripts/golden_replay_test.py --rules-only --output storage/app/golden_replay_report.json
 ```
+
+Omit `--rules-only` only when `storage/app/ai_detector_model.pkl` is present and its ML label-count and score-signature baseline is intentionally being validated. The CI workflow does not ship that optional local artifact.
 
 Output report:
 - `storage/app/golden_replay_report.json`

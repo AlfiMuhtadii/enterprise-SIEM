@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -336,7 +337,7 @@ func TestPublishBoundedTimeout(t *testing.T) {
 		}
 	}))
 	defer func() {
-		close(unblock)             // unblock any handler goroutines still running
+		close(unblock)               // unblock any handler goroutines still running
 		srv.CloseClientConnections() // force-close TCP connections
 		srv.Close()
 	}()
@@ -869,13 +870,10 @@ func TestPublishExportsOneOtlpSpanPerEvent(t *testing.T) {
 	}))
 	defer fakePanda.Close()
 
-	var capturedBody []byte
-	var requestCount int32
+	capturedBodies := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		capturedBody = buf
+		body, _ := io.ReadAll(r.Body)
+		capturedBodies <- body
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -888,7 +886,12 @@ func TestPublishExportsOneOtlpSpanPerEvent(t *testing.T) {
 		t.Fatalf("unexpected publish error: %v", err)
 	}
 
-	waitForCondition(t, time.Second, func() bool { return atomic.LoadInt32(&requestCount) >= 1 })
+	var capturedBody []byte
+	select {
+	case capturedBody = <-capturedBodies:
+	case <-time.After(time.Second):
+		t.Fatal("expected publish to reach the OTLP collector")
+	}
 
 	var decoded map[string]any
 	if err := json.Unmarshal(capturedBody, &decoded); err != nil {
@@ -906,13 +909,10 @@ func TestPublishSpanCarriesTraceIDMatchingTheEventsOwnTraceparent(t *testing.T) 
 	}))
 	defer fakePanda.Close()
 
-	var capturedBody []byte
-	var requestCount int32
+	capturedBodies := make(chan []byte, 1)
 	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt32(&requestCount, 1)
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		capturedBody = buf
+		body, _ := io.ReadAll(r.Body)
+		capturedBodies <- body
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer collector.Close()
@@ -929,7 +929,12 @@ func TestPublishSpanCarriesTraceIDMatchingTheEventsOwnTraceparent(t *testing.T) 
 		t.Fatal("expected publish() to replace the inbound traceparent with a fresh child span")
 	}
 
-	waitForCondition(t, time.Second, func() bool { return atomic.LoadInt32(&requestCount) >= 1 })
+	var capturedBody []byte
+	select {
+	case capturedBody = <-capturedBodies:
+	case <-time.After(time.Second):
+		t.Fatal("expected publish to reach the OTLP collector")
+	}
 
 	var decoded map[string]any
 	_ = json.Unmarshal(capturedBody, &decoded)
