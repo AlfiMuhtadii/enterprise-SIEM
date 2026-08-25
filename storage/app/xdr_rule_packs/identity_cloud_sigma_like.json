@@ -1,0 +1,46 @@
+{
+  "pack_id": "identity-cloud-core",
+  "version": "1.0.0",
+  "environment": "staging",
+  "rules": [
+    {
+      "rule_id": "xdr.identity.risky_login_privilege_change",
+      "title": "Risky login followed by privilege change",
+      "status": "enabled",
+      "confidence": 0.82,
+      "logsource": {"product": "xdr", "category": "identity"},
+      "detection": {
+        "selection": {"event_type": ["login_success", "privilege_escalation"], "risk_score_gte": 0.7},
+        "condition": "sequence(selection.login_success, selection.privilege_escalation) within 120m"
+      },
+      "mitre": ["T1078", "T1098"],
+      "dependencies": ["telemetry.identity", "telemetry.cloud"]
+    },
+    {
+      "rule_id": "xdr.email.identity.endpoint_chain",
+      "title": "Phishing email to identity and endpoint execution chain",
+      "status": "enabled",
+      "confidence": 0.86,
+      "logsource": {"product": "xdr", "category": "cross-domain"},
+      "detection": {
+        "selection": {"telemetry_type": ["email", "identity", "endpoint"]},
+        "condition": "email.risk_score >= 0.7 and identity.login_success and endpoint.process_created within 180m"
+      },
+      "mitre": ["T1566", "T1078", "T1059"],
+      "dependencies": ["telemetry.email", "telemetry.identity", "telemetry.endpoint"]
+    },
+    {
+      "rule_id": "xdr.proxy.endpoint.escalation",
+      "title": "Proxy anomaly followed by endpoint execution",
+      "status": "enabled",
+      "confidence": 0.74,
+      "logsource": {"product": "xdr", "category": "proxy"},
+      "detection": {
+        "selection": {"telemetry_type": ["proxy", "endpoint"], "risk_score_gte": 0.6},
+        "condition": "proxy_anomaly and endpoint.process_created within 60m"
+      },
+      "mitre": ["T1071", "T1059"],
+      "dependencies": ["telemetry.proxy", "telemetry.endpoint"]
+    }
+  ]
+}

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 
 class SocRbacTest extends TestCase
@@ -33,6 +34,7 @@ class SocRbacTest extends TestCase
     public function test_admin_can_access_rule_management(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
+        File::delete(storage_path('app/telemetry_rules.json'));
 
         $this->actingAs($admin)->get('/soc/rules')->assertOk();
     }

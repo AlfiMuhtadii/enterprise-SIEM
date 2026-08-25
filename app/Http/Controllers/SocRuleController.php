@@ -15,9 +15,19 @@ class SocRuleController extends Controller
         return storage_path('app/telemetry_rules.json');
     }
 
+    /** @return array{version: int, rules: array<int, array<string, mixed>>} */
+    private function payload(): array
+    {
+        if (! File::exists($this->path())) {
+            return ['version' => 1, 'rules' => []];
+        }
+
+        return json_decode(File::get($this->path()), true) ?: ['version' => 1, 'rules' => []];
+    }
+
     public function index(): View
     {
-        $payload = json_decode(File::get($this->path()), true) ?: ['rules' => []];
+        $payload = $this->payload();
         $qualityPath = base_path('reports/rule_quality_report.json');
         $quality = File::exists($qualityPath) ? (json_decode(File::get($qualityPath), true) ?: []) : [];
 
@@ -36,7 +46,7 @@ class SocRuleController extends Controller
             'metadata_owner' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $payload = json_decode(File::get($this->path()), true) ?: ['version' => 1, 'rules' => []];
+        $payload = $this->payload();
         $before = $payload;
         foreach ($payload['rules'] as &$rule) {
             if (($rule['rule_id'] ?? '') !== $ruleId) {

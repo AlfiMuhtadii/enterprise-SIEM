@@ -1,3 +1,6 @@
 *
 !public/
 !.gitignore
+!xdr_rule_packs/
+xdr_rule_packs/*
+!xdr_rule_packs/identity_cloud_sigma_like.json
