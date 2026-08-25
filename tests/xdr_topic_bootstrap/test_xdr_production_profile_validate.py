@@ -38,6 +38,7 @@ def _secure_env(**overrides) -> dict:
         "XDR_ALERT_WRITER_INTERNAL_TOKEN":     "c" * 64,
         "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN": "d" * 64,
         "XDR_CORRELATION_INTERNAL_TOKEN":      "e" * 64,
+        "XDR_AI_RAG_INTERNAL_TOKEN":           "k" * 64,
         "DB_PASSWORD":                         "f" * 32,
         "CLICKHOUSE_PASSWORD":                 "g" * 32,
         "GF_SECURITY_ADMIN_PASSWORD":          "h" * 32,
@@ -112,7 +113,7 @@ def _secure_compose() -> dict:
 
 class TestConstants(unittest.TestCase):
     def test_required_tokens_count(self):
-        self.assertEqual(5, len(pdp._REQUIRED_TOKENS))
+        self.assertEqual(6, len(pdp._REQUIRED_TOKENS))
 
     def test_required_tokens_includes_internal_auth_secret(self):
         self.assertIn("XDR_INTERNAL_AUTH_SECRET", pdp._REQUIRED_TOKENS)
@@ -123,6 +124,7 @@ class TestConstants(unittest.TestCase):
             "XDR_ALERT_WRITER_INTERNAL_TOKEN",
             "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN",
             "XDR_CORRELATION_INTERNAL_TOKEN",
+            "XDR_AI_RAG_INTERNAL_TOKEN",
         ]:
             self.assertIn(token, pdp._REQUIRED_TOKENS)
 

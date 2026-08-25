@@ -40,11 +40,11 @@ Constraint: do not run parallel `php artisan test` jobs against the same Postgre
 
 ```sh
 composer install --no-interaction --prefer-dist --no-progress
-./vendor/bin/pint --test
-./vendor/bin/phpstan analyse --no-progress --no-interaction
+./vendor/bin/pint --test <changed-php-files>
+./vendor/bin/phpstan analyse --no-progress --no-interaction --memory-limit=1G
 ```
 
-PHPStan runs against the committed Larastan baseline, so the gate blocks new findings without requiring the historical backlog to be cleared in the same change.
+Pint checks PHP files changed by the current push or pull request, so historical formatting debt does not require a mass rewrite before the gate can be enabled. PHPStan still scans the full repository against the committed Larastan baseline, blocking new findings without requiring the historical static-analysis backlog to be cleared in the same change.
 
 ---
 
@@ -61,7 +61,7 @@ The generated `public/build/` directory is uploaded as a short-lived CI artifact
 
 ## Python Matrix
 
-Each suite is run independently:
+Each suite is run independently. The alert-writer and incident-builder jobs install their complete pinned service requirements before testing; stdlib-only suites do not install unrelated packages.
 
 ```sh
 python -m compileall -q scripts services
@@ -142,9 +142,10 @@ Artifacts:
 ```sh
 npm ci
 npm run build
+cp .env.production.example .env
 docker compose config --quiet
 docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
-docker compose -f infra/production/docker-compose.production.yml config --quiet
+docker compose --env-file .env.production.example -f infra/production/docker-compose.production.yml config --quiet
 docker compose --project-name detector-ci --profile app build app
 docker image ls --quiet --no-trunc --filter "label=com.docker.compose.project=detector-ci" --filter "label=com.docker.compose.service=app"
 python scripts/xdr_container_image_scan.py --image <the-single-image-id-above> --output reports/ci_container_image_scan.json

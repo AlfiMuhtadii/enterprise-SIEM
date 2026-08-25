@@ -866,11 +866,6 @@ parameters:
 			path: app/Http/Controllers/ShadowSoak/ShadowSoakController.php
 
 		-
-			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$steps\\.$#"
-			count: 1
-			path: app/Http/Controllers/Soar/SoarOrchestrationController.php
-
-		-
 			message: "#^Access to an undefined property App\\\\Models\\\\EndpointAgent\\:\\:\\$tenant_id\\.$#"
 			count: 1
 			path: app/Http/Controllers/SocAgentController.php
@@ -3211,11 +3206,6 @@ parameters:
 			path: app/Services/PilotReadinessService.php
 
 		-
-			message: "#^Call to an undefined method Illuminate\\\\Database\\\\ConnectionInterface\\:\\:getDriverName\\(\\)\\.$#"
-			count: 2
-			path: app/Services/PostgresTenantSessionContext.php
-
-		-
 			message: "#^Access to an undefined property App\\\\Models\\\\SoakPlanRun\\:\\:\\$plan_run_id\\.$#"
 			count: 1
 			path: app/Services/RealDomainSoakPlanService.php
@@ -3501,11 +3491,6 @@ parameters:
 			path: app/Services/SoarOrchestrationService.php
 
 		-
-			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionPlan\\:\\:\\$tenant_id\\.$#"
-			count: 12
-			path: app/Services/SoarOrchestrationService.php
-
-		-
 			message: "#^Access to an undefined property App\\\\Models\\\\SoarExecutionStep\\:\\:\\$action_type\\.$#"
 			count: 4
 			path: app/Services/SoarOrchestrationService.php
@@ -3526,12 +3511,17 @@ parameters:
 			path: app/Services/SoarOrchestrationService.php
 
 		-
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$dual_approval_required\\.$#"
+			count: 1
+			path: app/Services/SoarOrchestrationService.php
+
+		-
 			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$playbook_id\\.$#"
 			count: 1
 			path: app/Services/SoarOrchestrationService.php
 
 		-
-			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$tenant_id\\.$#"
+			message: "#^Access to an undefined property App\\\\Models\\\\SoarPlaybook\\:\\:\\$simulation_required\\.$#"
 			count: 1
 			path: app/Services/SoarOrchestrationService.php
 
@@ -3542,21 +3532,6 @@ parameters:
 
 		-
 			message: "#^Access to an undefined property App\\\\Models\\\\SoarRollbackPlan\\:\\:\\$plan_id\\.$#"
-			count: 1
-			path: app/Services/SoarOrchestrationService.php
-
-		-
-			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$dual_approval_required\\.$#"
-			count: 1
-			path: app/Services/SoarOrchestrationService.php
-
-		-
-			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$simulation_required\\.$#"
-			count: 1
-			path: app/Services/SoarOrchestrationService.php
-
-		-
-			message: "#^Access to an undefined property Illuminate\\\\Database\\\\Eloquent\\\\Model\\:\\:\\$tenant_id\\.$#"
 			count: 1
 			path: app/Services/SoarOrchestrationService.php
 
@@ -3798,11 +3773,6 @@ parameters:
 		-
 			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$hunt_id\\.$#"
 			count: 3
-			path: app/Services/ThreatHuntingService.php
-
-		-
-			message: "#^Access to an undefined property App\\\\Models\\\\ThreatHunt\\:\\:\\$tenant_id\\.$#"
-			count: 1
 			path: app/Services/ThreatHuntingService.php
 
 		-
