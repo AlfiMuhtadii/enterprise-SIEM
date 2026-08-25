@@ -167,6 +167,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-IMMUTABLE-DELIVERY / K8S-FOUNDATION-GATE - Establish Release Artifacts Before Orchestration Migration
 
+- **Status:** Ongoing (Codex, 2026-08-25) - auditing and implementing the bounded immutable-delivery CI phase; Kubernetes adoption remains gated.
 - **Priority:** Medium (becomes High before SLA/commercial deployment)
 - **Component:** GitHub Actions, container registry, image signing/provenance, deployment environments, future Helm/GitOps assets
 - **Finding:** There is no CD workflow, immutable image publication, environment promotion, deployment approval, artifact retention, or automated rollback evidence. Kubernetes prerequisites are absent, while stateful dependencies remain single-node and HA validation is open.

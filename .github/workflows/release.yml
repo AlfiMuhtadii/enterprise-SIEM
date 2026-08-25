@@ -1,34 +1,116 @@
-name: release
+name: Immutable artifact release
 
-# CD (continuous delivery of build artifacts): on a semver tag, build every
-# deployable image and publish it to GitHub Container Registry (GHCR). No external
-# secrets required — GHCR auth uses the built-in GITHUB_TOKEN. This publishes
-# artifacts; it does NOT deploy to any live environment (that step needs a target +
-# environment-protected secrets and is intentionally left to a separate, gated
-# deploy workflow so a tag can never push straight to production).
-
+# This workflow publishes release artifacts only. Deployment and environment
+# promotion remain separate concerns and require their own protected workflow.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag to publish (defaults to run number for manual runs)"
+        description: "Existing SemVer tag to publish (for example v1.2.3)"
         required: false
+        type: string
+      publish:
+        description: "Publish images; leave disabled to validate the release gate only"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref }}-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  images:
-    name: Build & push ${{ matrix.name }}
+  release-gate:
+    name: Validate immutable release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      image_tag: ${{ steps.release.outputs.image_tag }}
+      commit: ${{ steps.release.outputs.commit }}
+      registry_namespace: ${{ steps.release.outputs.registry_namespace }}
+    steps:
+      - name: Checkout release history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate release source
+        id: release
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+          DISPATCH_PUBLISH: ${{ inputs.publish }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          publish=false
+          release_tag="${DISPATCH_TAG:-}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            publish=true
+            release_tag="${GITHUB_REF_NAME}"
+          elif [[ "${DISPATCH_PUBLISH:-false}" == "true" ]]; then
+            publish=true
+          fi
+
+          if [[ "${publish}" == "true" && -z "${release_tag}" ]]; then
+            echo "::error::Manual publication requires an existing SemVer tag."
+            exit 1
+          fi
+
+          if [[ -z "${release_tag}" ]]; then
+            release_tag="v0.0.0-dry-run.${GITHUB_RUN_ID}"
+          fi
+
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ ! "${release_tag}" =~ ${semver} ]]; then
+            echo "::error::Release tag must be an exact SemVer tag such as v1.2.3 or v1.2.3-rc.1."
+            exit 1
+          fi
+
+          commit="${GITHUB_SHA}"
+          if [[ "${publish}" == "true" ]]; then
+            git fetch --force origin "refs/tags/${release_tag}:refs/tags/${release_tag}"
+            commit="$(git rev-parse "refs/tags/${release_tag}^{commit}")"
+            git fetch --no-tags origin master
+            if ! git merge-base --is-ancestor "${commit}" origin/master; then
+              echo "::error::Release tag ${release_tag} does not point to a commit contained in origin/master."
+              exit 1
+            fi
+          fi
+
+          namespace="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "publish=${publish}"
+            echo "release_tag=${release_tag}"
+            echo "image_tag=${release_tag#v}"
+            echo "commit=${commit}"
+            echo "registry_namespace=${namespace}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Release: ${release_tag}"
+          echo "Commit: ${commit}"
+          echo "Publish: ${publish}"
+
+  images:
+    name: Build, sign, and attest ${{ matrix.name }}
+    if: needs.release-gate.outputs.publish == 'true'
+    needs: release-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
@@ -37,6 +119,10 @@ jobs:
             context: .
             dockerfile: infra/production/Dockerfile
             needs_frontend: true
+          - name: telemetry-worker
+            context: .
+            dockerfile: infra/telemetry-worker/Dockerfile
+            needs_frontend: false
           - name: ingestion-gateway
             context: services/ingestion-gateway
             dockerfile: services/ingestion-gateway/Dockerfile
@@ -44,6 +130,26 @@ jobs:
           - name: normalizer-worker
             context: services/normalizer-worker
             dockerfile: services/normalizer-worker/Dockerfile
+            needs_frontend: false
+          - name: log-connector-syslog
+            context: services/log-connector-syslog
+            dockerfile: services/log-connector-syslog/Dockerfile
+            needs_frontend: false
+          - name: log-connector-cloudtrail
+            context: services/log-connector-cloudtrail
+            dockerfile: services/log-connector-cloudtrail/Dockerfile
+            needs_frontend: false
+          - name: log-connector-guardduty
+            context: services/log-connector-guardduty
+            dockerfile: services/log-connector-guardduty/Dockerfile
+            needs_frontend: false
+          - name: log-connector-gcp-audit
+            context: services/log-connector-gcp-audit
+            dockerfile: services/log-connector-gcp-audit/Dockerfile
+            needs_frontend: false
+          - name: log-connector-o365
+            context: services/log-connector-o365
+            dockerfile: services/log-connector-o365/Dockerfile
             needs_frontend: false
           - name: correlation-worker
             context: services/correlation-worker
@@ -61,16 +167,21 @@ jobs:
             context: services/ai-rag-service
             dockerfile: services/ai-rag-service/Dockerfile
             needs_frontend: false
-
+    env:
+      IMAGE: ghcr.io/${{ needs.release-gate.outputs.registry_namespace }}/detector-${{ matrix.name }}
+      RELEASE_TAG: ${{ needs.release-gate.outputs.release_tag }}
+      RELEASE_COMMIT: ${{ needs.release-gate.outputs.commit }}
+      CERTIFICATE_IDENTITY_REGEXP: ^https://github.com/${{ github.repository }}/.github/workflows/release\.yml@refs/(heads|tags)/.+$
+      OIDC_ISSUER: https://token.actions.githubusercontent.com
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout release commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-gate.outputs.commit }}
 
-      # The production app image COPYs the built Vite assets from the build context,
-      # so they must exist before the image build (mirrors the compose-image CI job).
       - name: Setup Node
         if: matrix.needs_frontend
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -82,35 +193,172 @@ jobs:
           npm run build
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Derive image metadata
+      - name: Derive OCI metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/detector-${{ matrix.name }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.version=${{ env.RELEASE_TAG }}
+            org.opencontainers.image.revision=${{ env.RELEASE_COMMIT }}
 
-      - name: Build and push image
-        uses: docker/build-push-action@v6
+      # Push by digest first. Human-facing tags are attached only after every
+      # image has built, signed, attested, and passed manifest validation.
+      - name: Build and push canonical digest
+        id: build
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          provenance: true
+          annotations: ${{ steps.meta.outputs.annotations }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Sign canonical digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Verify canonical digest signature
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "${CERTIFICATE_IDENTITY_REGEXP}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            "${IMAGE}@${DIGEST}"
+
+      - name: Generate GitHub artifact attestation
+        id: attest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Create release evidence fragment
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
+        run: |
+          python3 scripts/xdr_release_manifest.py fragment \
+            --service "${{ matrix.name }}" \
+            --image "${IMAGE}" \
+            --release-tag "${RELEASE_TAG}" \
+            --commit "${RELEASE_COMMIT}" \
+            --digest "${DIGEST}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --certificate-identity-regexp "${CERTIFICATE_IDENTITY_REGEXP}" \
+            --oidc-issuer "${OIDC_ISSUER}" \
+            --attestation-url "${ATTESTATION_URL}" \
+            --output "release-evidence/${{ matrix.name }}.json"
+
+      - name: Upload release evidence fragment
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-evidence-${{ matrix.name }}
+          path: release-evidence/${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-manifest:
+    name: Validate manifest and attach immutable tags
+    if: needs.release-gate.outputs.publish == 'true'
+    needs: [release-gate, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_TAG: ${{ needs.release-gate.outputs.image_tag }}
+      RELEASE_COMMIT: ${{ needs.release-gate.outputs.commit }}
+    steps:
+      - name: Checkout release tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-gate.outputs.commit }}
+
+      - name: Download release evidence
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-evidence-*
+          path: release-evidence
+          merge-multiple: true
+
+      - name: Validate and aggregate release manifest
+        run: |
+          python3 scripts/xdr_release_manifest.py aggregate \
+            --input-dir release-evidence \
+            --output release-manifest.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify immutable tag targets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS=$'\t' read -r image digest; do
+            for tag in "${IMAGE_TAG}" "sha-${RELEASE_COMMIT}"; do
+              ref="${image}:${tag}"
+              if inspected="$(docker buildx imagetools inspect "${ref}" 2>/dev/null)"; then
+                current="$(printf '%s\n' "${inspected}" | awk '$1 == "Digest:" { print $2; exit }')"
+                if [[ "${current}" != "${digest}" ]]; then
+                  echo "::error::Immutable tag ${ref} already points to ${current}, expected ${digest}."
+                  exit 1
+                fi
+              fi
+            done
+          done < <(jq -r '.images[] | [.image, .digest] | @tsv' release-manifest.json)
+
+      - name: Attach release and commit tags by digest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS=$'\t' read -r image digest; do
+            for tag in "${IMAGE_TAG}" "sha-${RELEASE_COMMIT}"; do
+              ref="${image}:${tag}"
+              if ! docker buildx imagetools inspect "${ref}" >/dev/null 2>&1; then
+                docker buildx imagetools create --tag "${ref}" "${image}@${digest}"
+              fi
+              resolved="$(docker buildx imagetools inspect "${ref}" | awk '$1 == "Digest:" { print $2; exit }')"
+              if [[ "${resolved}" != "${digest}" ]]; then
+                echo "::error::Published tag ${ref} resolves to ${resolved}, expected ${digest}."
+                exit 1
+              fi
+            done
+          done < <(jq -r '.images[] | [.image, .digest] | @tsv' release-manifest.json)
+
+      - name: Upload immutable release manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-manifest-${{ needs.release-gate.outputs.release_tag }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
