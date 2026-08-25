@@ -61,7 +61,7 @@ The generated `public/build/` directory is uploaded as a short-lived CI artifact
 
 ## Python Matrix
 
-Each suite is run independently. The alert-writer and incident-builder jobs install their complete pinned service requirements before testing; stdlib-only suites do not install unrelated packages.
+Each suite is run independently. All jobs install pinned `requests` because shared integration validators import it; the alert-writer and incident-builder jobs additionally install their complete pinned service requirements before testing.
 
 ```sh
 python -m compileall -q scripts services

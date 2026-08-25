@@ -200,6 +200,7 @@ jobs:
 
       - name: Install Python test dependencies
         run: |
+          python -m pip install --quiet requests==2.34.2
           case "${{ matrix.suite }}" in
             alert_writer)
               python -m pip install --quiet -r services/alert-writer-service/requirements.txt
