@@ -358,14 +358,9 @@ jobs:
 
       - name: Production image vulnerability scan
         run: |
-          mapfile -t APP_IMAGE_IDS < <(
-            docker image ls --quiet --no-trunc \
-              --filter "label=com.docker.compose.project=detector-ci" \
-              --filter "label=com.docker.compose.service=app" \
-              | sort -u
-          )
-          test "${#APP_IMAGE_IDS[@]}" -eq 1
-          python scripts/xdr_container_image_scan.py --image "${APP_IMAGE_IDS[0]}" --output reports/ci_container_image_scan.json
+          APP_IMAGE_ID="$(docker image inspect --format '{{.Id}}' detector-ci-app)"
+          test -n "$APP_IMAGE_ID"
+          python scripts/xdr_container_image_scan.py --image "$APP_IMAGE_ID" --output reports/ci_container_image_scan.json
 
       - name: Upload image scan evidence
         if: always()

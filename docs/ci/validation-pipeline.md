@@ -147,12 +147,12 @@ docker compose config --quiet
 docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 docker compose --env-file .env.production.example -f infra/production/docker-compose.production.yml config --quiet
 docker compose --project-name detector-ci --profile app build app
-docker image ls --quiet --no-trunc --filter "label=com.docker.compose.project=detector-ci" --filter "label=com.docker.compose.service=app"
-python scripts/xdr_container_image_scan.py --image <the-single-image-id-above> --output reports/ci_container_image_scan.json
+docker image inspect --format '{{.Id}}' detector-ci-app
+python scripts/xdr_container_image_scan.py --image <image-id-above> --output reports/ci_container_image_scan.json
 ```
 
 The production overlay intentionally fails closed without required secrets, so CI validates it with `.env.production.example`.
-The scan resolves the image through Compose build labels. `docker compose images` is intentionally not used because it reports images attached to created containers and returns nothing on a clean CI runner that only performed a build.
+The fixed Compose project name and `app` service produce the deterministic local image reference `detector-ci-app`. The scan resolves that reference directly because build labels are not consistently available across Compose/BuildKit runner versions, while `docker compose images` reports images attached to created containers and returns nothing on a clean runner that only performed a build.
 
 ---
 
