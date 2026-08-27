@@ -13,6 +13,9 @@ It does not deploy, pull, retag, or mutate registry content.
 - Supply the approved release tag and commit independently; do not derive them from the manifest.
 - Require the signing certificate's GitHub workflow SHA, repository, and tag ref claims to match.
 - Verify `image@sha256:digest`; never verify or deploy a mutable image tag alone.
+- Require retained vulnerability evidence with policy `release-critical-v1`
+  status `PASS` for every image. See
+  [Release Vulnerability Policy](RELEASE_VULNERABILITY_POLICY.md).
 - Treat malformed manifests, missing Cosign, timeouts, network errors, and any invalid signature as blocking failures.
 
 ## Run

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Advisory Trivy scanning for locally built XDR container images.
+"""Trivy scanning and release policy enforcement for XDR container images.
 
 The scanner itself is pinned by digest because mutable Trivy tags and actions
-are inappropriate for a supply-chain control. Findings produce WARN and exit 0;
-scanner/runtime failures produce ERROR and exit 1.
+are inappropriate for a supply-chain control. Local scans remain advisory.
+Release scans block critical findings and scanner/runtime failures.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +27,10 @@ TRIVY_IMAGE = (
     "be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e"
 )
 TRIVY_VERSION = "0.70.0"
+RELEASE_POLICY_ID = "release-critical-v1"
+RELEASE_BLOCKING_SEVERITIES = ("CRITICAL",)
+RELEASE_ADVISORY_SEVERITIES = ("HIGH",)
+IMMUTABLE_IMAGE_PATTERN = re.compile(r"^.+@sha256:[0-9a-f]{64}$")
 
 
 def discover_detector_images() -> list[str]:
@@ -53,6 +59,9 @@ def summarize_trivy(image: str, payload: dict[str, Any]) -> dict[str, Any]:
                 "installed_version": finding.get("InstalledVersion", ""),
                 "fixed_version": finding.get("FixedVersion", ""),
                 "severity": finding.get("Severity", "UNKNOWN"),
+                "severity_source": finding.get("SeveritySource", ""),
+                "title": finding.get("Title", ""),
+                "primary_url": finding.get("PrimaryURL", ""),
                 "target": result.get("Target", ""),
             })
 
@@ -122,8 +131,102 @@ def scan_image(image: str) -> dict[str, Any]:
 
         try:
             return summarize_trivy(image, json.loads(report_path.read_text(encoding="utf-8")))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:
             return {"image": image, "status": "ERROR", "detail": str(exc), "vulnerabilities": []}
+
+
+def remote_trivy_command(image: str, output_dir: Path, docker_config_dir: Path) -> list[str]:
+    """Build a remote scan command using registry-scoped Docker credentials."""
+    return [
+        "docker", "run", "--rm",
+        "--env", "DOCKER_CONFIG=/root/.docker",
+        "--mount", f"type=bind,source={docker_config_dir.resolve()},target=/root/.docker,readonly",
+        "--mount", f"type=bind,source={output_dir.resolve()},target=/output",
+        TRIVY_IMAGE,
+        "image", "--scanners", "vuln", "--severity", "HIGH,CRITICAL",
+        "--format", "json", "--output", "/output/result.json", image,
+    ]
+
+
+def is_immutable_image_reference(image: str) -> bool:
+    return IMMUTABLE_IMAGE_PATTERN.fullmatch(image) is not None
+
+
+def scan_remote_image(image: str) -> dict[str, Any]:
+    temp_root = ROOT / ".tmp"
+    temp_root.mkdir(exist_ok=True)
+    docker_config_dir = Path(os.environ.get("DOCKER_CONFIG", Path.home() / ".docker"))
+    if not (docker_config_dir / "config.json").is_file():
+        return {
+            "image": image,
+            "status": "ERROR",
+            "detail": f"Docker registry config not found: {docker_config_dir / 'config.json'}",
+            "vulnerabilities": [],
+        }
+
+    with tempfile.TemporaryDirectory(prefix="xdr-trivy-remote-", dir=temp_root) as temp_dir:
+        output_dir = Path(temp_dir) / "output"
+        output_dir.mkdir()
+        report_path = output_dir / "result.json"
+        try:
+            proc = subprocess.run(
+                remote_trivy_command(image, output_dir, docker_config_dir),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=900,
+                env=os.environ.copy(),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {"image": image, "status": "ERROR", "detail": str(exc), "vulnerabilities": []}
+
+        if proc.returncode != 0 or not report_path.is_file():
+            detail = (proc.stderr or proc.stdout).strip()[-1000:]
+            return {
+                "image": image,
+                "status": "ERROR",
+                "detail": detail or f"Trivy exited {proc.returncode} without a report",
+                "vulnerabilities": [],
+            }
+
+        try:
+            return summarize_trivy(image, json.loads(report_path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            return {"image": image, "status": "ERROR", "detail": str(exc), "vulnerabilities": []}
+
+
+def evaluate_scan_policy(results: list[dict[str, Any]], policy_name: str) -> dict[str, Any]:
+    has_error = any(result["status"] == "ERROR" for result in results)
+    findings = [
+        finding
+        for result in results
+        for finding in result.get("vulnerabilities", [])
+    ]
+
+    if policy_name == "advisory":
+        return {
+            "id": "advisory",
+            "status": "ERROR" if has_error else ("WARN" if findings else "PASS"),
+            "blocking_severities": [],
+            "advisory_severities": ["HIGH", "CRITICAL"],
+            "ignore_unfixed": False,
+            "blocking_findings": [],
+        }
+
+    blocking_findings = [
+        finding for finding in findings
+        if finding.get("severity") in RELEASE_BLOCKING_SEVERITIES
+    ]
+    status = "ERROR" if has_error else ("BLOCKED" if blocking_findings else "PASS")
+    return {
+        "id": RELEASE_POLICY_ID,
+        "status": status,
+        "blocking_severities": list(RELEASE_BLOCKING_SEVERITIES),
+        "advisory_severities": list(RELEASE_ADVISORY_SEVERITIES),
+        "ignore_unfixed": False,
+        "blocking_findings": blocking_findings,
+    }
 
 
 class ScannerTests(unittest.TestCase):
@@ -150,6 +253,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", action="append", dest="images", help="image reference; repeatable")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    parser.add_argument("--remote", action="store_true", help="scan registry image references instead of local images")
+    parser.add_argument("--policy", choices=("advisory", "release"), default="advisory")
     parser.add_argument("--no-report", action="store_true")
     parser.add_argument("--test", action="store_true")
     args = parser.parse_args()
@@ -168,20 +273,31 @@ def main() -> int:
         print("status=ERROR detail=no detector images found; use --image", file=sys.stderr)
         return 1
 
+    if args.remote and args.policy == "release":
+        mutable_images = [image for image in images if not is_immutable_image_reference(image)]
+        if mutable_images:
+            print(
+                "status=ERROR detail=release policy requires image@sha256:<64 lowercase hex> references: "
+                + ", ".join(mutable_images),
+                file=sys.stderr,
+            )
+            return 1
+
     results = []
     for image in images:
         print(f"scanning {image} ...")
-        results.append(scan_image(image))
+        results.append(scan_remote_image(image) if args.remote else scan_image(image))
 
-    has_error = any(result["status"] == "ERROR" for result in results)
-    has_warn = any(result["status"] == "WARN" for result in results)
-    status = "ERROR" if has_error else ("WARN" if has_warn else "PASS")
+    policy = evaluate_scan_policy(results, args.policy)
+    status = policy["status"]
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "scan_status": status,
         "scanner": {"name": "trivy", "version": TRIVY_VERSION, "image": TRIVY_IMAGE},
         "severity_scope": ["HIGH", "CRITICAL"],
-        "advisory_only": True,
+        "scan_source": "remote_registry" if args.remote else "local_daemon",
+        "advisory_only": args.policy == "advisory",
+        "policy": policy,
         "images_scanned": len(results),
         "results": results,
     }
@@ -201,7 +317,11 @@ def main() -> int:
             f"high={counts.get('HIGH', 0)} critical={counts.get('CRITICAL', 0)} {detail}"
         )
 
-    return 1 if has_error else 0
+    if status == "ERROR":
+        return 1
+    if status == "BLOCKED":
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
