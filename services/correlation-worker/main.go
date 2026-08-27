@@ -198,19 +198,29 @@ func main() {
 	// needed when the event loop itself is enabled.
 	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
 		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
-		producer, err := kafkanative.NewProducer(brokers)
+		kafkaTLSEnabled := envBool("XDR_REDPANDA_KAFKA_TLS_ENABLED", false)
+		kafkaTLS, err := kafkanative.LoadTLSConfig(
+			kafkaTLSEnabled,
+			env("XDR_REDPANDA_KAFKA_CA_CERT", env("XDR_REDPANDA_CA_CERT", "")),
+			env("XDR_REDPANDA_KAFKA_CLIENT_CERT", ""),
+			env("XDR_REDPANDA_KAFKA_CLIENT_KEY", ""),
+		)
+		if err != nil {
+			log.Fatalf("xdr correlation worker: native kafka TLS config failed: %v", err)
+		}
+		producer, err := kafkanative.NewProducerTLS(brokers, kafkaTLS)
 		if err != nil {
 			log.Fatalf("xdr correlation worker: native kafka producer init failed: %v", err)
 		}
 		w.nativeProducer = producer
 		if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
-			consumer, err := kafkanative.NewConsumer(brokers, w.group, []string{w.inputTopic})
+			consumer, err := kafkanative.NewConsumerTLS(brokers, w.group, []string{w.inputTopic}, kafkaTLS)
 			if err != nil {
 				log.Fatalf("xdr correlation worker: native kafka consumer init failed: %v", err)
 			}
 			w.nativeConsumer = consumer
 		}
-		log.Printf("xdr correlation worker: using native kafka transport brokers=%v", brokers)
+		log.Printf("xdr correlation worker: using native kafka transport brokers=%v tls=%v", brokers, kafkaTLSEnabled)
 	}
 
 	// ENT-SEC-NO-TLS-INTERNAL (phase 3): internal mTLS, disabled by default.

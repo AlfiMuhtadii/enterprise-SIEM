@@ -14,6 +14,8 @@ the others would silently drift and go unnoticed:
     pipeline workers + 5 log-connectors).
   - deliver: internal/deliver/{deliver.go,deliver_test.go}, the 5 Go
     log-connectors' bounded-retry delivery primitive (CONN-DELIVERY-LOSS).
+  - kafkanative: native Kafka producer/consumer and verified TLS setup across
+    the 3 Go pipeline services.
   - python-service-adapters: event-contract/tracing/OTLP/pool/Kafka helper
     modules duplicated between alert-writer-service and
     incident-builder-service (the 2 Python event-pipeline writers).
@@ -71,6 +73,15 @@ FAMILIES: dict[str, dict] = {
             ROOT / "services" / "log-connector-guardduty" / "internal" / "deliver",
             ROOT / "services" / "log-connector-o365" / "internal" / "deliver",
             ROOT / "services" / "log-connector-syslog" / "internal" / "deliver",
+        ],
+    },
+    "kafkanative": {
+        "canonical_dir": ROOT / "tools" / "shared-go" / "kafkanative",
+        "files": ["kafkanative.go", "kafkanative_test.go"],
+        "dependents": [
+            ROOT / "services" / "correlation-worker" / "internal" / "kafkanative",
+            ROOT / "services" / "ingestion-gateway" / "internal" / "kafkanative",
+            ROOT / "services" / "normalizer-worker" / "internal" / "kafkanative",
         ],
     },
     "python-service-adapters": {

@@ -106,6 +106,7 @@ Current modules:
 - `tools/xdr-scenario-runner`
 - `tools/shared-go/mtls`
 - `tools/shared-go/deliver`
+- `tools/shared-go/kafkanative`
 
 Race tests require cgo. The GitHub Ubuntu runner has a C toolchain; local Windows validation may need plain `go test ./...` unless a C compiler is configured.
 

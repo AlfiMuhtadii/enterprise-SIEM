@@ -221,12 +221,22 @@ func main() {
 	// zero behavior change unless an operator opts in.
 	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
 		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
-		producer, err := kafkanative.NewProducer(brokers)
+		kafkaTLSEnabled := envBool("XDR_REDPANDA_KAFKA_TLS_ENABLED", false)
+		kafkaTLS, err := kafkanative.LoadTLSConfig(
+			kafkaTLSEnabled,
+			env("XDR_REDPANDA_KAFKA_CA_CERT", env("XDR_REDPANDA_CA_CERT", "")),
+			env("XDR_REDPANDA_KAFKA_CLIENT_CERT", ""),
+			env("XDR_REDPANDA_KAFKA_CLIENT_KEY", ""),
+		)
+		if err != nil {
+			log.Fatalf("xdr ingestion gateway: native kafka TLS config failed: %v", err)
+		}
+		producer, err := kafkanative.NewProducerTLS(brokers, kafkaTLS)
 		if err != nil {
 			log.Fatalf("xdr ingestion gateway: native kafka producer init failed: %v", err)
 		}
 		gw.nativeProducer = producer
-		log.Printf("xdr ingestion gateway: using native kafka transport brokers=%v", brokers)
+		log.Printf("xdr ingestion gateway: using native kafka transport brokers=%v tls=%v", brokers, kafkaTLSEnabled)
 	}
 
 	// IG-1: start background goroutine to poll normalizer metrics

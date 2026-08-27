@@ -238,6 +238,7 @@ jobs:
           - tools/xdr-scenario-runner
           - tools/shared-go/mtls
           - tools/shared-go/deliver
+          - tools/shared-go/kafkanative
 
     steps:
       - name: Checkout
