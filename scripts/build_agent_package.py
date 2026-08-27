@@ -44,10 +44,12 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     copy(root / "services" / "endpoint-agent" / "agent.py", out / "agent.py")
+    copy(root / "scripts" / "verify_agent_package.py", out / "verify_agent_package.py")
     if args.platform == "windows":
         copy(root / "deploy" / "agent" / "windows" / "install-agent-service.ps1", out / "install-agent-service.ps1")
         copy(root / "deploy" / "agent" / "windows" / "uninstall-agent-service.ps1", out / "uninstall-agent-service.ps1")
     else:
+        copy(root / "deploy" / "agent" / "linux" / "install-agent-service.sh", out / "install-agent-service.sh")
         copy(root / "deploy" / "agent" / "linux" / "detector-endpoint-agent.service", out / "detector-endpoint-agent.service")
 
     # config.json is the file agent.py actually reads at runtime (--config), unlike the
@@ -65,6 +67,10 @@ def main() -> int:
     (out / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
     (out / "README_DEPLOY.md").write_text(
         "# Detector Endpoint Agent Package\n\n"
+        "Verify the extracted package before installation or execution:\n\n"
+        "```bash\npython verify_agent_package.py --package .\n```\n\n"
+        "This detects corruption and unexpected files but does not authenticate the "
+        "publisher; external artifact signing remains required for production distribution.\n\n"
         "Run the agent manually:\n\n"
         "```bash\npython agent.py --config config.json\n```\n\n"
         "Run one collection cycle only (smoke test):\n\n"
@@ -80,15 +86,21 @@ def main() -> int:
 
     files = []
     for path in sorted(p for p in out.rglob("*") if p.is_file()):
-        files.append({"path": str(path.relative_to(out)), "sha256": sha256(path), "bytes": path.stat().st_size})
+        files.append({"path": path.relative_to(out).as_posix(), "sha256": sha256(path), "bytes": path.stat().st_size})
     manifest = {
+        "schema_version": 1,
         "package": out.name,
         "version": args.version,
         "platform": args.platform,
         "environment": args.env,
         "files": files,
     }
-    (out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest_path = out / "MANIFEST.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out / "MANIFEST.sha256").write_text(
+        f"{sha256(manifest_path)}  MANIFEST.json\n",
+        encoding="ascii",
+    )
     archive = shutil.make_archive(str(out), "zip", out)
     print(f"package={out}")
     print(f"archive={archive}")

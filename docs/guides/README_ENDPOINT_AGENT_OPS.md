@@ -72,8 +72,19 @@ The daemon supports:
 
 ## Windows Service
 
-Install (place a filled-in `config.json` at `services\endpoint-agent\config.json` under
-`-RepoPath` first, or pass `-ConfigPath` to point elsewhere):
+For external deployment, build and extract the Windows package into its final,
+stable location. Review `config.json`, then run the packaged installer. It
+verifies `MANIFEST.sha256` and every payload file, copies only manifest-listed
+files to `%ProgramFiles%\Detector\EndpointAgent`, verifies that destination
+again, and only then creates the service. The destination must be empty:
+
+```powershell
+python verify_agent_package.py --package .
+powershell -ExecutionPolicy Bypass -File .\install-agent-service.ps1
+```
+
+For source-tree development only, the legacy installer path remains available
+after placing a filled-in `config.json` under `services\endpoint-agent`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy/agent/windows/install-agent-service.ps1 -RepoPath D:\project\Detector
@@ -87,20 +98,22 @@ powershell -ExecutionPolicy Bypass -File deploy/agent/windows/uninstall-agent-se
 
 ## Linux systemd
 
-Copy service file:
+For external deployment, build and extract the Linux package, review
+`config.json`, and run the packaged installer. Verification runs before user,
+file, or systemd mutation. Existing `/etc/detector/agent/config.json` is never
+overwritten:
 
 ```bash
-sudo cp deploy/agent/linux/detector-endpoint-agent.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now detector-endpoint-agent
+python3 verify_agent_package.py --package .
+sudo bash install-agent-service.sh
 ```
 
-Place a filled-in `config.json` (copied from `services/endpoint-agent/config.json.example`,
-with `ingestion_gateway_url`/`ingestion_gateway_secret`/`soc_api_url`/`enrollment_token`/
-`state_path`/`buffer_path` set) at `/etc/detector/agent/config.json` before starting the
-service — the unit file's `ExecStart` reads its configuration from that path, not from
-environment variables. Also confirm the working directory and `User=`/`Group=` in the unit
-file match your deployment.
+The installer requires `python3`, creates the bounded `detector` service user,
+installs the agent under `/opt/detector`, keeps state under `/var/lib/xdr-agent`,
+and installs configuration with group-readable mode `0640`. Use `--no-start`
+to install without enabling the service. Manifest SHA-256 is an integrity
+check, not publisher authentication; production distribution still requires a
+trusted external artifact signature.
 
 ## SOC Visibility
 
@@ -117,4 +130,3 @@ The dashboard shows:
 - event throughput
 - collection errors
 - agent version
-

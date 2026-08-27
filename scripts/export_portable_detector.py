@@ -73,6 +73,7 @@ SCRIPT_FILES = [
     "incident_intelligence.py",
     "detection_quality_report.py",
     "build_agent_package.py",
+    "verify_agent_package.py",
 ]
 
 MODEL_FILES = [

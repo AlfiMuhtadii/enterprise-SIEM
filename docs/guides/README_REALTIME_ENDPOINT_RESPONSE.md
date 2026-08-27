@@ -87,10 +87,22 @@ The package includes:
 - agent script
 - service template
 - embedded config JSON
-- package manifest
-- SHA-256 checksums
+- package manifest and detached manifest SHA-256
+- fail-closed payload verifier
+- platform service installer that verifies before service mutation
 - deployment README
 - zip archive
+
+After extracting, verify before installation:
+
+```powershell
+python verify_agent_package.py --package .
+```
+
+The installers run the same verification automatically. The checksum detects
+corruption and unexpected files, but does not authenticate the publisher. A
+trusted external artifact signature is still required before commercial
+distribution.
 
 ## SOC Visibility
 
@@ -103,4 +115,3 @@ The `/soc/agents` page now shows:
 - response workflows
 - pending approvals
 - command status
-
