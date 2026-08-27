@@ -100,6 +100,46 @@ class ReleasePolicyTests(unittest.TestCase):
         self.assertNotIn("TRIVY_PASSWORD", command_text)
         self.assertRegex(command[-1], r"@sha256:[0-9a-f]{64}$")
 
+    def test_scanner_config_keeps_inline_auth_and_drops_host_helpers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.json"
+            target = Path(temp_dir) / "scanner" / "config.json"
+            source.write_text(json.dumps({
+                "auths": {
+                    "ghcr.io": {"auth": "base64-credential", "email": "ignored@example.test"},
+                    "registry.example.test": {"identitytoken": "scoped-token"},
+                },
+                "credsStore": "desktop",
+                "credHelpers": {"ghcr.io": "desktop"},
+                "HttpHeaders": {"User-Agent": "Docker-Client"},
+            }), encoding="utf-8")
+
+            scanner.write_scanner_docker_config(source, target)
+            sanitized = json.loads(target.read_text(encoding="utf-8"))
+
+        self.assertEqual({
+            "auths": {
+                "ghcr.io": {"auth": "base64-credential"},
+                "registry.example.test": {"identitytoken": "scoped-token"},
+            }
+        }, sanitized)
+        self.assertNotIn("credsStore", sanitized)
+        self.assertNotIn("credHelpers", sanitized)
+
+    def test_helper_only_config_becomes_anonymous_scanner_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "source.json"
+            target = Path(temp_dir) / "scanner" / "config.json"
+            source.write_text(json.dumps({
+                "auths": {"https://index.docker.io/v1/": {}},
+                "credsStore": "desktop",
+            }), encoding="utf-8")
+
+            scanner.write_scanner_docker_config(source, target)
+            sanitized = json.loads(target.read_text(encoding="utf-8"))
+
+        self.assertEqual({"auths": {}}, sanitized)
+
     def test_release_reference_must_be_an_immutable_lowercase_digest(self) -> None:
         self.assertTrue(scanner.is_immutable_image_reference(
             "ghcr.io/example/detector@sha256:" + ("c" * 64)

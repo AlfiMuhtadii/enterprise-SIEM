@@ -148,6 +148,39 @@ def remote_trivy_command(image: str, output_dir: Path, docker_config_dir: Path) 
     ]
 
 
+def write_scanner_docker_config(source_path: Path, target_path: Path) -> None:
+    """Copy inline registry credentials without host-only credential helpers."""
+    payload = json.loads(source_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Docker registry config must be a JSON object")
+
+    auths = payload.get("auths") or {}
+    if not isinstance(auths, dict):
+        raise ValueError("Docker registry config auths must be a JSON object")
+
+    sanitized_auths: dict[str, dict[str, str]] = {}
+    for registry, credentials in auths.items():
+        if not isinstance(registry, str) or not isinstance(credentials, dict):
+            raise ValueError("Docker registry auth entries must be JSON objects")
+        inline_credentials = {
+            key: value
+            for key in ("auth", "identitytoken", "registrytoken")
+            if isinstance((value := credentials.get(key)), str) and value
+        }
+        if inline_credentials:
+            sanitized_auths[registry] = inline_credentials
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text(
+        json.dumps({"auths": sanitized_auths}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    try:
+        target_path.chmod(0o600)
+    except OSError:
+        pass
+
+
 def is_immutable_image_reference(image: str) -> bool:
     return IMMUTABLE_IMAGE_PATTERN.fullmatch(image) is not None
 
@@ -166,11 +199,25 @@ def scan_remote_image(image: str) -> dict[str, Any]:
 
     with tempfile.TemporaryDirectory(prefix="xdr-trivy-remote-", dir=temp_root) as temp_dir:
         output_dir = Path(temp_dir) / "output"
+        scanner_config_dir = Path(temp_dir) / "docker-config"
         output_dir.mkdir()
         report_path = output_dir / "result.json"
         try:
+            write_scanner_docker_config(
+                docker_config_dir / "config.json",
+                scanner_config_dir / "config.json",
+            )
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            return {
+                "image": image,
+                "status": "ERROR",
+                "detail": f"Invalid Docker registry config: {exc}",
+                "vulnerabilities": [],
+            }
+
+        try:
             proc = subprocess.run(
-                remote_trivy_command(image, output_dir, docker_config_dir),
+                remote_trivy_command(image, output_dir, scanner_config_dir),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
