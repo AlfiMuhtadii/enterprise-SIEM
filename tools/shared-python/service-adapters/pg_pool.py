@@ -42,13 +42,23 @@ def conninfo() -> Optional[str]:
     user = os.getenv("DB_USERNAME", "")
     if not host or not database or not user:
         return None
-    return psycopg.conninfo.make_conninfo(
-        host=host,
-        port=int(os.getenv("DB_PORT", "5432")),
-        dbname=database,
-        user=user,
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+    parameters = {
+        "host": host,
+        "port": int(os.getenv("DB_PORT", "5432")),
+        "dbname": database,
+        "user": user,
+        "password": os.getenv("DB_PASSWORD", ""),
+    }
+    for env_name, parameter in (
+        ("DB_SSLMODE", "sslmode"),
+        ("DB_SSLROOTCERT", "sslrootcert"),
+        ("DB_SSLCERT", "sslcert"),
+        ("DB_SSLKEY", "sslkey"),
+    ):
+        value = os.getenv(env_name, "")
+        if value:
+            parameters[parameter] = value
+    return psycopg.conninfo.make_conninfo(**parameters)
 
 
 def get_pool() -> Optional["ConnectionPool"]:

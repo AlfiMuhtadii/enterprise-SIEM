@@ -22,7 +22,8 @@ class TestConninfo(unittest.TestCase):
     def setUp(self):
         self._env_backup = dict(os.environ)
         for key in ("SECURITY_INGEST_DSN", "DATABASE_URL", "DB_HOST", "DB_DATABASE",
-                    "DB_USERNAME", "DB_PASSWORD", "DB_PORT"):
+                    "DB_USERNAME", "DB_PASSWORD", "DB_PORT", "DB_SSLMODE",
+                    "DB_SSLROOTCERT", "DB_SSLCERT", "DB_SSLKEY"):
             os.environ.pop(key, None)
 
     def tearDown(self):
@@ -54,6 +55,22 @@ class TestConninfo(unittest.TestCase):
         self.assertIsNotNone(info)
         self.assertIn("detector", info)
         self.assertIn("postgres", info)
+
+    def test_adds_nonempty_tls_parameters(self):
+        os.environ.update({
+            "DB_HOST": "postgres",
+            "DB_DATABASE": "detector",
+            "DB_USERNAME": "detector",
+            "DB_SSLMODE": "verify-full",
+            "DB_SSLROOTCERT": "/certs/ca.crt",
+            "DB_SSLCERT": "/certs/client.crt",
+            "DB_SSLKEY": "/certs/client.key",
+        })
+        info = pg_pool.conninfo()
+        self.assertIn("sslmode=verify-full", info)
+        self.assertIn("sslrootcert=/certs/ca.crt", info)
+        self.assertIn("sslcert=/certs/client.crt", info)
+        self.assertIn("sslkey=/certs/client.key", info)
 
     def test_none_when_psycopg_unavailable(self):
         os.environ["DB_HOST"] = "localhost"

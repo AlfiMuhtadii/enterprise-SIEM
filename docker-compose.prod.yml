@@ -48,6 +48,11 @@ services:
   # ---------------------------------------------------------------------------
   # Data stores: no external port exposure — access via docker exec or bastion
   # ---------------------------------------------------------------------------
+  postgres-tls-init:
+    environment:
+      POSTGRES_TLS_ENABLED: "true"
+      POSTGRES_TLS_REQUIRED: "true"
+
   postgres:
     ports: !reset []
     environment:
@@ -147,6 +152,14 @@ services:
 
   scheduler:
     restart: always
+
+  telemetry-worker:
+    environment:
+      SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:?DB_PASSWORD must be set to a strong value in production} sslmode=verify-full sslrootcert=/etc/xdr/postgres-certs/ca.crt sslcert=/etc/xdr/postgres-certs/client.crt sslkey=/etc/xdr/postgres-certs/client.key"
+
+  ml-shadow-detector:
+    environment:
+      SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:?DB_PASSWORD must be set to a strong value in production} sslmode=verify-full sslrootcert=/etc/xdr/postgres-certs/ca.crt sslcert=/etc/xdr/postgres-certs/client.crt sslkey=/etc/xdr/postgres-certs/client.key"
 
   # ---------------------------------------------------------------------------
   # Pipeline services: enforce internal auth; advisory-only consumer posture

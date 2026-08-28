@@ -41,6 +41,7 @@ SERVICE_SANS = [
     "incident-builder-service",
     "ai-rag-service",
     "redpanda",
+    "postgres",
     "opensearch",
     "localhost",
     "127.0.0.1",
@@ -74,8 +75,14 @@ def generate_ca(out_dir: Path) -> tuple:
     return ca_key, ca_crt
 
 
-def _san_config(sans: list) -> str:
-    lines = ["[req]", "distinguished_name=req", "[v3_req]", "subjectAltName=@alt_names", "[alt_names]"]
+def _san_config(sans: list, extended_key_usage: str) -> str:
+    lines = [
+        "[req]", "distinguished_name=req", "[v3_req]",
+        "basicConstraints=critical,CA:FALSE",
+        "keyUsage=critical,digitalSignature,keyEncipherment",
+        f"extendedKeyUsage={extended_key_usage}",
+        "subjectAltName=@alt_names", "[alt_names]",
+    ]
     for i, san in enumerate(sans, start=1):
         prefix = "IP" if san.replace(".", "").isdigit() else "DNS"
         lines.append(f"{prefix}.{i}={san}")
@@ -89,7 +96,7 @@ def generate_service_cert(out_dir: Path, name: str, common_name: str, sans: list
     crt_path = out_dir / f"{name}.crt"
     conf_path = out_dir / f"{name}.san.cnf"
 
-    conf_path.write_text(_san_config(sans), encoding="utf-8")
+    conf_path.write_text(_san_config(sans, extended_key_usage), encoding="utf-8")
 
     _run([
         "openssl", "req", "-newkey", "rsa:2048", "-nodes",
@@ -201,6 +208,14 @@ class TestInternalMtlsCertGenerator(unittest.TestCase):
                 self.assertIn("IP Address:127.0.0.1", text)
             else:
                 self.assertIn(san, text)
+
+    def test_leaf_certificates_have_scoped_extended_key_usage(self):
+        server_text = cert_sans(Path(self.paths["server_crt"]))
+        client_text = cert_sans(Path(self.paths["client_crt"]))
+        self.assertIn("TLS Web Server Authentication", server_text)
+        self.assertNotIn("TLS Web Client Authentication", server_text)
+        self.assertIn("TLS Web Client Authentication", client_text)
+        self.assertNotIn("TLS Web Server Authentication", client_text)
 
     def test_regenerating_produces_a_different_ca_each_time(self):
         # Each generate_all() call must mint a fresh CA (no accidental key reuse

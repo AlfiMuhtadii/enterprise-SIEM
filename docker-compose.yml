@@ -108,15 +108,59 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  postgres-tls-init:
+    image: alpine:3.20
+    container_name: detector-postgres-tls-init
+    environment:
+      POSTGRES_TLS_ENABLED: ${POSTGRES_TLS_ENABLED:-false}
+      POSTGRES_TLS_REQUIRED: ${POSTGRES_TLS_REQUIRED:-false}
+    volumes:
+      - detector_postgres_certs:/tls
+      - ./storage/certs/internal-mtls:/src/certs:ro
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        if [ "$$POSTGRES_TLS_ENABLED" = "true" ] && [ -f /src/certs/server.crt ] && [ -f /src/certs/server.key ] && [ -f /src/certs/ca.crt ] && [ -f /src/certs/client.crt ] && [ -f /src/certs/client.key ]; then
+          cp /src/certs/server.crt /src/certs/server.key /src/certs/ca.crt /src/certs/client.crt /src/certs/client.key /tls/
+          printf '%s\n' 'local all all trust' 'hostssl all all all scram-sha-256 clientcert=verify-ca' 'hostnossl all all all reject' > /tls/pg_hba.conf
+          chown 999:999 /tls/server.crt /tls/server.key /tls/pg_hba.conf
+          chown 0:44444 /tls/client.key
+          chmod 600 /tls/server.key
+          chmod 640 /tls/client.key
+          chmod 644 /tls/server.crt /tls/client.crt /tls/ca.crt /tls/pg_hba.conf
+          touch /tls/enabled
+          chown 999:999 /tls/enabled
+        elif [ "$$POSTGRES_TLS_REQUIRED" = "true" ]; then
+          echo 'PostgreSQL TLS certificates are required but missing' >&2
+          exit 1
+        else
+          rm -f /tls/enabled
+        fi
+    restart: "no"
+
   postgres:
     image: postgres:16
     container_name: detector-soc-postgres
+    depends_on:
+      postgres-tls-init:
+        condition: service_completed_successfully
     environment:
       POSTGRES_DB: ${DB_DATABASE:-detector}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - detector_pgdata:/var/lib/postgresql/data
+      - detector_postgres_certs:/etc/postgresql/tls:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        if [ -f /etc/postgresql/tls/enabled ]; then
+          exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/etc/postgresql/tls/server.crt -c ssl_key_file=/etc/postgresql/tls/server.key -c ssl_ca_file=/etc/postgresql/tls/ca.crt -c hba_file=/etc/postgresql/tls/pg_hba.conf
+        fi
+        exec docker-entrypoint.sh postgres
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -404,6 +448,14 @@ services:
       QUEUE_CONNECTION: database
       DB_HOST: postgres
       DB_PORT: 5432
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      DB_SSLROOTCERT: ${DB_SSLROOTCERT:-}
+      DB_SSLCERT: ${DB_SSLCERT:-}
+      DB_SSLKEY: ${DB_SSLKEY:-}
+    group_add:
+      - "44444"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -429,6 +481,14 @@ services:
       APP_DEBUG: "false"
       QUEUE_CONNECTION: database
       DB_HOST: postgres
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      DB_SSLROOTCERT: ${DB_SSLROOTCERT:-}
+      DB_SSLCERT: ${DB_SSLCERT:-}
+      DB_SSLKEY: ${DB_SSLKEY:-}
+    group_add:
+      - "44444"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=120"]
     depends_on:
       postgres:
@@ -452,6 +512,14 @@ services:
       APP_ENV: production
       APP_DEBUG: "false"
       DB_HOST: postgres
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      DB_SSLROOTCERT: ${DB_SSLROOTCERT:-}
+      DB_SSLCERT: ${DB_SSLCERT:-}
+      DB_SSLKEY: ${DB_SSLKEY:-}
+    group_add:
+      - "44444"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
     command: ["sh", "-lc", "while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
     depends_on:
       postgres:
@@ -484,6 +552,10 @@ services:
       XDR_CLICKHOUSE_DB: ${CLICKHOUSE_DB:-detector_analytics}
       XDR_CLICKHOUSE_USER: ${CLICKHOUSE_USER:-detector}
       XDR_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-detector}
+    group_add:
+      - "44444"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
     command: ["python3", "scripts/telemetry_stream_worker.py", "--topic", "telemetry.raw", "--bootstrap-servers", "redpanda:9092"]
     depends_on:
       postgres:
@@ -526,6 +598,10 @@ services:
       DB_HOST: postgres
       SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:-postgres}"
       DETECTOR_OUTPUT_MODE: ${DETECTOR_OUTPUT_MODE:-shadow}
+    group_add:
+      - "44444"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
     command:
       [
         "python3", "scripts/realtime_detector_consumer.py",
@@ -827,6 +903,10 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      DB_SSLROOTCERT: ${DB_SSLROOTCERT:-}
+      DB_SSLCERT: ${DB_SSLCERT:-}
+      DB_SSLKEY: ${DB_SSLKEY:-}
       # PERF-DB-CONN-LEAK: bounded psycopg_pool.ConnectionPool sizing
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
@@ -859,6 +939,10 @@ services:
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8095:8095"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
+    group_add:
+      - "44444"
     depends_on:
       - redpanda
       - postgres
@@ -878,6 +962,10 @@ services:
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-detector}
       DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
+      DB_SSLROOTCERT: ${DB_SSLROOTCERT:-}
+      DB_SSLCERT: ${DB_SSLCERT:-}
+      DB_SSLKEY: ${DB_SSLKEY:-}
       # PERF-DB-CONN-LEAK: bounded psycopg_pool.ConnectionPool sizing
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
@@ -896,6 +984,10 @@ services:
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8096:8096"
+    volumes:
+      - detector_postgres_certs:/etc/xdr/postgres-certs:ro
+    group_add:
+      - "44444"
     depends_on:
       - redpanda
       - postgres
@@ -911,6 +1003,7 @@ volumes:
   detector_tempo_data:
   detector_redpanda_config:
   detector_redpanda_certs:
+  detector_postgres_certs:
   detector_opensearch_tls_data:
   detector_opensearch_tls_certs:
   o365-connector-state:
