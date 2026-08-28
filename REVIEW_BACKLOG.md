@@ -136,7 +136,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: ENT-TENANCY-NO-DB-ENFORCEMENT — Enable strict PostgreSQL RLS policies
 
-- **Work status:** Ongoing (Codex, 2026-08-28); auditing the existing request-context draft, database-role behavior, connection-pool cleanup, migration safety, and policy coverage before integration.
+- **Work status:** Ongoing (Codex, 2026-08-29). Prerequisite phase completed in `c97b400`: authenticated web/API requests can now set a validated, transaction-local `app.tenant_id` through a feature-gated middleware. The context owner rejects empty tenants and pre-existing transactions, detects unbalanced callback transactions, and rolls back every nested level on failure. PostgreSQL mTLS validation passed 9 tests / 16 assertions. RLS policies remain disabled pending explicit owner-role, `FORCE ROW LEVEL SECURITY`, fail-open/system-context, and full table-coverage verification.
 - **Priority:** High
 - **Component:** PostgreSQL schema migrations, `app/Services/TenantBoundaryService.php`
 - **Finding:** Currently, multi-tenant isolation is enforced at the application layer (`where('tenant_id')`). There is no active Row-Level Security (RLS) enforcement at the database layer.
