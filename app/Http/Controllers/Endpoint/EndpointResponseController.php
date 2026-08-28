@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\EndpointAgent;
 use App\Models\EndpointResponseCommand;
 use App\Services\EndpointResponseCommandService;
+use App\Services\TenantBoundaryService;
+use App\Services\TenantContextAuthority;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -16,22 +18,34 @@ use Illuminate\View\View;
  */
 class EndpointResponseController extends Controller
 {
-    public function __construct(private EndpointResponseCommandService $commandService) {}
+    public function __construct(
+        private EndpointResponseCommandService $commandService,
+        private TenantBoundaryService $tenantBoundary,
+        private TenantContextAuthority $tenantAuthority,
+    ) {}
 
     // -----------------------------------------------------------------------
     // Response queue — commands awaiting approval or recently dispatched
     // -----------------------------------------------------------------------
 
-    public function queue(): View
+    public function queue(Request $request): View
     {
-        $pending = EndpointResponseCommand::whereIn('status', [
+        $tenantId = $this->tenantAuthority->validateAndResolve(
+            $request,
+            $request->user(),
+            requireTenantContext: true,
+        );
+
+        $pendingQuery = $this->tenantBoundary->scopeQuery(EndpointResponseCommand::query(), $tenantId);
+        $pending = $pendingQuery->whereIn('status', [
             EndpointResponseCommand::STATUS_DRAFT,
             EndpointResponseCommand::STATUS_PENDING_APPROVAL,
             EndpointResponseCommand::STATUS_APPROVED,
             EndpointResponseCommand::STATUS_DISPATCHED,
         ])->with('agent')->orderByDesc('created_at')->paginate(20);
 
-        $recent = EndpointResponseCommand::whereIn('status', [
+        $recentQuery = $this->tenantBoundary->scopeQuery(EndpointResponseCommand::query(), $tenantId);
+        $recent = $recentQuery->whereIn('status', [
             EndpointResponseCommand::STATUS_COMPLETED,
             EndpointResponseCommand::STATUS_FAILED,
             EndpointResponseCommand::STATUS_CANCELLED,
@@ -44,11 +58,13 @@ class EndpointResponseController extends Controller
     // Command detail + approval panel
     // -----------------------------------------------------------------------
 
-    public function show(string $commandId): View
+    public function show(Request $request, string $commandId): View
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)
-            ->with(['agent', 'events', 'createdBy', 'approvedBy'])
-            ->firstOrFail();
+        $command = $this->commandForTenant(
+            $request,
+            $commandId,
+            ['agent', 'events', 'createdBy', 'approvedBy'],
+        );
 
         return view('endpoint.response-detail', compact('command'));
     }
@@ -64,7 +80,14 @@ class EndpointResponseController extends Controller
             'command_type' => 'required|string|max:40',
         ]);
 
+        $tenantId = $this->tenantAuthority->validateAndResolve(
+            $request,
+            $request->user(),
+            requireTenantContext: true,
+            requireExplicitScope: true,
+        );
         $agent = EndpointAgent::findOrFail($request->input('agent_id'));
+        $this->tenantBoundary->assertAccess($agent->tenant_id, $tenantId);
 
         try {
             $command = $this->commandService->createCommand(
@@ -85,12 +108,12 @@ class EndpointResponseController extends Controller
     // Submit for approval
     // -----------------------------------------------------------------------
 
-    public function submit(string $commandId): RedirectResponse
+    public function submit(Request $request, string $commandId): RedirectResponse
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)->firstOrFail();
+        $command = $this->commandForTenant($request, $commandId);
 
         try {
-            $this->commandService->submitForApproval($command, request()->user()->id);
+            $this->commandService->submitForApproval($command, $request->user()->id);
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['state' => $e->getMessage()]);
         }
@@ -105,7 +128,7 @@ class EndpointResponseController extends Controller
 
     public function approve(Request $request, string $commandId): RedirectResponse
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)->firstOrFail();
+        $command = $this->commandForTenant($request, $commandId);
 
         try {
             $this->commandService->approve($command, $request->user()->id, $request->input('note'));
@@ -123,7 +146,7 @@ class EndpointResponseController extends Controller
 
     public function reject(Request $request, string $commandId): RedirectResponse
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)->firstOrFail();
+        $command = $this->commandForTenant($request, $commandId);
 
         try {
             $this->commandService->reject($command, $request->user()->id, $request->input('reason', ''));
@@ -139,12 +162,12 @@ class EndpointResponseController extends Controller
     // Cancel command
     // -----------------------------------------------------------------------
 
-    public function cancel(string $commandId): RedirectResponse
+    public function cancel(Request $request, string $commandId): RedirectResponse
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)->firstOrFail();
+        $command = $this->commandForTenant($request, $commandId);
 
         try {
-            $this->commandService->cancel($command, request()->user()->id);
+            $this->commandService->cancel($command, $request->user()->id);
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['state' => $e->getMessage()]);
         }
@@ -157,17 +180,33 @@ class EndpointResponseController extends Controller
     // Dispatch approved command to agent
     // -----------------------------------------------------------------------
 
-    public function dispatch(string $commandId): RedirectResponse
+    public function dispatch(Request $request, string $commandId): RedirectResponse
     {
-        $command = EndpointResponseCommand::where('command_id', $commandId)->firstOrFail();
+        $command = $this->commandForTenant($request, $commandId);
 
         try {
-            $this->commandService->dispatch($command, request()->user()->id);
+            $this->commandService->dispatch($command, $request->user()->id);
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['state' => $e->getMessage()]);
         }
 
         return redirect()->route('endpoint.response.show', $commandId)
             ->with('success', "Command {$commandId} dispatched to agent.");
+    }
+
+    private function commandForTenant(Request $request, string $commandId, array $with = []): EndpointResponseCommand
+    {
+        $tenantId = $this->tenantAuthority->validateAndResolve(
+            $request,
+            $request->user(),
+            requireTenantContext: true,
+        );
+        $command = EndpointResponseCommand::where('command_id', $commandId)
+            ->with($with)
+            ->firstOrFail();
+
+        $this->tenantBoundary->assertAccess($command->tenant_id, $tenantId);
+
+        return $command;
     }
 }

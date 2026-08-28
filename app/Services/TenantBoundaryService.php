@@ -52,6 +52,10 @@ class TenantBoundaryService
         'tenant_membership_audit_events',
         // AGENT-TENANCY-GAP: endpoint fleet scoping
         'endpoint_agents',
+        // TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION: both the current
+        // approval workflow and retained legacy command history are mutable.
+        'endpoint_response_commands',
+        'agent_commands',
         // TENANT-UNSCOPED-TABLES: workflow and graph tables
         'investigations',
         'response_plans',
@@ -99,6 +103,8 @@ class TenantBoundaryService
         'security_incidents',
         'dlq_records',
         'endpoint_agents',
+        'endpoint_response_commands',
+        'agent_commands',
         'investigations',
         'response_plans',
         'entities',

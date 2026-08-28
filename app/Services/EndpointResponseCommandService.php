@@ -49,6 +49,7 @@ class EndpointResponseCommandService
         $command = EndpointResponseCommand::create([
             'command_id'   => EndpointResponseCommand::generateCommandId(),
             'agent_id'     => $agent->id,
+            'tenant_id'    => $agent->tenant_id,
             'command_type' => $commandType,
             'status'       => EndpointResponseCommand::STATUS_DRAFT,
             'parameters'   => $parameters,

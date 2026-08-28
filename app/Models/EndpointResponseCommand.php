@@ -61,7 +61,7 @@ class EndpointResponseCommand extends Model
     ];
 
     protected $fillable = [
-        'command_id', 'agent_id', 'command_type', 'status',
+        'command_id', 'agent_id', 'tenant_id', 'command_type', 'status',
         'parameters', 'result', 'error_message',
         'created_by', 'approved_by', 'approved_at',
         'dispatched_at', 'acknowledged_at', 'completed_at',
