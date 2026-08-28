@@ -159,7 +159,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-POLYGLOT-COVERAGE - Align CI with the Current Runtime and Validation Contract
 
-- **Status:** Completed (Codex, 2026-08-25) - split CI, static analysis, governance, Compose/image validation, and docs alignment are represented. GitHub runner validation built and scanned the production app image using the deterministic `detector-ci-app` reference; the stale production-profile test fixture for `XDR_AI_RAG_INTERNAL_TOKEN` is also fixed.
+- **Status:** Ongoing (Codex, 2026-08-28) - upgrading deprecated Node 20 GitHub Actions to pinned Node 24 releases across required workflows; existing coverage remains active.
 - **Priority:** High
 - **Component:** `.github/workflows/ci.yml`, `docs/ci/validation-pipeline.md`, all Go/Python service suites, current Compose files
 - **Finding:** CI tests PHP and frontend only, compiles Python only under `scripts/`, runs no Go checks or Python service/endpoint-agent suites, and builds the legacy 4-service `infra/production/docker-compose.production.yml` instead of the current polyglot stack. Documented merge gates and `AGENTS.md` commands are not represented in the workflow.
