@@ -149,7 +149,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-MERGE-GATE - Restore Green CI and Protect the Default Branch
 
-- **Status:** Ongoing (Codex, 2026-08-28) - diagnosing the `services/normalizer-worker` CI regression from run `33144352589`; branch protection remains active.
+- **Status:** Completed (Codex, 2026-08-28) - commit `ed57739` fixed the normalizer Kafka multi-record fetch test flake; remote runs `33150262874` (`ci`, including `Required Gate`), `33150262868` (`phase9-contract`), and `33150262867` (`security-scan`) passed. Branch protection remains active.
 - **Priority:** High
 - **Component:** `.github/workflows/*.yml`, GitHub branch protection/rulesets
 - **Finding:** Clean GitHub runners exposed repository-state dependencies hidden by the local dirty worktree: missing Python service dependencies, missing canonical Kafka adapter copies, an unversioned Trivy scanner and rule pack, mutable rule storage assumed to exist, non-portable Compose image lookup, stale fixtures, PHPStan baseline drift, and race-unsafe Go tests.
