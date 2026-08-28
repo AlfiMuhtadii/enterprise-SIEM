@@ -198,6 +198,7 @@ func main() {
 	// needed when the event loop itself is enabled.
 	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
 		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
+		w.group = nativeConsumerGroup(w.group, env("XDR_CORRELATION_NATIVE_GROUP", ""))
 		kafkaTLSEnabled := envBool("XDR_REDPANDA_KAFKA_TLS_ENABLED", false)
 		kafkaTLS, err := kafkanative.LoadTLSConfig(
 			kafkaTLSEnabled,
@@ -772,6 +773,13 @@ func splitBrokers(raw string) []string {
 		}
 	}
 	return out
+}
+
+func nativeConsumerGroup(configured, override string) string {
+	if override != "" {
+		return override
+	}
+	return configured + "-native"
 }
 
 func (w *Worker) correlateHTTP(rw http.ResponseWriter, r *http.Request) {

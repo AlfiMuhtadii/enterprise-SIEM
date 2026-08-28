@@ -64,11 +64,12 @@ services:
       - "0"
       - --check=false
       - --kafka-addr
-      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092,INTERNAL_TLS://0.0.0.0:9093,OUTSIDE_TLS://0.0.0.0:19093
       - --advertise-kafka-addr
-      - PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092
+      - PLAINTEXT://redpanda:9092,OUTSIDE://127.0.0.1:19092,INTERNAL_TLS://redpanda:9093,OUTSIDE_TLS://127.0.0.1:19093
     ports:
       - "19092:19092"
+      - "127.0.0.1:19093:19093"
       - "9644:9644"
       # Pandaproxy REST API — unauthenticated, internal-only boundary.
       # Exposed on 127.0.0.1 for local demo only. Remove or firewall in non-local deployments.
@@ -555,10 +556,13 @@ services:
       XDR_REDPANDA_REST_URL: http://redpanda:8082
       # ARCH-KAFKA-NATIVE: off by default (pandaproxy) -- set XDR_KAFKA_TRANSPORT=native
       # to use the native binary Kafka protocol instead of the Pandaproxy REST proxy.
-      # Port 9092 is already the redpanda service's internal (container-network-only)
-      # native listener -- no compose/network changes needed to opt in.
+      # Plaintext stays on container port 9092; opt-in TLS uses 9093.
       XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
-      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
+      XDR_REDPANDA_KAFKA_BROKERS: ${XDR_REDPANDA_KAFKA_BROKERS:-redpanda:9092}
+      XDR_REDPANDA_KAFKA_TLS_ENABLED: ${XDR_REDPANDA_KAFKA_TLS_ENABLED:-false}
+      XDR_REDPANDA_KAFKA_CA_CERT: ${XDR_REDPANDA_KAFKA_CA_CERT:-/etc/xdr/internal-certs/ca.crt}
+      XDR_REDPANDA_KAFKA_CLIENT_CERT: ${XDR_REDPANDA_KAFKA_CLIENT_CERT:-}
+      XDR_REDPANDA_KAFKA_CLIENT_KEY: ${XDR_REDPANDA_KAFKA_CLIENT_KEY:-}
       XDR_INGEST_SECRET: ${XDR_INGEST_SECRET:-dev-secret-change-me}
       XDR_RAW_TOPIC: telemetry.raw
       XDR_INGEST_RPS: 100
@@ -572,6 +576,8 @@ services:
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8091:8091"
+    volumes:
+      - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
     depends_on:
       - redpanda
     restart: unless-stopped
@@ -585,7 +591,12 @@ services:
       XDR_REDPANDA_REST_URL: http://redpanda:8082
       # ARCH-KAFKA-NATIVE: see ingestion-gateway's env block above for detail.
       XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
-      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
+      XDR_REDPANDA_KAFKA_BROKERS: ${XDR_REDPANDA_KAFKA_BROKERS:-redpanda:9092}
+      XDR_REDPANDA_KAFKA_TLS_ENABLED: ${XDR_REDPANDA_KAFKA_TLS_ENABLED:-false}
+      XDR_REDPANDA_KAFKA_CA_CERT: ${XDR_REDPANDA_KAFKA_CA_CERT:-/etc/xdr/internal-certs/ca.crt}
+      XDR_REDPANDA_KAFKA_CLIENT_CERT: ${XDR_REDPANDA_KAFKA_CLIENT_CERT:-}
+      XDR_REDPANDA_KAFKA_CLIENT_KEY: ${XDR_REDPANDA_KAFKA_CLIENT_KEY:-}
+      XDR_NORMALIZER_NATIVE_GROUP: ${XDR_NORMALIZER_NATIVE_GROUP:-}
       XDR_RAW_TOPIC: telemetry.raw
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_NORMALIZER_DLQ_TOPIC: telemetry.normalization_failed
@@ -602,6 +613,8 @@ services:
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8092:8092"
+    volumes:
+      - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
     depends_on:
       - redpanda
     restart: unless-stopped
@@ -757,7 +770,12 @@ services:
       XDR_REDPANDA_REST_URL: http://redpanda:8082
       # ARCH-KAFKA-NATIVE: see ingestion-gateway's env block for detail.
       XDR_KAFKA_TRANSPORT: ${XDR_KAFKA_TRANSPORT:-pandaproxy}
-      XDR_REDPANDA_KAFKA_BROKERS: redpanda:9092
+      XDR_REDPANDA_KAFKA_BROKERS: ${XDR_REDPANDA_KAFKA_BROKERS:-redpanda:9092}
+      XDR_REDPANDA_KAFKA_TLS_ENABLED: ${XDR_REDPANDA_KAFKA_TLS_ENABLED:-false}
+      XDR_REDPANDA_KAFKA_CA_CERT: ${XDR_REDPANDA_KAFKA_CA_CERT:-/etc/xdr/internal-certs/ca.crt}
+      XDR_REDPANDA_KAFKA_CLIENT_CERT: ${XDR_REDPANDA_KAFKA_CLIENT_CERT:-}
+      XDR_REDPANDA_KAFKA_CLIENT_KEY: ${XDR_REDPANDA_KAFKA_CLIENT_KEY:-}
+      XDR_CORRELATION_NATIVE_GROUP: ${XDR_CORRELATION_NATIVE_GROUP:-}
       XDR_NORMALIZED_TOPIC: telemetry.normalized
       XDR_ALERTS_TOPIC: xdr.alerts
       XDR_CORRELATION_DLQ_TOPIC: xdr.alerts.dlq
@@ -773,6 +791,8 @@ services:
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8093:8093"
+    volumes:
+      - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
     depends_on:
       - redpanda
     restart: unless-stopped

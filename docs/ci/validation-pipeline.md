@@ -145,6 +145,7 @@ npm ci
 npm run build
 cp .env.production.example .env
 docker compose config --quiet
+python scripts/xdr_kafka_tls_compose_validate.py --output reports/ci_kafka_tls_compose_validation.json
 docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 docker compose --env-file .env.production.example -f infra/production/docker-compose.production.yml config --quiet
 docker compose --project-name detector-ci --profile app build app

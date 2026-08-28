@@ -1,14 +1,8 @@
-# ENT-SEC-NO-TLS-INTERNAL (phase 8): Pandaproxy TLS.
+# ENT-SEC-NO-TLS-INTERNAL: additive Pandaproxy and native Kafka TLS.
 #
-# Only the pandaproxy listener topology moves into this file -- everything
-# else (kafka-addr, node-id, smp/memory/overprovisioned Seastar flags) stays
-# on redpanda's `command:` CLI args in docker-compose.yml exactly as before,
-# since pandaproxy TLS is a per-named-listener setting that has no CLI flag
-# equivalent (confirmed: there is no `--pandaproxy-api-tls` flag; it only
-# exists in this YAML). Adding a second, TLS-only listener alongside the
-# existing plaintext one is additive -- the plaintext listener on 8082
-# keeps working unchanged for every current REST consumer; TLS on 8083 is
-# opt-in.
+# Listener addresses, node ID, and resource flags remain in docker-compose.yml.
+# Per-listener TLS policies live here because Redpanda has no equivalent CLI
+# flag. Both APIs retain their plaintext listeners; TLS is additive and opt-in.
 pandaproxy:
   pandaproxy_api:
     - name: internal
@@ -31,6 +25,19 @@ pandaproxy:
       # session's convention of additive, low-friction opt-in over forcing a
       # full mTLS cutover on infrastructure Go/Python clients don't already
       # have mTLS wiring for.
+      require_client_auth: false
+      cert_file: /etc/redpanda-certs/server.crt
+      key_file: /etc/redpanda-certs/server.key
+
+redpanda:
+  kafka_api_tls:
+    - name: INTERNAL_TLS
+      enabled: true
+      require_client_auth: false
+      cert_file: /etc/redpanda-certs/server.crt
+      key_file: /etc/redpanda-certs/server.key
+    - name: OUTSIDE_TLS
+      enabled: true
       require_client_auth: false
       cert_file: /etc/redpanda-certs/server.crt
       key_file: /etc/redpanda-certs/server.key

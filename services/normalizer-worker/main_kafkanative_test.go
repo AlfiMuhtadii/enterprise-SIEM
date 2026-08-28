@@ -16,9 +16,16 @@ import (
 // against a real in-process fake Kafka broker (franz-go's kfake), speaking
 // the genuine Kafka wire protocol -- not a mocked HTTP server like the
 // Pandaproxy-path tests in main_test.go. There is no live Redpanda/Docker
-// daemon in this environment, so this is the strongest verification
-// available here; the CLAUDE.md-mandated live-pipeline verifier against a
-// real Redpanda broker remains a separate, explicitly deferred step.
+// daemon. A separate live validator covers the real Redpanda TLS listener.
+
+func TestNativeConsumerGroupIsolatedFromPandaproxy(t *testing.T) {
+	if got := nativeConsumerGroup("normalizer-v1", ""); got != "normalizer-v1-native" {
+		t.Fatalf("unexpected derived native group: %s", got)
+	}
+	if got := nativeConsumerGroup("normalizer-v1", "normalizer-cutover"); got != "normalizer-cutover" {
+		t.Fatalf("explicit native group ignored: %s", got)
+	}
+}
 
 func newKfakeCluster(t *testing.T, topics ...string) []string {
 	t.Helper()
