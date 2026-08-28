@@ -159,7 +159,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ## Proposed Task: CICD-POLYGLOT-COVERAGE - Align CI with the Current Runtime and Validation Contract
 
-- **Status:** Ongoing (Codex, 2026-08-28) - upgrading deprecated Node 20 GitHub Actions to pinned Node 24 releases across required workflows; existing coverage remains active.
+- **Status:** Completed (Codex, 2026-08-28) - commit `cd509b8` pins all 47 remote workflow actions to immutable SHAs, upgrades required actions to verified Node 24 releases, and enforces the policy in governance with 5 validator tests. Remote runs `33160184104` (`ci`, including `Required Gate`), `33160184188` (`phase9-contract`), and `33160184213` (`security-scan`) passed without the Node 20 deprecation warning.
 - **Priority:** High
 - **Component:** `.github/workflows/ci.yml`, `docs/ci/validation-pipeline.md`, all Go/Python service suites, current Compose files
 - **Finding:** CI tests PHP and frontend only, compiles Python only under `scripts/`, runs no Go checks or Python service/endpoint-agent suites, and builds the legacy 4-service `infra/production/docker-compose.production.yml` instead of the current polyglot stack. Documented merge gates and `AGENTS.md` commands are not represented in the workflow.
