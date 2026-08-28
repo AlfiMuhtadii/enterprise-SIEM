@@ -88,10 +88,9 @@ func produceRaw(t *testing.T, brokers []string, topic string, value []byte) {
 	}
 }
 
-// consumeAllRaw drains every record currently on topic via a plain kgo
-// consumer (no group -- direct partition consumption), used to inspect what
-// publishNative()/consumeOnceNative() actually wrote.
-func consumeAllRaw(t *testing.T, brokers []string, topic string, timeout time.Duration) [][]byte {
+// consumeRawUntilCount drains records via a plain kgo consumer (no group --
+// direct partition consumption) until the assertion's expected count arrives.
+func consumeRawUntilCount(t *testing.T, brokers []string, topic string, expected int, timeout time.Duration) [][]byte {
 	t.Helper()
 	cl, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
@@ -112,7 +111,7 @@ func consumeAllRaw(t *testing.T, brokers []string, topic string, timeout time.Du
 		fetches.EachRecord(func(r *kgo.Record) {
 			out = append(out, r.Value)
 		})
-		if len(out) > 0 {
+		if len(out) >= expected {
 			return out
 		}
 	}
@@ -129,7 +128,7 @@ func TestNativePublishWritesRealKafkaRecords(t *testing.T) {
 		t.Fatalf("publish: %v", err)
 	}
 
-	values := consumeAllRaw(t, brokers, "telemetry.normalized", 5*time.Second)
+	values := consumeRawUntilCount(t, brokers, "telemetry.normalized", 2, 5*time.Second)
 	if len(values) != 2 {
 		t.Fatalf("expected 2 records on telemetry.normalized, got %d", len(values))
 	}
@@ -158,7 +157,7 @@ func TestNativeConsumeOnceForwardsCleanRecordsToOutputTopic(t *testing.T) {
 		close(done)
 	}()
 
-	values := consumeAllRaw(t, brokers, "telemetry.normalized", 10*time.Second)
+	values := consumeRawUntilCount(t, brokers, "telemetry.normalized", 1, 10*time.Second)
 	w.nativeConsumer.Close() // force the poll loop to error out and return
 	<-done
 
@@ -185,7 +184,7 @@ func TestNativeConsumeOnceCommitsOffsetSoRecordIsNotRedelivered(t *testing.T) {
 		w.consumeOnceNative()
 		close(done)
 	}()
-	_ = consumeAllRaw(t, brokers, "telemetry.normalized", 10*time.Second)
+	_ = consumeRawUntilCount(t, brokers, "telemetry.normalized", 1, 10*time.Second)
 	w.nativeConsumer.Close()
 	<-done
 
@@ -256,8 +255,8 @@ func TestNativeConsumeOnceIsolatesPoisonRecordToDLQAndSkipsIt(t *testing.T) {
 		close(done)
 	}()
 
-	dlqValues := consumeAllRaw(t, brokers, "telemetry.normalization_failed", 10*time.Second)
-	forwardedValues := consumeAllRaw(t, brokers, "telemetry.normalized", 10*time.Second)
+	dlqValues := consumeRawUntilCount(t, brokers, "telemetry.normalization_failed", 1, 10*time.Second)
+	forwardedValues := consumeRawUntilCount(t, brokers, "telemetry.normalized", 1, 10*time.Second)
 	w.nativeConsumer.Close()
 	<-done
 
