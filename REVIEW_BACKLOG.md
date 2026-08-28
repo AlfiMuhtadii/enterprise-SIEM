@@ -30,6 +30,10 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **ARCH-DISCOVERY** | [Enterprise infra — promoted 2026-07-06] Static hostnames only; multi-node needs DNS/service discovery + internal LB. Belongs with a real multi-node deploy (ties ENT-REL-SIMULATED-HA / HA-DRILL-01) | `docker-compose*.yml`, deploy manifests | Medium | Proposed (staged — infra) |
 
 > **This file tracks only pending/open tasks.** Completed tasks live in `REVIEW_COMPLETED.md`; rejected/deferred in `REVIEW_REJECTED.md`.
+
+### Active Phase: ENT-SEC-NO-TLS-INTERNAL - Laravel PostgreSQL TLS Client Wiring
+
+- **Status:** Ongoing (Codex, 2026-08-28) - wiring Laravel's native PostgreSQL `sslrootcert`/`sslcert`/`sslkey` DSN options as an opt-in client phase; PostgreSQL server-side TLS activation remains separate.
 >
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
 >

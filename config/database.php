@@ -83,13 +83,13 @@ return [
             'search_path' => 'public',
             // ENT-SEC-NO-TLS-INTERNAL: configurable, default unchanged
             // ('prefer' — opportunistic TLS, matches prior hardcoded
-            // behavior byte-for-byte). An operator with a real Postgres TLS
-            // setup can tighten this to 'verify-full' via DB_SSLMODE without
-            // a code change. Full mutual TLS (client cert via sslcert/
-            // sslkey/sslrootcert) is NOT wired here — verifying that DSN
-            // path needs a live Postgres server with real certs configured,
-            // which this environment cannot provision or verify.
+            // behavior byte-for-byte). Production can use verify-full plus a
+            // private CA and, when the server requires mTLS, a client cert/key.
+            // Blank paths become null so Laravel omits them from the PDO DSN.
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            'sslrootcert' => env('DB_SSLROOTCERT') ?: null,
+            'sslcert' => env('DB_SSLCERT') ?: null,
+            'sslkey' => env('DB_SSLKEY') ?: null,
         ],
 
         'sqlsrv' => [
