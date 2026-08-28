@@ -14,6 +14,7 @@ from typing import Dict, List, Tuple
 
 BOOL_FALSE = {"false", "0", "no", "off"}
 BOOL_TRUE = {"true", "1", "yes", "on"}
+PG_SSL_MODES = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
 
 
 def parse_env(path: Path) -> Dict[str, str]:
@@ -45,6 +46,18 @@ def require(env: Dict[str, str], key: str, errors: List[str]) -> str:
     return value
 
 
+def validate_postgres_tls(env: Dict[str, str], errors: List[str]) -> None:
+    mode = env.get("DB_SSLMODE", "prefer").strip().lower()
+    if mode not in PG_SSL_MODES:
+        errors.append(f"DB_SSLMODE must be one of {', '.join(sorted(PG_SSL_MODES))}")
+    if mode in {"verify-ca", "verify-full"} and not env.get("DB_SSLROOTCERT", "").strip():
+        errors.append(f"DB_SSLROOTCERT is required when DB_SSLMODE={mode}")
+    cert = bool(env.get("DB_SSLCERT", "").strip())
+    key = bool(env.get("DB_SSLKEY", "").strip())
+    if cert != key:
+        errors.append("DB_SSLCERT and DB_SSLKEY must be configured together")
+
+
 def validate(profile: str, env: Dict[str, str], allow_placeholders: bool = False) -> Tuple[List[str], List[str]]:
     errors: List[str] = []
     warnings: List[str] = []
@@ -65,6 +78,7 @@ def validate(profile: str, env: Dict[str, str], allow_placeholders: bool = False
         return errors, warnings
 
     if profile in {"staging", "production"}:
+        validate_postgres_tls(env, errors)
         if env.get("APP_ENV") != profile:
             errors.append(f"APP_ENV must be {profile}")
         if not is_false(env.get("APP_DEBUG", "")):
