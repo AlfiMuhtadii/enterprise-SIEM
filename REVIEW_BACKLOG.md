@@ -17,7 +17,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **INTERNAL-RUNTIME-SDK** (phases 1/2/3 done — mTLS + delivery-retry Go drift guardrails, Python event-contract/tracing/OTLP/pool/Kafka adapter dedup; only full cross-module extraction, blocked by Docker build-context, remains) | Consolidate duplicated mTLS, delivery, event-contract, tracing, pool, and Kafka helpers into reviewed internal packages. See detail section below | Go/Python service shared runtime helpers | Medium | Proposed (reduced) |
 | **TENANT-FORENSIC-ISOLATION** | [Security] Add tenant isolation to forensic collection requests and audit building. | `app/Http/Controllers/SocForensicController.php` | High | Completed (existing implementation `93b85e8`; verified Codex, 2026-08-28) |
 | **TENANT-HUNT-CORRELATION-ISOLATION** | [Security] Add tenant isolation to threat hunt query correlations and saved sessions. | `app/Http/Controllers/SocHuntController.php` | High | Completed (existing implementation `93b85e8`; verified Codex, 2026-08-28) |
-| **TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION** | [Security] Scope endpoint response command queues and approvals by active tenant ID. | `app/Http/Controllers/Endpoint/EndpointResponseController.php` | High | Ongoing (Codex, 2026-08-28) |
+| **TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION** | [Security] Scope endpoint response command queues and approvals by active tenant ID. | `app/Http/Controllers/Endpoint/EndpointResponseController.php` | High | Completed (`7392039`; Codex, 2026-08-28) |
 | **PERF-REDACTION-OVERHEAD** | [Performance] Optimize double serialization and redundant regex overhead in trace redaction. | `app/Support/TraceRedactor.php`, `app/Services/SiemSearchService.php` | Medium | Completed (implementation `7753629`; benchmark verified Codex, 2026-08-26) |
 
 ### Tabel B: Tugas Infrastruktur Produksi & Layanan Cloud (Memerlukan Modal / Cloud)
@@ -232,14 +232,14 @@ QA-STATIC-ANALYSIS, API-VERSIONING) are now done as bounded first phases — see
 - **Proposed Fix:** Scope the `savedHunts` and `huntRuns` view queries to the active tenant. Ensure the correlated alerts query in `queryTelemetry()` filters on the active tenant ID.
 - **Validation Gate:** Running a threat hunt as Tenant A only returns Tenant A's correlated alerts, and the saved/run tables only render histories belonging to the active tenant.
 
-## Proposed Task: TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION — Scope Endpoint Response Approvals
+## Completed Task: TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION — Scope Endpoint Response Approvals
 
-- **Work status:** Ongoing (Codex, 2026-08-28); auditing command schemas, queue listings, and all state-transition routes before implementation.
+- **Work status:** Completed by Codex on 2026-08-28 in commit `7392039`. Both command tables now persist tenant ownership, existing rows are backfilled from their endpoint agent, command creation inherits the agent tenant, and every response queue/detail/state-transition route enforces the validated active tenant. The retained legacy command history in `SocAgentController` is tenant-scoped as well.
 - **Priority:** High
 - **Component:** `app/Http/Controllers/Endpoint/EndpointResponseController.php`, `app/Http/Controllers/SocAgentController.php`
 - **Finding:** `EndpointResponseController` and `SocAgentController` query `endpoint_response_commands` and `agent_commands` globally without active tenant context filters. Any analyst can view all queued commands, see details of execution histories across all tenants, and approve, cancel, or reject commands belonging to other tenants.
-- **Proposed Fix:** Scope all list, show, store, and transition execution routes in `EndpointResponseController` by the resolved active tenant. Ensure the commands overview and queue queries in `SocAgentController` filter by the active tenant ID.
-- **Validation Gate:** Accessing a command belonging to another tenant returns a 403/404, and the queues show only commands related to the current analyst's tenant.
+- **Implemented Fix:** Added nullable indexed `tenant_id` ownership and agent-derived backfill to `endpoint_response_commands` and `agent_commands`; registered both as mutable isolated tables; persisted tenant lineage in `EndpointResponseCommandService`; and enforced tenant context on response creation, lists, details, all five transition actions, and legacy SOC command history.
+- **Validation Gate:** PASS against an isolated Docker PostgreSQL database over production-style mTLS. `EndpointResponseCommandTenantIsolationTest`, `EndpointResponseCommandTest`, and `SocAgentManagementTest` completed with 40 tests / 116 assertions. Cross-tenant detail, submit, approve, reject, cancel, dispatch, and store requests return 403; pending/recent response queues and legacy command history only render the active tenant.
 
 ## Completed Task: PERF-REDACTION-OVERHEAD — Eliminate Double Serialization and Optimise Regex Scans in Redactor
 
