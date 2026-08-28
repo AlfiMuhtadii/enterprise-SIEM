@@ -17,6 +17,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 | **INTERNAL-RUNTIME-SDK** (phases 1/2/3 done — mTLS + delivery-retry Go drift guardrails, Python event-contract/tracing/OTLP/pool/Kafka adapter dedup; only full cross-module extraction, blocked by Docker build-context, remains) | Consolidate duplicated mTLS, delivery, event-contract, tracing, pool, and Kafka helpers into reviewed internal packages. See detail section below | Go/Python service shared runtime helpers | Medium | Proposed (reduced) |
 | **TENANT-FORENSIC-ISOLATION** | [Security] Add tenant isolation to forensic collection requests and audit building. | `app/Http/Controllers/SocForensicController.php` | High | Completed (existing implementation `93b85e8`; verified Codex, 2026-08-28) |
 | **TENANT-HUNT-CORRELATION-ISOLATION** | [Security] Add tenant isolation to threat hunt query correlations and saved sessions. | `app/Http/Controllers/SocHuntController.php` | High | Completed (existing implementation `93b85e8`; verified Codex, 2026-08-28) |
+| **TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION** | [Security] Scope endpoint response command queues and approvals by active tenant ID. | `app/Http/Controllers/Endpoint/EndpointResponseController.php` | High | Ongoing (Codex, 2026-08-28) |
 | **PERF-REDACTION-OVERHEAD** | [Performance] Optimize double serialization and redundant regex overhead in trace redaction. | `app/Support/TraceRedactor.php`, `app/Services/SiemSearchService.php` | Medium | Completed (implementation `7753629`; benchmark verified Codex, 2026-08-26) |
 
 ### Tabel B: Tugas Infrastruktur Produksi & Layanan Cloud (Memerlukan Modal / Cloud)
@@ -230,6 +231,15 @@ QA-STATIC-ANALYSIS, API-VERSIONING) are now done as bounded first phases — see
 - **Finding:** `SocHuntController` queries saved hunts (`soc_hunt_sessions`) and runs (`soc_hunt_run_sessions`) globally, leaking threat hunt histories across tenants. Furthermore, in the `queryTelemetry()` method, it correlates telemetry search results with alerts by querying the global `security_alerts` table unscoped (`DB::table('security_alerts')->get()`), leaking alerts from other tenants on matched hosts.
 - **Proposed Fix:** Scope the `savedHunts` and `huntRuns` view queries to the active tenant. Ensure the correlated alerts query in `queryTelemetry()` filters on the active tenant ID.
 - **Validation Gate:** Running a threat hunt as Tenant A only returns Tenant A's correlated alerts, and the saved/run tables only render histories belonging to the active tenant.
+
+## Proposed Task: TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION — Scope Endpoint Response Approvals
+
+- **Work status:** Ongoing (Codex, 2026-08-28); auditing command schemas, queue listings, and all state-transition routes before implementation.
+- **Priority:** High
+- **Component:** `app/Http/Controllers/Endpoint/EndpointResponseController.php`, `app/Http/Controllers/SocAgentController.php`
+- **Finding:** `EndpointResponseController` and `SocAgentController` query `endpoint_response_commands` and `agent_commands` globally without active tenant context filters. Any analyst can view all queued commands, see details of execution histories across all tenants, and approve, cancel, or reject commands belonging to other tenants.
+- **Proposed Fix:** Scope all list, show, store, and transition execution routes in `EndpointResponseController` by the resolved active tenant. Ensure the commands overview and queue queries in `SocAgentController` filter by the active tenant ID.
+- **Validation Gate:** Accessing a command belonging to another tenant returns a 403/404, and the queues show only commands related to the current analyst's tenant.
 
 ## Completed Task: PERF-REDACTION-OVERHEAD — Eliminate Double Serialization and Optimise Regex Scans in Redactor
 
