@@ -33,7 +33,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 ### Active Phase: ENT-SEC-NO-TLS-INTERNAL - Laravel PostgreSQL TLS Client Wiring
 
-- **Status:** Bounded client phase completed (Codex, 2026-08-28) - commits `74b31e2` and `a094367` wire Laravel CA/client-certificate DSN options and fail-closed environment validation for invalid modes, missing CA verification roots, and unpaired client credentials. Local coverage: 7 tests/16 assertions plus 146 scripts tests; remote runs `33165743196` (`ci`, including `Required Gate`), `33165743206` (`phase9-contract`), and `33165743192` (`security-scan`) passed. Remaining: PostgreSQL server-side TLS, certificate mounts, production `verify-full` activation, and live mTLS proof.
+- **Status:** Ongoing (Codex, 2026-08-28) - implementing opt-in PostgreSQL server TLS with production fail-closed activation and real certificate-authenticated live proof; completed Laravel/client validation remains intact.
 >
 > **Classified out (2026-06-29):** `EDR-EXEC-02` and `AI-CONF-BANDS` → REJECTED (forbidden: automated active containment). `TENANT-ENFORCE-RLS` → DEFERRED (gated by RLS_DECISION_RECORD + GAP-002/003). See REVIEW_REJECTED.md.
 >
