@@ -149,6 +149,11 @@ return [
         // See docs/security/TENANT_STRICT_MODE.md before enabling in production.
         'strict_mode' => (bool) env('XDR_TENANT_STRICT_MODE', false),
 
+        // Prerequisite for PostgreSQL RLS. Keeps app.tenant_id transaction-local
+        // so pooled connections cannot leak context between requests.
+        // This does not enable RLS policies by itself.
+        'rls_session_context_enabled' => (bool) env('XDR_TENANT_RLS_SESSION_CONTEXT_ENABLED', false),
+
         // Documentary: strict mode MUST be enabled before multi-tenant production go-live.
         'strict_mode_production_required' => true,
     ],
