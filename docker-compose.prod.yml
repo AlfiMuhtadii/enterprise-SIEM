@@ -177,6 +177,7 @@ services:
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
+      XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
     restart: always
 
   queue:
@@ -195,6 +196,7 @@ services:
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
+      XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
     restart: always
 
   scheduler:
@@ -213,6 +215,7 @@ services:
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
+      XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
     restart: always
 
   telemetry-worker:
@@ -278,6 +281,7 @@ services:
     ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
     restart: always
 
   ai-rag-service:
