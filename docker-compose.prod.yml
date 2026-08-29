@@ -173,6 +173,9 @@ services:
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
       XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
+      XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
     restart: always
 
   queue:
@@ -187,6 +190,9 @@ services:
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
       XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
+      XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
     restart: always
 
   scheduler:
@@ -201,6 +207,9 @@ services:
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
       XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
+      XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_URL: https://normalizer-worker:8092
+      XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
     restart: always
 
   telemetry-worker:
@@ -221,12 +230,16 @@ services:
     environment:
       # Internal auth must be enforced in production — fail fast if token missing
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092/metrics
     restart: always
 
   normalizer-worker:
     ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
     restart: always
 
   correlation-worker:

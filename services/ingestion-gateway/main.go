@@ -149,7 +149,8 @@ type Gateway struct {
 	normalizerMetricsURL string
 	maxNormalizerQueue   int64
 	// IG-1: cached normalizer queue depth, updated by background goroutine
-	normalizerQueueDepth atomic.Int64
+	normalizerQueueDepth           atomic.Int64
+	normalizerMetricsPollSuccesses atomic.Int64
 	// IG-2: per-tenant rate limiter (map[tenantID → *tenantBucket])
 	tenantLimiters sync.Map
 	perTenantRPS   int
@@ -239,21 +240,15 @@ func main() {
 		log.Printf("xdr ingestion gateway: using native kafka transport brokers=%v tls=%v", brokers, kafkaTLSEnabled)
 	}
 
-	// IG-1: start background goroutine to poll normalizer metrics
-	if gw.normalizerMetricsURL != "" {
-		gw.startMetricsPoller(time.Duration(metricsPollSecs) * time.Second)
-	}
 	// IG-2: start background goroutine to refill per-tenant token buckets
 	gw.startTenantBucketRefiller()
 
-	// ENT-SEC-NO-TLS-INTERNAL (phase 1): internal mTLS, disabled by default.
-	// When enabled, this server requires and verifies a client certificate on
-	// every inbound connection, and the shared httpClient (used for the
-	// normalizer-worker metrics poll) presents its own client certificate.
+	// The client override lets the normalizer metrics hop use mTLS without
+	// forcing external endpoint-agent ingestion onto client certificates.
 	// Generate dev/test certs via scripts/xdr_generate_internal_mtls_certs.py.
-	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	serverMtlsEnabled, clientMtlsEnabled := internalMtlsModes()
 	caFile := env("XDR_INTERNAL_MTLS_CA", "")
-	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+	serverTLSCfg, err := mtls.ServerConfig(serverMtlsEnabled,
 		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
 		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
 		caFile,
@@ -261,7 +256,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("xdr ingestion gateway: internal mTLS server config error: %v", err)
 	}
-	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+	clientTLSCfg, err := mtls.ClientConfig(clientMtlsEnabled,
 		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
 		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
 		caFile,
@@ -273,6 +268,10 @@ func main() {
 		if t, ok := httpClient.Transport.(*http.Transport); ok {
 			t.TLSClientConfig = clientTLSCfg
 		}
+	}
+	// Configure the shared client before the first normalizer metrics poll.
+	if gw.normalizerMetricsURL != "" {
+		gw.startMetricsPoller(time.Duration(metricsPollSecs) * time.Second)
 	}
 
 	mux := http.NewServeMux()
@@ -303,7 +302,7 @@ func main() {
 		}
 	}()
 	validateStartupSecrets(gw.secret)
-	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s internal_mtls=%v", *addr, gw.topic, gw.redpandaREST, mtlsEnabled)
+	log.Printf("xdr ingestion gateway listening on %s topic=%s redpanda=%s server_mtls=%v client_mtls=%v", *addr, gw.topic, gw.redpandaREST, serverMtlsEnabled, clientMtlsEnabled)
 	var serveErr error
 	if serverTLSCfg != nil {
 		// Cert/key are already loaded into server.TLSConfig.Certificates by
@@ -340,6 +339,7 @@ func (g *Gateway) startMetricsPoller(interval time.Duration) {
 			if decErr := json.NewDecoder(resp.Body).Decode(&m); decErr == nil {
 				if qd, ok := m["queue_depth"].(float64); ok {
 					g.normalizerQueueDepth.Store(int64(qd))
+					g.normalizerMetricsPollSuccesses.Add(1)
 				}
 			}
 			_ = resp.Body.Close()
@@ -422,14 +422,15 @@ func (g *Gateway) ready(w http.ResponseWriter, r *http.Request) {
 
 func (g *Gateway) metrics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"requests":               g.requests.Load(),
-		"accepted":               g.accepted.Load(),
-		"rejected":               g.rejected.Load(),
-		"publish_errors":         g.publishErrors.Load(),
-		"retry_count":            g.retryCount.Load(),
-		"normalizer_queue_depth": g.normalizerQueueDepth.Load(),
-		"tenant_bucket_count":    g.tenantBucketCount.Load(),
-		"tenant_bucket_max":      g.maxTenantBuckets,
+		"requests":                          g.requests.Load(),
+		"accepted":                          g.accepted.Load(),
+		"rejected":                          g.rejected.Load(),
+		"publish_errors":                    g.publishErrors.Load(),
+		"retry_count":                       g.retryCount.Load(),
+		"normalizer_queue_depth":            g.normalizerQueueDepth.Load(),
+		"normalizer_metrics_poll_successes": g.normalizerMetricsPollSuccesses.Load(),
+		"tenant_bucket_count":               g.tenantBucketCount.Load(),
+		"tenant_bucket_max":                 g.maxTenantBuckets,
 	})
 }
 
@@ -806,6 +807,13 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 	return value == "1" || value == "true" || value == "yes"
+}
+
+func internalMtlsModes() (serverEnabled bool, clientEnabled bool) {
+	serverEnabled = envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	clientEnabled = envBool("XDR_INTERNAL_MTLS_CLIENT_ENABLED", serverEnabled)
+
+	return serverEnabled, clientEnabled
 }
 
 // shouldRefuseIngestSecret reports whether the gateway must refuse to start

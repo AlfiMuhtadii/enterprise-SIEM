@@ -37,6 +37,36 @@ func newTestGateway(redpandaURL string) *Gateway {
 	}
 }
 
+func TestInternalMtlsModesPreserveLegacyCoupledFlag(t *testing.T) {
+	t.Setenv("XDR_INTERNAL_MTLS_ENABLED", "true")
+	t.Setenv("XDR_INTERNAL_MTLS_CLIENT_ENABLED", "")
+
+	serverEnabled, clientEnabled := internalMtlsModes()
+	if !serverEnabled || !clientEnabled {
+		t.Fatalf("legacy flag must enable both modes, got server=%v client=%v", serverEnabled, clientEnabled)
+	}
+}
+
+func TestInternalMtlsModesAllowClientOnlyTransport(t *testing.T) {
+	t.Setenv("XDR_INTERNAL_MTLS_ENABLED", "false")
+	t.Setenv("XDR_INTERNAL_MTLS_CLIENT_ENABLED", "true")
+
+	serverEnabled, clientEnabled := internalMtlsModes()
+	if serverEnabled || !clientEnabled {
+		t.Fatalf("client override must not enable the server, got server=%v client=%v", serverEnabled, clientEnabled)
+	}
+}
+
+func TestInternalMtlsModesAllowExplicitClientDisable(t *testing.T) {
+	t.Setenv("XDR_INTERNAL_MTLS_ENABLED", "true")
+	t.Setenv("XDR_INTERNAL_MTLS_CLIENT_ENABLED", "false")
+
+	serverEnabled, clientEnabled := internalMtlsModes()
+	if !serverEnabled || clientEnabled {
+		t.Fatalf("client override must be authoritative, got server=%v client=%v", serverEnabled, clientEnabled)
+	}
+}
+
 // postIngest calls gw.ingest directly without going through the mux/middleware.
 func postIngest(gw *Gateway, body []byte, tenantID string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, "/v1/ingest", bytes.NewReader(body))

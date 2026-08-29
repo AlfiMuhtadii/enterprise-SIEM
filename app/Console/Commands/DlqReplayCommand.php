@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\DlqRecord;
 use App\Services\DlqReviewService;
+use App\Services\InternalMtlsHttpClient;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Replay normalization DLQ records that have been marked replay_requested.
@@ -68,14 +68,15 @@ class DlqReplayCommand extends Command
             }
 
             try {
+                $endpoint = "{$normalizerUrl}/v1/normalize";
                 $headers = ['Accept' => 'application/json'];
                 if ($internalToken !== '') {
                     $headers['X-Internal-Service-Token'] = $internalToken;
                 }
 
-                $response = Http::withHeaders($headers)
-                    ->timeout(15)
-                    ->post("{$normalizerUrl}/v1/normalize", [$payload]);
+                $response = InternalMtlsHttpClient::request($endpoint, 15)
+                    ->withHeaders($headers)
+                    ->post($endpoint, [$payload]);
 
                 if ($response->successful()) {
                     $service->markReplayed($record, $response->json() ?? ['status' => 'accepted']);

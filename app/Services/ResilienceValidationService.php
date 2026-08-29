@@ -6,7 +6,6 @@ use App\Models\ResilienceMetric;
 use App\Models\ResilienceRun;
 use App\Models\SecurityHardeningEvent;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -676,7 +675,7 @@ class ResilienceValidationService
         }
         try {
             $metricsUrl = rtrim($url, '/') . '/metrics';
-            $response = Http::timeout(3)->get($metricsUrl);
+            $response = InternalMtlsHttpClient::request($metricsUrl, 3)->get($metricsUrl);
             return $response->successful() ? $response->json() : null;
         } catch (\Throwable) {
             return null;
@@ -687,7 +686,7 @@ class ResilienceValidationService
     {
         try {
             $healthUrl = rtrim($url, '/') . '/health';
-            $response  = Http::timeout(2)->get($healthUrl);
+            $response  = InternalMtlsHttpClient::request($healthUrl, 2)->get($healthUrl);
             return $response->successful();
         } catch (\Throwable) {
             return false;

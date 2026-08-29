@@ -826,6 +826,13 @@ services:
       XDR_MAX_BATCH_SIZE: 1000
       XDR_NORMALIZER_METRICS_URL: http://normalizer-worker:8092/metrics
       XDR_MAX_NORMALIZER_QUEUE_DEPTH: 150000
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INGESTION_MTLS_SERVER_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: ${XDR_INGESTION_MTLS_CLIENT_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_SERVER_CERT: /etc/xdr/internal-mtls/server.crt
+      XDR_INTERNAL_MTLS_SERVER_KEY: /etc/xdr/internal-mtls/server.key
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # CONN-UNTENANTED-INGEST: reject unattributed batches outright.
       # Default false keeps local demo usable without configuring a tenant.
       XDR_INGEST_REQUIRE_TENANT: ${XDR_INGEST_REQUIRE_TENANT:-false}
@@ -835,8 +842,14 @@ services:
       - "8091:8091"
     volumes:
       - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_started
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   normalizer-worker:
@@ -866,14 +879,26 @@ services:
       # Internal auth enforcement. Default false keeps local demo usable without a token.
       # Set to true (+ XDR_NORMALIZER_INTERNAL_TOKEN) for non-local deployments.
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_NORMALIZER_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_SERVER_CERT: /etc/xdr/internal-mtls/server.crt
+      XDR_INTERNAL_MTLS_SERVER_KEY: /etc/xdr/internal-mtls/server.key
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8092:8092"
     volumes:
       - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_started
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   log-connector-syslog:
