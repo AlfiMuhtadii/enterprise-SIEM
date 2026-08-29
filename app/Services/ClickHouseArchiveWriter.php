@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -42,11 +41,7 @@ class ClickHouseArchiveWriter
             .'&date_time_input_format=best_effort';
 
         try {
-            $response = Http::timeout((int) config('xdr.infrastructure.clickhouse.timeout_seconds', 5))
-                ->withBasicAuth(
-                    (string) config('xdr.infrastructure.clickhouse.user'),
-                    (string) config('xdr.infrastructure.clickhouse.password'),
-                )
+            $response = ClickHouseHttpClient::request($url)
                 ->withBody($sql, 'text/plain')
                 ->post($url);
         } catch (\Throwable $e) {

@@ -67,6 +67,11 @@ services:
           memory: 2g
           cpus: '2.0'
 
+  clickhouse-tls-init:
+    environment:
+      CLICKHOUSE_TLS_ENABLED: "true"
+      CLICKHOUSE_TLS_REQUIRED: "true"
+
   clickhouse:
     ports: !reset []
     environment:
@@ -145,17 +150,32 @@ services:
   # Laravel SOC application: restart always; port 8000 public (browser access)
   # ---------------------------------------------------------------------------
   app:
+    environment:
+      XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
+      XDR_CLICKHOUSE_VERIFY_TLS: "true"
+      XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
     restart: always
 
   queue:
+    environment:
+      XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
+      XDR_CLICKHOUSE_VERIFY_TLS: "true"
+      XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
     restart: always
 
   scheduler:
+    environment:
+      XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
+      XDR_CLICKHOUSE_VERIFY_TLS: "true"
+      XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
     restart: always
 
   telemetry-worker:
     environment:
       SECURITY_INGEST_DSN: "host=postgres port=${DB_PORT:-5432} dbname=${DB_DATABASE:-detector} user=${DB_USERNAME:-postgres} password=${DB_PASSWORD:?DB_PASSWORD must be set to a strong value in production} sslmode=verify-full sslrootcert=/etc/xdr/postgres-certs/ca.crt sslcert=/etc/xdr/postgres-certs/client.crt sslkey=/etc/xdr/postgres-certs/client.key"
+      XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
+      XDR_CLICKHOUSE_VERIFY_TLS: "true"
+      XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
 
   ml-shadow-detector:
     environment:

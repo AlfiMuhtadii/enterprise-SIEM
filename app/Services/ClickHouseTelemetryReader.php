@@ -4,7 +4,6 @@ namespace App\Services;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -228,11 +227,7 @@ class ClickHouseTelemetryReader
         }
 
         try {
-            $response = Http::timeout((int) config('xdr.infrastructure.clickhouse.timeout_seconds', 5))
-                ->withBasicAuth(
-                    (string) config('xdr.infrastructure.clickhouse.user'),
-                    (string) config('xdr.infrastructure.clickhouse.password'),
-                )
+            $response = ClickHouseHttpClient::request($url)
                 ->withBody($sql, 'text/plain')
                 ->post($url);
         } catch (\Throwable $e) {

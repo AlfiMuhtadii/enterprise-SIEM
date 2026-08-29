@@ -19,6 +19,8 @@ import urllib.error
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from xdr_infra_clients import env_bool, tls_context_for_url
+
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync Postgres tables to ClickHouse.")
@@ -68,7 +70,15 @@ def ch_request(url: str, query: str, user: str, password: str, body: bytes | Non
     if body is not None:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        context = tls_context_for_url(
+            full_url,
+            env_bool("XDR_CLICKHOUSE_VERIFY_TLS", True),
+            os.getenv("XDR_CLICKHOUSE_CA_CERT", ""),
+        )
+        options = {"timeout": 60}
+        if context is not None:
+            options["context"] = context
+        with urllib.request.urlopen(req, **options) as resp:
             return resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")

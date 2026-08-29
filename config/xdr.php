@@ -74,6 +74,8 @@ return [
             'user' => env('XDR_CLICKHOUSE_USER', env('CLICKHOUSE_USER', 'detector')),
             'password' => env('XDR_CLICKHOUSE_PASSWORD', env('CLICKHOUSE_PASSWORD', 'detector')),
             'timeout_seconds' => (int) env('XDR_CLICKHOUSE_TIMEOUT_SECONDS', 5),
+            'verify_tls' => (bool) env('XDR_CLICKHOUSE_VERIFY_TLS', true),
+            'ca_cert' => env('XDR_CLICKHOUSE_CA_CERT', ''),
             // ARCH-DB-SPLIT: off by default (postgres) -- zero behavior change
             // unless an operator opts in. "clickhouse" routes agent-submitted
             // telemetry (AgentIngestionController::telemetry()) to the

@@ -7,6 +7,7 @@ import base64
 import hashlib
 import json
 import os
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -20,6 +21,26 @@ def env(name: str, default: str) -> str:
     return os.getenv(name, default)
 
 
+def env_bool(name: str, default: bool = True) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean value")
+
+
+def tls_context_for_url(url: str, verify_tls: bool = True, ca_cert: str = "") -> Optional[ssl.SSLContext]:
+    if urllib.parse.urlparse(url).scheme.lower() != "https":
+        return None
+    if not verify_tls:
+        return ssl._create_unverified_context()
+    return ssl.create_default_context(cafile=ca_cert or None)
+
+
 @dataclass
 class HttpResult:
     ok: bool
@@ -30,10 +51,12 @@ class HttpResult:
 
 
 class HttpClient:
-    def __init__(self, timeout: float = 5.0, retries: int = 2, headers: Optional[Dict[str, str]] = None):
+    def __init__(self, timeout: float = 5.0, retries: int = 2, headers: Optional[Dict[str, str]] = None,
+                 ssl_context: Optional[ssl.SSLContext] = None):
         self.timeout = timeout
         self.retries = retries
         self.headers = headers or {}
+        self.ssl_context = ssl_context
 
     def request(self, method: str, url: str, body: Any = None, headers: Optional[Dict[str, str]] = None) -> HttpResult:
         payload = None
@@ -48,7 +71,10 @@ class HttpClient:
             started = time.perf_counter()
             try:
                 req = urllib.request.Request(url, data=payload, headers=merged, method=method.upper())
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                options = {"timeout": self.timeout}
+                if self.ssl_context is not None:
+                    options["context"] = self.ssl_context
+                with urllib.request.urlopen(req, **options) as resp:
                     text = resp.read().decode("utf-8", errors="replace")
                     return HttpResult(200 <= resp.status < 300, resp.status, (time.perf_counter() - started) * 1000, text)
             except urllib.error.HTTPError as exc:
@@ -100,11 +126,17 @@ class RedpandaClient:
 
 
 class ClickHouseClient:
-    def __init__(self, base_url: str, database: str, user: str, password: str, timeout: float = 5.0):
+    def __init__(self, base_url: str, database: str, user: str, password: str, timeout: float = 5.0,
+                 verify_tls: bool = True, ca_cert: str = ""):
         self.base_url = base_url.rstrip("/")
         self.database = database
         auth = base64.b64encode(f"{user}:{password}".encode()).decode()
-        self.http = HttpClient(timeout=timeout, retries=2, headers={"Authorization": f"Basic {auth}"})
+        self.http = HttpClient(
+            timeout=timeout,
+            retries=2,
+            headers={"Authorization": f"Basic {auth}"},
+            ssl_context=tls_context_for_url(self.base_url, verify_tls, ca_cert),
+        )
 
     def query(self, sql: str) -> HttpResult:
         # date_time_input_format=best_effort: ClickHouse's default DateTime64
@@ -390,6 +422,8 @@ def clients_from_env() -> Tuple[RedpandaClient, ClickHouseClient, OpenSearchClie
         env("XDR_CLICKHOUSE_USER", env("CLICKHOUSE_USER", "detector")),
         env("XDR_CLICKHOUSE_PASSWORD", env("CLICKHOUSE_PASSWORD", "detector")),
         float(env("XDR_CLICKHOUSE_TIMEOUT_SECONDS", "5")),
+        env_bool("XDR_CLICKHOUSE_VERIFY_TLS", True),
+        env("XDR_CLICKHOUSE_CA_CERT", ""),
     )
     opensearch = OpenSearchClient(
         env("XDR_OPENSEARCH_URL", "http://127.0.0.1:9200"),

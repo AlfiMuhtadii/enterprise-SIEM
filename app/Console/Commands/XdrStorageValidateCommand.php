@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ClickHouseHttpClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -25,9 +26,8 @@ class XdrStorageValidateCommand extends Command
                     $status = 'healthy';
                     $metrics['roundtrip'] = 'ok';
                 } elseif (($definition['driver'] ?? '') === 'clickhouse') {
-                    $response = Http::timeout((int) config('xdr.infrastructure.clickhouse.timeout_seconds', 5))
-                        ->withBasicAuth(config('xdr.infrastructure.clickhouse.user'), config('xdr.infrastructure.clickhouse.password'))
-                        ->get(rtrim(config('xdr.infrastructure.clickhouse.http_url'), '/').'/ping');
+                    $url = rtrim((string) config('xdr.infrastructure.clickhouse.http_url'), '/').'/ping';
+                    $response = ClickHouseHttpClient::request($url)->get($url);
                     $status = $response->successful() ? 'healthy' : 'degraded';
                     $metrics['http_status'] = $response->status();
                 } elseif (($definition['driver'] ?? '') === 'opensearch') {

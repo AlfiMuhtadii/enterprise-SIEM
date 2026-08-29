@@ -43,6 +43,7 @@ SERVICE_SANS = [
     "redpanda",
     "postgres",
     "opensearch",
+    "clickhouse",
     "localhost",
     "127.0.0.1",
 ]

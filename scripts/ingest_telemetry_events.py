@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from realtime_detector_consumer import build_dsn_from_env
 from telemetry_event_contract import validate_event
-from xdr_infra_clients import ClickHouseClient
+from xdr_infra_clients import ClickHouseClient, env_bool
 
 
 INSERT_SQL = """
@@ -228,7 +228,14 @@ def run_ingest(args: argparse.Namespace, project_root: Path) -> int:
         offset = 0
 
     if args.target == "clickhouse":
-        client = ClickHouseClient(args.clickhouse_url, args.clickhouse_db, args.clickhouse_user, args.clickhouse_password)
+        client = ClickHouseClient(
+            args.clickhouse_url,
+            args.clickhouse_db,
+            args.clickhouse_user,
+            args.clickhouse_password,
+            verify_tls=env_bool("XDR_CLICKHOUSE_VERIFY_TLS", True),
+            ca_cert=os.getenv("XDR_CLICKHOUSE_CA_CERT", ""),
+        )
         row_mapper = map_row_dict
         flush = lambda rows: insert_batch_clickhouse(client, rows)  # noqa: E731
         close = lambda: None  # noqa: E731
