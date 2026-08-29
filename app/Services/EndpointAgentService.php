@@ -160,6 +160,7 @@ class EndpointAgentService
         // Append heartbeat record (append-only)
         EndpointAgentHeartbeat::create([
             'agent_id'        => $agent->id,
+            'tenant_id'       => $agent->tenant_id,
             'signature'       => $signature,
             'signature_valid' => $valid,
             'health_state'    => $healthState,

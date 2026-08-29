@@ -52,6 +52,9 @@ class TenantBoundaryService
         'tenant_membership_audit_events',
         // AGENT-TENANCY-GAP: endpoint fleet scoping
         'endpoint_agents',
+        // TENANT-ENDPOINT-HEARTBEAT-ISOLATION: append-only heartbeat lineage
+        // is inherited from endpoint_agents at insert time.
+        'endpoint_agent_heartbeats',
         // TENANT-ENDPOINT-RESPONSE-COMMAND-ISOLATION: both the current
         // approval workflow and retained legacy command history are mutable.
         'endpoint_response_commands',
@@ -148,6 +151,8 @@ class TenantBoundaryService
         'soar_simulation_results',
         // TENANT-AUDIT-LEAK: audit trail rows are never updated, only inserted
         'security_audit_trails',
+        // TENANT-ENDPOINT-HEARTBEAT-ISOLATION: tenant_id is set at insert only.
+        'endpoint_agent_heartbeats',
         // TENANT-POSTGRES-FALLBACK-TELEMETRY: same insert-only rationale as
         // above, applied here since this row appears in both isolation lists.
         'telemetry_events',
@@ -159,7 +164,6 @@ class TenantBoundaryService
     // Tables that still lack tenant_id — documented isolation gap
     public const UNISOLATED_TABLES = [
         'users',
-        'endpoint_agent_heartbeats',
     ];
 
     /**

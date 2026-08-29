@@ -10,7 +10,7 @@ class EndpointAgentHeartbeat extends Model
     public const UPDATED_AT = null;
 
     protected $fillable = [
-        'agent_id', 'signature', 'signature_valid', 'health_state',
+        'agent_id', 'tenant_id', 'signature', 'signature_valid', 'health_state',
         'ip_address', 'metrics', 'heartbeat_at',
     ];
 

@@ -125,7 +125,7 @@ UNISOLATED_TABLES` for the current live list.)
 
 | Table | Gap reason | Risk in current posture | Required action |
 |---|---|---|---|
-| `endpoint_agent_heartbeats` | Column not yet added | Low — single-tenant pilot | Add tenant_id + backfill |
+| ~~`endpoint_agent_heartbeats`~~ | Closed — nullable indexed `tenant_id`; new rows inherit the endpoint agent tenant without mutating append-only history | — | Done |
 | ~~`security_audit_trails`~~ | Closed — has `tenant_id` (append-only, `TENANT-AUDIT-LEAK`) | — | Done |
 | ~~`telemetry_events`~~ | Closed — has `tenant_id` (append-only, `TENANT-POSTGRES-FALLBACK-TELEMETRY`) | — | Done |
 | ~~`endpoint_agents`~~ | Closed — has `tenant_id` (mutable) | — | Done |
@@ -190,12 +190,13 @@ This pass-through will be removed in Phase 4 after all null records are backfill
   **This step must be re-run in staging/production before enabling strict
   mode there**, since those environments may hold real legacy data this dev
   DB doesn't.
-- Gap tables, re-audited 2026-07-16 (3 of 4 already resolved since this plan
-  was written): `security_audit_trails` ✓ has `tenant_id` (append-only,
+- Gap tables, re-audited 2026-08-29 (all 4 resolved):
+  `security_audit_trails` ✓ has `tenant_id` (append-only,
   `TENANT-AUDIT-LEAK`), `telemetry_events` ✓ has `tenant_id` (append-only,
   `TENANT-POSTGRES-FALLBACK-TELEMETRY`), `endpoint_agents` ✓ has `tenant_id`
-  (mutable). Still open: `endpoint_agent_heartbeats` (`TenantBoundaryService::
-  UNISOLATED_TABLES`) — not addressed in this pass, a separate follow-up.
+  (mutable), and `endpoint_agent_heartbeats` ✓ now inherits tenant lineage on
+  every new insert. Existing heartbeat history was not backfilled because the
+  table is append-only; tenant-scoped queries exclude legacy-null rows.
 - `users`: re-scoped as **not a gap** — `user_tenant_memberships` is the
   correct place for user↔tenant association (a proper many-to-many join,
   since a user may legitimately belong to more than one tenant), not a
@@ -252,10 +253,11 @@ RLS (Phase 5) cannot be activated until ALL of the following are satisfied:
 - [ ] All regular (non-admin) users provisioned in `user_tenant_memberships` —
       admin-role users already bypass membership checks entirely and need none
 - [ ] `XDR_TENANT_STRICT_MODE=true` passes full test suite in CI
-- [ ] `tenant_id` column added to gap tables — 3 of 4 done (`security_audit_trails`,
-      `telemetry_events`, `endpoint_agents`); `endpoint_agent_heartbeats` still open
+- [x] `tenant_id` column added to all four former gap tables (`security_audit_trails`,
+      `telemetry_events`, `endpoint_agents`, `endpoint_agent_heartbeats`)
 - [ ] Artisan commands and Go/Python services updated for system context on DB write paths
-- [ ] Laravel DB session middleware written and tested for `SET app.tenant_id`
+- [x] Laravel DB session middleware sets validated `app.tenant_id` with transaction-local
+      scope behind `XDR_TENANT_RLS_SESSION_CONTEXT_ENABLED` (`c97b400`)
 - [ ] Bypass role (`xdr_admin BYPASSRLS`) created and Artisan uses it
 - [ ] Cross-tenant penetration test matrix extended to cover RLS-bypass scenarios
 - [ ] Domain-specific soak PASS for any domain promoted from shadow to active after RLS
@@ -272,7 +274,7 @@ Exits 1 if any FAIL-severity check fails.
 | No DB-level RLS | Single-tenant pilot only; no live multi-tenant traffic | Any production multi-tenant onboarding |
 | Null tenant_id records accessible cross-tenant | Backward compat for pre-019 records — dev DB confirmed clean (0 null rows) 2026-07-16, but staging/production have not been backfilled yet | Phase 3 backfill re-run and confirmed clean in staging/production |
 | `users` lacks its own `tenant_id` column | Not actually a gap — `user_tenant_memberships` is the correct many-to-many join for user↔tenant association (a user may belong to more than one tenant); re-scoped 2026-07-16 | N/A — closed, was a stale framing of the original plan |
-| `endpoint_agent_heartbeats` lacks `tenant_id` | Heartbeats are global for pilot; `security_audit_trails`/`telemetry_events`/`endpoint_agents` were closed since this row was written | Multi-tenant endpoint fleet isolation required |
+| Legacy `endpoint_agent_heartbeats` rows may have null `tenant_id` | Append-only history was not updated; tenant-scoped queries exclude these rows | Phase 4 null audit and any historical retention/import decision before RLS activation |
 
 ---
 

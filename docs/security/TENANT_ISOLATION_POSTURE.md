@@ -1,7 +1,7 @@
 # Tenant Isolation Posture
 
-**Last updated:** 2026-06-29
-**Status:** Application-layer enforcement only; PostgreSQL RLS scaffolded (advisory, not enforced).
+**Last updated:** 2026-08-29
+**Status:** Application-layer enforcement with an opt-in transaction-local PostgreSQL tenant context; RLS policies remain advisory and are not enforced.
 
 ---
 
@@ -59,6 +59,7 @@ The following tables have a `tenant_id` column:
 | `entities` | Yes (added TENANT-UNSCOPED-TABLES) | No (mutable) |
 | `threat_hunts` | Yes (added TENANT-UNSCOPED-TABLES) | Yes |
 | `tenant_notification_settings` | Yes (added NOTIFY-TENANCY-GAP) | No (mutable upsert) |
+| `endpoint_agent_heartbeats` | Yes (added TENANT-ENDPOINT-HEARTBEAT-ISOLATION) | Yes |
 
 > `notification_delivery_logs` also carries a nullable `tenant_id` (NOTIFY-TENANCY-GAP)
 > for audit scoping, but is a write-only log table — not a tenant-owned resource — so it
@@ -68,18 +69,12 @@ The following tables have a `tenant_id` column:
 
 ## Known Isolation Gaps
 
-The following tables are **missing** `tenant_id` and are currently unscoped:
-
-| Table | Gap Reason |
-|---|---|
-| `users` | User model is single-tenant; no tenant_id in current schema |
-| `security_audit_trails` | Not yet updated |
-| `telemetry_events` | Not yet updated |
-| `endpoint_agent_heartbeats` | High-volume append telemetry; scoped via parent `endpoint_agents` |
-
-These are documented isolation gaps. They do not represent active cross-tenant
-leakage risk in current single-tenant deployments, but must be addressed before
-multi-tenant production use.
+No tenant-owned table remains in `TenantBoundaryService::UNISOLATED_TABLES`.
+`users` remains global intentionally because tenant membership is many-to-many
+through `user_tenant_memberships`. Existing heartbeat rows may retain a null
+tenant because append-only history was not backfilled; tenant-scoped queries exclude
+those legacy rows when the boundary scope is applied. PostgreSQL RLS activation
+and strict null handling remain open.
 
 ---
 
