@@ -44,6 +44,7 @@ SERVICE_SANS = [
     "postgres",
     "opensearch",
     "clickhouse",
+    "qdrant",
     "localhost",
     "127.0.0.1",
 ]

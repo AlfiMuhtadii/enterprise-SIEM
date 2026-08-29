@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\ClickHouseHttpClient;
+use App\Services\QdrantHttpClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -43,8 +44,8 @@ class XdrStorageValidateCommand extends Command
                     $metrics['http_status'] = $response->status();
                     $metrics['cluster'] = $response->json();
                 } elseif (($definition['driver'] ?? '') === 'qdrant') {
-                    $response = Http::timeout((int) config('xdr.infrastructure.qdrant.timeout_seconds', 5))
-                        ->get(rtrim(config('xdr.infrastructure.qdrant.url'), '/').'/');
+                    $url = rtrim(config('xdr.infrastructure.qdrant.url'), '/').'/';
+                    $response = QdrantHttpClient::request($url)->get($url);
                     $status = $response->successful() ? 'healthy' : 'degraded';
                     $metrics['http_status'] = $response->status();
                 } else {

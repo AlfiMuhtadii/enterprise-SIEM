@@ -12,6 +12,8 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -19,8 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
+from xdr_infra_clients import env_bool, tls_context_for_url
 
-def http_json(method: str, url: str, payload: Any | None = None, headers: Dict[str, str] | None = None, timeout: int = 10) -> Tuple[bool, Dict[str, Any]]:
+
+def http_json(method: str, url: str, payload: Any | None = None, headers: Dict[str, str] | None = None,
+              timeout: int = 10, ssl_context: ssl.SSLContext | None = None) -> Tuple[bool, Dict[str, Any]]:
     body = None
     req_headers = dict(headers or {})
     if payload is not None:
@@ -28,7 +33,10 @@ def http_json(method: str, url: str, payload: Any | None = None, headers: Dict[s
         req_headers.setdefault("Content-Type", "application/json")
     req = urllib.request.Request(url, data=body, method=method, headers=req_headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        options: Dict[str, Any] = {"timeout": timeout}
+        if ssl_context is not None:
+            options["context"] = ssl_context
+        with urllib.request.urlopen(req, **options) as resp:
             text = resp.read().decode("utf-8", errors="replace")
             try:
                 data: Any = json.loads(text) if text.strip() else {}
@@ -101,27 +109,33 @@ def main() -> int:
     parser.add_argument("--redpanda-url", default="http://127.0.0.1:8082")
     parser.add_argument("--clickhouse-url", default="http://127.0.0.1:8123")
     parser.add_argument("--opensearch-url", default="http://127.0.0.1:9200")
-    parser.add_argument("--qdrant-url", default="http://127.0.0.1:6333")
+    parser.add_argument("--qdrant-url", default=os.getenv("XDR_QDRANT_URL", os.getenv("SOC_QDRANT_BASE_URL", "http://127.0.0.1:6333")))
+    parser.add_argument("--qdrant-ca-cert", default=os.getenv("XDR_QDRANT_CA_CERT", ""))
     parser.add_argument("--secret", default="dev-secret-change-me")
     parser.add_argument("--settle-sec", type=float, default=5.0)
     parser.add_argument("--output", default="reports/xdr_polyglot_microservices_validation.json")
     args = parser.parse_args()
 
     checks: Dict[str, Any] = {}
+    qdrant_context = tls_context_for_url(
+        args.qdrant_url,
+        env_bool("XDR_QDRANT_VERIFY_TLS", True),
+        args.qdrant_ca_cert,
+    )
     endpoints = {
-        "ingestion_gateway": f"{args.gateway_url}/health",
-        "normalizer_worker": f"{args.normalizer_url}/health",
-        "correlation_worker": f"{args.correlation_url}/health",
-        "ai_rag_service": f"{args.ai_url}/health",
-        "alert_writer": f"{args.alert_writer_url}/health",
-        "incident_builder": f"{args.incident_builder_url}/health",
-        "redpanda_topics": f"{args.redpanda_url}/topics",
-        "clickhouse": f"{args.clickhouse_url}/ping",
-        "opensearch": args.opensearch_url,
-        "qdrant": f"{args.qdrant_url}/healthz",
+        "ingestion_gateway": (f"{args.gateway_url}/health", None),
+        "normalizer_worker": (f"{args.normalizer_url}/health", None),
+        "correlation_worker": (f"{args.correlation_url}/health", None),
+        "ai_rag_service": (f"{args.ai_url}/health", None),
+        "alert_writer": (f"{args.alert_writer_url}/health", None),
+        "incident_builder": (f"{args.incident_builder_url}/health", None),
+        "redpanda_topics": (f"{args.redpanda_url}/topics", None),
+        "clickhouse": (f"{args.clickhouse_url}/ping", None),
+        "opensearch": (args.opensearch_url, None),
+        "qdrant": (f"{args.qdrant_url}/healthz", qdrant_context),
     }
-    for name, url in endpoints.items():
-        ok, result = http_json("GET", url, timeout=10)
+    for name, (url, context) in endpoints.items():
+        ok, result = http_json("GET", url, timeout=10, ssl_context=context)
         checks[name] = {"ok": ok, **result}
 
     events = sample_events()

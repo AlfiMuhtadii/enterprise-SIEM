@@ -116,8 +116,15 @@ services:
           memory: 2g
           cpus: '2.0'
 
+  qdrant-tls-init:
+    environment:
+      QDRANT_TLS_ENABLED: "true"
+      QDRANT_TLS_REQUIRED: "true"
+
   qdrant:
     ports: !reset []
+    environment:
+      QDRANT__SERVICE__ENABLE_TLS: "true"
     restart: always
     deploy:
       resources:
@@ -154,6 +161,10 @@ services:
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
+      SOC_QDRANT_BASE_URL: https://qdrant:6333
+      XDR_QDRANT_URL: https://qdrant:6333
+      XDR_QDRANT_VERIFY_TLS: "true"
+      XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
     restart: always
 
   queue:
@@ -161,6 +172,10 @@ services:
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
+      SOC_QDRANT_BASE_URL: https://qdrant:6333
+      XDR_QDRANT_URL: https://qdrant:6333
+      XDR_QDRANT_VERIFY_TLS: "true"
+      XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
     restart: always
 
   scheduler:
@@ -168,6 +183,10 @@ services:
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
+      SOC_QDRANT_BASE_URL: https://qdrant:6333
+      XDR_QDRANT_URL: https://qdrant:6333
+      XDR_QDRANT_VERIFY_TLS: "true"
+      XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
     restart: always
 
   telemetry-worker:

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\QdrantHttpClient;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -95,12 +96,14 @@ class SocKnowledgeRetriever
         $baseUrl = rtrim((string) config('soc.qdrant_base_url'), '/');
         $collection = (string) config('soc.qdrant_collection', 'soc_knowledge');
         try {
-            $response = Http::timeout(5)->post($baseUrl.'/collections/'.$collection.'/points/search', [
+            $url = $baseUrl.'/collections/'.$collection.'/points/search';
+            $response = QdrantHttpClient::request($url)->post($url, [
                 'vector' => array_values($this->denseVector(implode(' ', $query))),
                 'limit' => $limit,
                 'with_payload' => true,
             ])->throw()->json();
             $items = $response['result'] ?? [];
+
             return collect($items)->map(fn ($item) => [
                 'kb_id' => $item['payload']['kb_id'] ?? null,
                 'title' => $item['payload']['title'] ?? 'Qdrant citation',
@@ -121,6 +124,7 @@ class SocKnowledgeRetriever
             Log::warning('soc knowledge qdrant retrieval failed, falling back to local', [
                 'error' => $e->getMessage(),
             ]);
+
             return $this->retrieveLocal($context, $query, $limit, 'qdrant-fallback-local');
         }
     }
@@ -169,8 +173,9 @@ class SocKnowledgeRetriever
         $baseUrl = rtrim((string) config('soc.qdrant_base_url'), '/');
         $collection = (string) config('soc.qdrant_collection', 'soc_knowledge');
         try {
-            Http::timeout((int) config('soc.embedding_timeout_seconds', 5))
-                ->put($baseUrl.'/collections/'.$collection.'/points', [
+            $url = $baseUrl.'/collections/'.$collection.'/points';
+            QdrantHttpClient::request($url, (int) config('soc.embedding_timeout_seconds', 5))
+                ->put($url, [
                     'points' => [[
                         'id' => $this->qdrantPointId($entry->kb_id),
                         'vector' => array_values($vector),
@@ -203,6 +208,7 @@ class SocKnowledgeRetriever
     private function qdrantPointId(string $kbId): string
     {
         $hash = md5($kbId);
+
         return sprintf(
             '%s-%s-%s-%s-%s',
             substr($hash, 0, 8),

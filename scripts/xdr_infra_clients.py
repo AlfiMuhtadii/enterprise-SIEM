@@ -342,11 +342,16 @@ class OpenSearchClient:
 
 
 class QdrantClient:
-    def __init__(self, base_url: str, collection: str, vector_size: int = 384, timeout: float = 5.0):
+    def __init__(self, base_url: str, collection: str, vector_size: int = 384, timeout: float = 5.0,
+                 verify_tls: bool = True, ca_cert: str = ""):
         self.base_url = base_url.rstrip("/")
         self.collection = collection
         self.vector_size = vector_size
-        self.http = HttpClient(timeout=timeout, retries=2)
+        self.http = HttpClient(
+            timeout=timeout,
+            retries=2,
+            ssl_context=tls_context_for_url(self.base_url, verify_tls, ca_cert),
+        )
 
     def health(self) -> Dict[str, Any]:
         res = self.http.request("GET", f"{self.base_url}/")
@@ -436,5 +441,7 @@ def clients_from_env() -> Tuple[RedpandaClient, ClickHouseClient, OpenSearchClie
         env("XDR_QDRANT_COLLECTION", env("SOC_QDRANT_COLLECTION", "soc_knowledge")),
         int(env("XDR_QDRANT_VECTOR_SIZE", "384")),
         float(env("XDR_QDRANT_TIMEOUT_SECONDS", "5")),
+        env_bool("XDR_QDRANT_VERIFY_TLS", True),
+        env("XDR_QDRANT_CA_CERT", ""),
     )
     return redpanda, clickhouse, opensearch, qdrant

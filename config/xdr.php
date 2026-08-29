@@ -126,6 +126,8 @@ return [
             'collection' => env('XDR_QDRANT_COLLECTION', env('SOC_QDRANT_COLLECTION', 'soc_knowledge')),
             'vector_size' => (int) env('XDR_QDRANT_VECTOR_SIZE', 384),
             'timeout_seconds' => (int) env('XDR_QDRANT_TIMEOUT_SECONDS', 5),
+            'verify_tls' => filter_var(env('XDR_QDRANT_VERIFY_TLS', true), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? true,
+            'ca_cert' => env('XDR_QDRANT_CA_CERT', ''),
         ],
     ],
     'correlation' => [
