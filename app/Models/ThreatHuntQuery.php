@@ -11,13 +11,13 @@ class ThreatHuntQuery extends Model
 
     protected $fillable = [
         'hunt_id', 'query_domain', 'query_filters',
-        'time_range_start', 'time_range_end', 'max_results',
+        'time_range_start', 'time_range_end', 'max_results', 'tenant_id',
     ];
 
     protected $casts = [
-        'query_filters'    => 'array',
+        'query_filters' => 'array',
         'time_range_start' => 'datetime',
-        'time_range_end'   => 'datetime',
+        'time_range_end' => 'datetime',
     ];
 
     public function hunt(): BelongsTo

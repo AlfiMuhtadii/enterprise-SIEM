@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Security;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointAgent;
 use App\Models\ThreatHunt;
+use App\Services\TenantContextAuthority;
 use App\Services\ThreatHuntingService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -15,18 +17,25 @@ use Illuminate\View\View;
  */
 class ThreatHuntController extends Controller
 {
-    public function __construct(private ThreatHuntingService $huntingService) {}
+    public function __construct(
+        private ThreatHuntingService $huntingService,
+        private TenantContextAuthority $tenantAuthority,
+    ) {}
 
-    public function dashboard(): View
+    public function dashboard(Request $request): View
     {
-        $recentHunts = $this->huntingService->getHuntHistory(20);
-        $domains     = ThreatHuntingService::SUPPORTED_DOMAINS;
+        $tenantId = $this->tenantId($request);
+        $recentHunts = $this->huntingService->getHuntHistory(20, $tenantId);
+        $domains = ThreatHuntingService::SUPPORTED_DOMAINS;
+
         return view('threat-hunt.dashboard', compact('recentHunts', 'domains'));
     }
 
-    public function queryBuilder(): View
+    public function queryBuilder(Request $request): View
     {
+        $this->tenantId($request);
         $domains = ThreatHuntingService::SUPPORTED_DOMAINS;
+
         return view('threat-hunt.query-builder', compact('domains'));
     }
 
@@ -34,25 +43,26 @@ class ThreatHuntController extends Controller
     {
         $request->validate([
             'query_domain' => 'required|string|max:60',
-            'title'        => 'required|string|max:255',
+            'title' => 'required|string|max:255',
         ]);
 
         try {
             $filters = [];
             foreach ($request->input('filters', []) as $filter) {
-                if (!empty($filter['field']) && !empty($filter['operator']) && isset($filter['value'])) {
+                if (! empty($filter['field']) && ! empty($filter['operator']) && isset($filter['value'])) {
                     $filters[] = $filter;
                 }
             }
 
             $hunt = $this->huntingService->executeHunt([
-                'query_domain'     => $request->input('query_domain'),
-                'query_filters'    => $filters,
+                'query_domain' => $request->input('query_domain'),
+                'query_filters' => $filters,
                 'time_range_start' => $request->input('time_range_start'),
-                'time_range_end'   => $request->input('time_range_end'),
-                'max_results'      => $request->input('max_results', 100),
-                'title'            => $request->input('title'),
-                'description'      => $request->input('description'),
+                'time_range_end' => $request->input('time_range_end'),
+                'max_results' => $request->input('max_results', 100),
+                'title' => $request->input('title'),
+                'description' => $request->input('description'),
+                'tenant_id' => $this->tenantId($request),
             ], $request->user());
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['query' => $e->getMessage()]);
@@ -62,9 +72,11 @@ class ThreatHuntController extends Controller
             ->with('success', "Hunt {$hunt->hunt_id} completed — {$hunt->result_count} results.");
     }
 
-    public function show(string $huntId): View
+    public function show(Request $request, string $huntId): View
     {
+        $tenantId = $this->tenantId($request);
         $hunt = ThreatHunt::where('hunt_id', $huntId)
+            ->when($tenantId !== null, fn (Builder $query) => $query->where('tenant_id', $tenantId))
             ->with(['queries', 'results', 'creator'])
             ->firstOrFail();
 
@@ -73,83 +85,106 @@ class ThreatHuntController extends Controller
 
     public function replay(string $huntId, Request $request): RedirectResponse
     {
-        $original = ThreatHunt::where('hunt_id', $huntId)->firstOrFail();
-        $replay   = $this->huntingService->replayHunt($original, $request->user());
+        $tenantId = $this->tenantId($request);
+        $original = ThreatHunt::where('hunt_id', $huntId)
+            ->when($tenantId !== null, fn (Builder $query) => $query->where('tenant_id', $tenantId))
+            ->firstOrFail();
+        $replay = $this->huntingService->replayHunt($original, $request->user());
+
         return redirect()->route('threat-hunt.show', $replay->hunt_id)
             ->with('success', "Replay {$replay->hunt_id} completed — {$replay->result_count} results.");
     }
 
     public function pivotExplorer(Request $request): View
     {
+        $tenantId = $this->tenantId($request);
         $pivotType = $request->input('type', 'host');
-        $pivotId   = $request->input('id', '');
-        $result    = [];
+        $pivotId = $request->input('id', '');
+        $result = [];
 
         if ($pivotId) {
             $result = match ($pivotType) {
-                'host'        => $this->huntingService->pivotHost($pivotId),
-                'process'     => $this->huntingService->pivotProcess($pivotId),
-                'persistence' => $this->huntingService->pivotPersistence($pivotId),
-                'trace'       => $this->huntingService->pivotTrace($pivotId),
-                default       => ['error' => 'Unsupported pivot type'],
+                'host' => $this->huntingService->pivotHost($pivotId, $tenantId),
+                'process' => $this->huntingService->pivotProcess($pivotId, tenantId: $tenantId),
+                'persistence' => $this->huntingService->pivotPersistence($pivotId, tenantId: $tenantId),
+                'trace' => $this->huntingService->pivotTrace($pivotId, $tenantId),
+                default => ['error' => 'Unsupported pivot type'],
             };
         }
 
-        $agents = EndpointAgent::orderBy('hostname')->limit(50)->get(['id', 'agent_id', 'hostname']);
+        $agents = $this->agents($tenantId)->orderBy('hostname')->limit(50)->get(['id', 'agent_id', 'hostname']);
+
         return view('threat-hunt.pivot-explorer', compact('pivotType', 'pivotId', 'result', 'agents'));
     }
 
-    public function historyReplay(): View
+    public function historyReplay(Request $request): View
     {
-        $hunts = $this->huntingService->getHuntHistory(50);
+        $hunts = $this->huntingService->getHuntHistory(50, $this->tenantId($request));
+
         return view('threat-hunt.history-replay', compact('hunts'));
     }
 
     public function beaconInvestigation(Request $request): View
     {
-        $agentId  = $request->input('agent_id');
+        $tenantId = $this->tenantId($request);
+        $agentId = $request->input('agent_id');
         $patterns = [];
 
         if ($agentId) {
-            $agent    = EndpointAgent::where('agent_id', $agentId)->first();
+            $agent = $this->agents($tenantId)->where('agent_id', $agentId)->first();
             $patterns = $agent
                 ? app(\App\Services\BehavioralAnalyticsService::class)->getBeaconPatterns($agent)
                 : [];
         }
 
-        $agents = EndpointAgent::orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+        $agents = $this->agents($tenantId)->orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+
         return view('threat-hunt.beacon-investigation', compact('agentId', 'patterns', 'agents'));
     }
 
     public function persistenceInvestigation(Request $request): View
     {
+        $tenantId = $this->tenantId($request);
         $agentId = $request->input('agent_id');
-        $items   = [];
+        $items = [];
 
         if ($agentId) {
-            $agent = EndpointAgent::where('agent_id', $agentId)->first();
+            $agent = $this->agents($tenantId)->where('agent_id', $agentId)->first();
             $items = $agent
                 ? app(\App\Services\EndpointBehavioralService::class)->getPersistenceInventory($agent)
                 : [];
         }
 
-        $agents = EndpointAgent::orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+        $agents = $this->agents($tenantId)->orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+
         return view('threat-hunt.persistence-investigation', compact('agentId', 'items', 'agents'));
     }
 
     public function chainExplorer(Request $request): View
     {
+        $tenantId = $this->tenantId($request);
         $agentId = $request->input('agent_id');
-        $chains  = [];
+        $chains = [];
 
         if ($agentId) {
-            $agent  = EndpointAgent::where('agent_id', $agentId)->first();
+            $agent = $this->agents($tenantId)->where('agent_id', $agentId)->first();
             $chains = $agent
                 ? app(\App\Services\BehavioralAnalyticsService::class)->getExecutionChains($agent)
                 : [];
         }
 
-        $agents = EndpointAgent::orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+        $agents = $this->agents($tenantId)->orderBy('hostname')->limit(50)->get(['agent_id', 'hostname']);
+
         return view('threat-hunt.chain-explorer', compact('agentId', 'chains', 'agents'));
+    }
+
+    private function tenantId(Request $request): ?string
+    {
+        return $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
+    }
+
+    private function agents(?string $tenantId): Builder
+    {
+        return EndpointAgent::query()->when($tenantId !== null, fn (Builder $query) => $query->where('tenant_id', $tenantId));
     }
 }
