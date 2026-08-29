@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'internal_mtls' => [
+        'enabled' => filter_var(env('XDR_INTERNAL_MTLS_ENABLED', false), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false,
+        'ca_cert' => env('XDR_INTERNAL_MTLS_CA', ''),
+        'client_cert' => env('XDR_INTERNAL_MTLS_CLIENT_CERT', ''),
+        'client_key' => env('XDR_INTERNAL_MTLS_CLIENT_KEY', ''),
+    ],
     'services' => [
         'ingestion-gateway' => [
             'responsibility' => 'Accept raw telemetry batches and publish telemetry.raw events.',

@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\Http;
+use App\Services\InternalMtlsHttpClient;
 
 class AiRagServiceProvider implements AiAnalystProvider
 {
@@ -31,8 +31,9 @@ class AiRagServiceProvider implements AiAnalystProvider
             ->all();
 
         try {
-            $health = Http::timeout(2)->get($url.'/health');
-            if (!$health->successful()) {
+            $healthUrl = $url.'/health';
+            $health = InternalMtlsHttpClient::request($healthUrl, 2)->get($healthUrl);
+            if (! $health->successful()) {
                 throw new \RuntimeException('AI/RAG service health check failed.');
             }
 
@@ -42,9 +43,10 @@ class AiRagServiceProvider implements AiAnalystProvider
                 $headers['X-Internal-Service-Token'] = $internalToken;
             }
 
-            $response = Http::timeout($timeout)
+            $analyzeUrl = $url.'/v1/analyze';
+            $response = InternalMtlsHttpClient::request($analyzeUrl, $timeout)
                 ->withHeaders($headers)
-                ->post($url.'/v1/analyze', [
+                ->post($analyzeUrl, [
                     'incident_id' => $incidentId,
                     'evidence' => $evidence,
                     'question' => $this->question($suggestionType),

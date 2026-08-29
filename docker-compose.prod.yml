@@ -23,6 +23,11 @@
 
 services:
 
+  internal-mtls-certs-init:
+    environment:
+      XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_INTERNAL_MTLS_REQUIRED: "true"
+
   # ---------------------------------------------------------------------------
   # Message broker: remove Kafka external port; Pandaproxy stays localhost-only
   # ---------------------------------------------------------------------------
@@ -165,6 +170,8 @@ services:
       XDR_QDRANT_URL: https://qdrant:6333
       XDR_QDRANT_VERIFY_TLS: "true"
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
+      XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
     restart: always
 
   queue:
@@ -176,6 +183,8 @@ services:
       XDR_QDRANT_URL: https://qdrant:6333
       XDR_QDRANT_VERIFY_TLS: "true"
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
+      XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
     restart: always
 
   scheduler:
@@ -187,6 +196,8 @@ services:
       XDR_QDRANT_URL: https://qdrant:6333
       XDR_QDRANT_VERIFY_TLS: "true"
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
+      XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
     restart: always
 
   telemetry-worker:
@@ -254,4 +265,5 @@ services:
       # AI-1: was completely unauthenticated -- now enforced in production
       # like every other internal service in this file.
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
     restart: always

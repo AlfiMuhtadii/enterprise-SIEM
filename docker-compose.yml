@@ -97,6 +97,38 @@ services:
           memory: 1536m
           cpus: '1.5'
 
+  internal-mtls-certs-init:
+    image: alpine:3.20
+    container_name: detector-internal-mtls-certs-init
+    environment:
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_REQUIRED: ${XDR_INTERNAL_MTLS_REQUIRED:-false}
+    volumes:
+      - detector_internal_mtls_certs:/tls
+      - ./storage/certs/internal-mtls:/src/certs:ro
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        rm -f /tls/enabled
+        if [ "$$XDR_INTERNAL_MTLS_ENABLED" = "true" ]; then
+          for file in ca.crt server.crt server.key client.crt client.key; do
+            if [ ! -f "/src/certs/$$file" ]; then
+              echo "Internal mTLS certificate missing: $$file" >&2
+              exit 1
+            fi
+          done
+          cp /src/certs/ca.crt /src/certs/server.crt /src/certs/server.key /src/certs/client.crt /src/certs/client.key /tls/
+          chown 0:44444 /tls/server.key /tls/client.key
+          chmod 640 /tls/server.key /tls/client.key
+          chmod 644 /tls/ca.crt /tls/server.crt /tls/client.crt
+          touch /tls/enabled
+        elif [ "$$XDR_INTERNAL_MTLS_REQUIRED" = "true" ]; then
+          echo 'Internal mTLS is required but not enabled' >&2
+          exit 1
+        fi
+    restart: "no"
+
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.8.5
     container_name: detector-redpanda-console
@@ -557,17 +589,24 @@ services:
       XDR_QDRANT_URL: ${XDR_QDRANT_URL:-http://qdrant:6333}
       XDR_QDRANT_VERIFY_TLS: ${XDR_QDRANT_VERIFY_TLS:-true}
       XDR_QDRANT_CA_CERT: ${XDR_QDRANT_CA_CERT:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
     group_add:
       - "44444"
     volumes:
       - detector_postgres_certs:/etc/xdr/postgres-certs:ro
       - detector_clickhouse_certs:/etc/xdr/clickhouse-certs:ro
       - detector_qdrant_certs:/etc/xdr/qdrant-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
       interval: 30s
@@ -599,16 +638,23 @@ services:
       XDR_QDRANT_URL: ${XDR_QDRANT_URL:-http://qdrant:6333}
       XDR_QDRANT_VERIFY_TLS: ${XDR_QDRANT_VERIFY_TLS:-true}
       XDR_QDRANT_CA_CERT: ${XDR_QDRANT_CA_CERT:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
     group_add:
       - "44444"
     volumes:
       - detector_postgres_certs:/etc/xdr/postgres-certs:ro
       - detector_clickhouse_certs:/etc/xdr/clickhouse-certs:ro
       - detector_qdrant_certs:/etc/xdr/qdrant-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=120"]
     depends_on:
       postgres:
         condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "php artisan about --only=environment >/dev/null 2>&1"]
       interval: 30s
@@ -639,16 +685,23 @@ services:
       XDR_QDRANT_URL: ${XDR_QDRANT_URL:-http://qdrant:6333}
       XDR_QDRANT_VERIFY_TLS: ${XDR_QDRANT_VERIFY_TLS:-true}
       XDR_QDRANT_CA_CERT: ${XDR_QDRANT_CA_CERT:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
     group_add:
       - "44444"
     volumes:
       - detector_postgres_certs:/etc/xdr/postgres-certs:ro
       - detector_clickhouse_certs:/etc/xdr/clickhouse-certs:ro
       - detector_qdrant_certs:/etc/xdr/qdrant-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
     command: ["sh", "-lc", "while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
     depends_on:
       postgres:
         condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "php artisan about --only=environment >/dev/null 2>&1"]
       interval: 30s
@@ -1012,10 +1065,23 @@ services:
       # AI-1: internal auth enforcement (same pattern as alert-writer/incident-builder)
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
       XDR_AI_RAG_INTERNAL_TOKEN: ${XDR_AI_RAG_INTERNAL_TOKEN:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_SERVER_CERT: /etc/xdr/internal-mtls/server.crt
+      XDR_INTERNAL_MTLS_SERVER_KEY: /etc/xdr/internal-mtls/server.key
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
     ports:
       - "8094:8094"
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_started
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
     restart: unless-stopped
 
   alert-writer-service:
@@ -1133,6 +1199,7 @@ volumes:
   detector_tempo_data:
   detector_redpanda_config:
   detector_redpanda_certs:
+  detector_internal_mtls_certs:
   detector_postgres_certs:
   detector_opensearch_tls_data:
   detector_opensearch_tls_certs:

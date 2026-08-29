@@ -358,6 +358,7 @@ jobs:
           python scripts/xdr_postgres_tls_compose_validate.py --output reports/ci_postgres_tls_compose_validation.json
           python scripts/xdr_clickhouse_tls_compose_validate.py --output reports/ci_clickhouse_tls_compose_validation.json
           python scripts/xdr_qdrant_tls_compose_validate.py --output reports/ci_qdrant_tls_compose_validation.json
+          python scripts/xdr_ai_rag_mtls_compose_validate.py
           docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
           docker compose --env-file .env.production.example -f infra/production/docker-compose.production.yml config --quiet
 
