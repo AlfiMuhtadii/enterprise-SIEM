@@ -2,8 +2,8 @@
 
 namespace App\Support;
 
+use App\Services\InternalMtlsHttpClient;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class XdrSeparatedServiceMetrics
 {
@@ -39,7 +39,7 @@ class XdrSeparatedServiceMetrics
     private static function get(string $url): array
     {
         try {
-            return Http::timeout(2)->get($url)->json() ?? [];
+            return InternalMtlsHttpClient::request($url, 2)->get($url)->json() ?? [];
         } catch (\Throwable $exception) {
             return ['error' => $exception->getMessage()];
         }

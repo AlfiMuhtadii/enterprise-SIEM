@@ -1166,18 +1166,30 @@ services:
       # Internal auth enforcement
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
       XDR_ALERT_WRITER_INTERNAL_TOKEN: ${XDR_ALERT_WRITER_INTERNAL_TOKEN:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_ALERT_WRITER_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_SERVER_CERT: /etc/xdr/internal-mtls/server.crt
+      XDR_INTERNAL_MTLS_SERVER_KEY: /etc/xdr/internal-mtls/server.key
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING phase 5: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8095:8095"
     volumes:
       - detector_postgres_certs:/etc/xdr/postgres-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
     group_add:
       - "44444"
     depends_on:
-      - redpanda
-      - postgres
-      - opensearch
+      redpanda:
+        condition: service_started
+      postgres:
+        condition: service_started
+      opensearch:
+        condition: service_started
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   incident-builder-service:

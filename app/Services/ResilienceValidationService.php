@@ -372,7 +372,7 @@ class ResilienceValidationService
         $services = [
             'ingestion-gateway'   => env('XDR_INGEST_ADDR', 'http://127.0.0.1:8091'),
             'normalizer-worker'   => env('XDR_NORMALIZER_METRICS_URL', 'http://127.0.0.1:8092'),
-            'alert-writer'        => 'http://127.0.0.1:8095',
+            'alert-writer'        => env('XDR_ALERT_WRITER_URL', 'http://127.0.0.1:8095'),
             'incident-builder'    => 'http://127.0.0.1:8096',
         ];
 

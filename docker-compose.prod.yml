@@ -176,6 +176,7 @@ services:
       XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
+      XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
     restart: always
 
   queue:
@@ -193,6 +194,7 @@ services:
       XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
+      XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
     restart: always
 
   scheduler:
@@ -210,6 +212,7 @@ services:
       XDR_NORMALIZER_WORKER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_URL: https://normalizer-worker:8092
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
+      XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
     restart: always
 
   telemetry-worker:
@@ -253,6 +256,7 @@ services:
     ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
       # Shadow and DLQ consumers disabled in production — advisory-only, operator-triggered
       XDR_SHADOW_CONSUMER_ENABLED: "false"
       XDR_DLQ_CONSUMER_ENABLED: "false"
