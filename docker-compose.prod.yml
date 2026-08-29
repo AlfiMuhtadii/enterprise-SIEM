@@ -172,6 +172,7 @@ services:
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
+      XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
     restart: always
 
   queue:
@@ -185,6 +186,7 @@ services:
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
+      XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
     restart: always
 
   scheduler:
@@ -198,6 +200,7 @@ services:
       XDR_QDRANT_CA_CERT: /etc/xdr/qdrant-certs/ca.crt
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_AI_RAG_SERVICE_URL: https://ai-rag-service:8094
+      XDR_CORRELATION_WORKER_URL: https://correlation-worker:8093
     restart: always
 
   telemetry-worker:
@@ -230,6 +233,7 @@ services:
     ports: !reset []
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
     restart: always
 
   alert-writer-service:

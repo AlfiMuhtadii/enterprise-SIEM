@@ -1044,14 +1044,26 @@ services:
       # Default false keeps local demo usable without tokens.
       XDR_ENFORCE_INTERNAL_AUTH: ${XDR_ENFORCE_INTERNAL_AUTH:-false}
       XDR_CORRELATION_INTERNAL_TOKEN: ${XDR_CORRELATION_INTERNAL_TOKEN:-}
+      XDR_INTERNAL_MTLS_ENABLED: ${XDR_INTERNAL_MTLS_ENABLED:-false}
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_SERVER_CERT: /etc/xdr/internal-mtls/server.crt
+      XDR_INTERNAL_MTLS_SERVER_KEY: /etc/xdr/internal-mtls/server.key
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
     ports:
       - "8093:8093"
     volumes:
       - ./storage/certs/internal-mtls:/etc/xdr/internal-certs:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_started
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   ai-rag-service:

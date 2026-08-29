@@ -2,10 +2,10 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\DB;
+use App\Services\InternalMtlsHttpClient;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class XdrCorrelationCutover
 {
@@ -115,11 +115,12 @@ class XdrCorrelationCutover
 
         for ($attempt = 0; $attempt <= $retries; $attempt++) {
             try {
-                $response = Http::timeout($timeout)
+                $healthUrl = $workerUrl.'/health';
+                $response = InternalMtlsHttpClient::request($healthUrl, (int) ceil($timeout))
                     ->connectTimeout($timeout)
                     ->acceptJson()
                     ->withHeaders(['Connection' => 'keep-alive'])
-                    ->get($workerUrl.'/health');
+                    ->get($healthUrl);
 
                 $latency = round((microtime(true) - $started) * 1000, 2);
                 if ($response->successful()) {

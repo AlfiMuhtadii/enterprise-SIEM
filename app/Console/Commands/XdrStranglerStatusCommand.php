@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Services\InternalMtlsHttpClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class XdrStranglerStatusCommand extends Command
 {
@@ -36,7 +36,8 @@ class XdrStranglerStatusCommand extends Command
             if ($url !== '') {
                 try {
                     $started = microtime(true);
-                    $response = Http::timeout(2)->get($url.'/health');
+                    $healthUrl = $url.'/health';
+                    $response = InternalMtlsHttpClient::request($healthUrl, 2)->get($healthUrl);
                     $metrics['latency_ms'] = round((microtime(true) - $started) * 1000, 2);
                     $metrics['http_status'] = $response->status();
                     $status = $response->successful() ? 'healthy' : 'unhealthy';
