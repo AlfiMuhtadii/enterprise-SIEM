@@ -472,6 +472,30 @@ class ScenarioRunnerTest extends TestCase
         ]);
     }
 
+    public function test_real_mode_https_fails_closed_when_mtls_identity_is_missing(): void
+    {
+        $this->realModeConfig();
+        config([
+            'scenarios.ingestion_gateway_url' => 'https://test-gw:8091',
+            'xdr.internal_mtls.enabled' => true,
+            'xdr.internal_mtls.ca_cert' => storage_path('missing-scenario-ca.crt'),
+            'xdr.internal_mtls.client_cert' => storage_path('missing-scenario-client.crt'),
+            'xdr.internal_mtls.client_key' => storage_path('missing-scenario-client.key'),
+        ]);
+        Http::fake([
+            'https://test-gw:8091/v1/ingest' => Http::response(['accepted' => 1], 202),
+        ]);
+
+        $run = $this->makePendingRun('sql_injection_emulation');
+        (new ExecuteScenarioRunJob($run->id))->handle();
+
+        $run->refresh();
+        $this->assertSame('failed', $run->status);
+        $this->assertSame('FAIL', $run->validation_result);
+        $this->assertStringContainsString('Internal mTLS CA certificate not found', $run->failure_reason);
+        Http::assertNothingSent();
+    }
+
     public function test_real_mode_records_incident_when_alert_has_incident_id(): void
     {
         $this->realModeConfig();

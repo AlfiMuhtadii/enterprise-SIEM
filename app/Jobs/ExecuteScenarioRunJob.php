@@ -4,13 +4,13 @@ namespace App\Jobs;
 
 use App\Models\ScenarioEvidence;
 use App\Models\ScenarioRun;
+use App\Services\InternalMtlsHttpClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class ExecuteScenarioRunJob implements ShouldQueue
 {
@@ -175,8 +175,8 @@ class ExecuteScenarioRunJob implements ShouldQueue
         }
 
         try {
-            $response = Http::withHeaders($headers)
-                ->timeout(10)
+            $response = InternalMtlsHttpClient::request($gatewayUrl . '/v1/ingest', 10)
+                ->withHeaders($headers)
                 ->withBody($body, 'application/json')
                 ->post($gatewayUrl . '/v1/ingest');
             $gatewayOk = $response->successful();
