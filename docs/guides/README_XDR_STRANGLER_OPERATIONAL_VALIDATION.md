@@ -259,6 +259,12 @@ Run sustained Go correlation soak for identity/cloud/SaaS:
 python scripts\xdr_correlation_soak.py --duration-minutes 360 --batch-size 5000 --sleep-ms 100 --output reports\xdr_correlation_soak_6h.json
 ```
 
+For an mTLS-enabled correlation-worker, use an HTTPS `--correlation-url` and add
+`--mtls-enabled --mtls-ca certs/ca.crt --mtls-client-cert certs/client.crt
+--mtls-client-key certs/client.key`. Invalid configuration exits `2` before
+dataset loading, PHP status checks, Docker inspection, or report writes. The
+identity applies only to correlate POSTs and correlation metrics requests.
+
 For overnight validation:
 
 ```powershell

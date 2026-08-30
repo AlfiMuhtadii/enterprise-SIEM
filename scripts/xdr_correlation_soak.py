@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
 import statistics
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +20,7 @@ from xdr_correlation_shadow_benchmark import event_in_scope, normalize, percenti
 from xdr_infra_clients import load_jsonl
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run sustained Go correlation soak test for identity/cloud/SaaS")
     parser.add_argument("--dataset", default="storage/logs/xdr_realistic_large.jsonl")
     parser.add_argument("--duration-minutes", type=float, default=60)
@@ -37,12 +39,44 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-fallback-count", type=int, default=0)
     parser.add_argument("--max-memory-growth-mb", type=float, default=128)
     parser.add_argument("--max-goroutine-growth", type=int, default=8)
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
 
 
-def get_json(url: str, timeout: int = 10) -> Dict[str, Any]:
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if urllib.parse.urlsplit(args.correlation_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --correlation-url")
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
+
+
+def get_json(
+    url: str,
+    timeout: int = 10,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout, context=ssl_context) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         return {"error": str(exc)}
@@ -65,7 +99,14 @@ def classify_failure(text: str) -> str:
     return "unknown"
 
 
-def post_correlate(url: str, events: List[Dict[str, Any]], timeout_sec: int, retries: int, retry_sleep_ms: int) -> Dict[str, Any]:
+def post_correlate(
+    url: str,
+    events: List[Dict[str, Any]],
+    timeout_sec: int,
+    retries: int,
+    retry_sleep_ms: int,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     body = json.dumps(events, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     last_error: Exception | None = None
     for attempt in range(max(0, retries) + 1):
@@ -77,7 +118,9 @@ def post_correlate(url: str, events: List[Dict[str, Any]], timeout_sec: int, ret
         )
         started = time.perf_counter()
         try:
-            with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            with urllib.request.urlopen(
+                req, timeout=timeout_sec, context=ssl_context
+            ) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
             elapsed = (time.perf_counter() - started) * 1000
             payload["client_latency_ms"] = round(elapsed, 3)
@@ -176,8 +219,13 @@ def trend(values: List[float]) -> Dict[str, Any]:
     }
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        correlation_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
     dataset = (root / args.dataset).resolve()
     events = [normalize(row) for row in load_jsonl(dataset)]
@@ -233,8 +281,12 @@ def main() -> int:
                 args.request_timeout_sec,
                 args.correlate_retries,
                 args.correlate_retry_sleep_ms,
+                ssl_context=correlation_ssl_context,
             )
-            metrics = get_json(f"{args.correlation_url.rstrip('/')}/metrics")
+            metrics = get_json(
+                f"{args.correlation_url.rstrip('/')}/metrics",
+                ssl_context=correlation_ssl_context,
+            )
             latencies.append(float(result.get("client_latency_ms") or 0))
             worker_latencies.append(float(result.get("latency_ms") or 0))
             throughputs.append(float(result.get("throughput_eps") or 0))
@@ -277,6 +329,7 @@ def main() -> int:
     }
     report = {
         "validation_status": "PASS" if all(checks.values()) else "FAIL",
+        "correlation_mtls_enabled": bool(correlation_ssl_context),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "started_at": started_at,
         "duration_minutes_requested": args.duration_minutes,
