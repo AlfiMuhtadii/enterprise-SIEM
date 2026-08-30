@@ -83,6 +83,10 @@ def _make_args(**overrides) -> Any:
         skip_readiness_check=False,
         timeout_seconds=5,
         batch_size=10,
+        mtls_enabled=False,
+        mtls_ca=None,
+        mtls_client_cert=None,
+        mtls_client_key=None,
     )
     defaults.update(overrides)
     ns = argparse.Namespace(**defaults)
@@ -337,6 +341,108 @@ class TestPipelineHappyPath(unittest.TestCase):
             data = json.loads(manifest_file.read_text(encoding="utf-8"))
             self.assertGreater(data["failed_count"], 0)
             self.assertEqual(data["sent_count"], 0)
+
+
+class TestMutualTlsTransport(unittest.TestCase):
+    """mTLS is opt-in, fail-closed, and shared by health and ingestion calls."""
+
+    def test_disabled_does_not_build_context(self):
+        args = _make_args(mtls_enabled=False)
+        with patch.object(df.ssl, "create_default_context") as create_context:
+            self.assertIsNone(df._build_mtls_context(args, args.ingest_url))
+        create_context.assert_not_called()
+
+    def test_enabled_rejects_plain_http(self):
+        args = _make_args(
+            mtls_enabled=True,
+            mtls_ca="ca.pem",
+            mtls_client_cert="client.pem",
+            mtls_client_key="client-key.pem",
+        )
+        with self.assertRaisesRegex(ValueError, "https://"):
+            df._build_mtls_context(args, args.ingest_url)
+
+    def test_enabled_requires_complete_identity(self):
+        args = _make_args(
+            ingest_url="https://ingestion-gateway:8091/v1/ingest",
+            mtls_enabled=True,
+            mtls_ca="ca.pem",
+        )
+        with self.assertRaisesRegex(ValueError, "--mtls-client-cert"):
+            df._build_mtls_context(args, args.ingest_url)
+
+    def test_context_loads_ca_and_client_identity(self):
+        args = _make_args(
+            ingest_url="https://ingestion-gateway:8091/v1/ingest",
+            mtls_enabled=True,
+            mtls_ca="ca.pem",
+            mtls_client_cert="client.pem",
+            mtls_client_key="client-key.pem",
+        )
+        context = MagicMock()
+        with patch.object(df.ssl, "create_default_context", return_value=context) as create:
+            self.assertIs(df._build_mtls_context(args, args.ingest_url), context)
+        create.assert_called_once_with(cafile="ca.pem")
+        context.load_cert_chain.assert_called_once_with(
+            certfile="client.pem", keyfile="client-key.pem"
+        )
+
+    def test_http_helpers_pass_context_to_urlopen(self):
+        context = MagicMock()
+        response = MagicMock()
+        response.__enter__.return_value.status = 200
+        response.__enter__.return_value.read.return_value = b'{"status":"ok"}'
+        with patch.object(df.urllib.request, "urlopen", return_value=response) as urlopen:
+            df._http_get("https://gateway/health", 3, context)
+            get_call = urlopen.call_args
+            df._http_post("https://gateway/v1/ingest", {}, b"[]", 4, context)
+            post_call = urlopen.call_args
+        self.assertEqual(get_call.kwargs["context"], context)
+        self.assertEqual(post_call.kwargs["context"], context)
+
+    def test_pipeline_rejects_invalid_mtls_before_network(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            input_file = _write_input(Path(tmp))
+            args = _make_args(
+                input=str(input_file),
+                mode="pipeline",
+                output_dir=tmp,
+                mtls_enabled=True,
+            )
+            get_mock = MagicMock()
+            post_mock = MagicMock()
+            rc = df.run_pipeline(
+                args, "demo-mtls-invalid", _get_fn=get_mock, _post_fn=post_mock
+            )
+        self.assertEqual(rc, 2)
+        get_mock.assert_not_called()
+        post_mock.assert_not_called()
+
+    def test_pipeline_reuses_context_for_health_and_post(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            input_file = _write_input(Path(tmp))
+            args = _make_args(
+                input=str(input_file),
+                mode="pipeline",
+                output_dir=tmp,
+                ingest_url="https://ingestion-gateway:8091/v1/ingest",
+                mtls_enabled=True,
+                mtls_ca="ca.pem",
+                mtls_client_cert="client.pem",
+                mtls_client_key="client-key.pem",
+            )
+            context = MagicMock()
+            with patch.object(df, "_build_mtls_context", return_value=context), \
+                 patch.object(df, "_http_get", return_value=(200, "ok")) as get_mock, \
+                 patch.object(
+                     df,
+                     "_http_post",
+                     return_value=(202, json.dumps({"accepted": 3})),
+                 ) as post_mock:
+                rc = df.run_pipeline(args, "demo-mtls-context")
+        self.assertEqual(rc, 0)
+        self.assertIs(get_mock.call_args.args[-1], context)
+        self.assertIs(post_mock.call_args.args[-1], context)
 
 
 class TestTagOnlyManifestMode(unittest.TestCase):

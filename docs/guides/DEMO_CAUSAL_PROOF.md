@@ -37,6 +37,25 @@ Full options:
 --verbose             Print full subprocess output at each step
 ```
 
+For a production ingestion gateway that requires client certificates, invoke the
+feed directly with fail-closed mTLS enabled:
+
+```powershell
+python scripts/xdr_generate_internal_mtls_certs.py
+python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl `
+  --mode pipeline `
+  --ingest-url https://localhost:8091/v1/ingest `
+  --mtls-enabled `
+  --mtls-ca storage/certs/internal-mtls/ca.crt `
+  --mtls-client-cert storage/certs/internal-mtls/client.crt `
+  --mtls-client-key storage/certs/internal-mtls/client.key
+```
+
+`--mtls-enabled` rejects plaintext URLs and incomplete certificate material
+before the readiness request. The same hostname-verifying TLS context is used
+for both `/health` and `/v1/ingest`. The default remains plaintext-compatible
+for the local lab stack.
+
 ---
 
 ## Latest Verified Run

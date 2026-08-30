@@ -44,9 +44,11 @@ import hashlib
 import hmac as _hmac_mod
 import json
 import os
+import ssl
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -168,9 +170,44 @@ def tag_events(
 # HTTP helpers — injectable for testing
 # ---------------------------------------------------------------------------
 
-def _http_get(url: str, timeout: int) -> tuple[int | None, str]:
+def _build_mtls_context(
+    args: argparse.Namespace,
+    ingest_url: str,
+) -> ssl.SSLContext | None:
+    """Build a hostname-verifying client context when mTLS is enabled."""
+    if not getattr(args, "mtls_enabled", False):
+        return None
+
+    if urllib.parse.urlsplit(ingest_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires an https:// ingestion URL")
+
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
+
+
+def _http_get(
+    url: str,
+    timeout: int,
+    ssl_context: ssl.SSLContext | None = None,
+) -> tuple[int | None, str]:
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout, context=ssl_context) as resp:
             return resp.status, resp.read(256).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         return exc.code, str(exc)
@@ -178,10 +215,16 @@ def _http_get(url: str, timeout: int) -> tuple[int | None, str]:
         return None, str(exc)
 
 
-def _http_post(url: str, headers: dict[str, str], body: bytes, timeout: int) -> tuple[int, str]:
+def _http_post(
+    url: str,
+    headers: dict[str, str],
+    body: bytes,
+    timeout: int,
+    ssl_context: ssl.SSLContext | None = None,
+) -> tuple[int, str]:
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             return resp.status, resp.read(512).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         body_text = ""
@@ -395,6 +438,23 @@ def run_pipeline(
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    try:
+        ssl_context = _build_mtls_context(args, ingest_url)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
+
+    get_fn = _get_fn
+    if get_fn is None:
+        get_fn = lambda url, request_timeout: _http_get(
+            url, request_timeout, ssl_context
+        )
+    post_fn = _post_fn
+    if post_fn is None:
+        post_fn = lambda url, headers, body, request_timeout: _http_post(
+            url, headers, body, request_timeout, ssl_context
+        )
+
     sep = "=" * 64
     mode_label = "pipeline [DRY-RUN]" if dry_run else "pipeline"
     print(f"\n{sep}")
@@ -402,6 +462,7 @@ def run_pipeline(
     print(f"  mode         : {mode_label}")
     print(f"  input        : {input_path}")
     print(f"  ingest_url   : {ingest_url}")
+    print(f"  mTLS         : {'enabled' if ssl_context else 'disabled'}")
     print(f"  batch_size   : {batch_size}")
     print(sep)
 
@@ -409,7 +470,7 @@ def run_pipeline(
     readiness_result = "skipped"
     if not args.skip_readiness_check:
         print("\n[1/4] Checking ingestion-gateway readiness...")
-        ok, msg = check_readiness(ingest_url, timeout, _get_fn)
+        ok, msg = check_readiness(ingest_url, timeout, get_fn)
         if ok:
             readiness_result = "pass"
             print(f"  OK: {msg}")
@@ -474,7 +535,7 @@ def run_pipeline(
     response_summary: list[dict] = []
     batches = [tagged[i:i + batch_size] for i in range(0, len(tagged), batch_size)]
     for batch_num, batch in enumerate(batches, 1):
-        status, parsed = send_batch(batch, ingest_url, secret, timeout, _post_fn)
+        status, parsed = send_batch(batch, ingest_url, secret, timeout, post_fn)
         entry: dict = {"batch": batch_num, "size": len(batch), "status": status}
         for k in ("accepted", "latency_ms", "error", "raw"):
             if k in parsed:
@@ -595,6 +656,14 @@ Examples:
                         help="HTTP timeout in seconds (default: 5)")
     parser.add_argument("--batch-size", type=int, default=10, dest="batch_size",
                         help="Events per POST request, 1-1000 (default: 10)")
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled",
+                        help="Require mutual TLS for pipeline ingestion")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca",
+                        help="PEM CA bundle used to verify ingestion-gateway")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert",
+                        help="PEM client certificate presented to ingestion-gateway")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key",
+                        help="PEM private key for --mtls-client-cert")
     args = parser.parse_args()
 
     demo_run_id = args.demo_run_id or make_demo_run_id()
