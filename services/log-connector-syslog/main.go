@@ -112,9 +112,9 @@ func main() {
 
 	// ENT-SEC-NO-TLS-INTERNAL: internal mTLS, disabled by default. Same
 	// mechanism proven on ingestion-gateway/normalizer-worker/correlation-worker.
-	mtlsEnabled := envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	serverMtlsEnabled, clientMtlsEnabled := internalMtlsModes()
 	mtlsCA := env("XDR_INTERNAL_MTLS_CA", "")
-	serverTLSCfg, err := mtls.ServerConfig(mtlsEnabled,
+	serverTLSCfg, err := mtls.ServerConfig(serverMtlsEnabled,
 		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
 		env("XDR_INTERNAL_MTLS_SERVER_KEY", ""),
 		mtlsCA,
@@ -122,7 +122,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("[log-connector-syslog] internal mTLS server config error: %v", err)
 	}
-	clientTLSCfg, err := mtls.ClientConfig(mtlsEnabled,
+	clientTLSCfg, err := mtls.ClientConfig(clientMtlsEnabled,
 		env("XDR_INTERNAL_MTLS_CLIENT_CERT", ""),
 		env("XDR_INTERNAL_MTLS_CLIENT_KEY", ""),
 		mtlsCA,
@@ -194,7 +194,7 @@ func main() {
 		_ = server.Shutdown(ctx)
 	}()
 
-	log.Printf("[log-connector-syslog] listening udp=%s tcp=%s metrics=%s ingest=%s internal_mtls=%v", *udpAddr, *tcpAddr, *metricsAddr, c.ingestURL, mtlsEnabled)
+	log.Printf("[log-connector-syslog] listening udp=%s tcp=%s metrics=%s ingest=%s server_mtls=%v client_mtls=%v", *udpAddr, *tcpAddr, *metricsAddr, c.ingestURL, serverMtlsEnabled, clientMtlsEnabled)
 	var serveErr error
 	if serverTLSCfg != nil {
 		serveErr = server.ListenAndServeTLS("", "")
@@ -624,6 +624,12 @@ func envBool(name string, fallback bool) bool {
 		return fallback
 	}
 	return value == "1" || value == "true" || value == "yes"
+}
+
+func internalMtlsModes() (serverEnabled bool, clientEnabled bool) {
+	serverEnabled = envBool("XDR_INTERNAL_MTLS_ENABLED", false)
+	clientEnabled = envBool("XDR_INTERNAL_MTLS_CLIENT_ENABLED", serverEnabled)
+	return serverEnabled, clientEnabled
 }
 
 // validateTenantConfig enforces CONN-UNTENANTED-INGEST's startup-refusal
