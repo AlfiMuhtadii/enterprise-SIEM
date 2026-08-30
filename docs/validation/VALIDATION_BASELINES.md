@@ -81,6 +81,22 @@ Contracts under `docs/contracts/`:
 python scripts/xdr_event_flow_resilience_validate.py --replays 3 --restart-services 0 --send-malformed 1 --output reports/xdr_event_flow_resilience_validation.json
 ```
 
+For internal service mTLS, add HTTPS service URLs and client material:
+
+```powershell
+python scripts/xdr_event_flow_resilience_validate.py `
+  --alert-writer-url https://alert-writer-service:8095 `
+  --incident-builder-url https://incident-builder-service:8096 `
+  --mtls-enabled `
+  --mtls-ca certs/ca.crt `
+  --mtls-client-cert certs/client.crt `
+  --mtls-client-key certs/client.key
+```
+
+Invalid mTLS configuration exits `2` before runtime checks or report writes. The
+client identity applies only to alert-writer and incident-builder requests; the
+Redpanda REST producer remains a separately configured transport.
+
 **Expected:** exit 0, all checks pass
 
 ---
