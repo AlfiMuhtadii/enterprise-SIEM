@@ -23,9 +23,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,7 +54,7 @@ REQUIRED_CHECKS = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate threat intelligence pipeline")
     parser.add_argument("--malicious-iocs",
                         default="tests/fixtures/threat_intel/malicious_iocs.json")
@@ -74,7 +76,37 @@ def parse_args() -> argparse.Namespace:
                         help="Run TTL/expiration-specific tests")
     parser.add_argument("--output",
                         default="reports/xdr_threat_intel_validation.json")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
+
+
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if not args.use_correlation_service:
+        raise ValueError("--mtls-enabled requires --use-correlation-service 1")
+    if urllib.parse.urlsplit(args.correlation_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --correlation-url")
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -252,12 +284,17 @@ def test_all_shadow_mode(store: IoCStore, fixtures: Dict[str, List[Dict[str, Any
 # ---------------------------------------------------------------------------
 
 def test_correlation_service(correlation_url: str, ioc_service_url: str,
-                             fixtures: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+                             fixtures: Dict[str, List[Dict[str, Any]]],
+                             ssl_context: ssl.SSLContext | None = None) -> Dict[str, Any]:
     if not correlation_url:
         return {"ok": None, "note": "correlation URL not configured"}
     # Check health
     try:
-        with urllib.request.urlopen(f"{correlation_url.rstrip('/')}/health", timeout=5) as resp:
+        with urllib.request.urlopen(
+            f"{correlation_url.rstrip('/')}/health",
+            timeout=5,
+            context=ssl_context,
+        ) as resp:
             if resp.status != 200:
                 return {"ok": None, "note": "correlation-worker not healthy"}
     except Exception as exc:
@@ -271,7 +308,7 @@ def test_correlation_service(correlation_url: str, ioc_service_url: str,
             url = f"{correlation_url.rstrip('/')}/v1/correlate-endpoint-shadow"
             req = urllib.request.Request(url, data=body, method="POST",
                                           headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15, context=ssl_context) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
             results.append({"fixture": name, "ok": True,
                             "alert_count": result.get("alert_count", 0),
@@ -286,8 +323,13 @@ def test_correlation_service(correlation_url: str, ioc_service_url: str,
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        correlation_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
 
     # Use a validation-specific DB to avoid polluting the production store
@@ -296,6 +338,7 @@ def main() -> int:
     report: Dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "db_path": db_path,
+        "correlation_mtls_enabled": bool(correlation_ssl_context),
         "checks": {},
         "store_metrics": {},
         "test_details": {},
@@ -401,7 +444,10 @@ def main() -> int:
     # --- Optional: correlation-worker service test ---
     if args.use_correlation_service:
         svc_result = test_correlation_service(
-            args.correlation_url, args.ioc_service_url, endpoint_fixtures
+            args.correlation_url,
+            args.ioc_service_url,
+            endpoint_fixtures,
+            ssl_context=correlation_ssl_context,
         )
         details["correlation_service"] = svc_result
 

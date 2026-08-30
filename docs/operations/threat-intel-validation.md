@@ -49,14 +49,27 @@ python scripts\xdr_threat_intel_validate.py `
     --output reports/xdr_threat_intel_validation.json
 ```
 
-**With IOC service + correlation-worker integration:**
+**With correlation-worker service validation:**
 
 ```powershell
 python scripts\xdr_threat_intel_validate.py `
+    --use-correlation-service 1 `
     --correlation-url http://127.0.0.1:8093 `
-    --ioc-service-url http://127.0.0.1:8097 `
     --output reports/xdr_threat_intel_validation.json
 ```
+
+For an mTLS-enabled correlation-worker, change the URL to HTTPS and add:
+
+```powershell
+    --mtls-enabled `
+    --mtls-ca certs/ca.crt `
+    --mtls-client-cert certs/client.crt `
+    --mtls-client-key certs/client.key
+```
+
+Invalid mTLS configuration exits `2` before fixture loading, SQLite mutation, or
+report writes. The optional `--ioc-service-url` is not an HTTP target in this
+validator and does not receive the correlation-worker client identity.
 
 ---
 
