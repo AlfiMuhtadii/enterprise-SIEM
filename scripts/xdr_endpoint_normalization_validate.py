@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
+import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,7 +49,7 @@ VALID_EVENT_TYPES = {
 }
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate endpoint telemetry normalization")
     parser.add_argument("--fixture-dir", default="tests/fixtures/endpoint",
                         help="Directory containing raw endpoint telemetry fixture JSON files")
@@ -56,7 +59,38 @@ def parse_args() -> argparse.Namespace:
                         help="Report output path")
     parser.add_argument("--use-normalizer-service", type=int, default=1,
                         help="1=try HTTP normalizer service; 0=local validation only")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
+
+
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if not args.use_normalizer_service:
+        raise ValueError("--mtls-enabled requires --use-normalizer-service 1")
+    if urllib.parse.urlsplit(args.normalizer_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --normalizer-url")
+
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +229,12 @@ def check_idempotency(raw: Dict[str, Any], fixture_name: str) -> Tuple[bool, Opt
 # Normalizer service check (optional)
 # ---------------------------------------------------------------------------
 
-def try_normalizer_service(url: str, raw: Dict[str, Any], fixture_name: str) -> Dict[str, Any]:
+def try_normalizer_service(
+    url: str,
+    raw: Dict[str, Any],
+    fixture_name: str,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     """POST a single raw event to /v1/normalize and return the service response."""
     try:
         body = json.dumps([raw]).encode("utf-8")
@@ -205,7 +244,7 @@ def try_normalizer_service(url: str, raw: Dict[str, Any], fixture_name: str) -> 
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=ssl_context) as resp:
             result = json.loads(resp.read().decode("utf-8"))
         service_ok = result.get("malformed", 1) == 0 and result.get("enqueued", 0) >= 1
         return {
@@ -219,9 +258,14 @@ def try_normalizer_service(url: str, raw: Dict[str, Any], fixture_name: str) -> 
         return {"fixture": fixture_name, "service_ok": False, "error": str(exc)}
 
 
-def normalizer_health(url: str) -> bool:
+def normalizer_health(
+    url: str,
+    ssl_context: ssl.SSLContext | None = None,
+) -> bool:
     try:
-        with urllib.request.urlopen(f"{url.rstrip('/')}/health", timeout=5) as resp:
+        with urllib.request.urlopen(
+            f"{url.rstrip('/')}/health", timeout=5, context=ssl_context
+        ) as resp:
             return resp.status == 200
     except Exception:
         return False
@@ -231,8 +275,13 @@ def normalizer_health(url: str) -> bool:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        normalizer_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
     fixture_dir = (root / args.fixture_dir).resolve()
 
@@ -240,6 +289,7 @@ def main() -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "fixture_dir": str(fixture_dir.relative_to(root)),
         "normalizer_url": args.normalizer_url,
+        "normalizer_mtls_enabled": bool(normalizer_ssl_context),
         "checks": {},
         "fixture_results": [],
         "idempotency_results": [],
@@ -322,11 +372,18 @@ def main() -> int:
     # ---- Normalizer service checks (optional) ----
     normalizer_available = False
     if args.use_normalizer_service:
-        normalizer_available = normalizer_health(args.normalizer_url)
+        normalizer_available = normalizer_health(
+            args.normalizer_url, ssl_context=normalizer_ssl_context
+        )
         report["normalizer_service_available"] = normalizer_available
         if normalizer_available:
             for name, raw in fixtures.items():
-                result = try_normalizer_service(args.normalizer_url, raw, name)
+                result = try_normalizer_service(
+                    args.normalizer_url,
+                    raw,
+                    name,
+                    ssl_context=normalizer_ssl_context,
+                )
                 report["service_results"].append(result)
                 if result.get("service_ok") is False:
                     all_failures.append(

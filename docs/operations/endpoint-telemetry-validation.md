@@ -40,6 +40,21 @@ python scripts\xdr_endpoint_normalization_validate.py `
     --output reports/xdr_endpoint_normalization_validation.json
 ```
 
+For an mTLS-enabled normalizer service:
+
+```powershell
+python scripts\xdr_endpoint_normalization_validate.py `
+    --normalizer-url https://normalizer-worker:8092 `
+    --mtls-enabled `
+    --mtls-ca certs/ca.crt `
+    --mtls-client-cert certs/client.crt `
+    --mtls-client-key certs/client.key
+```
+
+Invalid mTLS configuration exits `2` before fixture loading or report writes.
+Offline mode (`--use-normalizer-service 0`) remains certificate-independent and
+must not be combined with `--mtls-enabled`.
+
 **Without normalizer service (local validation only):**
 
 ```powershell
