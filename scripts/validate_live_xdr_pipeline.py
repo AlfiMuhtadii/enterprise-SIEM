@@ -30,7 +30,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import sys
+import urllib.parse
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -71,7 +73,57 @@ def load_dotenv(env_path: Path) -> dict[str, str]:
 # HTTP check — GET only, no side effects
 # ---------------------------------------------------------------------------
 
-def http_get(url: str, timeout: int, max_bytes: int = 512) -> tuple[int | None, str]:
+def build_ingestion_mtls_context(
+    args: argparse.Namespace,
+    ingest_url: str,
+) -> ssl.SSLContext | None:
+    """Build an mTLS context scoped only to ingestion-gateway checks."""
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if urllib.parse.urlsplit(ingest_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires an https:// ingestion URL")
+
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
+
+
+def ingestion_base_url(url: str) -> str:
+    """Accept either a gateway base URL or its canonical ingest endpoint."""
+    parsed = urllib.parse.urlsplit(url)
+    path = parsed.path.rstrip("/")
+    if path.endswith("/v1/ingest"):
+        path = path[:-len("/v1/ingest")]
+    return urllib.parse.urlunsplit((
+        parsed.scheme,
+        parsed.netloc,
+        path,
+        parsed.query,
+        parsed.fragment,
+    )).rstrip("/")
+
+
+def http_get(
+    url: str,
+    timeout: int,
+    max_bytes: int = 512,
+    ssl_context: ssl.SSLContext | None = None,
+) -> tuple[int | None, str]:
     """Return (status_code, body) or (None, error_message).
 
     max_bytes controls how much of the response body is read.  Use a large
@@ -79,7 +131,7 @@ def http_get(url: str, timeout: int, max_bytes: int = 512) -> tuple[int | None, 
     """
     try:
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             body = resp.read(max_bytes).decode("utf-8", errors="replace")
             return resp.status, body
     except urllib.error.HTTPError as exc:
@@ -95,9 +147,16 @@ def http_get(url: str, timeout: int, max_bytes: int = 512) -> tuple[int | None, 
 CheckResult = dict[str, Any]
 
 
-def check_service_health(component: str, base_url: str, timeout: int, required: bool) -> CheckResult:
+def check_service_health(
+    component: str,
+    base_url: str,
+    timeout: int,
+    required: bool,
+    _http_get_fn=None,
+) -> CheckResult:
+    get = _http_get_fn or http_get
     url = base_url.rstrip("/") + "/health"
-    code, body = http_get(url, timeout)
+    code, body = get(url, timeout)
     if code is None:
         status = FAIL
         evidence = f"Connection refused / timeout: {body}"
@@ -656,18 +715,32 @@ def render_table(results: list[CheckResult]) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> int:
+def _parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Read-only XDR pipeline readiness validator")
     parser.add_argument("--env", default=".env", help="Path to .env file (default: .env)")
     parser.add_argument("--timeout", type=int, default=TIMEOUT_S, help=f"HTTP timeout in seconds (default: {TIMEOUT_S})")
-    args = parser.parse_args()
+    parser.add_argument("--ingest-url", default=None, dest="ingest_url",
+                        help="Override ingestion-gateway base or /v1/ingest URL")
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled",
+                        help="Require mutual TLS for the ingestion-gateway health check")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca",
+                        help="PEM CA bundle used to verify ingestion-gateway")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert",
+                        help="PEM client certificate presented to ingestion-gateway")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key",
+                        help="PEM private key for --mtls-client-cert")
+    return parser.parse_args(argv)
+
+
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or _parse_args()
 
     env_path = Path(args.env)
     env_vars = load_dotenv(env_path)
     timeout = args.timeout
 
     # Resolve service URLs from env (with defaults matching service code)
-    ingest_url    = env_vars.get("XDR_INGEST_ADDR",          "http://127.0.0.1:8091")
+    ingest_url    = args.ingest_url or env_vars.get("XDR_INGEST_ADDR", "http://127.0.0.1:8091")
     normalizer_url= env_vars.get("XDR_NORMALIZER_ADDR",      "http://127.0.0.1:8092")
     correlation_url= env_vars.get("XDR_CORRELATION_WORKER_URL", "http://127.0.0.1:8093")
     alert_writer_url= env_vars.get("XDR_ALERT_WRITER_URL",   "http://127.0.0.1:8095")
@@ -682,7 +755,7 @@ def main() -> int:
             return f"http://{addr}"
         return addr
 
-    ingest_url    = normalise_addr(ingest_url)
+    ingest_url    = ingestion_base_url(normalise_addr(ingest_url))
     normalizer_url= normalise_addr(normalizer_url)
     correlation_url= normalise_addr(correlation_url)
 
@@ -696,9 +769,21 @@ def main() -> int:
 
     OFFSET_RESET_VALS = {"earliest", "latest", "none"}
 
+    try:
+        ingestion_ssl_context = build_ingestion_mtls_context(args, ingest_url)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid ingestion mTLS configuration: {exc}", file=sys.stderr)
+        return 2
+
+    def ingestion_get(url: str, request_timeout: int) -> tuple[int | None, str]:
+        return http_get(url, request_timeout, ssl_context=ingestion_ssl_context)
+
     results: list[CheckResult] = [
         # 1–5: service health
-        check_service_health("ingestion-gateway",    ingest_url,      timeout, required=True),
+        check_service_health(
+            "ingestion-gateway", ingest_url, timeout, required=True,
+            _http_get_fn=ingestion_get,
+        ),
         check_service_health("normalizer-worker",    normalizer_url,  timeout, required=True),
         check_service_health("correlation-worker",   correlation_url, timeout, required=True),
         check_service_health("alert-writer-service", alert_writer_url,timeout, required=True),
@@ -835,4 +920,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(_parse_args()))

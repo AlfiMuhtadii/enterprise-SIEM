@@ -62,6 +62,21 @@ def _default_run(
     return result.returncode, (result.stdout or "") + (result.stderr or "")
 
 
+def _mtls_cli_args(args: argparse.Namespace) -> list[str]:
+    if not getattr(args, "mtls_enabled", False):
+        return []
+    result = ["--mtls-enabled"]
+    for option, attribute in (
+        ("--mtls-ca", "mtls_ca"),
+        ("--mtls-client-cert", "mtls_client_cert"),
+        ("--mtls-client-key", "mtls_client_key"),
+    ):
+        value = getattr(args, attribute, None)
+        if value:
+            result.extend((option, value))
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Step 1 — Pipeline readiness
 # ---------------------------------------------------------------------------
@@ -75,7 +90,13 @@ def run_validator(
     Returns (passed, output, summary_dict).
     """
     run = _run_fn or _default_run
-    cmd = [sys.executable, str(SCRIPTS_DIR / "validate_live_xdr_pipeline.py")]
+    cmd = [
+        sys.executable,
+        str(SCRIPTS_DIR / "validate_live_xdr_pipeline.py"),
+        "--ingest-url",
+        args.ingest_url,
+        *_mtls_cli_args(args),
+    ]
     try:
         rc, output = run(cmd, cwd=str(PROJECT_ROOT))
     except Exception as exc:
@@ -108,6 +129,7 @@ def run_demo_feed(
         "--mode", "pipeline",
         "--ingest-url", args.ingest_url,
         "--skip-readiness-check",
+        *_mtls_cli_args(args),
     ]
     try:
         rc, output = run(cmd, cwd=str(PROJECT_ROOT))
@@ -115,7 +137,7 @@ def run_demo_feed(
         return False, "", 0, f"demo_feed_exception: {exc}", {}
 
     # Extract demo_run_id from output.
-    m = re.search(r"demo_run_id\s*:\s*(\S+)", output)
+    m = re.search(r"(?m)^\s*demo_run_id[ \t]*:[ \t]*(\S+)[ \t]*$", output)
     demo_run_id = m.group(1).strip() if m else ""
 
     # Sum accepted counts from all batch lines.
@@ -345,6 +367,7 @@ def write_reports(
         "demo_run_id": demo_run_id,
         "scenario_file": str(args.input),
         "ingest_url": args.ingest_url,
+        "ingestion_mtls_enabled": getattr(args, "mtls_enabled", False),
         "started_at": started_at,
         "ended_at": ended_at,
         "accepted_count": accepted,
@@ -580,6 +603,18 @@ Exit codes:
         action="store_true",
         help="Suppress all console output (exit code still set correctly).",
     )
+    parser.add_argument(
+        "--mtls-enabled",
+        action="store_true",
+        dest="mtls_enabled",
+        help="Require mutual TLS for gateway readiness and ingestion",
+    )
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca",
+                        help="PEM CA bundle used to verify ingestion-gateway")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert",
+                        help="PEM client certificate presented to ingestion-gateway")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key",
+                        help="PEM private key for --mtls-client-cert")
     return parser.parse_args(argv)
 
 

@@ -3,12 +3,13 @@
 All tests use injectable _run_fn / _sleep_fn parameters so no live stack is
 required. Nothing writes to security_alerts or security_events directly.
 """
+import argparse
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Ensure scripts/ is importable.
 SCRIPTS_DIR = Path(__file__).parent.parent.parent / "scripts"
@@ -21,6 +22,7 @@ from demo_causal_verify import (
     run_demo_feed,
     run_validator,
 )
+import validate_live_xdr_pipeline as vlp
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +89,7 @@ def _make_args(
     verbose: bool = False,
     ingest_url: str = "http://localhost:8091/v1/ingest",
     input_path: str = "fixtures/demo/attack_scenario.jsonl",
+    mtls_enabled: bool = False,
 ) -> object:
     return _parse_args(
         [
@@ -97,6 +100,12 @@ def _make_args(
         ]
         + (["--no-report-write"] if no_report_write else [])
         + (["--verbose"] if verbose else [])
+        + ([
+            "--mtls-enabled",
+            "--mtls-ca", "ca.pem",
+            "--mtls-client-cert", "client.pem",
+            "--mtls-client-key", "client-key.pem",
+        ] if mtls_enabled else [])
     )
 
 
@@ -149,6 +158,19 @@ class TestDemoFeedFailureReturnsFail(unittest.TestCase):
             _run_demo_feed_fn=fake_feed,
         )
         self.assertEqual(rc, 2)
+
+    def test_empty_run_id_does_not_consume_next_output_line(self):
+        args = _make_args()
+
+        def fake_feed(cmd, **kw):
+            return 1, DEMO_FEED_FAIL_OUTPUT
+
+        success, demo_run_id, accepted, _, _ = run_demo_feed(
+            args, _run_fn=fake_feed
+        )
+        self.assertFalse(success)
+        self.assertEqual(demo_run_id, "")
+        self.assertEqual(accepted, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +339,103 @@ class TestNoDirectDbWrite(unittest.TestCase):
             re.search(r"INSERT\s+INTO\s+security_events", source, re.IGNORECASE),
             "demo_causal_verify.py must not INSERT into security_events",
         )
+
+
+class TestMutualTlsOrchestration(unittest.TestCase):
+    def test_cli_defaults_to_plaintext_compatible_mode(self):
+        args = _parse_args([])
+        self.assertFalse(args.mtls_enabled)
+        self.assertIsNone(args.mtls_ca)
+
+    def test_validator_and_feed_receive_complete_mtls_arguments(self):
+        args = _make_args(
+            ingest_url="https://localhost:8091/v1/ingest",
+            mtls_enabled=True,
+        )
+        commands = []
+
+        def fake_validator(cmd, **kwargs):
+            commands.append(cmd)
+            return 0, VALIDATOR_PASS_OUTPUT
+
+        def fake_feed(cmd, **kwargs):
+            commands.append(cmd)
+            return 0, DEMO_FEED_PASS_OUTPUT
+
+        self.assertTrue(run_validator(args, _run_fn=fake_validator)[0])
+        self.assertTrue(run_demo_feed(args, _run_fn=fake_feed)[0])
+        for command in commands:
+            self.assertIn("--mtls-enabled", command)
+            self.assertEqual(command[command.index("--mtls-ca") + 1], "ca.pem")
+            self.assertEqual(
+                command[command.index("--mtls-client-cert") + 1], "client.pem"
+            )
+            self.assertEqual(
+                command[command.index("--mtls-client-key") + 1], "client-key.pem"
+            )
+
+    def test_validator_accepts_ingest_endpoint_or_base_url(self):
+        self.assertEqual(
+            vlp.ingestion_base_url("https://gateway:8091/v1/ingest"),
+            "https://gateway:8091",
+        )
+        self.assertEqual(
+            vlp.ingestion_base_url("https://gateway:8091"),
+            "https://gateway:8091",
+        )
+
+    def test_validator_mtls_rejects_http_and_incomplete_identity(self):
+        args = argparse.Namespace(
+            mtls_enabled=True,
+            mtls_ca="ca.pem",
+            mtls_client_cert="client.pem",
+            mtls_client_key="client-key.pem",
+        )
+        with self.assertRaisesRegex(ValueError, "https://"):
+            vlp.build_ingestion_mtls_context(args, "http://localhost:8091")
+        args.mtls_client_key = None
+        with self.assertRaisesRegex(ValueError, "--mtls-client-key"):
+            vlp.build_ingestion_mtls_context(args, "https://localhost:8091")
+
+    def test_validator_loads_identity_and_scopes_context_to_injected_get(self):
+        args = argparse.Namespace(
+            mtls_enabled=True,
+            mtls_ca="ca.pem",
+            mtls_client_cert="client.pem",
+            mtls_client_key="client-key.pem",
+        )
+        context = MagicMock()
+        with patch.object(vlp.ssl, "create_default_context", return_value=context) as create:
+            actual = vlp.build_ingestion_mtls_context(
+                args, "https://localhost:8091"
+            )
+        self.assertIs(actual, context)
+        create.assert_called_once_with(cafile="ca.pem")
+        context.load_cert_chain.assert_called_once_with(
+            certfile="client.pem", keyfile="client-key.pem"
+        )
+
+        get = MagicMock(return_value=(200, "ok"))
+        result = vlp.check_service_health(
+            "ingestion-gateway",
+            "https://localhost:8091",
+            3,
+            True,
+            _http_get_fn=get,
+        )
+        self.assertEqual(result["status"], vlp.PASS)
+        get.assert_called_once_with("https://localhost:8091/health", 3)
+
+    def test_validator_parser_exposes_mtls_options(self):
+        args = vlp._parse_args([
+            "--ingest-url", "https://localhost:8091/v1/ingest",
+            "--mtls-enabled",
+            "--mtls-ca", "ca.pem",
+            "--mtls-client-cert", "client.pem",
+            "--mtls-client-key", "client-key.pem",
+        ])
+        self.assertTrue(args.mtls_enabled)
+        self.assertEqual(args.ingest_url, "https://localhost:8091/v1/ingest")
 
 
 if __name__ == "__main__":

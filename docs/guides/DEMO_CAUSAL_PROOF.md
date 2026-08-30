@@ -35,6 +35,10 @@ Full options:
 --poll-interval-seconds  Seconds between polls  (default: 3.0)
 --no-report-write     Skip writing report files
 --verbose             Print full subprocess output at each step
+--mtls-enabled        Require mTLS for gateway readiness and ingestion
+--mtls-ca             PEM CA bundle used to verify ingestion-gateway
+--mtls-client-cert    PEM client certificate presented to ingestion-gateway
+--mtls-client-key     PEM private key for the client certificate
 ```
 
 For a production ingestion gateway that requires client certificates, invoke the
@@ -42,8 +46,7 @@ feed directly with fail-closed mTLS enabled:
 
 ```powershell
 python scripts/xdr_generate_internal_mtls_certs.py
-python scripts/demo_feed.py --input fixtures/demo/attack_scenario.jsonl `
-  --mode pipeline `
+python scripts/demo_causal_verify.py `
   --ingest-url https://localhost:8091/v1/ingest `
   --mtls-enabled `
   --mtls-ca storage/certs/internal-mtls/ca.crt `
