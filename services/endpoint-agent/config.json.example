@@ -3,6 +3,10 @@
 
   "ingestion_gateway_url": "http://127.0.0.1:8091",
   "ingestion_gateway_secret": "dev-secret-change-me",
+  "ingestion_gateway_mtls_enabled": false,
+  "ingestion_gateway_mtls_ca": "",
+  "ingestion_gateway_mtls_client_cert": "",
+  "ingestion_gateway_mtls_client_key": "",
 
   "soc_api_url": "http://127.0.0.1:8000",
   "enrollment_token": "",

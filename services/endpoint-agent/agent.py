@@ -24,6 +24,7 @@ import os
 import platform
 import re
 import socket
+import ssl
 import struct
 import subprocess
 import sys
@@ -77,6 +78,10 @@ LONG_LIVED_THRESHOLD_SECONDS: int = 3600  # 1 hour
 DEFAULT_CONFIG: dict[str, Any] = {
     "ingestion_gateway_url": "http://127.0.0.1:8091",
     "ingestion_gateway_secret": "dev-secret-change-me",
+    "ingestion_gateway_mtls_enabled": False,
+    "ingestion_gateway_mtls_ca": "",
+    "ingestion_gateway_mtls_client_cert": "",
+    "ingestion_gateway_mtls_client_key": "",
     "soc_api_url": "http://127.0.0.1:8000",
     "enrollment_token": "",
     "state_path": "/var/lib/xdr-agent/state.json",
@@ -219,11 +224,12 @@ def _http_post(
     payload: bytes,
     headers: dict[str, str],
     timeout: int = 15,
+    ssl_context: ssl.SSLContext | None = None,
 ) -> tuple[int, bytes]:
     """Simple HTTP POST using stdlib urllib. Returns (status_code, body_bytes)."""
     req = urllib_request.Request(url, data=payload, headers=headers, method="POST")
     try:
-        with urllib_request.urlopen(req, timeout=timeout) as resp:
+        with urllib_request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             return resp.status, resp.read()
     except HTTPError as exc:
         return exc.code, exc.read()
@@ -466,6 +472,29 @@ class GatewayClient:
         self.url = cfg["ingestion_gateway_url"].rstrip("/") + "/v1/ingest"
         self.secret = cfg["ingestion_gateway_secret"]
         self.buffer = buffer
+        self.ssl_context = self._build_ssl_context(cfg)
+
+    def _build_ssl_context(self, cfg: dict[str, Any]) -> ssl.SSLContext | None:
+        if not cfg.get("ingestion_gateway_mtls_enabled", False):
+            return None
+        if not self.url.lower().startswith("https://"):
+            raise ValueError("ingestion_gateway_url must use https when mTLS is enabled")
+
+        required = {
+            "ingestion_gateway_mtls_ca": cfg.get("ingestion_gateway_mtls_ca", ""),
+            "ingestion_gateway_mtls_client_cert": cfg.get("ingestion_gateway_mtls_client_cert", ""),
+            "ingestion_gateway_mtls_client_key": cfg.get("ingestion_gateway_mtls_client_key", ""),
+        }
+        missing = [name for name, value in required.items() if not value]
+        if missing:
+            raise ValueError(f"mTLS configuration missing: {', '.join(missing)}")
+
+        context = ssl.create_default_context(cafile=required["ingestion_gateway_mtls_ca"])
+        context.load_cert_chain(
+            certfile=required["ingestion_gateway_mtls_client_cert"],
+            keyfile=required["ingestion_gateway_mtls_client_key"],
+        )
+        return context
 
     def _send_raw(self, events: list[dict[str, Any]]) -> bool:
         """Send a batch directly. Returns True on success."""
@@ -478,7 +507,12 @@ class GatewayClient:
 
         for attempt in range(self.MAX_RETRIES):
             try:
-                status, resp_body = _http_post(self.url, body, headers)
+                if self.ssl_context is None:
+                    status, resp_body = _http_post(self.url, body, headers)
+                else:
+                    status, resp_body = _http_post(
+                        self.url, body, headers, ssl_context=self.ssl_context,
+                    )
                 if 200 <= status < 300:
                     log.debug("Shipped %d events — HTTP %d", len(events), status)
                     return True

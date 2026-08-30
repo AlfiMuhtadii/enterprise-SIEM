@@ -2513,5 +2513,69 @@ class TestSignBodyReplayProtection(unittest.TestCase):
         self.assertNotIn("X-XDR-Timestamp", captured["headers"])
 
 
+class TestGatewayMutualTls(unittest.TestCase):
+    def _buffer(self, directory: str) -> ag.LocalBuffer:
+        return ag.LocalBuffer(str(Path(directory) / "buffer.jsonl"))
+
+    def test_disabled_mode_preserves_plain_http_without_ssl_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            ag.ssl, "create_default_context"
+        ) as create_context:
+            client = ag.GatewayClient(_make_cfg(), self._buffer(tmp))
+
+        self.assertIsNone(client.ssl_context)
+        create_context.assert_not_called()
+
+    def test_enabled_mode_rejects_plain_http_url(self) -> None:
+        cfg = _make_cfg(ingestion_gateway_mtls_enabled=True)
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(
+            ValueError, "must use https"
+        ):
+            ag.GatewayClient(cfg, self._buffer(tmp))
+
+    def test_enabled_mode_rejects_incomplete_credentials(self) -> None:
+        cfg = _make_cfg(
+            ingestion_gateway_url="https://gateway.test:8091",
+            ingestion_gateway_mtls_enabled=True,
+        )
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(
+            ValueError, "ingestion_gateway_mtls_ca"
+        ):
+            ag.GatewayClient(cfg, self._buffer(tmp))
+
+    def test_enabled_mode_loads_ca_and_client_identity(self) -> None:
+        cfg = _make_cfg(
+            ingestion_gateway_url="https://gateway.test:8091",
+            ingestion_gateway_mtls_enabled=True,
+            ingestion_gateway_mtls_ca="ca.crt",
+            ingestion_gateway_mtls_client_cert="client.crt",
+            ingestion_gateway_mtls_client_key="client.key",
+        )
+        context = MagicMock()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            ag.ssl, "create_default_context", return_value=context
+        ) as create_context:
+            client = ag.GatewayClient(cfg, self._buffer(tmp))
+
+        self.assertIs(client.ssl_context, context)
+        create_context.assert_called_once_with(cafile="ca.crt")
+        context.load_cert_chain.assert_called_once_with(
+            certfile="client.crt", keyfile="client.key"
+        )
+
+    def test_send_passes_mtls_context_to_http_transport(self) -> None:
+        cfg = _make_cfg(ingestion_gateway_url="https://gateway.test:8091")
+        context = MagicMock()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(
+            ag.GatewayClient, "_build_ssl_context", return_value=context
+        ):
+            client = ag.GatewayClient(cfg, self._buffer(tmp))
+            with patch.object(ag, "_http_post", return_value=(202, b"{}")) as post:
+                sent = client._send_raw([ag.base_event("heartbeat", "agent-1", "trace-1")])
+
+        self.assertTrue(sent)
+        self.assertIs(post.call_args.kwargs["ssl_context"], context)
+
+
 if __name__ == "__main__":
     unittest.main()

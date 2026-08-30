@@ -72,6 +72,20 @@ ssh user@192.168.1.20
 python /tmp/xdr-agent/agent.py --config /tmp/xdr-agent/config.json --debug
 ```
 
+For an mTLS-protected gateway, use an `https://` URL and configure all three credential paths:
+
+```json
+{
+  "ingestion_gateway_url": "https://ingestion.example.internal:8091",
+  "ingestion_gateway_mtls_enabled": true,
+  "ingestion_gateway_mtls_ca": "/etc/detector-agent/ca.crt",
+  "ingestion_gateway_mtls_client_cert": "/etc/detector-agent/client.crt",
+  "ingestion_gateway_mtls_client_key": "/etc/detector-agent/client.key"
+}
+```
+
+The agent verifies the gateway hostname against the configured CA and presents the client identity. Enabling mTLS with HTTP or incomplete credentials fails closed during client initialization. Provision endpoint-specific private keys outside the deployment package.
+
 ---
 
 ## How to verify heartbeat
