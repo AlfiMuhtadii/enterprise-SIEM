@@ -48,6 +48,21 @@ python scripts\xdr_endpoint_shadow_correlation_validate.py `
     --output reports/xdr_endpoint_shadow_correlation_validation.json
 ```
 
+For an mTLS-enabled correlation service:
+
+```powershell
+python scripts\xdr_endpoint_shadow_correlation_validate.py `
+    --correlation-url https://correlation-worker:8093 `
+    --mtls-enabled `
+    --mtls-ca certs/ca.crt `
+    --mtls-client-cert certs/client.crt `
+    --mtls-client-key certs/client.key
+```
+
+Invalid mTLS configuration exits `2` before fixture loading or report writes.
+Offline simulation (`--use-correlation-service 0`) remains certificate-independent
+and must not be combined with `--mtls-enabled`.
+
 **Without correlation service (schema/logic validation only):**
 
 ```powershell

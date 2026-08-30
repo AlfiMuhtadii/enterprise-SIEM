@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
+import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +41,7 @@ EXPECTED_RULES: Dict[str, str] = {
 }
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate endpoint shadow correlation rules")
     parser.add_argument("--fixture-dir-benign",
                         default="tests/fixtures/endpoint_shadow/benign",
@@ -53,7 +56,37 @@ def parse_args() -> argparse.Namespace:
                         help="Report output path")
     parser.add_argument("--use-correlation-service", type=int, default=1,
                         help="1=use HTTP service; 0=local rule simulation only")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
+
+
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if not args.use_correlation_service:
+        raise ValueError("--mtls-enabled requires --use-correlation-service 1")
+    if urllib.parse.urlsplit(args.correlation_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --correlation-url")
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -228,15 +261,21 @@ def simulate_shadow_rules(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # HTTP service interaction
 # ---------------------------------------------------------------------------
 
-def correlation_health(url: str) -> bool:
+def correlation_health(url: str, ssl_context: ssl.SSLContext | None = None) -> bool:
     try:
-        with urllib.request.urlopen(f"{url.rstrip('/')}/health", timeout=5) as resp:
+        with urllib.request.urlopen(
+            f"{url.rstrip('/')}/health", timeout=5, context=ssl_context
+        ) as resp:
             return resp.status == 200
     except Exception:
         return False
 
 
-def post_shadow_correlate(url: str, events: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def post_shadow_correlate(
+    url: str,
+    events: List[Dict[str, Any]],
+    ssl_context: ssl.SSLContext | None = None,
+) -> Optional[Dict[str, Any]]:
     try:
         body = json.dumps(events).encode("utf-8")
         req = urllib.request.Request(
@@ -245,7 +284,7 @@ def post_shadow_correlate(url: str, events: List[Dict[str, Any]]) -> Optional[Di
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30, context=ssl_context) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         return {"error": str(exc), "shadow_alerts": [], "alert_count": 0}
@@ -283,13 +322,17 @@ def check_no_duplicates(alerts: List[Dict[str, Any]], fixture_name: str) -> Tupl
     seen: set = set()
     duplicates = []
     for alert in alerts:
-        aid = alert.get("alert_id") or alert.get("rule_id") or str(alert)
+        aid = alert.get("alert_id") or (
+            alert.get("rule_id"),
+            alert.get("event_id"),
+            alert.get("trace_id"),
+        )
         if aid in seen:
             duplicates.append(aid)
         else:
             seen.add(aid)
     if duplicates:
-        return False, f"{fixture_name}: duplicate alert IDs: {duplicates}"
+        return False, f"{fixture_name}: duplicate alert identities: {duplicates}"
     return True, None
 
 
@@ -310,8 +353,13 @@ def load_fixtures(fixture_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
     return fixtures
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        correlation_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
 
     benign_dir = (root / args.fixture_dir_benign).resolve()
@@ -320,6 +368,7 @@ def main() -> int:
     report: Dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "correlation_url": args.correlation_url,
+        "correlation_mtls_enabled": bool(correlation_ssl_context),
         "checks": {},
         "benign_results": [],
         "suspicious_results": [],
@@ -340,7 +389,9 @@ def main() -> int:
 
     service_available = False
     if args.use_correlation_service:
-        service_available = correlation_health(args.correlation_url)
+        service_available = correlation_health(
+            args.correlation_url, ssl_context=correlation_ssl_context
+        )
         report["correlation_service_available"] = service_available
         if not service_available:
             report["errors"].append(
@@ -354,7 +405,9 @@ def main() -> int:
     for name, events in benign_fixtures.items():
         result: Dict[str, Any] = {"fixture": name, "expected_alerts": 0}
         if service_available:
-            resp = post_shadow_correlate(args.correlation_url, events)
+            resp = post_shadow_correlate(
+                args.correlation_url, events, ssl_context=correlation_ssl_context
+            )
             alerts = resp.get("shadow_alerts", []) if resp else []
             result["service_response"] = resp
         else:
@@ -382,7 +435,9 @@ def main() -> int:
         result = {"fixture": name, "expected_rule": expected_rule}
 
         if service_available:
-            resp = post_shadow_correlate(args.correlation_url, events)
+            resp = post_shadow_correlate(
+                args.correlation_url, events, ssl_context=correlation_ssl_context
+            )
             alerts = resp.get("shadow_alerts", []) if resp else []
             result["service_response"] = {
                 "alert_count": resp.get("alert_count") if resp else 0,
