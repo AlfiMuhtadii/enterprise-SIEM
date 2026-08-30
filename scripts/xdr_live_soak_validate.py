@@ -43,6 +43,7 @@ import hashlib
 import hmac as _hmac
 import json
 import os
+import ssl
 import sys
 import time
 import urllib.error
@@ -125,6 +126,29 @@ def _resolve_secret(env: dict[str, str]) -> str:
     )
 
 
+def _build_mtls_context(args: argparse.Namespace, ingest_url: str) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if not ingest_url.lower().startswith("https://"):
+        raise ValueError("--ingest-url must use https when --mtls-enabled is set")
+
+    paths = {
+        "--mtls-ca": getattr(args, "mtls_ca", ""),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", ""),
+        "--mtls-client-key": getattr(args, "mtls_client_key", ""),
+    }
+    missing = [name for name, value in paths.items() if not value]
+    if missing:
+        raise ValueError(f"mTLS configuration missing: {', '.join(missing)}")
+
+    context = ssl.create_default_context(cafile=paths["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=paths["--mtls-client-cert"],
+        keyfile=paths["--mtls-client-key"],
+    )
+    return context
+
+
 # ---------------------------------------------------------------------------
 # HMAC signing — matches ingestion-gateway verifySignature()
 # ---------------------------------------------------------------------------
@@ -138,9 +162,10 @@ def _sign(secret: str, body: bytes) -> str:
 # HTTP helpers (injectable for testing)
 # ---------------------------------------------------------------------------
 
-def _http_get(url: str, timeout: int) -> tuple[int | None, str]:
+def _http_get(url: str, timeout: int,
+              ssl_context: ssl.SSLContext | None = None) -> tuple[int | None, str]:
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout, context=ssl_context) as resp:
             return resp.status, resp.read(131072).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         return exc.code, str(exc)
@@ -165,7 +190,8 @@ def _http_post(url: str, headers: dict[str, str], body: bytes,
         return 0, str(exc)
 
 
-def _make_persistent_post_fn(url: str, timeout: int):
+def _make_persistent_post_fn(url: str, timeout: int,
+                             ssl_context: ssl.SSLContext | None = None):
     """Return a (conn, post_fn) pair using a reused HTTP/1.1 connection.
 
     Eliminates per-batch TCP handshake overhead. The caller must close conn
@@ -177,10 +203,16 @@ def _make_persistent_post_fn(url: str, timeout: int):
 
     parsed = urlparse(url)
     host = parsed.hostname or "localhost"
-    port = parsed.port or 80
+    is_https = parsed.scheme.lower() == "https"
+    port = parsed.port or (443 if is_https else 80)
     path = parsed.path or "/"
 
-    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    if is_https:
+        conn = http.client.HTTPSConnection(
+            host, port, timeout=timeout, context=ssl_context,
+        )
+    else:
+        conn = http.client.HTTPConnection(host, port, timeout=timeout)
 
     def _fn(url_: str, hdrs: dict[str, str], data: bytes, _t: int) -> tuple[int, str]:
         for attempt in range(2):
@@ -708,6 +740,12 @@ def run_validate(
     execute = getattr(args, "execute", False)
     timeout = getattr(args, "timeout_seconds", 10)
     profile = getattr(args, "profile", "local")
+    mtls_context = _build_mtls_context(args, ingest_url)
+    gateway_get_fn = _get_fn
+    if gateway_get_fn is None:
+        gateway_get_fn = lambda url, request_timeout: _http_get(
+            url, request_timeout, mtls_context,
+        )
 
     soak_run_id = make_soak_run_id()
 
@@ -718,7 +756,7 @@ def run_validate(
         check_duration_bounds(duration_min),
         check_batch_bounds(epb, interval_ms),
         check_total_events_cap(total_uncapped),
-        check_gateway_reachable(ingest_url, timeout, execute, _get_fn),
+        check_gateway_reachable(ingest_url, timeout, execute, gateway_get_fn),
     ]
 
     plan = build_plan(duration_min, epb, interval_ms, ingest_url,
@@ -756,7 +794,9 @@ def run_validate(
     # Tests always inject _post_fn so this path is never taken in tests.
     _conn = None
     if _post_fn is None:
-        _conn, _post_fn = _make_persistent_post_fn(ingest_url, timeout)
+        _conn, _post_fn = _make_persistent_post_fn(
+            ingest_url, timeout, mtls_context,
+        )
 
     try:
         raw = run_soak_loop(plan, secret, timeout, _post_fn, _sleep_fn)
@@ -793,8 +833,12 @@ def main(args: argparse.Namespace, root: Path = _PROJECT_ROOT,
         print(f"  interval   : {getattr(args, 'batch_interval_ms', _DEFAULT_BATCH_INTERVAL_MS)}ms")
         print()
 
-    report = run_validate(args, root=root, env=env,
-                          _get_fn=_get_fn, _post_fn=_post_fn, _sleep_fn=_sleep_fn)
+    try:
+        report = run_validate(args, root=root, env=env,
+                              _get_fn=_get_fn, _post_fn=_post_fn, _sleep_fn=_sleep_fn)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     overall = report["overall"]
 
     if not getattr(args, "quiet", False):
@@ -858,6 +902,13 @@ def _parse_args(argv=None) -> argparse.Namespace:
                    help=f"Interval between batches in ms (default: {_DEFAULT_BATCH_INTERVAL_MS}, min: {MIN_BATCH_INTERVAL_MS})")
     p.add_argument("--ingest-url", default=_DEFAULT_INGEST_URL, dest="ingest_url",
                    help=f"Ingestion gateway URL (default: {_DEFAULT_INGEST_URL})")
+    p.add_argument("--mtls-enabled", action="store_true", default=False,
+                   help="Require mutual TLS for gateway preflight and ingestion.")
+    p.add_argument("--mtls-ca", default="", help="Gateway CA certificate path.")
+    p.add_argument("--mtls-client-cert", default="", dest="mtls_client_cert",
+                   help="Soak client certificate path.")
+    p.add_argument("--mtls-client-key", default="", dest="mtls_client_key",
+                   help="Soak client private key path.")
     p.add_argument("--admin-url", default=_DEFAULT_ADMIN_URL, dest="admin_url",
                    help=f"Redpanda admin URL (default: {_DEFAULT_ADMIN_URL})")
     p.add_argument("--scenario-id", default=_DEFAULT_SCENARIO_ID, dest="scenario_id")

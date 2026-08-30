@@ -80,6 +80,25 @@ python scripts/xdr_live_soak_validate.py --execute \
     --output reports/live_soak_$(date +%Y%m%d).json
 ```
 
+### Production gateway with mTLS
+
+```bash
+python scripts/xdr_live_soak_validate.py --execute \
+    --ingest-url https://gateway.example.com:8091/v1/ingest \
+    --mtls-enabled \
+    --mtls-ca /secure/xdr/ca.crt \
+    --mtls-client-cert /secure/xdr/soak-client.crt \
+    --mtls-client-key /secure/xdr/soak-client.key \
+    --duration-minutes 5 \
+    --events-per-batch 10 \
+    --batch-interval-ms 1000
+```
+
+The same CA-verifying `SSLContext` is used by the `/health` preflight and the
+persistent ingestion connection. Hostname verification remains enabled. HTTP
+URLs or incomplete identity paths fail before any event is sent and return exit
+code 2.
+
 ---
 
 ## Pre-flight Checks

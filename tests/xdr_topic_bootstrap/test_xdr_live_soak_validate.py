@@ -105,6 +105,62 @@ class TestConstants(unittest.TestCase):
         self.assertTrue(domains & {"cloud", "identity", "saas"})
 
 
+class TestMutualTlsTransport(unittest.TestCase):
+    def test_disabled_mode_preserves_plaintext_default(self):
+        self.assertIsNone(soak._build_mtls_context(_args(), "http://localhost/v1/ingest"))
+
+    def test_enabled_mode_requires_https(self):
+        args = _args()
+        args.mtls_enabled = True
+        with self.assertRaisesRegex(ValueError, "must use https"):
+            soak._build_mtls_context(args, "http://localhost/v1/ingest")
+
+    def test_enabled_mode_requires_complete_identity(self):
+        args = _args(ingest_url="https://gateway/v1/ingest")
+        args.mtls_enabled = True
+        with self.assertRaisesRegex(ValueError, "--mtls-ca"):
+            soak._build_mtls_context(args, args.ingest_url)
+
+    def test_enabled_mode_loads_ca_and_client_identity(self):
+        args = _args(ingest_url="https://gateway/v1/ingest")
+        args.mtls_enabled = True
+        args.mtls_ca = "ca.crt"
+        args.mtls_client_cert = "client.crt"
+        args.mtls_client_key = "client.key"
+        context = MagicMock()
+        with patch.object(soak.ssl, "create_default_context", return_value=context) as create:
+            result = soak._build_mtls_context(args, args.ingest_url)
+        self.assertIs(result, context)
+        create.assert_called_once_with(cafile="ca.crt")
+        context.load_cert_chain.assert_called_once_with(
+            certfile="client.crt", keyfile="client.key",
+        )
+
+    def test_cli_defaults_to_mtls_disabled(self):
+        self.assertFalse(soak._parse_args([]).mtls_enabled)
+
+    def test_preflight_passes_context_to_urlopen(self):
+        context = MagicMock()
+        response = MagicMock()
+        response.__enter__.return_value.status = 200
+        response.__enter__.return_value.read.return_value = b'{"status":"ok"}'
+        with patch.object(soak.urllib.request, "urlopen", return_value=response) as open_url:
+            status, _ = soak._http_get("https://gateway/health", 5, context)
+        self.assertEqual(status, 200)
+        self.assertIs(open_url.call_args.kwargs["context"], context)
+
+    def test_persistent_https_connection_receives_context(self):
+        context = MagicMock()
+        with patch("http.client.HTTPSConnection") as connection:
+            conn, _ = soak._make_persistent_post_fn(
+                "https://gateway:8091/v1/ingest", 5, context,
+            )
+        self.assertIs(conn, connection.return_value)
+        connection.assert_called_once_with(
+            "gateway", 8091, timeout=5, context=context,
+        )
+
+
 # ---------------------------------------------------------------------------
 # TestSyntheticEvent
 # ---------------------------------------------------------------------------
