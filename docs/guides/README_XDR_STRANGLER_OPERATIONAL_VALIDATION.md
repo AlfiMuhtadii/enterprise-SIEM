@@ -107,6 +107,12 @@ docker compose --profile strangler up -d --no-deps correlation-worker
 python scripts\xdr_correlation_shadow_benchmark.py --events 50000 --runs 5 --output reports\xdr_correlation_shadow_benchmark.json
 ```
 
+For an mTLS-enabled correlation-worker, use an HTTPS `--correlation-url` and add
+`--mtls-enabled --mtls-ca certs/ca.crt --mtls-client-cert certs/client.crt
+--mtls-client-key certs/client.key`. Invalid configuration exits `2` before the
+dataset is loaded. The client identity is reused only for correlation health,
+correlate, and metrics requests.
+
 Latest correlation benchmark:
 - Report: `reports/xdr_correlation_shadow_benchmark.json`
 - Mode: `shadow`

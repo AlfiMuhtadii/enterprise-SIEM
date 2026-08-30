@@ -6,8 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import subprocess
+import sys
 import time
+import urllib.parse
 import urllib.request
 import urllib.error
 from collections import Counter
@@ -18,7 +21,7 @@ from xdr_correlation_detector import detect_cloud_saas, detect_cross_domain, det
 from xdr_infra_clients import load_jsonl
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compare legacy Python correlation with Go shadow correlation")
     parser.add_argument("--dataset", default="storage/logs/xdr_realistic_large.jsonl")
     parser.add_argument("--output", default="reports/xdr_correlation_shadow_benchmark.json")
@@ -29,7 +32,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-fallback", type=int, default=int(os.getenv("XDR_CORRELATION_FALLBACK_TO_LEGACY", "1").lower() in {"1", "true", "yes"}))
     parser.add_argument("--correlation-url", default="http://127.0.0.1:8093")
     parser.add_argument("--app-key", default="demo-alert-key")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
+
+
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if urllib.parse.urlsplit(args.correlation_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --correlation-url")
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
 
 
 def normalize(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,14 +111,18 @@ def python_correlation(events: List[Dict[str, Any]], app_key: str) -> Tuple[List
     }
 
 
-def go_correlation(events: List[Dict[str, Any]], url: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def go_correlation(
+    events: List[Dict[str, Any]],
+    url: str,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     body = json.dumps(events, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     endpoint = f"{url.rstrip('/')}/v1/correlate"
     if getattr(go_correlation, "scope", "all") == "identity-cloud":
         endpoint += "?scope=identity-cloud"
     req = urllib.request.Request(endpoint, data=body, method="POST", headers={"Content-Type": "application/json"})
     started = time.perf_counter()
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=120, context=ssl_context) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
     latency_ms = (time.perf_counter() - started) * 1000
     alerts = payload.get("alerts", [])
@@ -99,17 +134,23 @@ def go_correlation(events: List[Dict[str, Any]], url: str) -> Tuple[List[Dict[st
     }
 
 
-def get_json(url: str) -> Dict[str, Any]:
+def get_json(
+    url: str,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
+        with urllib.request.urlopen(url, timeout=10, context=ssl_context) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except Exception as exc:
         return {"error": str(exc)}
 
 
-def go_health(url: str) -> Dict[str, Any]:
+def go_health(
+    url: str,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     started = time.perf_counter()
-    payload = get_json(f"{url.rstrip('/')}/health")
+    payload = get_json(f"{url.rstrip('/')}/health", ssl_context=ssl_context)
     healthy = payload.get("status") == "ok" or payload.get("service") == "xdr-correlation"
     if "error" in payload:
         healthy = False
@@ -242,8 +283,13 @@ def docker_stats(name: str) -> Dict[str, Any]:
     return {"error": proc.stderr.strip()}
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        correlation_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
     dataset = (root / args.dataset).resolve()
     if args.scope != "identity-cloud" and args.engine == "go":
@@ -251,7 +297,7 @@ def main() -> int:
     events = [normalize(row) for row in load_jsonl(dataset)[: args.events]]
     events = [event for event in events if event_in_scope(event, args.scope)]
     go_correlation.scope = args.scope  # type: ignore[attr-defined]
-    health = go_health(args.correlation_url)
+    health = go_health(args.correlation_url, ssl_context=correlation_ssl_context)
     effective_engine = args.engine
     fallback = None
     if args.engine == "go" and not health["healthy"] and args.allow_fallback:
@@ -264,7 +310,9 @@ def main() -> int:
     for idx in range(max(1, args.runs)):
         python_alerts, python_metrics = python_correlation(events, args.app_key)
         if health["healthy"]:
-            go_alerts, go_metrics = go_correlation(events, args.correlation_url)
+            go_alerts, go_metrics = go_correlation(
+                events, args.correlation_url, ssl_context=correlation_ssl_context
+            )
         else:
             go_alerts, go_metrics = [], {"latency_ms": 0, "worker_latency_ms": 0, "throughput_eps": 0, "alert_count": 0, "error": "go_worker_unhealthy"}
         python_runs.append(python_metrics)
@@ -287,6 +335,7 @@ def main() -> int:
         "scope": args.scope,
         "events": len(events),
         "runs": max(1, args.runs),
+        "correlation_mtls_enabled": bool(correlation_ssl_context),
         "python_laravel_correlation": {
             **python_runs[-1],
             "alert_count": len(python_alerts),
@@ -343,7 +392,10 @@ def main() -> int:
         ],
         "pressure": {
             "go_correlation_worker": docker_stats("detector-xdr-correlation-worker"),
-            "go_correlation_metrics_endpoint": get_json(f"{args.correlation_url.rstrip('/')}/metrics"),
+            "go_correlation_metrics_endpoint": get_json(
+                f"{args.correlation_url.rstrip('/')}/metrics",
+                ssl_context=correlation_ssl_context,
+            ),
         },
     }
     report["cutover_gate"] = gate_status(report)
