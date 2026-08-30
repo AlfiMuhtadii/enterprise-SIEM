@@ -20,9 +20,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,14 +39,58 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def http_post(url: str, body: Any, headers: Optional[Dict[str, str]] = None, timeout: int = 5) -> Tuple[int, Optional[Dict]]:
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+
+    service_urls = {
+        "--ingest-url": args.ingest_url,
+        "--normalizer-url": args.normalizer_url,
+        "--alert-writer-url": args.alert_writer_url,
+    }
+    insecure = [
+        option for option, url in service_urls.items()
+        if urllib.parse.urlsplit(url).scheme.lower() != "https"
+    ]
+    if insecure:
+        raise ValueError(
+            "--mtls-enabled requires https:// for " + ", ".join(insecure)
+        )
+
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
+
+
+def http_post(
+    url: str,
+    body: Any,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 5,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Tuple[int, Optional[Dict]]:
     data = json.dumps(body).encode("utf-8")
     req_headers = {"Content-Type": "application/json"}
     if headers:
         req_headers.update(headers)
     try:
         req = urllib.request.Request(url, data=data, method="POST", headers=req_headers)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             text = resp.read().decode("utf-8")
         return resp.status, (json.loads(text) if text.strip() else {})
     except urllib.error.HTTPError as e:
@@ -54,13 +100,18 @@ def http_post(url: str, body: Any, headers: Optional[Dict[str, str]] = None, tim
         return 0, {"error": str(exc)}
 
 
-def http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 3) -> Tuple[int, Optional[Dict]]:
+def http_get(
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: int = 3,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Tuple[int, Optional[Dict]]:
     req_headers = {}
     if headers:
         req_headers.update(headers)
     try:
         req = urllib.request.Request(url, method="GET", headers=req_headers)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             text = resp.read().decode("utf-8")
         return resp.status, (json.loads(text) if text.strip() else {})
     except urllib.error.HTTPError as e:
@@ -68,6 +119,30 @@ def http_get(url: str, headers: Optional[Dict[str, str]] = None, timeout: int = 
         return e.code, (json.loads(body_bytes) if body_bytes else {})
     except Exception as exc:
         return 0, {"error": str(exc)}
+
+
+def internal_post(
+    args: argparse.Namespace,
+    url: str,
+    body: Any,
+    headers: Optional[Dict[str, str]] = None,
+) -> Tuple[int, Optional[Dict]]:
+    return http_post(
+        url,
+        body,
+        headers=headers,
+        ssl_context=getattr(args, "internal_ssl_context", None),
+    )
+
+
+def internal_get(
+    args: argparse.Namespace,
+    url: str,
+) -> Tuple[int, Optional[Dict]]:
+    return http_get(
+        url,
+        ssl_context=getattr(args, "internal_ssl_context", None),
+    )
 
 
 def ensure_report_dir(path: str) -> None:
@@ -104,7 +179,8 @@ def inject_invalid_signature(args: argparse.Namespace) -> Dict[str, Any]:
     for event in events:
         # Corrupt the signature (zeros instead of HMAC)
         bad_sig = "sha256=" + "0" * 64
-        status, body = http_post(
+        status, body = internal_post(
+            args,
             f"{args.ingest_url}/v1/ingest",
             [event],
             headers={"X-XDR-Signature": bad_sig},
@@ -199,7 +275,11 @@ def inject_malformed_events(args: argparse.Namespace) -> Dict[str, Any]:
                 method="POST",
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(
+                req,
+                timeout=5,
+                context=getattr(args, "internal_ssl_context", None),
+            ) as resp:
                 status = resp.status
         except urllib.error.HTTPError as e:
             status = e.code
@@ -232,7 +312,9 @@ def inject_delayed_consumer_simulation(args: argparse.Namespace) -> Dict[str, An
     No actual delay is introduced — we read the current queue depth
     and verify that backpressure signaling is present in metrics.
     """
-    status_before, metrics_before = http_get(f"{args.normalizer_url}/metrics")
+    status_before, metrics_before = internal_get(
+        args, f"{args.normalizer_url}/metrics"
+    )
     queue_depth = None
     capacity    = None
     if metrics_before:
@@ -256,7 +338,7 @@ def validate_replay_after_recovery(args: argparse.Namespace) -> Dict[str, Any]:
     We use the alert-writer metrics to check that SEEN set prevents duplicates.
     Deterministic: same fingerprint material → same HMAC → same fingerprint → blocked.
     """
-    status, metrics = http_get(f"{args.alert_writer_url}/metrics")
+    status, metrics = internal_get(args, f"{args.alert_writer_url}/metrics")
     duplicates_blocked = None
     if metrics:
         duplicates_blocked = metrics.get("duplicates", 0)
@@ -284,7 +366,7 @@ INJECTIONS = [
 ]
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="XDR Fault Injection Simulation")
     parser.add_argument("--injection", choices=INJECTIONS + ["all"], default="all")
     parser.add_argument("--ingest-url",          default="http://127.0.0.1:8091")
@@ -293,7 +375,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--incident-builder-url", default="http://127.0.0.1:8096")
     parser.add_argument("--laravel-url",          default="http://127.0.0.1:8000")
     parser.add_argument("--output",               default="reports/resilience/fault-injection-report.json")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
 
 
 def run_injection(injection_id: str, args: argparse.Namespace) -> Dict[str, Any]:
@@ -312,8 +398,13 @@ def run_injection(injection_id: str, args: argparse.Namespace) -> Dict[str, Any]
     return result
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        args.internal_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
 
     if args.injection == "all":
         to_run = INJECTIONS
@@ -342,6 +433,7 @@ def main() -> int:
         "passed":      passed,
         "failed":      failed,
         "status":      "PASS" if failed == 0 else "FAIL",
+        "internal_mtls_enabled": bool(args.internal_ssl_context),
         "safety_note": "All injections are local-only, deterministic, and non-destructive.",
         "results":     results,
     }

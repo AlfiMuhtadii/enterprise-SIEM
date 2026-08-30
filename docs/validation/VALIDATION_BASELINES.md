@@ -144,6 +144,26 @@ See: `docs/operations/ENDPOINT_FLEET_SIMULATION_GUIDE.md`, `docs/operations/ENDP
 python scripts/xdr_fault_injection.py --output reports/resilience/fault-injection-report.json
 ```
 
+For a production-like internal HTTPS deployment, scope the client identity to the
+ingestion gateway, normalizer, and alert-writer service paths:
+
+```powershell
+python scripts/xdr_fault_injection.py `
+  --ingest-url https://ingestion-gateway:8091 `
+  --normalizer-url https://normalizer-worker:8092 `
+  --alert-writer-url https://alert-writer-service:8095 `
+  --mtls-enabled `
+  --mtls-ca certs/ca.crt `
+  --mtls-client-cert certs/client.crt `
+  --mtls-client-key certs/client.key `
+  --output reports/resilience/fault-injection-report.json
+```
+
+When mTLS is enabled, all three service URLs must use HTTPS and all certificate
+paths are required. Configuration errors exit `2` before any injection or report
+write. The Laravel invalid-token check intentionally does not receive this client
+identity.
+
 **Expected:** `5/5 injections passed` — all non-destructive, deterministic, local-only
 
 ---
