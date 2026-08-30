@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,42 @@ import (
 
 	"detector-xdr-log-connector-o365/internal/o365"
 )
+
+func TestInternalAndExternalHTTPTransportsAreIsolated(t *testing.T) {
+	ingestClient, apiClient := newConnectorClients(
+		20*time.Second,
+		"https://manage.office.test",
+		"azure-tenant",
+		"https://login.microsoft.test/token",
+		"client-id",
+		"client-secret",
+	)
+	externalClient := apiClient.HTTPClient
+	if ingestClient == externalClient {
+		t.Fatal("ingestion and external API clients must be distinct")
+	}
+	if apiClient.Tokens.HTTPClient != externalClient {
+		t.Fatal("OAuth and Activity API must share the external-only client")
+	}
+
+	ingestTransport, ok := ingestClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("unexpected ingestion transport type %T", ingestClient.Transport)
+	}
+	externalTransport, ok := externalClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("unexpected external transport type %T", externalClient.Transport)
+	}
+	if ingestTransport == externalTransport {
+		t.Fatal("ingestion and external API transports must be distinct")
+	}
+
+	internalTLS := &tls.Config{MinVersion: tls.VersionTLS12}
+	ingestTransport.TLSClientConfig = internalTLS
+	if externalTransport.TLSClientConfig != nil {
+		t.Fatal("internal mTLS configuration leaked to the external API transport")
+	}
+}
 
 func TestMapRecordToEventPromotesCommonFields(t *testing.T) {
 	rec := o365.AuditRecord{

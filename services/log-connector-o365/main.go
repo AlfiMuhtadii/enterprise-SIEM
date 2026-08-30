@@ -128,26 +128,22 @@ func main() {
 		}
 	}
 
-	httpClient := &http.Client{Timeout: 20 * time.Second, Transport: &http.Transport{}}
+	ingestHTTPClient, o365Client := newConnectorClients(
+		20*time.Second,
+		activityBaseURL,
+		azureTenantID,
+		tokenURL,
+		clientID,
+		clientSecret,
+	)
 
 	c := &Connector{
-		ingestURL:  env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
-		secret:     env("XDR_INGEST_SECRET", "dev-secret-change-me"),
-		tenantID:   tenantID,
-		batchSize:  envInt("XDR_O365_BATCH_SIZE", 100),
-		httpClient: httpClient,
-		client: &o365.Client{
-			BaseURL:  activityBaseURL,
-			TenantID: azureTenantID,
-			Tokens: &o365.TokenSource{
-				TokenURL:     tokenURL,
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				Resource:     activityBaseURL,
-				HTTPClient:   httpClient,
-			},
-			HTTPClient: httpClient,
-		},
+		ingestURL:         env("XDR_INGEST_URL", "http://127.0.0.1:8091/v1/ingest"),
+		secret:            env("XDR_INGEST_SECRET", "dev-secret-change-me"),
+		tenantID:          tenantID,
+		batchSize:         envInt("XDR_O365_BATCH_SIZE", 100),
+		httpClient:        ingestHTTPClient,
+		client:            o365Client,
 		contentTypes:      contentTypes,
 		processedContent:  map[string]bool{},
 		forwardMaxRetries: envInt("XDR_O365_FORWARD_MAX_RETRIES", 3),
@@ -236,6 +232,27 @@ func main() {
 	}
 	if serveErr != nil && serveErr != http.ErrServerClosed {
 		log.Fatal(serveErr)
+	}
+}
+
+// newConnectorClients prevents the internal ingestion identity and CA pool
+// from being applied to third-party Microsoft OAuth and Activity API requests.
+func newConnectorClients(timeout time.Duration, activityBaseURL, azureTenantID,
+	tokenURL, clientID, clientSecret string,
+) (*http.Client, *o365.Client) {
+	ingestHTTPClient := &http.Client{Timeout: timeout, Transport: &http.Transport{}}
+	externalHTTPClient := &http.Client{Timeout: timeout, Transport: &http.Transport{}}
+	return ingestHTTPClient, &o365.Client{
+		BaseURL:  activityBaseURL,
+		TenantID: azureTenantID,
+		Tokens: &o365.TokenSource{
+			TokenURL:     tokenURL,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Resource:     activityBaseURL,
+			HTTPClient:   externalHTTPClient,
+		},
+		HTTPClient: externalHTTPClient,
 	}
 }
 

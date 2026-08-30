@@ -48,6 +48,11 @@ but **never exercised against a real Microsoft tenant**.
 | `XDR_O365_MAX_CONTENT_BYTES` | `104857600` (100 MiB) | CONN-UNBOUNDED-FILE: content blob response-body size ceiling; over this, the blob is rejected before being fully read. `0` disables the bound |
 | `XDR_O365_MAX_RECORD_BYTES` | `1048576` (1 MiB) | CONN-UNBOUNDED-FILE: single-record size ceiling; an oversized record is skipped and counted (`oversized_records_skipped` metric) but does not affect the rest of the content blob. `0` disables the bound |
 
+The ingestion gateway and Microsoft APIs use separate HTTP transports. Enabling
+internal mTLS applies the private CA and client identity only to
+`XDR_INGEST_URL`; OAuth and Activity API requests continue to use the system
+public trust store and never receive the internal client certificate.
+
 ## Restart-safe content tracking (CONN-DELIVERY-LOSS)
 
 Each processed content ID is recorded in
