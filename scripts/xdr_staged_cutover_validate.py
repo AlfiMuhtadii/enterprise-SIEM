@@ -6,14 +6,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
 import subprocess
 import sys
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate staged Go XDR correlation cutover for identity/cloud/SaaS only")
     parser.add_argument("--dataset", default="storage/logs/xdr_realistic_large.jsonl")
     parser.add_argument("--events", type=int, default=50000)
@@ -22,7 +24,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--correlation-url", default="http://127.0.0.1:8093")
     parser.add_argument("--app-key", default="demo-alert-key")
     parser.add_argument("--scope", default="identity-cloud", choices=["identity-cloud"])
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
+
+
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "mtls_enabled", False):
+        return None
+    if urllib.parse.urlsplit(args.correlation_url).scheme.lower() != "https":
+        raise ValueError("--mtls-enabled requires https:// for --correlation-url")
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
 
 
 def run(cmd: List[str], cwd: Path, env: Dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -39,7 +69,14 @@ def run(cmd: List[str], cwd: Path, env: Dict[str, str] | None = None) -> subproc
     return proc
 
 
-def run_benchmark(root: Path, args: argparse.Namespace, engine: str, output: Path, url: str | None = None) -> Dict[str, Any]:
+def run_benchmark(
+    root: Path,
+    args: argparse.Namespace,
+    engine: str,
+    output: Path,
+    url: str | None = None,
+    use_mtls: bool = True,
+) -> Dict[str, Any]:
     cmd = [
         sys.executable,
         "scripts/xdr_correlation_shadow_benchmark.py",
@@ -60,6 +97,16 @@ def run_benchmark(root: Path, args: argparse.Namespace, engine: str, output: Pat
         "--output",
         str(output.relative_to(root)),
     ]
+    if use_mtls and getattr(args, "mtls_enabled", False):
+        cmd.extend([
+            "--mtls-enabled",
+            "--mtls-ca",
+            args.mtls_ca,
+            "--mtls-client-cert",
+            args.mtls_client_cert,
+            "--mtls-client-key",
+            args.mtls_client_key,
+        ])
     run(cmd, root)
     return load_json(output)
 
@@ -114,8 +161,13 @@ def write_json(path: Path, payload: Dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        correlation_ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
     root = Path(__file__).resolve().parents[1]
     output_dir = (root / args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +179,14 @@ def main() -> int:
 
     shadow = run_benchmark(root, args, "shadow", shadow_path)
     active = run_benchmark(root, args, "go", active_path)
-    fallback = run_benchmark(root, args, "go", fallback_path, url="http://127.0.0.1:1")
+    fallback = run_benchmark(
+        root,
+        args,
+        "go",
+        fallback_path,
+        url="http://127.0.0.1:1",
+        use_mtls=False,
+    )
 
     manual_rollback = php_status(root, "legacy", audit=0)
     active_status = php_status(root, "go", audit=0)
@@ -145,6 +204,7 @@ def main() -> int:
             "domains": ["identity", "cloud", "saas"],
             "replay_events_requested": args.events,
             "runs": args.runs,
+            "correlation_mtls_enabled": bool(correlation_ssl_context),
             "shadow_report": str(shadow_path.relative_to(root)),
             "active_report": str(active_path.relative_to(root)),
             "active_source_of_truth": active.get("source_of_truth"),
@@ -235,6 +295,7 @@ def main() -> int:
         "validation_status": "PASS" if passed else "FAIL",
         "scope": args.scope,
         "domains": ["identity", "cloud", "saas"],
+        "correlation_mtls_enabled": bool(correlation_ssl_context),
         "reports": {key: str(path.relative_to(root)) for key, path in report_paths.items()},
         "raw_reports": {
             "shadow": str(shadow_path.relative_to(root)),

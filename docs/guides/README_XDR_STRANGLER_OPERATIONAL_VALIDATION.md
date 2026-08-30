@@ -212,6 +212,18 @@ Run the full staged cutover validation for identity/cloud/SaaS only:
 python scripts\xdr_staged_cutover_validate.py --events 50000 --runs 5 --output-dir reports
 ```
 
+For a correlation worker that requires mutual TLS, secure the normal shadow and
+active benchmark requests with the internal CA and client identity:
+
+```powershell
+python scripts\xdr_staged_cutover_validate.py --events 50000 --runs 5 --output-dir reports --correlation-url https://correlation-worker:8093 --mtls-enabled --mtls-ca certs/ca.crt --mtls-client-cert certs/client.crt --mtls-client-key certs/client.key
+```
+
+The validator checks this material before creating reports or starting any
+subprocess. Its deliberately unreachable `http://127.0.0.1:1` fallback probe and
+PHP rollback checks never receive the mTLS identity; they remain isolated tests
+of fallback behavior rather than trusted service requests.
+
 Latest validated result:
 
 - Status: `PASS`
