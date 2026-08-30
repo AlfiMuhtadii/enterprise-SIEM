@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate production normalizer mTLS and ingestion client-only TLS wiring."""
+"""Validate production normalizer mTLS and ingestion TLS wiring."""
 
 from __future__ import annotations
 
@@ -57,8 +57,8 @@ def validate(base: dict[str, Any], production: dict[str, Any]) -> list[str]:
         errors.append("local ingestion mTLS server must remain disabled")
     if enabled(local_ingestion["environment"].get("XDR_INTERNAL_MTLS_CLIENT_ENABLED")):
         errors.append("local ingestion mTLS client must remain disabled")
-    if enabled(ingestion["environment"].get("XDR_INTERNAL_MTLS_ENABLED")):
-        errors.append("production ingestion server must remain external-client compatible")
+    if not enabled(ingestion["environment"].get("XDR_INTERNAL_MTLS_ENABLED")):
+        errors.append("production ingestion server must require mTLS")
     if not enabled(ingestion["environment"].get("XDR_INTERNAL_MTLS_CLIENT_ENABLED")):
         errors.append("production ingestion normalizer client must enable mTLS")
     if ingestion["environment"].get("XDR_NORMALIZER_METRICS_URL") != "https://normalizer-worker:8092/metrics":

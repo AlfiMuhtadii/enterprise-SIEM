@@ -363,6 +363,7 @@ jobs:
           python scripts/xdr_normalizer_mtls_compose_validate.py
           python scripts/xdr_alert_writer_mtls_compose_validate.py
           python scripts/xdr_incident_builder_mtls_compose_validate.py
+          python scripts/xdr_ingestion_mtls_compose_validate.py
           docker compose --env-file .env.production.example -f docker-compose.yml -f docker-compose.prod.yml config --quiet
           docker compose --env-file .env.production.example -f infra/production/docker-compose.production.yml config --quiet
 

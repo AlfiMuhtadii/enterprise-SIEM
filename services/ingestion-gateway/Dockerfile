@@ -6,6 +6,7 @@ COPY internal ./internal
 RUN go build -o /out/ingestion-gateway .
 
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+RUN apk add --no-cache curl
 RUN adduser -D -H app
 USER app
 COPY --from=build /out/ingestion-gateway /usr/local/bin/ingestion-gateway

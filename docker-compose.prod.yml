@@ -178,6 +178,8 @@ services:
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
+      XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
     restart: always
 
   queue:
@@ -197,6 +199,8 @@ services:
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
+      XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
     restart: always
 
   scheduler:
@@ -216,6 +220,8 @@ services:
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092
       XDR_ALERT_WRITER_URL: https://alert-writer-service:8095
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
+      XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
     restart: always
 
   telemetry-worker:
@@ -236,9 +242,15 @@ services:
     environment:
       # Internal auth must be enforced in production — fail fast if token missing
       XDR_ENFORCE_INTERNAL_AUTH: "true"
-      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092/metrics
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--cacert", "/etc/xdr/internal-mtls/ca.crt", "--cert", "/etc/xdr/internal-mtls/client.crt", "--key", "/etc/xdr/internal-mtls/client.key", "https://localhost:8091/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: always
 
   normalizer-worker:
@@ -291,4 +303,106 @@ services:
       # like every other internal service in this file.
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       XDR_INTERNAL_MTLS_ENABLED: "true"
+    restart: always
+
+  log-connector-syslog:
+    ports: !override
+      - "5140:5140/udp"
+      - "5140:5140/tcp"
+    environment:
+      XDR_INGEST_URL: https://ingestion-gateway:8091/v1/ingest
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      ingestion-gateway:
+        condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    restart: always
+
+  log-connector-cloudtrail:
+    ports: !reset []
+    environment:
+      XDR_INGEST_URL: https://ingestion-gateway:8091/v1/ingest
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      ingestion-gateway:
+        condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    restart: always
+
+  log-connector-guardduty:
+    ports: !reset []
+    environment:
+      XDR_INGEST_URL: https://ingestion-gateway:8091/v1/ingest
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      ingestion-gateway:
+        condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    restart: always
+
+  log-connector-gcp-audit:
+    ports: !reset []
+    environment:
+      XDR_INGEST_URL: https://ingestion-gateway:8091/v1/ingest
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      ingestion-gateway:
+        condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    restart: always
+
+  log-connector-o365:
+    ports: !reset []
+    environment:
+      XDR_INGEST_URL: https://ingestion-gateway:8091/v1/ingest
+      XDR_INTERNAL_MTLS_ENABLED: "false"
+      XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
+      XDR_INTERNAL_MTLS_CA: /etc/xdr/internal-mtls/ca.crt
+      XDR_INTERNAL_MTLS_CLIENT_CERT: /etc/xdr/internal-mtls/client.crt
+      XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      ingestion-gateway:
+        condition: service_healthy
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
     restart: always
