@@ -91,6 +91,11 @@ python scripts/xdr_event_flow_resilience_validate.py --replays 3 --restart-servi
 python scripts/xdr_resilience_validate.py --output reports/resilience/resilience-validation-report.json
 ```
 
+For an mTLS-enabled internal service plane, add `--mtls-enabled` with
+`--mtls-ca`, `--mtls-client-cert`, and `--mtls-client-key`, and provide HTTPS
+URLs for ingestion-gateway, normalizer, alert-writer, and incident-builder.
+The internal client identity is not presented to `--laravel-url`.
+
 **Expected:** `8/8 scenarios passed`
 
 Scenarios: service health, consumer reconnect, backpressure, DLQ, signature failure, auth failure, endpoint shadow isolation, replay idempotency.
