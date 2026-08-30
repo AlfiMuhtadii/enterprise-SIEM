@@ -23,6 +23,20 @@ python scripts\xdr_operational_validate.py --generate --events 52500 --workers 6
 python scripts\xdr_strangler_e2e_validate.py --events 50000 --baseline-events 100 --batch-size 1000 --output reports\xdr_strangler_e2e_validation.json
 ```
 
+For first-party services that require client certificates, all three service
+URLs must use HTTPS. The client identity is not passed to Redpanda:
+
+```powershell
+python scripts\xdr_strangler_e2e_validate.py `
+  --gateway-url https://ingestion-gateway:8091 `
+  --normalizer-url https://normalizer-worker:8092 `
+  --ai-url https://ai-rag-service:8094 `
+  --mtls-enabled `
+  --mtls-ca /etc/xdr/internal-mtls/ca.crt `
+  --mtls-client-cert /etc/xdr/internal-mtls/client.crt `
+  --mtls-client-key /etc/xdr/internal-mtls/client.key
+```
+
 Run Laravel operational visibility:
 
 ```powershell

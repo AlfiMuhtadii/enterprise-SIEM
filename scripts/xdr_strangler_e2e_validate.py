@@ -7,10 +7,12 @@ import argparse
 import hashlib
 import hmac
 import json
+import ssl
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -18,7 +20,7 @@ from typing import Any, Dict, Iterable, List
 from xdr_infra_clients import RedpandaClient, load_jsonl
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run strangler end-to-end service validation")
     parser.add_argument("--dataset", default="storage/logs/xdr_realistic_large.jsonl")
     parser.add_argument("--output", default="reports/xdr_strangler_e2e_validation.json")
@@ -30,15 +32,64 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ai-url", default="http://127.0.0.1:8094")
     parser.add_argument("--redpanda-rest", default="http://127.0.0.1:8082")
     parser.add_argument("--secret", default="dev-secret-change-me")
-    return parser.parse_args()
+    parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
+    parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
+    parser.add_argument("--mtls-client-cert", default=None, dest="mtls_client_cert")
+    parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key")
+    return parser.parse_args(argv)
 
 
-def post_json(url: str, payload: Any, headers: Dict[str, str] | None = None, timeout: int = 30) -> Dict[str, Any]:
+def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    """Build one client context for the three first-party service URLs."""
+    if not getattr(args, "mtls_enabled", False):
+        return None
+
+    service_urls = {
+        "--gateway-url": args.gateway_url,
+        "--normalizer-url": args.normalizer_url,
+        "--ai-url": args.ai_url,
+    }
+    insecure = [
+        option for option, url in service_urls.items()
+        if urllib.parse.urlsplit(url).scheme.lower() != "https"
+    ]
+    if insecure:
+        raise ValueError(
+            "--mtls-enabled requires https:// for " + ", ".join(insecure)
+        )
+
+    material = {
+        "--mtls-ca": getattr(args, "mtls_ca", None),
+        "--mtls-client-cert": getattr(args, "mtls_client_cert", None),
+        "--mtls-client-key": getattr(args, "mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+
+    context = ssl.create_default_context(cafile=material["--mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--mtls-client-cert"],
+        keyfile=material["--mtls-client-key"],
+    )
+    return context
+
+
+def post_json(
+    url: str,
+    payload: Any,
+    headers: Dict[str, str] | None = None,
+    timeout: int = 30,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", **(headers or {})})
     started = time.perf_counter()
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context) as resp:
             text = resp.read().decode("utf-8", errors="replace")
             return {"ok": 200 <= resp.status < 300, "status": resp.status, "latency_ms": (time.perf_counter() - started) * 1000, "body": safe_json(text)}
     except urllib.error.HTTPError as exc:
@@ -47,10 +98,14 @@ def post_json(url: str, payload: Any, headers: Dict[str, str] | None = None, tim
         return {"ok": False, "status": 0, "latency_ms": (time.perf_counter() - started) * 1000, "error": str(exc)}
 
 
-def get_json(url: str, timeout: int = 5) -> Dict[str, Any]:
+def get_json(
+    url: str,
+    timeout: int = 5,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     started = time.perf_counter()
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout, context=ssl_context) as resp:
             text = resp.read().decode("utf-8", errors="replace")
             return {"ok": 200 <= resp.status < 300, "status": resp.status, "latency_ms": (time.perf_counter() - started) * 1000, "body": safe_json(text)}
     except Exception as exc:
@@ -98,12 +153,22 @@ def normalize_python(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def run_go_ingestion(rows: List[Dict[str, Any]], args: argparse.Namespace) -> Dict[str, Any]:
+def run_go_ingestion(
+    rows: List[Dict[str, Any]],
+    args: argparse.Namespace,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     accepted = failed = 0
     latencies = []
     started = time.perf_counter()
     for batch in chunks(rows, args.batch_size):
-        res = post_json(f"{args.gateway_url}/v1/ingest", batch, {"X-XDR-Signature": signature(args.secret, batch)}, timeout=60)
+        res = post_json(
+            f"{args.gateway_url}/v1/ingest",
+            batch,
+            {"X-XDR-Signature": signature(args.secret, batch)},
+            timeout=60,
+            ssl_context=ssl_context,
+        )
         latencies.append(float(res.get("latency_ms") or 0))
         if res.get("ok"):
             accepted += len(batch)
@@ -113,15 +178,24 @@ def run_go_ingestion(rows: List[Dict[str, Any]], args: argparse.Namespace) -> Di
     return {"events": len(rows), "accepted": accepted, "failed": failed, "elapsed_sec": elapsed, "throughput_eps": round(accepted / elapsed, 2), "batch_latency_ms": percentiles(latencies)}
 
 
-def run_go_normalizer(rows: List[Dict[str, Any]], args: argparse.Namespace) -> Dict[str, Any]:
+def run_go_normalizer(
+    rows: List[Dict[str, Any]],
+    args: argparse.Namespace,
+    ssl_context: ssl.SSLContext | None = None,
+) -> Dict[str, Any]:
     enqueued = malformed = failed = 0
     latencies = []
-    before = get_json(f"{args.normalizer_url}/metrics")
+    before = get_json(f"{args.normalizer_url}/metrics", ssl_context=ssl_context)
     before_body = before.get("body") if isinstance(before.get("body"), dict) else {}
     before_forwarded = int(before_body.get("forwarded") or 0)
     started = time.perf_counter()
     for batch in chunks(rows, args.batch_size):
-        res = post_json(f"{args.normalizer_url}/v1/normalize", batch, timeout=60)
+        res = post_json(
+            f"{args.normalizer_url}/v1/normalize",
+            batch,
+            timeout=60,
+            ssl_context=ssl_context,
+        )
         latencies.append(float(res.get("latency_ms") or 0))
         body = res.get("body") if isinstance(res.get("body"), dict) else {}
         if res.get("ok"):
@@ -134,7 +208,9 @@ def run_go_normalizer(rows: List[Dict[str, Any]], args: argparse.Namespace) -> D
     forwarded_total = before_forwarded
     queue_depth = 0
     while time.perf_counter() - wait_started < 180:
-        metrics = get_json(f"{args.normalizer_url}/metrics")
+        metrics = get_json(
+            f"{args.normalizer_url}/metrics", ssl_context=ssl_context
+        )
         body = metrics.get("body") if isinstance(metrics.get("body"), dict) else {}
         forwarded_total = int(body.get("forwarded") or 0)
         queue_depth = int(body.get("queue_depth") or 0)
@@ -200,8 +276,14 @@ def docker_stats() -> Dict[str, Any]:
     return stats
 
 
-def main() -> int:
-    args = parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        ssl_context = build_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid mTLS configuration: {exc}", file=sys.stderr)
+        return 2
+
     root = Path(__file__).resolve().parents[1]
     dataset = (root / args.dataset).resolve()
     if not dataset.exists():
@@ -211,31 +293,48 @@ def main() -> int:
     redpanda = RedpandaClient(args.redpanda_rest, timeout=10)
 
     health = {
-        "ingestion_gateway": get_json(f"{args.gateway_url}/health"),
-        "normalizer": get_json(f"{args.normalizer_url}/health"),
-        "ai_rag": get_json(f"{args.ai_url}/health"),
+        "ingestion_gateway": get_json(
+            f"{args.gateway_url}/health", ssl_context=ssl_context
+        ),
+        "normalizer": get_json(
+            f"{args.normalizer_url}/health", ssl_context=ssl_context
+        ),
+        "ai_rag": get_json(f"{args.ai_url}/health", ssl_context=ssl_context),
         "redpanda": redpanda.health(),
     }
-    go_ingestion = run_go_ingestion(rows, args)
-    go_normalization = run_go_normalizer(rows, args)
+    go_ingestion = run_go_ingestion(rows, args, ssl_context)
+    go_normalization = run_go_normalizer(rows, args, ssl_context)
     python_baseline = run_python_baseline(baseline_rows, redpanda)
-    ai_probe = post_json(f"{args.ai_url}/v1/analyze", {"incident_id": "strangler-validation", "evidence": rows[:10]})
-    gateway_metrics = get_json(f"{args.gateway_url}/metrics")
-    normalizer_metrics = get_json(f"{args.normalizer_url}/metrics")
-    ai_metrics = get_json(f"{args.ai_url}/metrics")
+    ai_probe = post_json(
+        f"{args.ai_url}/v1/analyze",
+        {"incident_id": "strangler-validation", "evidence": rows[:10]},
+        ssl_context=ssl_context,
+    )
+    gateway_metrics = get_json(
+        f"{args.gateway_url}/metrics", ssl_context=ssl_context
+    )
+    normalizer_metrics = get_json(
+        f"{args.normalizer_url}/metrics", ssl_context=ssl_context
+    )
+    ai_metrics = get_json(f"{args.ai_url}/metrics", ssl_context=ssl_context)
     stats = docker_stats()
 
     normalized_lag = max(0, go_ingestion["accepted"] - go_normalization["forwarded"])
     recovery_started = time.perf_counter()
     recovery_health = {
-        "gateway": get_json(f"{args.gateway_url}/health"),
-        "normalizer": get_json(f"{args.normalizer_url}/health"),
-        "ai_rag": get_json(f"{args.ai_url}/health"),
+        "gateway": get_json(
+            f"{args.gateway_url}/health", ssl_context=ssl_context
+        ),
+        "normalizer": get_json(
+            f"{args.normalizer_url}/health", ssl_context=ssl_context
+        ),
+        "ai_rag": get_json(f"{args.ai_url}/health", ssl_context=ssl_context),
     }
     recovery_time = round((time.perf_counter() - recovery_started) * 1000, 2)
 
     report = {
         "validation_status": "PASS" if go_ingestion["failed"] == 0 and go_normalization["failed"] == 0 and normalized_lag <= args.batch_size else "WARN",
+        "first_party_mtls_enabled": bool(ssl_context),
         "dataset": str(dataset),
         "events": len(rows),
         "service_health": health,
@@ -269,4 +368,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(parse_args()))
