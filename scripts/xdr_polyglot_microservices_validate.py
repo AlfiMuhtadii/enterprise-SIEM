@@ -14,14 +14,26 @@ import hmac
 import json
 import os
 import ssl
+import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from xdr_infra_clients import env_bool, tls_context_for_url
+
+
+INTERNAL_URL_FIELDS = (
+    "gateway_url",
+    "normalizer_url",
+    "correlation_url",
+    "ai_url",
+    "alert_writer_url",
+    "incident_builder_url",
+)
 
 
 def http_json(method: str, url: str, payload: Any | None = None, headers: Dict[str, str] | None = None,
@@ -98,7 +110,7 @@ def sample_events() -> list[dict[str, Any]]:
     ]
 
 
-def main() -> int:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate polyglot XDR microservices runtime")
     parser.add_argument("--gateway-url", default="http://127.0.0.1:8091")
     parser.add_argument("--normalizer-url", default="http://127.0.0.1:8092")
@@ -111,10 +123,54 @@ def main() -> int:
     parser.add_argument("--opensearch-url", default="http://127.0.0.1:9200")
     parser.add_argument("--qdrant-url", default=os.getenv("XDR_QDRANT_URL", os.getenv("SOC_QDRANT_BASE_URL", "http://127.0.0.1:6333")))
     parser.add_argument("--qdrant-ca-cert", default=os.getenv("XDR_QDRANT_CA_CERT", ""))
+    parser.add_argument("--internal-mtls-enabled", action="store_true", dest="internal_mtls_enabled")
+    parser.add_argument("--internal-mtls-ca", default=None, dest="internal_mtls_ca")
+    parser.add_argument("--internal-mtls-client-cert", default=None, dest="internal_mtls_client_cert")
+    parser.add_argument("--internal-mtls-client-key", default=None, dest="internal_mtls_client_key")
     parser.add_argument("--secret", default="dev-secret-change-me")
     parser.add_argument("--settle-sec", type=float, default=5.0)
     parser.add_argument("--output", default="reports/xdr_polyglot_microservices_validation.json")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def build_internal_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
+    if not getattr(args, "internal_mtls_enabled", False):
+        return None
+    insecure = [
+        f"--{field.replace('_', '-')}"
+        for field in INTERNAL_URL_FIELDS
+        if urllib.parse.urlsplit(getattr(args, field)).scheme.lower() != "https"
+    ]
+    if insecure:
+        raise ValueError(
+            "--internal-mtls-enabled requires https:// for " + ", ".join(insecure)
+        )
+    material = {
+        "--internal-mtls-ca": getattr(args, "internal_mtls_ca", None),
+        "--internal-mtls-client-cert": getattr(args, "internal_mtls_client_cert", None),
+        "--internal-mtls-client-key": getattr(args, "internal_mtls_client_key", None),
+    }
+    missing = [option for option, value in material.items() if not value]
+    if missing:
+        raise ValueError(
+            "--internal-mtls-enabled requires complete TLS material; missing "
+            + ", ".join(missing)
+        )
+    context = ssl.create_default_context(cafile=material["--internal-mtls-ca"])
+    context.load_cert_chain(
+        certfile=material["--internal-mtls-client-cert"],
+        keyfile=material["--internal-mtls-client-key"],
+    )
+    return context
+
+
+def main(args: argparse.Namespace | None = None) -> int:
+    args = args or parse_args()
+    try:
+        internal_context = build_internal_mtls_context(args)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: Invalid internal mTLS configuration: {exc}", file=sys.stderr)
+        return 2
 
     checks: Dict[str, Any] = {}
     qdrant_context = tls_context_for_url(
@@ -123,12 +179,12 @@ def main() -> int:
         args.qdrant_ca_cert,
     )
     endpoints = {
-        "ingestion_gateway": (f"{args.gateway_url}/health", None),
-        "normalizer_worker": (f"{args.normalizer_url}/health", None),
-        "correlation_worker": (f"{args.correlation_url}/health", None),
-        "ai_rag_service": (f"{args.ai_url}/health", None),
-        "alert_writer": (f"{args.alert_writer_url}/health", None),
-        "incident_builder": (f"{args.incident_builder_url}/health", None),
+        "ingestion_gateway": (f"{args.gateway_url}/health", internal_context),
+        "normalizer_worker": (f"{args.normalizer_url}/health", internal_context),
+        "correlation_worker": (f"{args.correlation_url}/health", internal_context),
+        "ai_rag_service": (f"{args.ai_url}/health", internal_context),
+        "alert_writer": (f"{args.alert_writer_url}/health", internal_context),
+        "incident_builder": (f"{args.incident_builder_url}/health", internal_context),
         "redpanda_topics": (f"{args.redpanda_url}/topics", None),
         "clickhouse": (f"{args.clickhouse_url}/ping", None),
         "opensearch": (args.opensearch_url, None),
@@ -145,6 +201,7 @@ def main() -> int:
         payload=events,
         headers=signed_headers(args.secret, events),
         timeout=15,
+        ssl_context=internal_context,
     )
     checks["signed_ingestion"] = {"ok": ok, **ingest_result, "events": len(events)}
 
@@ -158,7 +215,7 @@ def main() -> int:
         "incident_builder": f"{args.incident_builder_url}/metrics",
         "ai_rag_service": f"{args.ai_url}/metrics",
     }.items():
-        ok, result = http_json("GET", url, timeout=10)
+        ok, result = http_json("GET", url, timeout=10, ssl_context=internal_context)
         metrics[name] = {"ok": ok, **result}
 
     required = [
@@ -176,6 +233,7 @@ def main() -> int:
         "status": "PASS" if pass_status else "FAIL",
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "architecture": "polyglot-microservices",
+        "internal_mtls_enabled": bool(internal_context),
         "languages": {"control_plane": "php-laravel", "stream_workers": "go", "soc_services": "python-fastapi"},
         "event_flow": ["telemetry.raw", "telemetry.normalized", "xdr.alerts", "alerts.created", "incidents.updated"],
         "checks": checks,

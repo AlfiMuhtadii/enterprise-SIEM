@@ -73,6 +73,17 @@ Validate the polyglot runtime:
 python scripts\xdr_polyglot_microservices_validate.py --output reports\xdr_polyglot_microservices_validation.json
 ```
 
+When all six first-party services require mutual TLS, provide HTTPS URLs and a
+dedicated internal client identity:
+
+```powershell
+python scripts\xdr_polyglot_microservices_validate.py --gateway-url https://ingestion-gateway:8091 --normalizer-url https://normalizer-worker:8092 --correlation-url https://correlation-worker:8093 --ai-url https://ai-rag-service:8094 --alert-writer-url https://alert-writer-service:8095 --incident-builder-url https://incident-builder-service:8096 --internal-mtls-enabled --internal-mtls-ca storage/certs/internal-mtls/ca.crt --internal-mtls-client-cert storage/certs/internal-mtls/client.crt --internal-mtls-client-key storage/certs/internal-mtls/client.key --output reports/xdr_polyglot_microservices_validation.json
+```
+
+The internal identity is used only for first-party health, signed ingestion,
+and metrics requests. Redpanda, ClickHouse, OpenSearch, and Qdrant retain their
+own transport configuration; the Qdrant CA context is not replaced or reused.
+
 ## Health Endpoints
 
 | Service | Health | Metrics |
