@@ -59,6 +59,19 @@ before the readiness request. The same hostname-verifying TLS context is used
 for both `/health` and `/v1/ingest`. The default remains plaintext-compatible
 for the local lab stack.
 
+The standalone readiness validator can apply that same identity to every
+first-party service check (health, processing metrics, and internal-auth
+posture metrics):
+
+```powershell
+python scripts/validate_live_xdr_pipeline.py --all-services-mtls-enabled --mtls-ca storage/certs/internal-mtls/ca.crt --mtls-client-cert storage/certs/internal-mtls/client.crt --mtls-client-key storage/certs/internal-mtls/client.key
+```
+
+In this mode the `.env` URLs for ingestion-gateway, normalizer, correlation,
+alert-writer, and incident-builder must all use `https://`. The client identity
+is never attached to Redpanda Admin API or Pandaproxy requests. Existing
+`--mtls-enabled` behavior remains ingestion-only for causal proof compatibility.
+
 ---
 
 ## Latest Verified Run

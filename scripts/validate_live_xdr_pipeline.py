@@ -78,10 +78,18 @@ def build_ingestion_mtls_context(
     ingest_url: str,
 ) -> ssl.SSLContext | None:
     """Build an mTLS context scoped only to ingestion-gateway checks."""
-    if not getattr(args, "mtls_enabled", False):
+    if not (
+        getattr(args, "mtls_enabled", False)
+        or getattr(args, "all_services_mtls_enabled", False)
+    ):
         return None
+    mode_flag = (
+        "--all-services-mtls-enabled"
+        if getattr(args, "all_services_mtls_enabled", False)
+        else "--mtls-enabled"
+    )
     if urllib.parse.urlsplit(ingest_url).scheme.lower() != "https":
-        raise ValueError("--mtls-enabled requires an https:// ingestion URL")
+        raise ValueError(f"{mode_flag} requires an https:// ingestion URL")
 
     material = {
         "--mtls-ca": getattr(args, "mtls_ca", None),
@@ -91,7 +99,7 @@ def build_ingestion_mtls_context(
     missing = [option for option, value in material.items() if not value]
     if missing:
         raise ValueError(
-            "--mtls-enabled requires complete TLS material; missing "
+            f"{mode_flag} requires complete TLS material; missing "
             + ", ".join(missing)
         )
 
@@ -101,6 +109,25 @@ def build_ingestion_mtls_context(
         keyfile=material["--mtls-client-key"],
     )
     return context
+
+
+def validate_all_services_mtls(
+    args: argparse.Namespace,
+    service_urls: dict[str, str],
+) -> None:
+    """Validate service URLs before the shared internal identity is used."""
+    if not getattr(args, "all_services_mtls_enabled", False):
+        return
+    insecure = [
+        name
+        for name, url in service_urls.items()
+        if urllib.parse.urlsplit(url).scheme.lower() != "https"
+    ]
+    if insecure:
+        raise ValueError(
+            "--all-services-mtls-enabled requires https:// for "
+            + ", ".join(insecure)
+        )
 
 
 def ingestion_base_url(url: str) -> str:
@@ -323,6 +350,7 @@ def check_worker_processing_movement(
     input_topic: str,
     redpanda_admin_url: str,
     timeout: int,
+    _worker_http_get_fn=None,
 ) -> CheckResult:
     """Advisory check: processing movement for a Go pipeline worker.
 
@@ -352,8 +380,9 @@ def check_worker_processing_movement(
     check_name = f"processing movement: {input_topic} (not committed-offset lag)"
 
     # --- 1. Fetch worker metrics ---
+    worker_get = _worker_http_get_fn or http_get
     wurl = metrics_url.rstrip("/") + "/metrics"
-    code, body = http_get(wurl, timeout)
+    code, body = worker_get(wurl, timeout)
     if code is None:
         return {
             "component": component,
@@ -563,6 +592,7 @@ def check_internal_auth_posture(
     normalizer_url: str,
     env_vars: dict,
     timeout: int,
+    _http_get_fn=None,
 ) -> CheckResult:
     """Advisory security check: normalizer /v1/normalize internal auth posture.
 
@@ -581,8 +611,9 @@ def check_internal_auth_posture(
     secret_set   = bool(env_vars.get("XDR_INTERNAL_AUTH_SECRET", "").strip())
 
     # Read live internal_auth_mode from normalizer metrics.
+    get = _http_get_fn or http_get
     murl = normalizer_url.rstrip("/") + "/metrics"
-    code, body = http_get(murl, timeout)
+    code, body = get(murl, timeout)
     live_mode = "unknown"
     if code == 200:
         try:
@@ -630,6 +661,7 @@ def check_internal_auth_posture_service(
     token_env_var: str,
     env_vars: dict,
     timeout: int,
+    _http_get_fn=None,
 ) -> CheckResult:
     """Advisory: internal auth posture for a given microservice.
 
@@ -641,8 +673,9 @@ def check_internal_auth_posture_service(
     enforce_flag = env_vars.get("XDR_ENFORCE_INTERNAL_AUTH", "").strip().lower() in TRUE_FLAGS
     token_set    = bool(env_vars.get(token_env_var, "").strip())
 
+    get = _http_get_fn or http_get
     murl = service_url.rstrip("/") + "/metrics"
-    code, body = http_get(murl, timeout)
+    code, body = get(murl, timeout)
     live_mode = "unknown"
     if code == 200:
         try:
@@ -729,6 +762,12 @@ def _parse_args(argv=None) -> argparse.Namespace:
                         help="PEM client certificate presented to ingestion-gateway")
     parser.add_argument("--mtls-client-key", default=None, dest="mtls_client_key",
                         help="PEM private key for --mtls-client-cert")
+    parser.add_argument(
+        "--all-services-mtls-enabled",
+        action="store_true",
+        dest="all_services_mtls_enabled",
+        help="Use the ingestion mTLS identity for every first-party service check",
+    )
     return parser.parse_args(argv)
 
 
@@ -771,12 +810,36 @@ def main(args: argparse.Namespace | None = None) -> int:
 
     try:
         ingestion_ssl_context = build_ingestion_mtls_context(args, ingest_url)
+        validate_all_services_mtls(args, {
+            "normalizer-worker": normalizer_url,
+            "correlation-worker": correlation_url,
+            "alert-writer-service": alert_writer_url,
+            "incident-builder-service": incident_url,
+        })
     except (OSError, ValueError) as exc:
-        print(f"ERROR: Invalid ingestion mTLS configuration: {exc}", file=sys.stderr)
+        print(f"ERROR: Invalid service mTLS configuration: {exc}", file=sys.stderr)
         return 2
+
+    service_ssl_context = (
+        ingestion_ssl_context
+        if getattr(args, "all_services_mtls_enabled", False)
+        else None
+    )
 
     def ingestion_get(url: str, request_timeout: int) -> tuple[int | None, str]:
         return http_get(url, request_timeout, ssl_context=ingestion_ssl_context)
+
+    def service_get(
+        url: str,
+        request_timeout: int,
+        max_bytes: int = 512,
+    ) -> tuple[int | None, str]:
+        return http_get(
+            url,
+            request_timeout,
+            max_bytes=max_bytes,
+            ssl_context=service_ssl_context,
+        )
 
     results: list[CheckResult] = [
         # 1–5: service health
@@ -784,10 +847,10 @@ def main(args: argparse.Namespace | None = None) -> int:
             "ingestion-gateway", ingest_url, timeout, required=True,
             _http_get_fn=ingestion_get,
         ),
-        check_service_health("normalizer-worker",    normalizer_url,  timeout, required=True),
-        check_service_health("correlation-worker",   correlation_url, timeout, required=True),
-        check_service_health("alert-writer-service", alert_writer_url,timeout, required=True),
-        check_service_health("incident-builder",     incident_url,    timeout, required=True),
+        check_service_health("normalizer-worker", normalizer_url, timeout, required=True, _http_get_fn=service_get),
+        check_service_health("correlation-worker", correlation_url, timeout, required=True, _http_get_fn=service_get),
+        check_service_health("alert-writer-service", alert_writer_url, timeout, required=True, _http_get_fn=service_get),
+        check_service_health("incident-builder", incident_url, timeout, required=True, _http_get_fn=service_get),
         # 6: Redpanda REST reachable
         check_redpanda_rest(redpanda_url, timeout),
         # 7: required topics exist
@@ -828,11 +891,13 @@ def main(args: argparse.Namespace | None = None) -> int:
         check_worker_processing_movement(
             "normalizer-worker", normalizer_url,
             "telemetry.raw", "http://127.0.0.1:9644", timeout,
+            _worker_http_get_fn=service_get,
         ),
         # 13: processing movement — telemetry.normalized → correlation-worker (advisory; NOT committed-offset lag)
         check_worker_processing_movement(
             "correlation-worker", correlation_url,
             "telemetry.normalized", "http://127.0.0.1:9644", timeout,
+            _worker_http_get_fn=service_get,
         ),
         # 14: topic high watermarks — confirms events have flowed through each topic
         check_topic_watermarks(
@@ -843,13 +908,13 @@ def main(args: argparse.Namespace | None = None) -> int:
         # 15: Pandaproxy exposure — advisory security posture (internal-only boundary)
         check_pandaproxy_exposure(redpanda_url, timeout),
         # 16: internal auth posture — advisory security posture (XDR_ENFORCE_INTERNAL_AUTH)
-        check_internal_auth_posture(normalizer_url, env_vars, timeout),
+        check_internal_auth_posture(normalizer_url, env_vars, timeout, _http_get_fn=service_get),
         # 17: alert-writer internal auth posture
-        check_internal_auth_posture_service("alert-writer", alert_writer_url, "XDR_ALERT_WRITER_INTERNAL_TOKEN", env_vars, timeout),
+        check_internal_auth_posture_service("alert-writer", alert_writer_url, "XDR_ALERT_WRITER_INTERNAL_TOKEN", env_vars, timeout, _http_get_fn=service_get),
         # 18: incident-builder internal auth posture
-        check_internal_auth_posture_service("incident-builder", incident_url, "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", env_vars, timeout),
+        check_internal_auth_posture_service("incident-builder", incident_url, "XDR_INCIDENT_BUILDER_INTERNAL_TOKEN", env_vars, timeout, _http_get_fn=service_get),
         # 19: correlation-worker internal auth posture
-        check_internal_auth_posture_service("correlation-worker", correlation_url, "XDR_CORRELATION_INTERNAL_TOKEN", env_vars, timeout),
+        check_internal_auth_posture_service("correlation-worker", correlation_url, "XDR_CORRELATION_INTERNAL_TOKEN", env_vars, timeout, _http_get_fn=service_get),
         # 20: structured failure topic watermarks — advisory visibility (topics exist once bootstrap runs)
         check_topic_watermarks(
             "http://127.0.0.1:9644",
