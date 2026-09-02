@@ -32,3 +32,19 @@ Local compatibility remains:
 ```powershell
 python scripts/xdr_topic_bootstrap.py --pandaproxy http://127.0.0.1:8082
 ```
+
+## Demo Alert Publisher
+
+The deterministic demo-alert publisher uses the same scoped, CA-verifying
+Pandaproxy transport:
+
+```powershell
+python scripts/xdr_send_demo_alert.py `
+  --rest-url https://localhost:8083 `
+  --tls-ca storage/certs/internal-mtls/ca.crt
+```
+
+Its local default remains `http://127.0.0.1:8082`. Supplying `--tls-ca` with
+that plaintext URL exits 2 before timestamp generation, payload construction,
+or network activity. The CA context is applied only to the alert publish
+request and never includes a client certificate or private key.
