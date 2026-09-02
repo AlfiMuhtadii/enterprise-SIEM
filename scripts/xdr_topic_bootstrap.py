@@ -23,10 +23,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 import urllib.error
+from typing import Any
 
 REQUIRED_TOPICS: list[str] = [
     "telemetry.raw",
@@ -49,12 +52,31 @@ SKIP    = "SKIP"
 # Topic list — Pandaproxy /topics
 # ---------------------------------------------------------------------------
 
-def fetch_topic_list(pandaproxy_url: str, timeout: int) -> list[str] | None:
+def build_tls_context(
+    pandaproxy_url: str,
+    tls_ca: str | None,
+) -> ssl.SSLContext | None:
+    """Build a hostname-verifying context for the Pandaproxy trust domain."""
+    if not tls_ca:
+        return None
+    if urllib.parse.urlsplit(pandaproxy_url).scheme.lower() != "https":
+        raise ValueError("--tls-ca requires an https:// Pandaproxy URL")
+    return ssl.create_default_context(cafile=tls_ca)
+
+
+def fetch_topic_list(
+    pandaproxy_url: str,
+    timeout: int,
+    ssl_context: ssl.SSLContext | None = None,
+) -> list[str] | None:
     """Return list of topic names from Pandaproxy, or None on unreachable/error."""
     url = pandaproxy_url.rstrip("/") + "/topics"
     try:
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        options: dict[str, Any] = {"timeout": timeout}
+        if ssl_context is not None:
+            options["context"] = ssl_context
+        with urllib.request.urlopen(req, **options) as resp:
             if resp.status != 200:
                 return None
             body = resp.read(65536).decode("utf-8", errors="replace")
@@ -147,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         help="HTTP timeout in seconds (default: 5)",
     )
     parser.add_argument(
+        "--tls-ca",
+        default=None,
+        help="Private CA bundle for hostname-verified Pandaproxy HTTPS",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be created without creating anything",
     )
@@ -156,6 +183,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    try:
+        ssl_context = build_tls_context(args.pandaproxy, args.tls_ca)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: invalid Pandaproxy TLS configuration: {exc}", file=sys.stderr)
+        return 2
+
     print()
     print("XDR Topic Bootstrap")
     if args.dry_run:
@@ -163,7 +196,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  proxy    : {args.pandaproxy}")
     print()
 
-    existing = fetch_topic_list(args.pandaproxy, args.timeout)
+    if ssl_context is None:
+        existing = fetch_topic_list(args.pandaproxy, args.timeout)
+    else:
+        existing = fetch_topic_list(args.pandaproxy, args.timeout, ssl_context)
     if existing is None:
         print(f"ERROR: cannot reach Pandaproxy at {args.pandaproxy}/topics")
         print("       Ensure the Redpanda stack is running: docker compose up -d")

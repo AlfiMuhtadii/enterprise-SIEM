@@ -92,6 +92,39 @@ class TestFetchTopicList(unittest.TestCase):
             tb.fetch_topic_list("http://localhost:8082/", 5)
         self.assertEqual(captured[0], "http://localhost:8082/topics")
 
+    def test_tls_context_is_scoped_to_pandaproxy_request(self):
+        context = MagicMock()
+        resp = MagicMock()
+        resp.status = 200
+        resp.read.return_value = b"[]"
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=resp) as mock_open:
+            result = tb.fetch_topic_list("https://redpanda:8083", 7, context)
+
+        self.assertEqual(result, [])
+        self.assertIs(mock_open.call_args.kwargs["context"], context)
+        self.assertEqual(mock_open.call_args.kwargs["timeout"], 7)
+
+
+class TestTlsContext(unittest.TestCase):
+    def test_no_ca_preserves_default_transport(self):
+        self.assertIsNone(tb.build_tls_context("http://127.0.0.1:8082", None))
+
+    def test_ca_requires_https(self):
+        with patch("ssl.create_default_context") as create_context:
+            with self.assertRaisesRegex(ValueError, "requires an https://"):
+                tb.build_tls_context("http://redpanda:8082", "ca.crt")
+        create_context.assert_not_called()
+
+    def test_private_ca_builds_verifying_context(self):
+        context = MagicMock()
+        with patch("ssl.create_default_context", return_value=context) as create_context:
+            result = tb.build_tls_context("https://redpanda:8083", "internal-ca.crt")
+        self.assertIs(result, context)
+        create_context.assert_called_once_with(cafile="internal-ca.crt")
+
 
 # ---------------------------------------------------------------------------
 # create_topic
@@ -209,6 +242,26 @@ class TestMain(unittest.TestCase):
             with patch.object(tb, "create_topic", side_effect=side_effect):
                 rc = tb.main(["--pandaproxy", "http://x:8082"])
         self.assertEqual(rc, 1)
+
+    def test_invalid_tls_configuration_fails_before_fetch(self):
+        with patch.object(tb, "fetch_topic_list") as fetch:
+            rc = tb.main([
+                "--pandaproxy", "http://redpanda:8082",
+                "--tls-ca", "ca.crt",
+            ])
+        self.assertEqual(rc, 2)
+        fetch.assert_not_called()
+
+    def test_main_passes_verifying_context_to_fetch(self):
+        context = MagicMock()
+        with patch.object(tb, "build_tls_context", return_value=context):
+            with patch.object(tb, "fetch_topic_list", return_value=list(tb.REQUIRED_TOPICS)) as fetch:
+                rc = tb.main([
+                    "--pandaproxy", "https://redpanda:8083",
+                    "--tls-ca", "ca.crt",
+                ])
+        self.assertEqual(rc, 0)
+        fetch.assert_called_once_with("https://redpanda:8083", 5, context)
 
 
 # ---------------------------------------------------------------------------
