@@ -137,6 +137,23 @@ services:
           memory: 2g
           cpus: '1.0'
 
+  minio:
+    ports: !reset []
+    command: server /data --console-address ":9001" --certs-dir /etc/xdr/internal-mtls/minio
+    volumes:
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "rm -rf /tmp/mc-health && SSL_CERT_FILE=/etc/xdr/internal-mtls/ca.crt mc alias set health https://localhost:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" --api S3v4 --path on --config-dir /tmp/mc-health >/dev/null && SSL_CERT_FILE=/etc/xdr/internal-mtls/ca.crt mc ready health --quiet --config-dir /tmp/mc-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+
   # ---------------------------------------------------------------------------
   # Grafana: localhost-only + read-only provisioning mounts
   # ---------------------------------------------------------------------------
@@ -163,6 +180,8 @@ services:
   # ---------------------------------------------------------------------------
   app:
     environment:
+      AWS_ENDPOINT: https://minio:9000
+      AWS_CA_BUNDLE: /etc/xdr/internal-mtls/ca.crt
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
@@ -184,6 +203,8 @@ services:
 
   queue:
     environment:
+      AWS_ENDPOINT: https://minio:9000
+      AWS_CA_BUNDLE: /etc/xdr/internal-mtls/ca.crt
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt
@@ -205,6 +226,8 @@ services:
 
   scheduler:
     environment:
+      AWS_ENDPOINT: https://minio:9000
+      AWS_CA_BUNDLE: /etc/xdr/internal-mtls/ca.crt
       XDR_CLICKHOUSE_HTTP_URL: https://clickhouse:8443
       XDR_CLICKHOUSE_VERIFY_TLS: "true"
       XDR_CLICKHOUSE_CA_CERT: /etc/xdr/clickhouse-certs/ca.crt

@@ -45,6 +45,7 @@ SERVICE_SANS = [
     "opensearch",
     "clickhouse",
     "qdrant",
+    "minio",
     "localhost",
     "127.0.0.1",
 ]

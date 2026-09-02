@@ -111,6 +111,7 @@ services:
       - -ec
       - |
         rm -f /tls/enabled
+        rm -rf /tls/minio
         if [ "$$XDR_INTERNAL_MTLS_ENABLED" = "true" ]; then
           for file in ca.crt server.crt server.key client.crt client.key; do
             if [ ! -f "/src/certs/$$file" ]; then
@@ -122,6 +123,14 @@ services:
           chown 0:44444 /tls/server.key /tls/client.key
           chmod 640 /tls/server.key /tls/client.key
           chmod 644 /tls/ca.crt /tls/server.crt /tls/client.crt
+          mkdir -p /tls/minio/CAs
+          cp /src/certs/server.crt /tls/minio/public.crt
+          cp /src/certs/server.key /tls/minio/private.key
+          cp /src/certs/ca.crt /tls/minio/CAs/internal-ca.crt
+          chown -R 0:44444 /tls/minio
+          chmod 750 /tls/minio /tls/minio/CAs
+          chmod 640 /tls/minio/private.key
+          chmod 644 /tls/minio/public.crt /tls/minio/CAs/internal-ca.crt
           touch /tls/enabled
         elif [ "$$XDR_INTERNAL_MTLS_REQUIRED" = "true" ]; then
           echo 'Internal mTLS is required but not enabled' >&2
@@ -553,7 +562,7 @@ services:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      test: ["CMD-SHELL", "rm -rf /tmp/mc-health && mc alias set health http://localhost:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" --api S3v4 --path on --config-dir /tmp/mc-health >/dev/null && mc ready health --quiet --config-dir /tmp/mc-health"]
       interval: 30s
       timeout: 10s
       retries: 5
