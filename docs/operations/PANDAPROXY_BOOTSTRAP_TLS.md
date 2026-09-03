@@ -48,3 +48,24 @@ Its local default remains `http://127.0.0.1:8082`. Supplying `--tls-ca` with
 that plaintext URL exits 2 before timestamp generation, payload construction,
 or network activity. The CA context is applied only to the alert publish
 request and never includes a client certificate or private key.
+
+## Stream-Bus Redpanda Backend
+
+The stream-bus utility supports the same verified transport for finite JSONL
+publishes:
+
+```powershell
+python scripts/xdr_stream_bus.py produce `
+  --backend redpanda `
+  --topic telemetry.raw `
+  --file path/to/events.jsonl `
+  --redpanda-rest https://localhost:8083 `
+  --redpanda-tls-ca storage/certs/internal-mtls/ca.crt
+```
+
+`--redpanda-tls-ca` is rejected unless the action is `produce`, the backend is
+`redpanda`, and the URL is HTTPS. Failed records are still written to the
+existing `storage/streams/<topic>.dlq.jsonl` safety path with `dlq=true` in the
+JSONL envelope, but the command now reports `failed=<count>` and exits 1 when
+any publish failed. Exit 0 therefore means every input record was accepted by
+Pandaproxy; it no longer means only that the loop completed.
