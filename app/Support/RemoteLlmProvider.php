@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\OllamaHttpClient;
 use Illuminate\Support\Facades\Http;
 
 class RemoteLlmProvider implements AiAnalystProvider
@@ -70,7 +71,7 @@ class RemoteLlmProvider implements AiAnalystProvider
     {
         $baseUrl = rtrim((string) config('soc.ollama_base_url'), '/');
         $model = (string) config('soc.ollama_model', 'llama3.1');
-        $response = Http::timeout($timeout)
+        $response = OllamaHttpClient::request($baseUrl, $timeout)
             ->post($baseUrl.'/api/generate', [
                 'model' => $model,
                 'prompt' => $prompt,

@@ -26,7 +26,18 @@ Ollama:
 SOC_AI_PROVIDER=ollama
 SOC_OLLAMA_BASE_URL=http://127.0.0.1:11434
 SOC_OLLAMA_MODEL=llama3.1
+SOC_OLLAMA_VERIFY_TLS=true
+SOC_OLLAMA_CA_CERT=
 ```
+
+The local Ollama profile remains plaintext for loopback development. For a
+remote or production deployment, terminate TLS in front of Ollama, set the
+base URL (and `SOC_EMBEDDING_MODEL_URL`, when used) to that HTTPS endpoint,
+and set `SOC_OLLAMA_CA_CERT` when it uses a private CA. Both generation and
+embedding requests use the same CA and hostname-verifying client. A configured
+CA with an HTTP URL is rejected before any request. Setting
+`SOC_OLLAMA_VERIFY_TLS=false` is an explicit diagnostic escape hatch and must
+not be used as a production configuration.
 
 If a remote provider is unavailable or unconfigured, the system falls back to the local heuristic provider and records fallback metadata in `ai_execution_history`.
 

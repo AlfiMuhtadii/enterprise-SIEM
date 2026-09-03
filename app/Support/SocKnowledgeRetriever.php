@@ -2,9 +2,9 @@
 
 namespace App\Support;
 
+use App\Services\OllamaHttpClient;
 use App\Services\QdrantHttpClient;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -300,7 +300,10 @@ class SocKnowledgeRetriever
     {
         $text = mb_substr($text, 0, self::EMBEDDING_INPUT_MAX_CHARS);
         try {
-            $response = Http::timeout((int) config('soc.embedding_timeout_seconds', 5))
+            $response = OllamaHttpClient::request(
+                $modelUrl,
+                (int) config('soc.embedding_timeout_seconds', 5),
+            )
                 ->post(rtrim($modelUrl, '/').'/api/embeddings', [
                     'model' => (string) config('soc.embedding_model_name', 'all-minilm'),
                     'prompt' => $text,

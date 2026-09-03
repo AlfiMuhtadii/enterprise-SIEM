@@ -30,6 +30,8 @@ return [
     'openai_compatible_api_key' => env('SOC_OPENAI_COMPATIBLE_API_KEY', ''),
     'ollama_base_url' => env('SOC_OLLAMA_BASE_URL', 'http://127.0.0.1:11434'),
     'ollama_model' => env('SOC_OLLAMA_MODEL', 'llama3.1'),
+    'ollama_verify_tls' => filter_var(env('SOC_OLLAMA_VERIFY_TLS', true), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? true,
+    'ollama_ca_cert' => env('SOC_OLLAMA_CA_CERT', ''),
     'ti_virustotal_api_key' => env('SOC_TI_VIRUSTOTAL_API_KEY', ''),
     'ti_abuseipdb_api_key' => env('SOC_TI_ABUSEIPDB_API_KEY', ''),
     'ti_misp_base_url' => env('SOC_TI_MISP_BASE_URL', ''),
