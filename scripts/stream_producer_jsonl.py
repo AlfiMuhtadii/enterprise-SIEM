@@ -10,22 +10,38 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
+import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Tail JSONL log and stream to Redpanda topic (REST).")
     parser.add_argument("--file", default="storage/logs/security.jsonl")
     parser.add_argument("--rest-url", default=os.getenv("KAFKA_REST_URL", "http://127.0.0.1:8082"))
+    parser.add_argument(
+        "--tls-ca",
+        default=os.getenv("KAFKA_REST_TLS_CA"),
+        help="CA certificate used to verify an HTTPS Pandaproxy endpoint",
+    )
     parser.add_argument("--topic", default=os.getenv("KAFKA_TOPIC", "security_events"))
     parser.add_argument("--state-file", default="storage/app/redpanda_topic_offsets.json")
     parser.add_argument("--from-start", action="store_true")
     parser.add_argument("--poll-ms", type=int, default=400)
-    return parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def build_tls_context(rest_url: str, tls_ca: Optional[str]) -> Optional[ssl.SSLContext]:
+    if not tls_ca:
+        return None
+    if urllib.parse.urlsplit(rest_url).scheme.lower() != "https":
+        raise ValueError("--tls-ca requires an HTTPS --rest-url")
+    return ssl.create_default_context(cafile=tls_ca)
 
 
 def maybe_parse_json(line: str) -> Optional[Dict[str, Any]]:
@@ -41,7 +57,13 @@ def maybe_parse_json(line: str) -> Optional[Dict[str, Any]]:
     return val
 
 
-def post_record(rest_url: str, topic: str, key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def post_record(
+    rest_url: str,
+    topic: str,
+    key: str,
+    payload: Dict[str, Any],
+    ssl_context: Optional[ssl.SSLContext] = None,
+) -> Dict[str, Any]:
     body = json.dumps({"records": [{"key": key, "value": payload}]}, separators=(",", ":")).encode("utf-8")
     req = urllib.request.Request(
         url=f"{rest_url.rstrip('/')}/topics/{topic}",
@@ -52,7 +74,10 @@ def post_record(rest_url: str, topic: str, key: str, payload: Dict[str, Any]) ->
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    open_options: Dict[str, Any] = {"timeout": 10}
+    if ssl_context is not None:
+        open_options["context"] = ssl_context
+    with urllib.request.urlopen(req, **open_options) as resp:
         if resp.status >= 300:
             raise RuntimeError(f"Publish failed status={resp.status}")
         text = resp.read().decode("utf-8")
@@ -103,8 +128,14 @@ def update_state_file(path: Path, topic: str, produce_result: Dict[str, Any]) ->
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Optional[list[str]] = None) -> int:
+    args = parse_args(argv)
+    try:
+        ssl_context = build_tls_context(args.rest_url, args.tls_ca)
+    except (OSError, ValueError) as exc:
+        print(f"ERROR: invalid TLS configuration: {exc}", file=sys.stderr)
+        return 2
+
     file_path = Path(args.file).resolve()
     state_path = Path(args.state_file).resolve()
     if not file_path.exists():
@@ -137,7 +168,7 @@ def main() -> int:
 
             key = str(payload.get("request_id") or payload.get("event") or "")
             try:
-                produce_result = post_record(args.rest_url, args.topic, key, payload)
+                produce_result = post_record(args.rest_url, args.topic, key, payload, ssl_context)
                 update_state_file(state_path, args.topic, produce_result)
                 sent += 1
                 if sent % 100 == 0:

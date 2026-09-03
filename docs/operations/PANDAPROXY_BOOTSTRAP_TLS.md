@@ -69,3 +69,23 @@ existing `storage/streams/<topic>.dlq.jsonl` safety path with `dlq=true` in the
 JSONL envelope, but the command now reports `failed=<count>` and exits 1 when
 any publish failed. Exit 0 therefore means every input record was accepted by
 Pandaproxy; it no longer means only that the loop completed.
+
+## JSONL Tail Producer
+
+The long-running JSONL producer can verify the same private CA and endpoint
+hostname while tailing a local event file:
+
+```powershell
+python scripts/stream_producer_jsonl.py `
+  --file storage/logs/security.jsonl `
+  --rest-url https://localhost:8083 `
+  --tls-ca storage/certs/internal-mtls/ca.crt `
+  --topic security_events
+```
+
+`KAFKA_REST_TLS_CA` is the environment equivalent of `--tls-ca`. A configured
+CA requires an HTTPS URL; invalid CA paths and plaintext URL combinations exit
+2 before the producer creates or truncates its offset state file. Omitting the
+CA preserves the existing local plaintext default. The TLS context uses
+Python's default certificate and hostname verification and is scoped only to
+the Pandaproxy request.
