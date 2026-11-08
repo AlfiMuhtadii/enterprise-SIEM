@@ -2,11 +2,21 @@ package otlpexport
 
 import (
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
 
 func sampleSpan() Span {
 	start := time.Unix(1700000000, 0)
@@ -206,5 +216,85 @@ func TestExportReturnsErrorWhenCollectorUnreachable(t *testing.T) {
 	e := &Exporter{Endpoint: "http://127.0.0.1:1", ServiceName: "test", HTTPClient: &http.Client{Timeout: time.Second}}
 	if err := e.Export([]Span{sampleSpan()}); err == nil {
 		t.Fatal("expected an error when the collector endpoint is unreachable")
+	}
+}
+
+func TestExportVerifiesConfiguredPrivateCA(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	caPath := filepath.Join(t.TempDir(), "collector-ca.crt")
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := os.WriteFile(caPath, caPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&Exporter{Endpoint: server.URL, ServiceName: "test"}).Export([]Span{sampleSpan()}); err == nil {
+		t.Fatal("expected system trust to reject the private test CA")
+	}
+	if err := (&Exporter{Endpoint: server.URL, ServiceName: "test", CACert: caPath}).Export([]Span{sampleSpan()}); err != nil {
+		t.Fatalf("expected configured private CA to verify: %v", err)
+	}
+}
+
+func TestExportRejectsCAForPlaintextEndpoint(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	err := (&Exporter{Endpoint: server.URL, ServiceName: "test", CACert: "configured-ca.crt"}).Export([]Span{sampleSpan()})
+	if err == nil {
+		t.Fatal("expected CA configuration with HTTP to fail")
+	}
+	if called {
+		t.Fatal("expected invalid TLS configuration to fail before network activity")
+	}
+}
+
+func TestExportRejectsCAWithCustomClientBeforeNetwork(t *testing.T) {
+	called := false
+	client := &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		called = true
+		return nil, nil
+	})}
+	err := (&Exporter{
+		Endpoint:    "https://collector.example/v1/traces",
+		ServiceName: "test",
+		HTTPClient:  client,
+		CACert:      "configured-ca.crt",
+	}).Export([]Span{sampleSpan()})
+	if err == nil || !strings.Contains(err.Error(), "custom OTLP HTTP client") {
+		t.Fatalf("expected custom client and CA conflict, got %v", err)
+	}
+	if called {
+		t.Fatal("expected conflicting TLS configuration to fail before network activity")
+	}
+}
+
+func TestExportRejectsUnsupportedDefaultTransportWithoutPanic(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	previous := http.DefaultTransport
+	http.DefaultTransport = roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("expected invalid transport configuration to fail before network activity")
+		return nil, nil
+	})
+	t.Cleanup(func() { http.DefaultTransport = previous })
+
+	caPath := filepath.Join(t.TempDir(), "collector-ca.crt")
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := os.WriteFile(caPath, caPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := (&Exporter{Endpoint: server.URL, ServiceName: "test", CACert: caPath}).Export([]Span{sampleSpan()})
+	if err == nil || !strings.Contains(err.Error(), "default HTTP transport") {
+		t.Fatalf("expected unsupported default transport error, got %v", err)
 	}
 }

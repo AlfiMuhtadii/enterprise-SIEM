@@ -239,6 +239,7 @@ jobs:
           - tools/shared-go/mtls
           - tools/shared-go/deliver
           - tools/shared-go/kafkanative
+          - tools/shared-go/otlpexport
 
     steps:
       - name: Checkout

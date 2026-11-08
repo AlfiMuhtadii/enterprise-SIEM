@@ -2,7 +2,7 @@
 
 ## Finding (INTERNAL-RUNTIME-SDK, 2026-07-14; Python family added 2026-07-16)
 
-Three helper families are duplicated across first-party services, manually
+Five helper families are duplicated across first-party services, manually
 copied rather than shared, so a future security or correctness fix applied
 to one copy and not the others would silently drift with nothing catching
 it:
@@ -18,6 +18,11 @@ it:
   `otlp_export.py`, `pg_pool.py`, `kafka_native.py`, confirmed byte-identical
   (sha256) between the 2 Python event-pipeline writers,
   `alert-writer-service` and `incident-builder-service`.
+- **kafkanative** - `internal/kafkanative/{kafkanative.go,kafkanative_test.go}`,
+  confirmed byte-identical across the 3 Go pipeline services.
+- **otlpexport** - `internal/otlpexport/{otlpexport.go,otlpexport_test.go}`,
+  confirmed byte-identical across the 3 Go pipeline services. This includes
+  OTLP JSON encoding and private-CA/hostname-verifying HTTPS transport.
 
 ## Why not real cross-module extraction (evaluated and rejected for every family)
 
@@ -39,7 +44,8 @@ this bounded phase. `GO-TOOLCHAIN-CONTRACT`'s decision not to add a
 
 ## What this phase does instead
 
-`tools/shared-go/{mtls,deliver}/` and `tools/shared-python/service-adapters/`
+`tools/shared-go/{mtls,deliver,kafkanative,otlpexport}/` and
+`tools/shared-python/service-adapters/`
 are the canonical, independently buildable/testable sources (the Go ones
 each have their own `go.mod`, `go build`/`go vet`/`go test` clean
 standalone; the Python family's 5 files have no inter-file imports and each

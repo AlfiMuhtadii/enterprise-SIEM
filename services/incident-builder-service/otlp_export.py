@@ -17,7 +17,9 @@ from __future__ import annotations
 import json
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 SPAN_KIND_INTERNAL = 1
 SPAN_KIND_SERVER = 2
@@ -77,19 +79,36 @@ def build_request_body(service_name: str, spans: List[Span]) -> bytes:
     return json.dumps(body, separators=(",", ":")).encode("utf-8")
 
 
-def export(session: Any, endpoint: str, service_name: str, spans: List[Span], timeout: float = 5.0) -> None:
+def _tls_verify(endpoint: str, ca_cert: str) -> Optional[str]:
+    scheme = urlsplit(endpoint).scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("OTLP endpoint must use http or https")
+    if not ca_cert:
+        return None
+    if scheme != "https":
+        raise ValueError("XDR_OTEL_CA_CERT requires an HTTPS OTLP endpoint")
+    if not Path(ca_cert).is_file():
+        raise FileNotFoundError(f"OTLP CA certificate not found: {ca_cert}")
+    return ca_cert
+
+
+def export(session: Any, endpoint: str, service_name: str, spans: List[Span], timeout: float = 5.0, ca_cert: str = "") -> None:
     """Send spans as a single OTLP ExportTraceServiceRequest via the given
     requests.Session. Raises on failure — callers on a hot path should call
     export_async() instead, which swallows errors after logging."""
     if not endpoint or not spans:
         return
     body = build_request_body(service_name, spans)
-    resp = session.post(endpoint, data=body, headers={"Content-Type": "application/json"}, timeout=timeout)
+    options = {"data": body, "headers": {"Content-Type": "application/json"}, "timeout": timeout}
+    verify = _tls_verify(endpoint, ca_cert)
+    if verify is not None:
+        options["verify"] = verify
+    resp = session.post(endpoint, **options)
     if resp.status_code < 200 or resp.status_code >= 300:
         raise RuntimeError(f"otlp_export_status={resp.status_code}")
 
 
-def export_async(session: Any, endpoint: str, service_name: str, spans: List[Span], logger: Optional[Any] = None) -> None:
+def export_async(session: Any, endpoint: str, service_name: str, spans: List[Span], logger: Optional[Any] = None, ca_cert: str = "") -> None:
     """Fire-and-forget export in a background thread — an unreachable/slow
     collector must never add latency to the actual telemetry write path.
     Mirrors the identical `go func() { _ = exporter.Export(spans) }()`
@@ -99,7 +118,7 @@ def export_async(session: Any, endpoint: str, service_name: str, spans: List[Spa
 
     def _run() -> None:
         try:
-            export(session, endpoint, service_name, spans, timeout=5.0)
+            export(session, endpoint, service_name, spans, timeout=5.0, ca_cert=ca_cert)
         except Exception as exc:  # best-effort: never propagate to the caller
             if logger is not None:
                 logger.warning(f"[otlp-export] span export failed (non-fatal): {exc}")

@@ -124,6 +124,7 @@ func main() {
 		otelExporter: &otlpexport.Exporter{
 			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
 			ServiceName: "normalizer-worker",
+			CACert:      env("XDR_OTEL_CA_CERT", ""),
 		},
 	}
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\OtlpExportService;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -13,6 +14,12 @@ use Tests\TestCase;
  */
 class OtlpExportServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Config::set('xdr.otel_ca_cert', '');
+    }
+
     private function sampleSpan(): array
     {
         return [
@@ -71,5 +78,29 @@ class OtlpExportServiceTest extends TestCase
         OtlpExportService::export('http://collector/v1/traces', 'detector-soc', [$this->sampleSpan()]);
 
         $this->assertTrue(true);
+    }
+
+    public function test_https_request_uses_configured_private_ca(): void
+    {
+        $caCert = tempnam(sys_get_temp_dir(), 'otlp-ca-');
+        $this->assertNotFalse($caCert);
+        Config::set('xdr.otel_ca_cert', $caCert);
+
+        try {
+            $options = OtlpExportService::request('https://collector/v1/traces', 3)->getOptions();
+            $this->assertSame($caCert, $options['verify']);
+        } finally {
+            @unlink($caCert);
+        }
+    }
+
+    public function test_ca_with_plaintext_endpoint_fails_before_network_but_remains_nonfatal(): void
+    {
+        Config::set('xdr.otel_ca_cert', '/configured/collector-ca.crt');
+        Http::fake();
+
+        OtlpExportService::export('http://collector/v1/traces', 'detector-soc', [$this->sampleSpan()]);
+
+        Http::assertNothingSent();
     }
 }

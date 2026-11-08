@@ -21,9 +21,13 @@ package otlpexport
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -68,6 +72,42 @@ type Exporter struct {
 	Endpoint    string
 	ServiceName string
 	HTTPClient  *http.Client
+	CACert      string
+}
+
+func (e *Exporter) httpClient() (*http.Client, error) {
+	if e.HTTPClient != nil {
+		if e.CACert != "" {
+			return nil, fmt.Errorf("XDR_OTEL_CA_CERT cannot be combined with a custom OTLP HTTP client")
+		}
+		return e.HTTPClient, nil
+	}
+	if e.CACert == "" {
+		return http.DefaultClient, nil
+	}
+	parsed, err := url.Parse(e.Endpoint)
+	if err != nil || parsed.Scheme != "https" {
+		return nil, fmt.Errorf("XDR_OTEL_CA_CERT requires an HTTPS OTLP endpoint")
+	}
+	pemData, err := os.ReadFile(e.CACert)
+	if err != nil {
+		return nil, fmt.Errorf("read OTLP CA certificate: %w", err)
+	}
+	roots, err := x509.SystemCertPool()
+	if err != nil {
+		roots = x509.NewCertPool()
+	}
+	if !roots.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("parse OTLP CA certificate: no certificates found")
+	}
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("OTLP default HTTP transport is not *http.Transport")
+	}
+	transport := baseTransport.Clone()
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}
+
+	return &http.Client{Transport: transport}, nil
 }
 
 // Export sends spans as a single OTLP ExportTraceServiceRequest. A nil or
@@ -87,9 +127,9 @@ func (e *Exporter) Export(spans []Span) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := e.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
+	client, err := e.httpClient()
+	if err != nil {
+		return err
 	}
 	resp, err := client.Do(req)
 	if err != nil {

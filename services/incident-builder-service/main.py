@@ -32,6 +32,7 @@ from incident_aggregation import aggregate, group_key, now_iso
 # OBS-OTEL-TRACING phase 5: OTLP/HTTP span export, disabled unless an
 # endpoint is configured (empty string is otlp_export's own no-op signal).
 OTEL_EXPORTER_ENDPOINT = os.getenv("XDR_OTEL_EXPORTER_ENDPOINT", "")
+OTEL_CA_CERT = os.getenv("XDR_OTEL_CA_CERT", "")
 
 
 class _JsonLogFormatter(logging.Formatter):
@@ -421,7 +422,7 @@ def process_alerts(alerts: List[AlertPayload], trace_id: Optional[str], source_t
         for span in otel_spans:
             span.start_unix_nano = start_ns
             span.end_unix_nano = end_ns
-        oe.export_async(SESSION, OTEL_EXPORTER_ENDPOINT, "incident-builder-service", otel_spans, logger=log)
+        oe.export_async(SESSION, OTEL_EXPORTER_ENDPOINT, "incident-builder-service", otel_spans, logger=log, ca_cert=OTEL_CA_CERT)
 
     return result
 

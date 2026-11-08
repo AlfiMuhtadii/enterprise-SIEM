@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -31,6 +34,28 @@ class OtlpExportService
     public const SPAN_KIND_INTERNAL = 1;
 
     public const SPAN_KIND_SERVER = 2;
+
+    public static function request(string $endpoint, int $timeoutSeconds): PendingRequest
+    {
+        $scheme = strtolower((string) parse_url($endpoint, PHP_URL_SCHEME));
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            throw new InvalidArgumentException('OTLP endpoint must use http or https.');
+        }
+
+        $request = Http::timeout($timeoutSeconds);
+        $caCert = trim((string) config('xdr.otel_ca_cert', ''));
+        if ($caCert === '') {
+            return $request;
+        }
+        if ($scheme !== 'https') {
+            throw new InvalidArgumentException('XDR_OTEL_CA_CERT requires an HTTPS OTLP endpoint.');
+        }
+        if (! is_file($caCert)) {
+            throw new RuntimeException("OTLP CA certificate not found: {$caCert}");
+        }
+
+        return $request->withOptions(['verify' => $caCert]);
+    }
 
     /**
      * Pure function producing the OTLP/HTTP+JSON ExportTraceServiceRequest
@@ -94,7 +119,7 @@ class OtlpExportService
         }
 
         try {
-            Http::timeout($timeoutSeconds)->post($endpoint, self::buildRequestBody($serviceName, $spans));
+            self::request($endpoint, $timeoutSeconds)->post($endpoint, self::buildRequestBody($serviceName, $spans));
         } catch (Throwable $e) {
             // Best-effort: intentionally swallowed, matching the Go/Python exporters'
             // "observability must never break the system it observes" posture.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -105,6 +106,27 @@ class TestExport(unittest.TestCase):
 
         with self.assertRaises(RuntimeError):
             oe.export(session, "http://collector/v1/traces", "svc", [sample_span()])
+
+    def test_private_ca_is_forwarded_to_requests(self):
+        session = MagicMock()
+        session.post.return_value.status_code = 200
+        with tempfile.TemporaryDirectory() as directory:
+            ca_cert = Path(directory) / "collector-ca.crt"
+            ca_cert.write_text("test-ca", encoding="utf-8")
+            oe.export(session, "https://collector/v1/traces", "svc", [sample_span()], ca_cert=str(ca_cert))
+        self.assertEqual(str(ca_cert), session.post.call_args.kwargs["verify"])
+
+    def test_ca_with_plaintext_endpoint_fails_before_network(self):
+        session = MagicMock()
+        with self.assertRaisesRegex(ValueError, "requires an HTTPS"):
+            oe.export(session, "http://collector/v1/traces", "svc", [sample_span()], ca_cert="ca.crt")
+        session.post.assert_not_called()
+
+    def test_missing_ca_fails_before_network(self):
+        session = MagicMock()
+        with self.assertRaises(FileNotFoundError):
+            oe.export(session, "https://collector/v1/traces", "svc", [sample_span()], ca_cert="missing-ca.crt")
+        session.post.assert_not_called()
 
 
 class TestExportAsync(unittest.TestCase):

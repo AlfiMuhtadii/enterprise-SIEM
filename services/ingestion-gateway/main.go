@@ -215,6 +215,7 @@ func main() {
 		otelExporter: &otlpexport.Exporter{
 			Endpoint:    env("XDR_OTEL_EXPORTER_ENDPOINT", ""),
 			ServiceName: "ingestion-gateway",
+			CACert:      env("XDR_OTEL_CA_CERT", ""),
 		},
 	}
 

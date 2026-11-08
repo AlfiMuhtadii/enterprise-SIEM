@@ -189,6 +189,7 @@ return [
     // Go/Python pipeline services' XDR_OTEL_EXPORTER_ENDPOINT for a single
     // operator-facing knob across the whole platform.
     'otel_exporter_endpoint' => env('XDR_OTEL_EXPORTER_ENDPOINT', ''),
+    'otel_ca_cert' => env('XDR_OTEL_CA_CERT', ''),
 
     'storage' => [
         'raw_telemetry' => ['driver' => 'clickhouse', 'retention_days' => 30],

@@ -16,6 +16,8 @@ the others would silently drift and go unnoticed:
     log-connectors' bounded-retry delivery primitive (CONN-DELIVERY-LOSS).
   - kafkanative: native Kafka producer/consumer and verified TLS setup across
     the 3 Go pipeline services.
+  - otlpexport: OTLP/HTTP JSON encoding and private-CA TLS transport across
+    the 3 Go pipeline services.
   - python-service-adapters: event-contract/tracing/OTLP/pool/Kafka helper
     modules duplicated between alert-writer-service and
     incident-builder-service (the 2 Python event-pipeline writers).
@@ -82,6 +84,15 @@ FAMILIES: dict[str, dict] = {
             ROOT / "services" / "correlation-worker" / "internal" / "kafkanative",
             ROOT / "services" / "ingestion-gateway" / "internal" / "kafkanative",
             ROOT / "services" / "normalizer-worker" / "internal" / "kafkanative",
+        ],
+    },
+    "otlpexport": {
+        "canonical_dir": ROOT / "tools" / "shared-go" / "otlpexport",
+        "files": ["otlpexport.go", "otlpexport_test.go"],
+        "dependents": [
+            ROOT / "services" / "correlation-worker" / "internal" / "otlpexport",
+            ROOT / "services" / "ingestion-gateway" / "internal" / "otlpexport",
+            ROOT / "services" / "normalizer-worker" / "internal" / "otlpexport",
         ],
     },
     "python-service-adapters": {

@@ -847,6 +847,7 @@ services:
       XDR_INGEST_REQUIRE_TENANT: ${XDR_INGEST_REQUIRE_TENANT:-false}
       # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
+      XDR_OTEL_CA_CERT: ${XDR_OTEL_CA_CERT:-}
     ports:
       - "8091:8091"
     volumes:
@@ -896,6 +897,7 @@ services:
       XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
+      XDR_OTEL_CA_CERT: ${XDR_OTEL_CA_CERT:-}
     ports:
       - "8092:8092"
     volumes:
@@ -1086,6 +1088,7 @@ services:
       XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
+      XDR_OTEL_CA_CERT: ${XDR_OTEL_CA_CERT:-}
     ports:
       - "8093:8093"
     volumes:
@@ -1183,6 +1186,7 @@ services:
       XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING phase 5: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
+      XDR_OTEL_CA_CERT: ${XDR_OTEL_CA_CERT:-}
     ports:
       - "8095:8095"
     volumes:
@@ -1240,6 +1244,7 @@ services:
       XDR_INTERNAL_MTLS_CLIENT_KEY: /etc/xdr/internal-mtls/client.key
       # OBS-OTEL-TRACING phase 5: OTLP span export, empty (default) disables it.
       XDR_OTEL_EXPORTER_ENDPOINT: ${XDR_OTEL_EXPORTER_ENDPOINT:-}
+      XDR_OTEL_CA_CERT: ${XDR_OTEL_CA_CERT:-}
     ports:
       - "8096:8096"
     volumes:
