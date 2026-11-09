@@ -175,6 +175,22 @@ services:
           memory: 1g
           cpus: '1.0'
 
+  # Production OTLP ingress uses Tempo's native TLS receiver. The query API
+  # remains internal HTTP for Grafana; neither port is published to the host.
+  tempo:
+    profiles: !reset []
+    command: ["-config.file=/etc/tempo-tls.yaml"]
+    ports: !reset []
+    volumes:
+      - ./infra/analytics/tempo/tempo-tls.yaml:/etc/tempo-tls.yaml:ro
+      - detector_internal_mtls_certs:/etc/xdr/internal-mtls:ro
+    group_add:
+      - "44444"
+    depends_on:
+      internal-mtls-certs-init:
+        condition: service_completed_successfully
+    restart: always
+
   # ---------------------------------------------------------------------------
   # Laravel SOC application: restart always; port 8000 public (browser access)
   # ---------------------------------------------------------------------------
@@ -199,6 +215,8 @@ services:
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
       XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
       SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   queue:
@@ -222,6 +240,8 @@ services:
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
       XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
       SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   scheduler:
@@ -245,6 +265,8 @@ services:
       XDR_INCIDENT_BUILDER_URL: https://incident-builder-service:8096
       XDR_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
       SCENARIO_INGESTION_GATEWAY_URL: https://ingestion-gateway:8091
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   telemetry-worker:
@@ -268,6 +290,8 @@ services:
       XDR_INTERNAL_MTLS_ENABLED: "true"
       XDR_INTERNAL_MTLS_CLIENT_ENABLED: "true"
       XDR_NORMALIZER_METRICS_URL: https://normalizer-worker:8092/metrics
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--cacert", "/etc/xdr/internal-mtls/ca.crt", "--cert", "/etc/xdr/internal-mtls/client.crt", "--key", "/etc/xdr/internal-mtls/client.key", "https://localhost:8091/health"]
       interval: 15s
@@ -281,6 +305,8 @@ services:
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   correlation-worker:
@@ -288,6 +314,8 @@ services:
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   alert-writer-service:
@@ -295,6 +323,8 @@ services:
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
       # Shadow and DLQ consumers disabled in production — advisory-only, operator-triggered
       XDR_SHADOW_CONSUMER_ENABLED: "false"
       XDR_DLQ_CONSUMER_ENABLED: "false"
@@ -317,6 +347,8 @@ services:
     environment:
       XDR_ENFORCE_INTERNAL_AUTH: "true"
       XDR_INTERNAL_MTLS_ENABLED: "true"
+      XDR_OTEL_EXPORTER_ENDPOINT: https://tempo:4318/v1/traces
+      XDR_OTEL_CA_CERT: /etc/xdr/internal-mtls/ca.crt
     restart: always
 
   ai-rag-service:

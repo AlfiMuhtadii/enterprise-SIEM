@@ -298,3 +298,30 @@ func TestExportRejectsUnsupportedDefaultTransportWithoutPanic(t *testing.T) {
 		t.Fatalf("expected unsupported default transport error, got %v", err)
 	}
 }
+
+func TestExportLiveTLSWhenConfigured(t *testing.T) {
+	endpoint := os.Getenv("XDR_OTEL_TEST_ENDPOINT")
+	if endpoint == "" {
+		t.Skip("XDR_OTEL_TEST_ENDPOINT is not configured")
+	}
+	caCert := os.Getenv("XDR_OTEL_TEST_CA_CERT")
+	if caCert == "" {
+		t.Fatal("XDR_OTEL_TEST_CA_CERT is required for the live TLS test")
+	}
+	serviceName := os.Getenv("XDR_OTEL_TEST_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "detector-otlp-live-test"
+	}
+	span := sampleSpan()
+	span.TraceID = os.Getenv("XDR_OTEL_TEST_TRACE_ID")
+	if span.TraceID == "" {
+		span.TraceID = "0123456789abcdef0123456789abcdef"
+	}
+	span.ParentSpanID = ""
+	span.Start = time.Now()
+	span.End = span.Start.Add(time.Millisecond)
+
+	if err := (&Exporter{Endpoint: endpoint, ServiceName: serviceName, CACert: caCert}).Export([]Span{span}); err != nil {
+		t.Fatalf("live OTLP TLS export failed: %v", err)
+	}
+}
