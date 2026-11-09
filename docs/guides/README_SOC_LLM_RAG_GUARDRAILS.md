@@ -30,14 +30,14 @@ SOC_OLLAMA_VERIFY_TLS=true
 SOC_OLLAMA_CA_CERT=
 ```
 
-The local Ollama profile remains plaintext for loopback development. For a
-remote or production deployment, terminate TLS in front of Ollama, set the
-base URL (and `SOC_EMBEDDING_MODEL_URL`, when used) to that HTTPS endpoint,
-and set `SOC_OLLAMA_CA_CERT` when it uses a private CA. Both generation and
-embedding requests use the same CA and hostname-verifying client. A configured
-CA with an HTTP URL is rejected before any request. Setting
-`SOC_OLLAMA_VERIFY_TLS=false` is an explicit diagnostic escape hatch and must
-not be used as a production configuration.
+The local Ollama profile remains plaintext for loopback development. The
+production Compose overlay adds `ollama-tls`, an internal-only TLS reverse
+proxy, and removes Ollama's host port. Start it with the `ai-embeddings` profile
+and use `https://ollama-tls:11434` plus the mounted internal CA for generation
+and, when enabled, `SOC_EMBEDDING_MODEL_URL`. Both request paths use the same
+CA- and hostname-verifying client. A configured CA with an HTTP URL is rejected
+before any request. `SOC_OLLAMA_VERIFY_TLS=false` is a diagnostic escape hatch
+and must not be used in production. See `docs/operations/OLLAMA_TLS.md`.
 
 If a remote provider is unavailable or unconfigured, the system falls back to the local heuristic provider and records fallback metadata in `ai_execution_history`.
 

@@ -47,6 +47,7 @@ SERVICE_SANS = [
     "qdrant",
     "minio",
     "tempo",
+    "ollama-tls",
     "localhost",
     "127.0.0.1",
 ]
