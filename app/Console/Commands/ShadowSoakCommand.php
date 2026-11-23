@@ -70,7 +70,6 @@ class ShadowSoakCommand extends Command
             $service->recordFindingSummaries($run);
             $service->recordConfidenceBands($run, $snapshot);
             $service->recordSuppressionStats($run, $snapshot);
-            $service->recordCoverageStats($run, $snapshot);
 
             $run = $service->completeSoakRun($run, $assessment);
 

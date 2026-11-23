@@ -14,6 +14,8 @@ use App\Models\ShadowSoakRun;
 use App\Models\ShadowSoakSuppressionStat;
 use App\Services\DomainSoakHarnessService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -406,16 +408,63 @@ class DomainSoakHarnessTest extends TestCase
         $this->assertTrue($stat->within_threshold);
     }
 
-    public function test_record_coverage_stats_creates_record(): void
+    public function test_snapshot_and_coverage_detail_use_distinct_registered_ids_from_the_domain_topic(): void
     {
-        $run      = $this->service->startSoakRun('endpoint', 24);
-        $this->seedFindings('endpoint', 5, 0.70, 'new');
-        $snapshot = $this->service->computeEvidence($run);
+        File::shouldReceive('get')->with('coverage-registry.json')->once()->andReturn(json_encode(['rules' => [
+            ['rule_id' => 'observed', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+            ['rule_id' => 'wrong-topic', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+            ['rule_id' => 'unobserved', 'status' => 'shadow', 'domain' => 'threat-intel', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+            ['rule_id' => 'ueba-only', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.ueba'],
+            ['rule_id' => 'generic-only', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow'],
+            ['rule_id' => 'not-shadow', 'status' => 'draft', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+        ]], JSON_THROW_ON_ERROR));
+        $service = new DomainSoakHarnessService('coverage-registry.json');
+        $run = $service->startSoakRun('endpoint', 24);
+        $this->seedFindings('endpoint', 5, 0.70, 'new', 'observed');
+        $this->seedFindings('endpoint', 1, 0.70, 'new', 'not-registered');
+        $this->seedFindings('endpoint', 1, 0.70, 'new', 'not-shadow');
+        $this->seedFindings('endpoint', 1, 0.70, 'new', 'ueba-only');
+        $this->seedFindings('endpoint', 1, 0.70, 'new', 'wrong-topic', 'xdr.alerts.shadow.ueba');
 
-        $stat = $this->service->recordCoverageStats($run, $snapshot);
+        $snapshot = $service->computeEvidence($run);
+        $stat = ShadowSoakCoverageStat::where('run_id', $run->run_id)->sole();
 
-        $this->assertInstanceOf(ShadowSoakCoverageStat::class, $stat);
-        $this->assertEquals($run->run_id, $stat->run_id);
+        $this->assertSame(9, $snapshot->total_findings);
+        $this->assertSame(1, $snapshot->rules_covered);
+        $this->assertSame(3, $stat->total_shadow_rules);
+        $this->assertSame($snapshot->rules_covered, $stat->rules_with_findings);
+        $this->assertSame(0.3333, $stat->coverage_rate);
+        $this->assertSame($snapshot->rule_coverage_rate, $stat->coverage_rate);
+        $this->assertSame(['unobserved', 'wrong-topic'], $stat->rules_without_findings);
+    }
+
+    public function test_invalid_registry_fails_the_cli_run_without_recording_coverage(): void
+    {
+        File::shouldReceive('get')->with('invalid-registry.json')->once()->andReturn('{invalid');
+        $this->app->instance(DomainSoakHarnessService::class, new DomainSoakHarnessService('invalid-registry.json'));
+
+        $this->artisan('xdr:shadow-soak', ['--domain' => 'endpoint', '--hours' => '6'])
+            ->expectsOutput('Soak run failed: No valid canonical shadow rule inventory for endpoint')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseHas('shadow_soak_runs', ['domain' => 'endpoint', 'status' => 'failed']);
+        $this->assertDatabaseMissing('shadow_soak_evidence_snapshots', ['domain' => 'endpoint']);
+        $this->assertDatabaseMissing('shadow_soak_coverage_stats', ['domain' => 'endpoint']);
+    }
+
+    public function test_failed_coverage_insert_rolls_back_the_snapshot(): void
+    {
+        Event::listen('eloquent.creating: '.ShadowSoakCoverageStat::class, static function (): never {
+            throw new \RuntimeException('coverage insert failed');
+        });
+
+        $this->artisan('xdr:shadow-soak', ['--domain' => 'endpoint', '--hours' => '6'])
+            ->expectsOutput('Soak run failed: coverage insert failed')
+            ->assertExitCode(1);
+
+        $this->assertDatabaseHas('shadow_soak_runs', ['domain' => 'endpoint', 'status' => 'failed']);
+        $this->assertDatabaseMissing('shadow_soak_evidence_snapshots', ['domain' => 'endpoint']);
+        $this->assertDatabaseMissing('shadow_soak_audit_events', ['domain' => 'endpoint', 'event_type' => 'evidence_computed']);
     }
 
     public function test_record_finding_summaries_creates_per_rule_records(): void
@@ -518,6 +567,8 @@ class DomainSoakHarnessTest extends TestCase
 
         $this->artisan('xdr:shadow-soak', ['--domain' => 'endpoint', '--hours' => '24'])
              ->assertExitCode(0);
+
+        $this->assertSame(1, ShadowSoakCoverageStat::where('domain', 'endpoint')->count());
     }
 
     public function test_shadow_soak_command_dry_run_creates_no_evidence(): void
@@ -578,15 +629,21 @@ class DomainSoakHarnessTest extends TestCase
     // Helpers
     // =========================================================================
 
-    private function seedFindings(string $domain, int $count, float $confidence, string $status, string $ruleId = null): void
-    {
+    private function seedFindings(
+        string $domain,
+        int $count,
+        float $confidence,
+        string $status,
+        ?string $ruleId = null,
+        ?string $sourceTopic = null,
+    ): void {
         $ruleId ??= 'rule-' . $domain . '-001';
         for ($i = 0; $i < $count; $i++) {
             AdvisoryFinding::create([
                 'finding_id'          => 'af-' . Str::uuid(),
                 'rule_id'             => $ruleId,
                 'domain'              => $domain,
-                'source_topic'        => 'xdr.alerts.shadow.' . $domain,
+                'source_topic'        => $sourceTopic ?? 'xdr.alerts.shadow.'.$domain,
                 'alert_type'          => 'test_alert',
                 'severity'            => 'medium',
                 'confidence'          => $confidence,

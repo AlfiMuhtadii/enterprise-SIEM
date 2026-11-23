@@ -13,6 +13,7 @@ use App\Models\ShadowSoakSuppressionStat;
 use App\Models\ShadowSoakCoverageStat;
 use App\Models\ShadowSoakAuditEvent;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -44,13 +45,6 @@ class DomainSoakHarnessService
     public const MIN_HIGH_CONFIDENCE_SCORE   = 0.65;   // threshold for "high confidence"
     public const MAX_SUPPRESSION_RATE        = 0.40;   // <= 40% findings suppressed/dismissed
     public const PROMOTION_EVIDENCE_PASS_RATE = 0.80;  // ≥ 80% of gates must pass for evidence_pass
-
-    // Historical baseline for persisted soak assessments; preflight reads the live registry.
-    public const DOMAIN_SHADOW_RULE_COUNTS = [
-        'endpoint' => 40,
-        'network'  => 9,
-        'ueba'     => 9,
-    ];
 
     // =========================================================================
     // Public API
@@ -89,6 +83,11 @@ class DomainSoakHarnessService
 
     public function computeEvidence(ShadowSoakRun $run): ShadowSoakEvidenceSnapshot
     {
+        $expectedRuleIds = $this->registeredShadowRuleIds($run->domain);
+        if ($expectedRuleIds === null || $expectedRuleIds === []) {
+            throw new \RuntimeException('No valid canonical shadow rule inventory for '.$run->domain);
+        }
+
         $since = now()->subHours($run->window_hours);
 
         $query = AdvisoryFinding::where('domain', $run->domain)
@@ -103,14 +102,17 @@ class DomainSoakHarnessService
         $total       = $findings->count();
         $highConf    = $findings->where('confidence', '>=', self::MIN_HIGH_CONFIDENCE_SCORE)->count();
         $suppressed  = $findings->whereIn('status', ['dismissed'])->count();
-        $ruleIds     = $findings->pluck('rule_id')->unique()->count();
-        $totalRules  = self::DOMAIN_SHADOW_RULE_COUNTS[$run->domain] ?? 1;
+        $observedRuleIds = $findings->where('source_topic', $this->shadowTopic($run->domain))
+            ->pluck('rule_id')->unique()->all();
+        $withoutFindings = array_values(array_diff($expectedRuleIds, $observedRuleIds));
+        $totalRules = count($expectedRuleIds);
+        $rulesCovered = $totalRules - count($withoutFindings);
 
         $severityDist = $findings->groupBy('severity')
             ->map(fn($g) => $g->count())
             ->toArray();
 
-        $snapshot = ShadowSoakEvidenceSnapshot::create([
+        $evidence = [
             'snapshot_id'              => 'sse-' . Str::uuid(),
             'run_id'                   => $run->run_id,
             'domain'                   => $run->domain,
@@ -119,20 +121,25 @@ class DomainSoakHarnessService
             'high_confidence_rate'     => $total > 0 ? round($highConf / $total, 4) : 0.0,
             'suppressed_findings'      => $suppressed,
             'suppression_rate'         => $total > 0 ? round($suppressed / $total, 4) : 0.0,
-            'rules_covered'            => $ruleIds,
-            'rule_coverage_rate'       => $totalRules > 0 ? round($ruleIds / $totalRules, 4) : 0.0,
+            'rules_covered'            => $rulesCovered,
+            'rule_coverage_rate'       => round($rulesCovered / $totalRules, 4),
             'severity_distribution'    => $severityDist,
             'tenant_id'                => $run->tenant_id,
-        ]);
+        ];
 
-        $this->audit($run->run_id, $run->domain, 'evidence_computed', null, [
-            'total_findings'       => $total,
-            'high_confidence_rate' => $snapshot->high_confidence_rate,
-            'suppression_rate'     => $snapshot->suppression_rate,
-            'rule_coverage_rate'   => $snapshot->rule_coverage_rate,
-        ]);
+        return DB::transaction(function () use ($run, $evidence, $totalRules, $withoutFindings) {
+            $snapshot = ShadowSoakEvidenceSnapshot::create($evidence);
+            $this->recordCoverageStats($run, $snapshot, $totalRules, $withoutFindings);
 
-        return $snapshot;
+            $this->audit($run->run_id, $run->domain, 'evidence_computed', null, [
+                'total_findings' => $snapshot->total_findings,
+                'high_confidence_rate' => $snapshot->high_confidence_rate,
+                'suppression_rate' => $snapshot->suppression_rate,
+                'rule_coverage_rate' => $snapshot->rule_coverage_rate,
+            ]);
+
+            return $snapshot;
+        });
     }
 
     public function checkGates(ShadowSoakRun $run, ShadowSoakEvidenceSnapshot $snapshot): array
@@ -270,33 +277,6 @@ class DomainSoakHarnessService
         ]);
     }
 
-    public function recordCoverageStats(ShadowSoakRun $run, ShadowSoakEvidenceSnapshot $snapshot): ShadowSoakCoverageStat
-    {
-        $totalRules = self::DOMAIN_SHADOW_RULE_COUNTS[$run->domain] ?? 0;
-
-        $since = now()->subHours($run->window_hours);
-        $coveredRuleIds = AdvisoryFinding::where('domain', $run->domain)
-            ->where('last_seen_at', '>=', $since)
-            ->when($run->tenant_id, fn($q) => $q->where('tenant_id', $run->tenant_id))
-            ->distinct('rule_id')
-            ->pluck('rule_id')
-            ->toArray();
-
-        $allExpected     = array_keys(array_fill(0, $totalRules, 1));
-        $withoutFindings = array_values(array_diff($allExpected, $coveredRuleIds));
-
-        return ShadowSoakCoverageStat::create([
-            'stat_id'               => 'sscs-' . Str::uuid(),
-            'run_id'                => $run->run_id,
-            'domain'                => $run->domain,
-            'total_shadow_rules'    => $totalRules,
-            'rules_with_findings'   => count($coveredRuleIds),
-            'coverage_rate'         => $snapshot->rule_coverage_rate,
-            'rules_without_findings'=> $withoutFindings,
-            'tenant_id'             => $run->tenant_id,
-        ]);
-    }
-
     public function completeSoakRun(ShadowSoakRun $run, ShadowSoakDomainAssessment $assessment): ShadowSoakRun
     {
         $run->update([
@@ -400,7 +380,8 @@ class DomainSoakHarnessService
         ];
 
         // CHK-02: shadow rules registered for domain
-        $expectedRules = $this->countRegisteredShadowRules($domain);
+        $expectedRuleIds = $this->registeredShadowRuleIds($domain);
+        $expectedRules = $expectedRuleIds === null ? null : count($expectedRuleIds);
         $checks['CHK-02'] = [
             'name'   => 'Shadow rules registered for domain',
             'status' => $expectedRules === null ? 'FAIL' : ($expectedRules > 0 ? 'PASS' : 'WARN'),
@@ -439,7 +420,7 @@ class DomainSoakHarnessService
             'detail' => 'promotion_recommended=false enforced — operator explicit action required for promotion',
         ];
 
-        $ready = $expectedRules > 0 && ! $activeRun && $findingsOk;
+        $ready = ($expectedRules ?? 0) > 0 && ! $activeRun && $findingsOk;
 
         return [
             'domain'               => $domain,
@@ -454,7 +435,31 @@ class DomainSoakHarnessService
     // Private helpers
     // =========================================================================
 
-    private function countRegisteredShadowRules(string $domain): ?int
+    private function recordCoverageStats(
+        ShadowSoakRun $run,
+        ShadowSoakEvidenceSnapshot $snapshot,
+        int $totalRules,
+        array $withoutFindings,
+    ): void {
+        ShadowSoakCoverageStat::create([
+            'stat_id' => 'sscs-'.Str::uuid(),
+            'run_id' => $run->run_id,
+            'domain' => $run->domain,
+            'total_shadow_rules' => $totalRules,
+            'rules_with_findings' => $snapshot->rules_covered,
+            'coverage_rate' => $snapshot->rule_coverage_rate,
+            'rules_without_findings' => $withoutFindings,
+            'tenant_id' => $run->tenant_id,
+        ]);
+    }
+
+    private function shadowTopic(string $domain): string
+    {
+        return 'xdr.alerts.shadow.'.$domain;
+    }
+
+    /** @return list<string>|null */
+    private function registeredShadowRuleIds(string $domain): ?array
     {
         try {
             $registry = json_decode(File::get($this->registryPath ?? base_path('docs/detection/rules/registry.v1.json')), true, flags: JSON_THROW_ON_ERROR);
@@ -468,7 +473,8 @@ class DomainSoakHarnessService
         }
 
         $ids = [];
-        $count = 0;
+        $expectedRuleIds = [];
+        $expectedTopic = $this->shadowTopic($domain);
         foreach ($rules as $rule) {
             $id = $rule['rule_id'] ?? null;
             $status = $rule['status'] ?? null;
@@ -480,13 +486,14 @@ class DomainSoakHarnessService
             }
             $ids[$id] = true;
 
-            // UEBA is a rule family across domains, identified by its advisory topic.
-            if ($status === 'shadow' && ($domain === 'ueba' ? $topic === 'xdr.alerts.shadow.ueba' : $category === $domain)) {
-                $count++;
+            if ($status === 'shadow' && $topic === $expectedTopic) {
+                $expectedRuleIds[] = $id;
             }
         }
 
-        return $count;
+        sort($expectedRuleIds, SORT_STRING);
+
+        return $expectedRuleIds;
     }
 
     private function assertDomain(string $domain): void

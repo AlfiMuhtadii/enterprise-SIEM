@@ -88,6 +88,8 @@ class ShadowSoakPreflightTest extends TestCase
             ['rule_id' => 'ep-a', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
             ['rule_id' => 'ep-b', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.ueba'],
             ['rule_id' => 'net-a', 'status' => 'shadow', 'domain' => 'network', 'output_topic' => 'xdr.alerts.shadow.network'],
+            ['rule_id' => 'ti-ep', 'status' => 'shadow', 'domain' => 'threat-intel', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+            ['rule_id' => 'generic-ep', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow'],
             ['rule_id' => 'cloud-ueba', 'status' => 'shadow', 'domain' => 'cloud', 'output_topic' => 'xdr.alerts.shadow.ueba'],
             ['rule_id' => 'non-shadow', 'status' => 'draft', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
         ]], JSON_THROW_ON_ERROR));

@@ -80,7 +80,6 @@ class ShadowSoakController extends Controller
             $this->service->recordFindingSummaries($run);
             $this->service->recordConfidenceBands($run, $snapshot);
             $this->service->recordSuppressionStats($run, $snapshot);
-            $this->service->recordCoverageStats($run, $snapshot);
             $this->service->completeSoakRun($run, $assessment);
 
             $result = $assessment->evidence_pass ? 'PASS' : 'FAIL';

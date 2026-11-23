@@ -43,10 +43,19 @@ docker exec detector-soc-app php artisan domain:soak-preflight network
 docker exec detector-soc-app php artisan domain:soak-preflight ueba
 ```
 
-`expected_shadow_rules` counts registry entries, not rule coverage or soak
-results. Endpoint and network use the registry domain; UEBA uses its advisory
-topic and can overlap with those counts. A missing or invalid registry blocks
-preflight. `preflight_ready` allows planning a soak, not promoting a rule.
+`expected_shadow_rules` counts registry entries for the selected advisory
+topic (`xdr.alerts.shadow.endpoint`, `xdr.alerts.shadow.network`, or
+`xdr.alerts.shadow.ueba`), not the rule's category or an estimate of coverage.
+Entries routed only to the generic `xdr.alerts.shadow` topic are outside these
+three harness scopes. A missing or invalid registry blocks evidence collection
+and preflight. `preflight_ready` allows planning a soak, not promoting a rule.
+
+New snapshots calculate coverage from distinct registered rule IDs with
+findings on the matching topic in the selected observation window. The stored
+coverage detail and snapshot are written together; the detail lists the rule
+IDs with no findings. Older reports used an estimated denominator and should
+not be compared directly. This coverage is advisory and does not establish
+the source or representativeness of the telemetry.
 Do not treat fixture rehearsals, a passing offline validator, or a confidence
 threshold as representative domain-specific soak evidence.
 
