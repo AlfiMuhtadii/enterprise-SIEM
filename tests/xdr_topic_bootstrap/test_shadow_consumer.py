@@ -193,6 +193,9 @@ class TestShadowLoopIsolation(unittest.TestCase):
 
     def _make_record(self):
         return {
+            "topic": "xdr.alerts.shadow.endpoint",
+            "partition": 0,
+            "offset": 7,
             "value": {
                 "trace_id": "t1",
                 "source": "correlation-worker",
@@ -224,7 +227,10 @@ class TestShadowLoopIsolation(unittest.TestCase):
         aw.STOP.clear()
         with patch.object(aw, "consumer_create", return_value="http://x/cg/i"), \
              patch.object(aw, "consumer_subscribe"), \
+             patch.object(aw, "consumer_delete"), \
              patch.object(aw, "consumer_poll", side_effect=fake_poll), \
+             patch.object(aw, "read_shadow_offsets", return_value={0: 0}), \
+             patch.object(aw, "commit_shadow_offsets"), \
              patch.object(aw, "write_advisory_finding", return_value="inserted") as mock_write, \
              patch.object(aw, "process_alerts") as mock_process:
             aw.shadow_event_loop("xdr.alerts.shadow.endpoint")
@@ -245,7 +251,10 @@ class TestShadowLoopIsolation(unittest.TestCase):
         aw.STOP.clear()
         with patch.object(aw, "consumer_create", return_value="http://x/cg/i"), \
              patch.object(aw, "consumer_subscribe"), \
+             patch.object(aw, "consumer_delete"), \
              patch.object(aw, "consumer_poll", side_effect=fake_poll), \
+             patch.object(aw, "read_shadow_offsets", return_value={0: 0}), \
+             patch.object(aw, "commit_shadow_offsets"), \
              patch.object(aw, "write_advisory_finding", return_value="inserted"), \
              patch.object(aw, "produce") as mock_produce:
             aw.shadow_event_loop("xdr.alerts.shadow.endpoint")
@@ -267,12 +276,114 @@ class TestShadowLoopIsolation(unittest.TestCase):
         aw.METRICS["shadow_findings_seen"] = 0
         with patch.object(aw, "consumer_create", return_value="http://x/cg/i"), \
              patch.object(aw, "consumer_subscribe"), \
+             patch.object(aw, "consumer_delete"), \
              patch.object(aw, "consumer_poll", side_effect=fake_poll), \
+             patch.object(aw, "read_shadow_offsets", return_value={0: 0}), \
+             patch.object(aw, "commit_shadow_offsets"), \
              patch.object(aw, "write_advisory_finding", return_value="inserted"):
             aw.shadow_event_loop("xdr.alerts.shadow.endpoint")
 
         self.assertGreaterEqual(aw.METRICS["shadow_polls"], 1)
         self.assertEqual(aw.METRICS["shadow_findings_seen"], 1)
+
+    def test_postgres_failure_is_not_counted_or_committed_before_reconnect(self):
+        self._assert_stable_redelivery(RuntimeError("offline DB"), "inserted", fail_commit=False)
+
+    def test_lost_commit_response_replays_without_counting_another_write(self):
+        self._assert_stable_redelivery("inserted", "replayed", fail_commit=True)
+
+    def _assert_stable_redelivery(self, initial, retry, *, fail_commit):
+        topic = "xdr.alerts.shadow.endpoint"
+        calls = []
+
+        def poll(uri):
+            calls.append(("poll", uri))
+            if uri == "rest-2" and ("commit", uri) in calls:
+                aw.STOP.set()
+                return []
+            return [self._make_record()]
+
+        def commit(uri, offsets):
+            calls.append(("commit", uri))
+            self.assertEqual(offsets, [{"topic": topic, "partition": 0, "offset": 8}])
+            if uri == "rest-1":
+                self.assertTrue(fail_commit)
+                raise TimeoutError("ack lost")
+
+        aw.STOP.clear()
+        old_writes = aw.METRICS["shadow_findings_written"]
+        old_replays = aw.METRICS["shadow_findings_replayed"]
+        with patch.object(aw, "consumer_create", side_effect=["rest-1", "rest-2"]) as create, \
+             patch.object(aw, "consumer_subscribe"), \
+             patch.object(aw, "consumer_delete"), \
+             patch.object(aw.STOP, "wait"), \
+             patch.object(aw, "consumer_poll", side_effect=poll), \
+             patch.object(aw, "read_shadow_offsets", return_value={0: 0}), \
+             patch.object(aw, "commit_shadow_offsets", side_effect=commit), \
+             patch.object(aw, "write_advisory_finding", side_effect=[initial, retry]) as write:
+            aw.shadow_event_loop(topic)
+
+        self.assertEqual([c.args[0] for c in create.call_args_list],
+                         ["shadow-consumer-xdr-alerts-shadow-endpoint"] * 2)
+        self.assertTrue(all(c.kwargs["manual_commit"] for c in create.call_args_list))
+        self.assertEqual([c.args[1:] for c in write.call_args_list], [(0, 7), (0, 7)])
+        self.assertEqual(aw.METRICS["shadow_findings_written"] - old_writes, 1)
+        self.assertEqual(aw.METRICS["shadow_findings_replayed"] - old_replays, int(fail_commit))
+        if not fail_commit:
+            self.assertNotIn(("commit", "rest-1"), calls)
+
+    def test_invalid_record_cannot_supply_a_commit_offset(self):
+        record = self._make_record()
+        with patch.object(aw, "write_advisory_finding") as write:
+            for change in ({"topic": "xdr.alerts"}, {"offset": True}, {"partition": -1},
+                           {"value": {"shadow_mode": False, "alerts": []}}):
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    aw.process_shadow_records([dict(record, **change)], record["topic"])
+        write.assert_not_called()
+
+    def test_reconnect_does_not_process_or_recommit_older_records(self):
+        record = self._make_record()
+        topic = record["topic"]
+        aw.STOP.clear()
+
+        def empty_poll_after_replay(uri):
+            aw.STOP.set()
+            return [record]
+
+        with patch.object(aw, "consumer_create", return_value="rest-1"), \
+             patch.object(aw, "consumer_subscribe"), \
+             patch.object(aw, "consumer_delete"), \
+             patch.object(aw, "consumer_poll", side_effect=empty_poll_after_replay), \
+             patch.object(aw, "read_shadow_offsets", return_value={0: 8}) as read, \
+             patch.object(aw, "write_advisory_finding") as write, \
+             patch.object(aw, "commit_shadow_offsets") as commit:
+            aw.shadow_event_loop(topic)
+        read.assert_called_once_with("rest-1", topic, {0})
+        write.assert_not_called()
+        commit.assert_not_called()
+
+    def test_reads_committed_positions_and_rejects_incomplete_response(self):
+        topic = "xdr.alerts.shadow.endpoint"
+        with patch.object(aw.SESSION, "get") as get:
+            get.return_value.json.return_value = {"offsets": [
+                {"topic": topic, "partition": 0, "offset": -1},
+                {"topic": topic, "partition": 1, "offset": 42},
+            ]}
+            self.assertEqual(aw.read_shadow_offsets("rest", topic, {0, 1}), {0: 0, 1: 42})
+            get.return_value.json.return_value["offsets"].pop()
+            with self.assertRaises(ValueError):
+                aw.read_shadow_offsets("rest", topic, {0, 1})
+
+    def test_commit_uses_explicit_partitions_and_requires_ack(self):
+        offsets = [{"topic": "xdr.alerts.shadow.endpoint", "partition": 0, "offset": 8}]
+        with patch.object(aw.SESSION, "post") as post:
+            post.return_value.status_code = 204
+            aw.commit_shadow_offsets("http://broker/instance", offsets)
+            self.assertEqual(post.call_args.args[0], "http://broker/instance/offsets")
+            self.assertEqual(post.call_args.kwargs["json"], {"partitions": offsets})
+            post.return_value.status_code = 200
+            with self.assertRaises(RuntimeError):
+                aw.commit_shadow_offsets("http://broker/instance", offsets)
 
     def test_shadow_loop_recovers_on_poll_error(self):
         calls = {"n": 0}
@@ -292,6 +403,7 @@ class TestShadowLoopIsolation(unittest.TestCase):
         with patch.object(aw, "consumer_create", return_value="http://x/cg/i"), \
              patch.object(aw, "consumer_subscribe"), \
              patch.object(aw, "consumer_delete"), \
+             patch.object(aw.STOP, "wait"), \
              patch.object(aw, "consumer_poll", side_effect=fake_poll):
             aw.shadow_event_loop("xdr.alerts.endpoint.test")
 

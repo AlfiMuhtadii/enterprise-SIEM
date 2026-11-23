@@ -26,6 +26,7 @@ class AdvisoryFindingEvent extends Model
     public const EVENT_TYPES = [
         'finding_created',
         'occurrence_incremented',
+        'shadow_record_processed',
         'reviewed',
         'dismissed',
         'nominated_for_promotion',

@@ -523,6 +523,19 @@ Required RBAC: `advisory.view`
 Advisory findings require `XDR_SHADOW_CONSUMER_ENABLED=true` in the alert-writer-service environment.  
 **Default is `false`** — enable only when actively investigating shadow data.
 
+The shadow consumer manually commits a batch's Kafka offsets after its findings
+are durable in PostgreSQL. Each finding write and its `shadow_record_processed`
+receipt share a transaction. Re-delivery before the commit reuses the receipt;
+it does not increment `occurrence_count`. The consumer also checks broker
+committed offsets on reconnect because Pandaproxy can fetch older records on
+its first poll. See [Redpanda HTTP Proxy offsets](https://docs.redpanda.com/streaming/24.2/develop/http-proxy/#commit-offsets-for-consumer).
+
+Inspect `shadow_consumer_errors`, `shadow_findings_replayed`, and
+`shadow_offset_commits` separately. A persistent malformed batch, database
+error, or fingerprint collision across source topics or tenants blocks further
+commit for that batch and needs operator review. Do not reset offsets or
+backfill old demo fixtures as representative soak evidence.
+
 ---
 
 ## Section 14 — Reviewing DLQ Records

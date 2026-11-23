@@ -121,6 +121,8 @@ METRICS: Dict[str, Any] = {
     "shadow_findings_seen": 0,
     "shadow_findings_written": 0,
     "shadow_findings_upserted": 0,
+    "shadow_findings_replayed": 0,
+    "shadow_offset_commits": 0,
     "shadow_consumer_errors": 0,
     # DLQ consumer metrics (normalization_failed topic — separate from active path)
     "dlq_consumer_polls": 0,
@@ -404,10 +406,15 @@ def _is_offset_range_error(exc: Exception) -> bool:
     return any(sig in combined for sig in _OFFSET_RANGE_SIGNALS)
 
 
-def consumer_create(group: str, name: str, offset_reset: str = "earliest") -> str:
+def consumer_create(
+    group: str, name: str, offset_reset: str = "earliest", *, manual_commit: bool = False,
+) -> str:
+    payload = {"name": name, "format": "json", "auto.offset.reset": offset_reset}
+    if manual_commit:
+        payload["auto.commit.enable"] = "false"
     resp = SESSION.post(
         f"{redpanda_rest()}/consumers/{group}",
-        json={"name": name, "format": "json", "auto.offset.reset": offset_reset},
+        json=payload,
         headers={"Content-Type": "application/vnd.kafka.v2+json", "Accept": "application/vnd.kafka.v2+json"},
         timeout=10,
     )
@@ -926,13 +933,29 @@ def _shadow_promotion_blocker(domain: str, confidence: float) -> str:
     return "; ".join(reasons)
 
 
-def write_advisory_finding(finding: Dict[str, Any]) -> str:
-    """Upsert an advisory finding. Returns 'inserted' or 'updated'."""
+def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int) -> str:
+    """Claim a broker delivery and upsert its finding in the same PostgreSQL transaction."""
+    position = {"topic": finding["source_topic"], "partition": partition, "offset": offset}
+    material = json.dumps([position, finding["tenant_id"], finding["fingerprint"]], separators=(",", ":"))
+    receipt_id = "shadow-kafka-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
     now = datetime.now(timezone.utc).isoformat()
     with connect_pg() as conn:
         if conn is None:
-            return "no_db"
+            raise RuntimeError("Advisory PostgreSQL connection is not configured")
         with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO advisory_finding_events
+                    (event_id, finding_id, event_type, tenant_id, metadata, created_at)
+                VALUES (%s, %s, 'shadow_record_processed', %s, %s::jsonb, now())
+                ON CONFLICT (event_id) DO NOTHING
+                RETURNING event_id
+                """,
+                (receipt_id, finding["finding_id"], finding["tenant_id"], json.dumps(position)),
+            )
+            if cur.fetchone() is None:
+                return "replayed"
+
             cur.execute(
                 """
                 INSERT INTO advisory_findings (
@@ -954,6 +977,8 @@ def write_advisory_finding(finding: Dict[str, Any]) -> str:
                         ELSE excluded.promotion_candidate
                     END,
                     updated_at = now()
+                WHERE advisory_findings.source_topic = excluded.source_topic
+                  AND advisory_findings.tenant_id IS NOT DISTINCT FROM excluded.tenant_id
                 RETURNING (xmax = 0) AS inserted
                 """,
                 (
@@ -975,89 +1000,146 @@ def write_advisory_finding(finding: Dict[str, Any]) -> str:
                 ),
             )
             row = cur.fetchone()
-    return "inserted" if (row and row[0]) else "updated"
+            if row is None:
+                raise RuntimeError("Advisory fingerprint conflicts with a different scope")
+    return "inserted" if row[0] else "updated"
+
+
+def shadow_record_position(record: Dict[str, Any], source_topic: str) -> tuple[int, int]:
+    partition, offset = record.get("partition"), record.get("offset")
+    if (record.get("topic") != source_topic or type(partition) is not int or partition < 0
+            or type(offset) is not int or offset < 0):
+        raise ValueError("Invalid shadow Kafka record coordinates")
+    return partition, offset
+
+
+def process_shadow_records(
+    records: List[Dict[str, Any]], source_topic: str, committed: Optional[Dict[int, int]] = None,
+) -> List[Dict[str, Any]]:
+    """Return next offsets only after every finding in the fetched batch is durable."""
+    next_offsets: Dict[int, int] = {}
+    for record in records:
+        partition, offset = shadow_record_position(record, source_topic)
+        if committed is not None and offset < committed.get(partition, 0):
+            continue
+        value = record.get("value")
+        if (not isinstance(value, dict) or value.get("shadow_mode") is not True
+                or not isinstance(value.get("alerts"), list)
+                or any(not isinstance(alert, dict) for alert in value["alerts"])):
+            raise ValueError("Invalid advisory batch envelope")
+
+        findings = normalize_shadow_records([record], source_topic)
+        METRICS["shadow_findings_seen"] += len(findings)
+        for finding in findings:
+            outcome = write_advisory_finding(finding, partition, offset)
+            if outcome == "replayed":
+                METRICS["shadow_findings_replayed"] += 1
+            elif outcome in {"inserted", "updated"}:
+                METRICS["shadow_findings_written"] += 1
+                if outcome == "updated":
+                    METRICS["shadow_findings_upserted"] += 1
+            else:
+                raise RuntimeError("Unexpected advisory write outcome")
+        next_offsets[partition] = max(next_offsets.get(partition, 0), offset + 1)
+
+    return [
+        {"topic": source_topic, "partition": partition, "offset": offset}
+        for partition, offset in sorted(next_offsets.items())
+    ]
+
+
+def commit_shadow_offsets(base_uri: str, offsets: List[Dict[str, Any]]) -> None:
+    response = SESSION.post(
+        f"{base_uri}/offsets",
+        json={"partitions": offsets},
+        headers={"Content-Type": "application/vnd.kafka.v2+json"},
+        timeout=10,
+        allow_redirects=False,
+    )
+    response.raise_for_status()
+    if response.status_code != 204:
+        raise RuntimeError("Advisory offset commit was not acknowledged")
+
+
+def read_shadow_offsets(base_uri: str, topic: str, partitions: set[int]) -> Dict[int, int]:
+    response = SESSION.get(
+        f"{base_uri}/offsets",
+        json={"partitions": [{"topic": topic, "partition": part} for part in sorted(partitions)]},
+        headers={"Content-Type": "application/vnd.kafka.v2+json", "Accept": "application/vnd.kafka.v2+json"},
+        timeout=10,
+        allow_redirects=False,
+    )
+    response.raise_for_status()
+    data = response.json()
+    rows = data.get("offsets") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("Invalid advisory offset response")
+
+    committed: Dict[int, int] = {}
+    for row in rows:
+        partition = row.get("partition") if isinstance(row, dict) else None
+        if type(partition) is not int or partition not in partitions or partition in committed:
+            raise ValueError("Unexpected partition in advisory offset response")
+        offset = row.get("offset")
+        if row.get("topic") != topic or type(offset) is not int or offset < -1:
+            raise ValueError("Invalid advisory committed offset")
+        committed[partition] = max(0, offset)
+    if set(committed) != partitions:
+        raise ValueError("Missing partition in advisory offset response")
+    return committed
 
 
 def shadow_event_loop(source_topic: str) -> None:
     """Consumer loop for one shadow topic. Runs in a daemon thread.
 
     Writes to advisory_findings only. Never publishes to alerts.created.
-    Uses the same offset-recovery pattern as event_loop().
+    Resume from the same group's committed position after any failed cycle.
     """
-    offset_reset = "earliest"
-    _MAX_ERRORS = 3
-
     safe_topic = source_topic.replace(".", "-").replace(":", "-")
-
-    def _stable_group() -> str:
-        return f"shadow-consumer-{safe_topic}"
-
-    def _new_instance_id() -> str:
-        return f"shadow-{safe_topic}-{int(time.time() * 1000)}"
-
-    def _fresh_group_for_offset_reset() -> str:
-        return f"{_stable_group()}-reset-{int(time.time() * 1000)}"
-
-    group = _stable_group()
-    name = _new_instance_id()
+    group = f"shadow-consumer-{safe_topic}"
     base_uri: Optional[str] = None
+    committed: Dict[int, int] = {}
     consecutive_errors = 0
 
-    def _setup(g: str, n: str) -> str:
-        uri = consumer_create(g, n, offset_reset=offset_reset)
-        consumer_subscribe(uri, source_topic)
-        log.info(f"[shadow-consumer] ready  topic={source_topic}  group={g}")
-        return uri
-
     try:
-        base_uri = _setup(group, name)
-    except Exception as exc:
-        METRICS["shadow_consumer_errors"] += 1
-        DLQ.append({"ts": now_iso(), "target": source_topic, "error": f"shadow_start_failed: {exc}"})
-        METRICS["dlq_count"] = len(DLQ)
-        return
+        while not STOP.is_set():
+            try:
+                if base_uri is None:
+                    instance = f"shadow-{safe_topic}-{time.time_ns()}"
+                    base_uri = consumer_create(group, instance, manual_commit=True)
+                    consumer_subscribe(base_uri, source_topic)
+                    log.info("[shadow-consumer] ready topic=%s group=%s", source_topic, group)
 
-    while not STOP.is_set():
-        try:
-            records = consumer_poll(base_uri)
-            METRICS["shadow_polls"] += 1
-            consecutive_errors = 0
-            findings = normalize_shadow_records(records, source_topic)
-            METRICS["shadow_findings_seen"] += len(findings)
-            for f in findings:
-                outcome = write_advisory_finding(f)
-                METRICS["shadow_findings_written"] += 1
-                if outcome == "updated":
-                    METRICS["shadow_findings_upserted"] += 1
-            if findings:
-                log.info(f"[shadow-consumer] {len(findings)} findings  topic={source_topic}")
-        except Exception as exc:
-            METRICS["shadow_consumer_errors"] += 1
-            consecutive_errors += 1
-            is_offset_err = _is_offset_range_error(exc)
-            DLQ.append({
-                "ts": now_iso(), "target": source_topic,
-                "error": str(exc), "consecutive_errors": consecutive_errors,
-            })
-            METRICS["dlq_count"] = len(DLQ)
-            should_recreate = is_offset_err or consecutive_errors >= _MAX_ERRORS
-            if should_recreate:
-                reason = "offset_out_of_range" if is_offset_err else f"{consecutive_errors}_errors"
-                log.warning(f"[shadow-consumer] WARN: consumer recovery ({reason}) topic={source_topic}")
+                records = consumer_poll(base_uri)
+                METRICS["shadow_polls"] += 1
+                # Pandaproxy may return older records on the first poll after reconnect.
+                unseen = {shadow_record_position(record, source_topic)[0] for record in records} - committed.keys()
+                if unseen:
+                    committed.update(read_shadow_offsets(base_uri, source_topic, unseen))
+                offsets = process_shadow_records(records, source_topic, committed)
+                if offsets:
+                    commit_shadow_offsets(base_uri, offsets)
+                    committed.update({entry["partition"]: entry["offset"] for entry in offsets})
+                    METRICS["shadow_offset_commits"] += 1
+                consecutive_errors = 0
+            except Exception as exc:
+                METRICS["shadow_consumer_errors"] += 1
+                consecutive_errors += 1
+                log.warning("[shadow-consumer] retrying from committed offset topic=%s error=%s",
+                            source_topic, type(exc).__name__)
+                DLQ.append({
+                    "ts": now_iso(), "target": source_topic,
+                    "error": type(exc).__name__, "consecutive_errors": consecutive_errors,
+                })
+                METRICS["dlq_count"] = len(DLQ)
                 if base_uri:
                     consumer_delete(base_uri)
-                if is_offset_err:
-                    group = _fresh_group_for_offset_reset()
-                name = _new_instance_id()
-                consecutive_errors = 0
-                try:
-                    base_uri = _setup(group, name)
-                except Exception as se:
-                    METRICS["shadow_consumer_errors"] += 1
-                    log.error(f"[shadow-consumer] ERROR: recreate failed: {se}")
-                    time.sleep(5)
-            else:
-                time.sleep(2)
+                    base_uri = None
+                committed.clear()
+                STOP.wait(min(30, 2 ** min(consecutive_errors, 5)))
+    finally:
+        if base_uri:
+            consumer_delete(base_uri)
 
 
 # ---------------------------------------------------------------------------
