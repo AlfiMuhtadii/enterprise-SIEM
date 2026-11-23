@@ -70,11 +70,15 @@ Present in all normalized endpoint events. Fields are null for event types where
 | Normalized field | Source (raw) | Fallback keys | Relevant event types |
 |---|---|---|---|
 | `network.source_ip` | `source_ip` | `src_ip`, `client_ip` | network_connection, dns_query, login_event |
+| `network.source_port` | `source_port` | None | network_connection |
 | `network.destination_ip` | `destination_ip` | `dst_ip`, `server_ip` | network_connection |
 | `network.destination_port` | `destination_port` | — | network_connection |
 | `network.protocol` | `protocol` | — | network_connection; lowercased |
+| `network.direction` | `direction` | None | network_connection; null unless reported as inbound or outbound |
 
-`destination_port` is extracted as `int64`.
+`source_port` and `destination_port` are extracted as `int64`. For the
+`windows-cim-tcp-snapshot` source the source fields represent the local socket,
+the destination fields represent its peer, and direction is null.
 
 ---
 

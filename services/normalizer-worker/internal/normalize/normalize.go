@@ -94,6 +94,10 @@ func dispatch(raw map[string]any) (map[string]any, error) {
 
 func Endpoint(raw map[string]any) (map[string]any, error) {
 	eventID := first(raw, "event_id", "id")
+	var direction any
+	if value := strings.ToLower(first(raw, "direction")); value == "inbound" || value == "outbound" {
+		direction = value
+	}
 	return map[string]any{
 		"schema_version":        1,
 		"normalization_version": "endpoint-v1",
@@ -118,9 +122,11 @@ func Endpoint(raw map[string]any) (map[string]any, error) {
 		},
 		"network": map[string]any{
 			"source_ip":        first(raw, "source_ip", "src_ip", "client_ip"),
+			"source_port":      rawIntField(raw, "source_port"),
 			"destination_ip":   first(raw, "destination_ip", "dst_ip", "server_ip"),
 			"destination_port": rawIntField(raw, "destination_port"),
 			"protocol":         strings.ToLower(first(raw, "protocol")),
+			"direction":        direction,
 		},
 		"dns": map[string]any{
 			"domain":       first(raw, "domain", "query", "url_domain"),

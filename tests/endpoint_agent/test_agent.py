@@ -385,6 +385,52 @@ class TestNetworkEventValid(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Native Windows TCP snapshots
+# ---------------------------------------------------------------------------
+
+class TestWindowsTCPSnapshot(unittest.TestCase):
+    def test_windows_dispatch_preserves_peer_and_leaves_direction_unknown(self) -> None:
+        row = {"local_ip": "::1", "peer_ip": "::1", "local_port": 54000, "peer_port": 8080,
+               "pid": 45, "created": 100}
+        rows = [row, row, dict(row, peer_ip="invalid"), dict(row, peer_port=65536)]
+        with patch.object(ag, "IS_WINDOWS", True), patch.object(ag, "IS_LINUX", False):
+            with patch.object(ag.subprocess, "run", return_value=MagicMock(stdout=json.dumps(rows))) as run:
+                events = ag.collect_network(ag.CollectorState(), "win-agent", "trace", _make_cfg())
+
+        query = run.call_args.args[0][-1]
+        self.assertIn("Get-NetTCPConnection", query)
+        self.assertIn("'Established'", query)
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual((event["source_ip"], event["source_port"]), ("::1", 54000))
+        self.assertEqual((event["destination_ip"], event["destination_port"]), ("::1", 8080))
+        self.assertEqual(event["pid"], 45)
+        self.assertEqual(event["event_source"], "windows-cim-tcp-snapshot")
+        self.assertIsNone(event["direction"])
+
+    def test_failed_poll_preserves_state_and_reused_socket_gets_new_identity(self) -> None:
+        row = {"local_ip": "127.0.0.1", "peer_ip": "127.0.0.1", "local_port": 54000, "peer_port": 8080,
+               "pid": 45, "created": 100}
+        responses = [
+            MagicMock(stdout=json.dumps([row])), MagicMock(stdout="invalid"),
+            MagicMock(stdout=json.dumps([row])), MagicMock(stdout="[]"),
+            MagicMock(stdout=json.dumps([dict(row, created=200)])),
+        ]
+        state = ag.CollectorState()
+        with patch.object(ag.subprocess, "run", side_effect=responses):
+            first = ag._collect_network_windows(state, "win-agent", "trace")
+            with self.assertLogs(ag.log, level="WARNING"):
+                self.assertEqual(ag._collect_network_windows(state, "win-agent", "trace"), [])
+            self.assertEqual(ag._collect_network_windows(state, "win-agent", "trace"), [])
+            self.assertEqual(ag._collect_network_windows(state, "win-agent", "trace"), [])
+            self.assertEqual(state.known_conns, set())
+            second = ag._collect_network_windows(state, "win-agent", "trace")
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        self.assertNotEqual(first[0]["event_id"], second[0]["event_id"])
+
+
+# ---------------------------------------------------------------------------
 # Test 4 — retry_writes_to_buffer_on_failure
 # ---------------------------------------------------------------------------
 

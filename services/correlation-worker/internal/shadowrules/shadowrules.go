@@ -566,7 +566,7 @@ func ruleCrossDomainSaaSBeacon(events []map[string]any) []EndpointAlert {
 	}
 	var alerts []EndpointAlert
 	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "endpoint" || EpStr(ev, "event_type") != "network_connection" {
+		if EpStr(ev, "telemetry_type") != "endpoint" || !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		srcIP := EpStr(ev, "source_ip")
@@ -609,7 +609,7 @@ func ruleCrossHostSharedDestinationLolbin(events []map[string]any) []EndpointAle
 	destHosts := map[destKey]map[string]bool{}
 	destEvs   := map[destKey]map[string]any{}
 	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "endpoint" || EpStr(ev, "event_type") != "network_connection" {
+		if EpStr(ev, "telemetry_type") != "endpoint" || !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		host := EpStr(ev, "host")
@@ -1129,10 +1129,17 @@ func RuleSuspiciousDNS(events []map[string]any) []EndpointAlert {
 	return alerts
 }
 
+func isDirectedNetworkConnection(ev map[string]any) bool {
+	// The Windows socket table identifies local and peer addresses, not the initiator.
+	// Keep the historical interpretation of other producers unchanged.
+	return EpStr(ev, "event_type") == "network_connection" &&
+		EpStr(ev, "event_source") != "windows-cim-tcp-snapshot"
+}
+
 func RuleSuspiciousOutbound(events []map[string]any) []EndpointAlert {
 	var alerts []EndpointAlert
 	for _, ev := range events {
-		if EpStr(ev, "event_type") != "network_connection" {
+		if !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		dstIP := EpStr(ev, "network", "destination_ip")
@@ -1213,7 +1220,7 @@ func RuleC2BeaconPattern(events []map[string]any) []EndpointAlert {
 	type connKey struct{ host, dst string; port int64 }
 	byKey := map[connKey][]map[string]any{}
 	for _, ev := range events {
-		if EpStr(ev, "event_type") != "network_connection" {
+		if !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		dstIP := EpStr(ev, "network", "destination_ip")
@@ -1426,7 +1433,7 @@ func ruleBeaconPatternAnalytics(events []map[string]any) []EndpointAlert {
 	type destKey struct{ ip string; port int64 }
 	procDests := map[string]map[destKey]int{}
 	for _, ev := range events {
-		if EpStr(ev, "event_type") != "network_connection" {
+		if !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		proc := strings.ToLower(EpStr(ev, "process_name"))
@@ -1450,7 +1457,7 @@ func ruleBeaconPatternAnalytics(events []map[string]any) []EndpointAlert {
 			// Find a representative event
 			var repEv map[string]any
 			for _, ev := range events {
-				if EpStr(ev, "event_type") == "network_connection" &&
+				if isDirectedNetworkConnection(ev) &&
 					strings.ToLower(EpStr(ev, "process_name")) == proc &&
 					EpStr(ev, "remote_ip") == dk.ip {
 					repEv = ev
@@ -1509,7 +1516,7 @@ func rulePersistenceCorrelationAnalytics(events []map[string]any) []EndpointAler
 			persistEvents = append(persistEvents, ev)
 		} else if evType == "process_start" && LinuxShellNames[strings.ToLower(EpStr(ev, "process_name"))] {
 			shellEvents = append(shellEvents, ev)
-		} else if evType == "network_connection" {
+		} else if isDirectedNetworkConnection(ev) {
 			networkEvents = append(networkEvents, ev)
 		}
 	}
@@ -1593,7 +1600,7 @@ func ruleMultiHostBeaconPattern(events []map[string]any) []EndpointAlert {
 	destHosts := map[destKey]map[string]bool{}
 	destEvs   := map[destKey]map[string]any{}
 	for _, ev := range events {
-		if EpStr(ev, "event_type") != "network_connection" {
+		if !isDirectedNetworkConnection(ev) {
 			continue
 		}
 		ip   := EpStr(ev, "remote_ip")

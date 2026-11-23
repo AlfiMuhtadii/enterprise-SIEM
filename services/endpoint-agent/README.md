@@ -9,9 +9,8 @@ Lightweight, telemetry-only Linux endpoint agent. No kernel driver, no packet sn
 ## Requirements
 
 - Python 3.9+ (stdlib only — no pip install needed)
-- Linux (primary). Windows process polling uses local Windows PowerShell and
-  `Win32_Process` via CIM. Windows network collection still depends on the
-  availability of compatible network tools.
+- Linux (primary). Windows requires Windows PowerShell with CIM and
+  `Get-NetTCPConnection` for native process and TCP collection.
 - Access to `/proc` (standard on any Linux system; no root required for process snapshots of own processes)
 
 ---
@@ -26,6 +25,12 @@ identities (including reused PIDs). This is a snapshot, not a kernel event
 stream. Short-lived processes may be missed. The source label is
 `windows-cim-process-snapshot`; this source cannot validate detections that
 require a command line.
+
+Windows TCP polling observes established local sockets only. It reports local
+and peer addresses/ports and the owning PID as `windows-cim-tcp-snapshot`.
+The initiation direction is unknown, so this source is not used by advisory
+rules that infer outbound activity. It is not packet capture and does not
+observe UDP or blocked attempts. Short-lived connections may be missed.
 
 ```bash
 # 1. Copy the example config

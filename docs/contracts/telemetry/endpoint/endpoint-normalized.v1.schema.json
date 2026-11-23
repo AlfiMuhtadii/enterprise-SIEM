@@ -95,9 +95,11 @@
       "description": "Network context. Meaningful for network_connection. Null fields for other event types.",
       "properties": {
         "source_ip":        { "type": ["string", "null"], "description": "Source IP address." },
+        "source_port":      { "type": ["integer", "null"], "description": "Source or local port." },
         "destination_ip":   { "type": ["string", "null"], "description": "Destination IP address." },
         "destination_port": { "type": ["integer", "null"], "description": "Destination TCP/UDP port." },
-        "protocol":         { "type": ["string", "null"], "description": "Network protocol, lowercased (tcp/udp/icmp/other)." }
+        "protocol":         { "type": ["string", "null"], "description": "Network protocol, lowercased (tcp/udp/icmp/other)." },
+        "direction":        { "enum": ["inbound", "outbound", null], "description": "Reported connection direction; null when not known." }
       }
     },
     "dns": {

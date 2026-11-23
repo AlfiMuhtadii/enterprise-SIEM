@@ -107,6 +107,26 @@ func TestEndpointPreservesWindowsProcessAncestryAndObservationSource(t *testing.
 	}
 }
 
+func TestEndpointTCPKeepsLocalPortAndUnknownDirection(t *testing.T) {
+	raw := map[string]any{
+		"ts": "2026-01-01T00:00:00Z", "telemetry_type": "endpoint", "event_type": "network_connection",
+		"source_port": float64(54000), "event_source": "windows-cim-tcp-snapshot",
+	}
+	out, err := Event(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	network := out["network"].(map[string]any)
+	if network["source_port"] != int64(54000) || network["direction"] != nil || out["event_source"] != raw["event_source"] {
+		t.Fatalf("TCP snapshot fields lost: %v", out)
+	}
+	raw["direction"] = "INBOUND"
+	out, err = Event(raw)
+	if err != nil || out["network"].(map[string]any)["direction"] != "inbound" {
+		t.Fatalf("explicit TCP direction lost: %v (%v)", out, err)
+	}
+}
+
 func TestSysmonMarksAdvisoryOnly(t *testing.T) {
 	out, err := Sysmon(map[string]any{"process_name": "rundll32.exe"})
 	if err != nil {

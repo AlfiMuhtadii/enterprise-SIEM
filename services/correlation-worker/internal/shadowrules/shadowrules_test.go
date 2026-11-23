@@ -2,6 +2,20 @@ package shadowrules
 
 import "testing"
 
+func TestPassiveWindowsSocketDoesNotImplyAnOutboundFinding(t *testing.T) {
+	events := []map[string]any{{
+		"event_type": "network_connection", "event_source": "windows-cim-tcp-snapshot",
+		"network": map[string]any{"destination_ip": "203.0.113.7", "destination_port": int64(14567)},
+	}}
+	if len(RuleSuspiciousOutbound(events)) != 0 {
+		t.Fatal("a passive socket observation was mistaken for an outbound connection")
+	}
+	events[0]["event_source"] = "legacy-endpoint-agent"
+	if len(RuleSuspiciousOutbound(events)) != 1 {
+		t.Fatal("existing endpoint advisory behavior changed")
+	}
+}
+
 func TestEpStrNestedPathAndMissing(t *testing.T) {
 	ev := map[string]any{
 		"host": "web-01",

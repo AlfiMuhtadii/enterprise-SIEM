@@ -128,6 +128,7 @@ def normalize_endpoint_local(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
 
     event_id = _first(raw, "event_id", "id") or ""
+    direction = (_first(raw, "direction") or "").lower()
 
     return {
         "schema_version": 1,
@@ -153,9 +154,11 @@ def normalize_endpoint_local(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         },
         "network": {
             "source_ip":        _first(raw, "source_ip", "src_ip", "client_ip"),
+            "source_port":      raw.get("source_port"),
             "destination_ip":   _first(raw, "destination_ip", "dst_ip", "server_ip"),
             "destination_port": raw.get("destination_port"),
             "protocol":         (_first(raw, "protocol") or "").lower() or None,
+            "direction":        direction if direction in {"inbound", "outbound"} else None,
         },
         "dns": {
             "domain":       _first(raw, "domain", "query", "url_domain"),

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "endpoint.network_connection.v1",
   "title": "Endpoint Telemetry: network_connection v1",
-  "description": "Raw telemetry event emitted when a network connection is established or attempted from an endpoint.",
+  "description": "Raw observation of a network connection or connection attempt at an endpoint.",
   "allOf": [{ "$ref": "endpoint-raw-base.v1.schema.json" }],
   "properties": {
     "event_type": { "const": "network_connection" },
@@ -18,13 +18,13 @@
     },
     "destination_ip": {
       "type": "string",
-      "description": "Destination IP address."
+      "description": "Destination IP address, or peer address when the initiator is unknown."
     },
     "destination_port": {
       "type": "integer",
       "minimum": 0,
       "maximum": 65535,
-      "description": "Destination TCP/UDP port."
+      "description": "Destination or peer TCP/UDP port."
     },
     "protocol": {
       "type": "string",

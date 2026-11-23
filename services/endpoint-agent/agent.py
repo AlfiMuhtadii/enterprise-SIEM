@@ -1477,9 +1477,17 @@ def _collect_processes_proc(
     return events
 
 
-_WINDOWS_PROCESS_QUERY = r"""
+_WINDOWS_SNAPSHOT_SETUP = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+"""
+
+_WINDOWS_SNAPSHOT_OUTPUT = r"""
+if ($rows.Count -gt 16384) { throw 'CIM snapshot exceeds limit' }
+ConvertTo-Json -InputObject $rows -Compress
+"""
+
+_WINDOWS_PROCESS_QUERY = r"""
 $rows = @(Get-CimInstance -ClassName Win32_Process -Property Name,ProcessId,ParentProcessId,CreationDate |
     Select-Object -First 16385 | ForEach-Object {
         [pscustomobject]@{
@@ -1489,9 +1497,26 @@ $rows = @(Get-CimInstance -ClassName Win32_Process -Property Name,ProcessId,Pare
             created = if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().Ticks } else { $null }
         }
     })
-if ($rows.Count -gt 16384) { throw 'Process snapshot exceeds limit' }
-ConvertTo-Json -InputObject $rows -Compress
 """
+
+
+def _read_windows_snapshot(query: str, label: str) -> list[Any] | None:
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    script = _WINDOWS_SNAPSHOT_SETUP + query + _WINDOWS_SNAPSHOT_OUTPUT
+    try:
+        result = subprocess.run(
+            [str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, encoding="utf-8", timeout=10, check=True,
+        )
+        rows = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        log.warning("Windows CIM %s snapshot unavailable", label)
+        return None
+
+    if not isinstance(rows, list) or len(rows) > 16384:
+        log.warning("Invalid Windows CIM %s snapshot", label)
+        return None
+    return rows
 
 
 def _collect_processes_windows(
@@ -1500,19 +1525,8 @@ def _collect_processes_windows(
     trace_id: str,
 ) -> list[dict[str, Any]]:
     """Collect only local Windows process identity and ancestry using CIM."""
-    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
-    try:
-        result = subprocess.run(
-            [str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_PROCESS_QUERY],
-            capture_output=True, encoding="utf-8", timeout=10, check=True,
-        )
-        rows = json.loads(result.stdout)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        log.warning("Windows CIM process snapshot unavailable")
-        return []
-
-    if not isinstance(rows, list) or len(rows) > 16384:
-        log.warning("Invalid Windows CIM process snapshot")
+    rows = _read_windows_snapshot(_WINDOWS_PROCESS_QUERY, "process")
+    if rows is None:
         return []
 
     processes: dict[int, tuple[int, int, str]] = {}
@@ -1670,12 +1684,84 @@ def _collect_network_proc(
     return events
 
 
+_WINDOWS_TCP_QUERY = r"""
+$rows = @(Get-NetTCPConnection | Where-Object State -eq 'Established' |
+    Select-Object -First 16385 | ForEach-Object {
+        [pscustomobject]@{
+            local_ip = $_.LocalAddress
+            local_port = $_.LocalPort
+            peer_ip = $_.RemoteAddress
+            peer_port = $_.RemotePort
+            pid = $_.OwningProcess
+            created = if ($_.CreationTime) { $_.CreationTime.ToUniversalTime().Ticks } else { $null }
+        }
+    })
+"""
+
+
 def _collect_network_windows(
     state: CollectorState,
     agent_id: str,
     trace_id: str,
 ) -> list[dict[str, Any]]:
-    """Windows fallback: parse ss -tunp / netstat -tunp output."""
+    """Observe established local TCP sockets; CIM does not report initiation direction."""
+    rows = _read_windows_snapshot(_WINDOWS_TCP_QUERY, "TCP")
+    if rows is None:
+        return []
+
+    events: list[dict[str, Any]] = []
+    current_conns: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        local, peer, sport, dport, pid, created = (
+            row.get(key) for key in ("local_ip", "peer_ip", "local_port", "peer_port", "pid", "created")
+        )
+        if (not isinstance(local, str) or not isinstance(peer, str)
+                or type(sport) is not int or not 1 <= sport <= 65535
+                or type(dport) is not int or not 1 <= dport <= 65535
+                or type(pid) is not int or pid <= 0
+                or type(created) is not int or created <= 0):
+            continue
+        try:
+            local_ip, peer_ip = ipaddress.ip_address(local), ipaddress.ip_address(peer)
+        except ValueError:
+            continue
+        if local_ip.version != peer_ip.version or local_ip.is_unspecified or peer_ip.is_unspecified:
+            continue
+
+        key = f"{local_ip}|{sport}|{peer_ip}|{dport}|{pid}|{created}"
+        if key in current_conns:
+            continue
+        current_conns.add(key)
+        if key in state.known_conns:
+            continue
+        events.append(base_event("network_connection", agent_id, trace_id, extra={
+            "source_ip": str(local_ip),
+            "source_port": sport,
+            "destination_ip": str(peer_ip),
+            "destination_port": dport,
+            "protocol": "tcp",
+            "direction": None,
+            "action": "monitored",
+            "pid": pid,
+            "event_id": make_event_id(HOSTNAME, "windows-cim-tcp", key),
+            "event_source": "windows-cim-tcp-snapshot",
+        }))
+
+    if rows and not current_conns:
+        log.warning("Windows CIM TCP snapshot contained no usable observations")
+        return []
+    state.known_conns = current_conns
+    return events
+
+
+def _collect_network_posix_fallback(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+) -> list[dict[str, Any]]:
+    """Fallback for non-Linux POSIX hosts with compatible network tools."""
     try:
         result = subprocess.run(["ss", "-tunp"], capture_output=True, text=True, timeout=10)
         output = result.stdout
@@ -1778,7 +1864,9 @@ def collect_network(
             proc_net_tcp=proc_net_tcp or "/proc/net/tcp",
             proc_net_tcp6=proc_net_tcp6 or "/proc/net/tcp6",
         )
-    return _collect_network_windows(state, agent_id, trace_id)
+    if IS_WINDOWS:
+        return _collect_network_windows(state, agent_id, trace_id)
+    return _collect_network_posix_fallback(state, agent_id, trace_id)
 
 
 # ---------------------------------------------------------------------------
