@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdvisoryFinding;
 use App\Services\DomainSoakHarnessService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -81,12 +84,50 @@ class ShadowSoakPreflightTest extends TestCase
 
     public function test_get_preflight_status_expected_shadow_rules_returned(): void
     {
-        $result = app(DomainSoakHarnessService::class)->getPreflightStatus('endpoint');
-        $this->assertArrayHasKey('expected_shadow_rules', $result);
-        $this->assertSame(
-            DomainSoakHarnessService::DOMAIN_SHADOW_RULE_COUNTS['endpoint'],
-            $result['expected_shadow_rules']
-        );
+        File::shouldReceive('get')->with('test-registry.json')->andReturn(json_encode(['rules' => [
+            ['rule_id' => 'ep-a', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+            ['rule_id' => 'ep-b', 'status' => 'shadow', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.ueba'],
+            ['rule_id' => 'net-a', 'status' => 'shadow', 'domain' => 'network', 'output_topic' => 'xdr.alerts.shadow.network'],
+            ['rule_id' => 'cloud-ueba', 'status' => 'shadow', 'domain' => 'cloud', 'output_topic' => 'xdr.alerts.shadow.ueba'],
+            ['rule_id' => 'non-shadow', 'status' => 'draft', 'domain' => 'endpoint', 'output_topic' => 'xdr.alerts.shadow.endpoint'],
+        ]], JSON_THROW_ON_ERROR));
+        $harness = new DomainSoakHarnessService('test-registry.json');
+
+        foreach (['endpoint' => 2, 'network' => 1, 'ueba' => 2] as $domain => $count) {
+            $result = $harness->getPreflightStatus($domain);
+            $this->assertSame($count, $result['expected_shadow_rules']);
+            $this->assertSame('PASS', $result['checks']['CHK-02']['status']);
+        }
+    }
+
+    public function test_missing_or_invalid_registry_blocks_preflight_even_with_enough_findings(): void
+    {
+        for ($i = 0; $i < DomainSoakHarnessService::MIN_FINDINGS_FOR_SOAK; $i++) {
+            AdvisoryFinding::create([
+                'finding_id' => 'af-'.Str::uuid(),
+                'rule_id' => 'test-rule',
+                'domain' => 'endpoint',
+                'source_topic' => 'xdr.alerts.shadow.endpoint',
+                'alert_type' => 'test_alert',
+                'severity' => 'medium',
+                'confidence' => 0.8,
+                'fingerprint' => Str::random(32),
+                'first_seen_at' => now(),
+                'last_seen_at' => now(),
+            ]);
+        }
+
+        File::shouldReceive('get')->with('invalid-registry.json')->once()->andReturn('{not valid json');
+        File::shouldReceive('get')->with('missing-registry.json')->once()
+            ->andThrow(\Illuminate\Contracts\Filesystem\FileNotFoundException::class);
+
+        foreach (['invalid-registry.json', 'missing-registry.json'] as $path) {
+            $result = (new DomainSoakHarnessService($path))->getPreflightStatus('endpoint');
+            $this->assertSame('PASS', $result['checks']['CHK-03']['status']);
+            $this->assertSame('FAIL', $result['checks']['CHK-02']['status']);
+            $this->assertNull($result['expected_shadow_rules']);
+            $this->assertFalse($result['preflight_ready']);
+        }
     }
 
     // -------------------------------------------------------------------------

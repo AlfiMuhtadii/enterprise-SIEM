@@ -37,9 +37,14 @@ bootstrap/cache/*.php
 .vscode
 *.log
 
-# Test artifacts, reports, docs -- not needed at runtime
+# Only the detection registry is runtime data; keep other docs out.
 tests
-docs
+docs/*
+!docs/detection
+docs/detection/*
+!docs/detection/rules
+docs/detection/rules/*
+!docs/detection/rules/registry.v1.json
 reports
 storage/logs/*.jsonl
 storage/logs/*.log

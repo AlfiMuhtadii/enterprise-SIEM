@@ -12,6 +12,8 @@ use App\Models\ShadowSoakConfidenceBand;
 use App\Models\ShadowSoakSuppressionStat;
 use App\Models\ShadowSoakCoverageStat;
 use App\Models\ShadowSoakAuditEvent;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
 /**
@@ -43,7 +45,7 @@ class DomainSoakHarnessService
     public const MAX_SUPPRESSION_RATE        = 0.40;   // <= 40% findings suppressed/dismissed
     public const PROMOTION_EVIDENCE_PASS_RATE = 0.80;  // ≥ 80% of gates must pass for evidence_pass
 
-    // Domain → expected shadow rule count from registry
+    // Historical baseline for persisted soak assessments; preflight reads the live registry.
     public const DOMAIN_SHADOW_RULE_COUNTS = [
         'endpoint' => 40,
         'network'  => 9,
@@ -53,6 +55,8 @@ class DomainSoakHarnessService
     // =========================================================================
     // Public API
     // =========================================================================
+
+    public function __construct(private readonly ?string $registryPath = null) {}
 
     public function startSoakRun(
         string $domain,
@@ -396,11 +400,13 @@ class DomainSoakHarnessService
         ];
 
         // CHK-02: shadow rules registered for domain
-        $expectedRules = self::DOMAIN_SHADOW_RULE_COUNTS[$domain] ?? 0;
+        $expectedRules = $this->countRegisteredShadowRules($domain);
         $checks['CHK-02'] = [
             'name'   => 'Shadow rules registered for domain',
-            'status' => $expectedRules > 0 ? 'PASS' : 'WARN',
-            'detail' => "Expected rule count from registry: {$expectedRules}",
+            'status' => $expectedRules === null ? 'FAIL' : ($expectedRules > 0 ? 'PASS' : 'WARN'),
+            'detail' => $expectedRules === null
+                ? 'Canonical rule registry is missing, unreadable, or invalid'
+                : "Registered shadow rules: {$expectedRules} (inventory, not measured coverage)",
         ];
 
         // CHK-03: advisory findings in last 24h
@@ -433,8 +439,7 @@ class DomainSoakHarnessService
             'detail' => 'promotion_recommended=false enforced — operator explicit action required for promotion',
         ];
 
-        $passed = count(array_filter($checks, fn ($c) => $c['status'] === 'PASS'));
-        $ready  = !$activeRun && $recentFindings >= self::MIN_FINDINGS_FOR_SOAK;
+        $ready = $expectedRules > 0 && ! $activeRun && $findingsOk;
 
         return [
             'domain'               => $domain,
@@ -448,6 +453,41 @@ class DomainSoakHarnessService
     // =========================================================================
     // Private helpers
     // =========================================================================
+
+    private function countRegisteredShadowRules(string $domain): ?int
+    {
+        try {
+            $registry = json_decode(File::get($this->registryPath ?? base_path('docs/detection/rules/registry.v1.json')), true, flags: JSON_THROW_ON_ERROR);
+        } catch (FileNotFoundException|\ErrorException|\JsonException) {
+            return null;
+        }
+
+        $rules = $registry['rules'] ?? null;
+        if (! is_array($rules) || ! array_is_list($rules)) {
+            return null;
+        }
+
+        $ids = [];
+        $count = 0;
+        foreach ($rules as $rule) {
+            $id = $rule['rule_id'] ?? null;
+            $status = $rule['status'] ?? null;
+            $category = $rule['domain'] ?? null;
+            $topic = $rule['output_topic'] ?? null;
+            if (! is_string($id) || $id === '' || isset($ids[$id])
+                || ! is_string($status) || ! is_string($category) || ! is_string($topic)) {
+                return null;
+            }
+            $ids[$id] = true;
+
+            // UEBA is a rule family across domains, identified by its advisory topic.
+            if ($status === 'shadow' && ($domain === 'ueba' ? $topic === 'xdr.alerts.shadow.ueba' : $category === $domain)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
 
     private function assertDomain(string $domain): void
     {

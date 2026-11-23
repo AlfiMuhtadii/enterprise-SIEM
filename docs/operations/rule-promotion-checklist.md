@@ -35,6 +35,21 @@ All must be true before a rule may enter shadow mode.
 
 All must be true before a rule may enter staged active mode.
 
+For local preparation, use the read-only preflight against the running app:
+
+```powershell
+docker exec detector-soc-app php artisan domain:soak-preflight endpoint
+docker exec detector-soc-app php artisan domain:soak-preflight network
+docker exec detector-soc-app php artisan domain:soak-preflight ueba
+```
+
+`expected_shadow_rules` counts registry entries, not rule coverage or soak
+results. Endpoint and network use the registry domain; UEBA uses its advisory
+topic and can overlap with those counts. A missing or invalid registry blocks
+preflight. `preflight_ready` allows planning a soak, not promoting a rule.
+Do not treat fixture rehearsals, a passing offline validator, or a confidence
+threshold as representative domain-specific soak evidence.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`

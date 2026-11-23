@@ -50,7 +50,8 @@ COPY . .
 COPY --from=composer-build /build/vendor ./vendor
 COPY --from=node-build /build/public/build ./public/build
 
-RUN php artisan package:discover --ansi
+RUN test -s docs/detection/rules/registry.v1.json \
+    && php artisan package:discover --ansi
 
 # The stock php:*-fpm image's default pool (www.conf) already runs FPM
 # workers as www-data (uid 33) -- reused as-is rather than adding a custom
