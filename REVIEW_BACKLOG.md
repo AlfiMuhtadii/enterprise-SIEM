@@ -11,6 +11,7 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 | Task ID | Title | File / Component | Priority | Status |
 |---|---|---|---|---|
+| **SHADOW-CAPTURE-MTLS-ADMISSION** | Bind gateway capture source identity to a verified client certificate and enforce whole-batch tenant/type scope; verify a real local observation without declaring it representative. | Ingestion gateway, raw capture lineage and source runbook | High | Ongoing (Codex, 2026-11-23) |
 | **SHADOW-LIVE-SOURCE-ADMISSION** | Bind representative evidence to an authorized real source and independent capture records; verify by tenant, domain and observation window before a live soak. Rehearsal is now excluded and other observations remain unverified. | Source admission, domain-specific soak and promotion evidence | High | Proposed |
 | **ENT-TENANCY-NO-DB-ENFORCEMENT** | [Enterprise BLOCKER] Isolation is app-layer `where('tenant_id')` only (ASSET-TENANT-OVERWRITE proves it leaks); no DB RLS. Supersedes deferred TENANT-ENFORCE-RLS — mandatory for multi-tenant SaaS | `app/Services/TenantBoundaryService.php`, Postgres RLS | High | Ongoing (Codex, 2026-08-28) |
 | **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService, EntityRiskScoringService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |
