@@ -44,6 +44,39 @@ The preflight's `preflight_ready` field means diagnostic readiness only:
 `promotion_evidence_verified` remains false. Maintain operator-reviewed live
 source records and the measured domain-specific 6h soak separately.
 
+For host or sensor capture, a pilot gateway can use an operator-controlled,
+read-only JSON file at `XDR_CAPTURE_SOURCES_FILE`. It is off by default and
+requires server mutual TLS, `XDR_INGEST_SIGV2_REQUIRED=true`, and a configured
+ingest secret of at least 32 bytes. Each entry binds one verified client leaf
+certificate (SHA-256 of DER) to an exact source identifier, tenant, and list
+of raw telemetry types:
+
+```json
+[
+  {
+    "source_id": "pilot-endpoint-01",
+    "client_cert_sha256": "<64 hexadecimal characters>",
+    "tenant_id": "pilot-tenant",
+    "telemetry_types": ["endpoint"]
+  }
+]
+```
+
+Keep the client keys outside the registry. A registered client must provide
+an explicit matching `tenant_id`, an allowed `telemetry_type`, and a stable
+`event_id` on every event, or the entire request is rejected. The gateway
+removes request-supplied `capture_admission` and adds its own stamp only for
+approved certificate holders. Unregistered clients do not receive a stamp
+and existing ingestion authentication still applies. When enabling this
+on an existing listener, review client certificate compatibility first. For a
+container deployment, supply the file as a read-only mount and set the variable
+inside that container using the pilot deployment override.
+
+Reconcile the admission stamp in `telemetry.raw` with independent capture
+records using the event ID, tenant, type, and time window. The stamp does
+not validate the underlying observation or authorize promotion. Records from
+known rehearsal sources remain excluded even when transported using mTLS.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`

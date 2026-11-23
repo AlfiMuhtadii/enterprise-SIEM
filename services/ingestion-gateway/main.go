@@ -172,6 +172,8 @@ type Gateway struct {
 	sigV2Required             bool
 	// CONN-UNTENANTED-INGEST: strict-mode rejection of unattributed batches.
 	requireTenant bool
+	captureSources captureSources
+	captureAdmitted atomic.Int64
 	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
 	// is configured. nil-safe (Export is a no-op on a nil *Exporter).
 	otelExporter *otlpexport.Exporter
@@ -219,6 +221,13 @@ func main() {
 		},
 	}
 
+	serverMtlsEnabled, clientMtlsEnabled := internalMtlsModes()
+	sources, err := loadCaptureSources(env("XDR_CAPTURE_SOURCES_FILE", ""), serverMtlsEnabled, gw.sigV2Required, gw.secret)
+	if err != nil {
+		log.Fatalf("xdr ingestion gateway: capture source admission config error: %v", err)
+	}
+	gw.captureSources = sources
+
 	// ARCH-KAFKA-NATIVE: off by default (XDR_KAFKA_TRANSPORT=pandaproxy) --
 	// zero behavior change unless an operator opts in.
 	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
@@ -247,7 +256,6 @@ func main() {
 	// The client override lets the normalizer metrics hop use mTLS without
 	// forcing external endpoint-agent ingestion onto client certificates.
 	// Generate dev/test certs via scripts/xdr_generate_internal_mtls_certs.py.
-	serverMtlsEnabled, clientMtlsEnabled := internalMtlsModes()
 	caFile := env("XDR_INTERNAL_MTLS_CA", "")
 	serverTLSCfg, err := mtls.ServerConfig(serverMtlsEnabled,
 		env("XDR_INTERNAL_MTLS_SERVER_CERT", ""),
@@ -425,6 +433,7 @@ func (g *Gateway) metrics(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"requests":                          g.requests.Load(),
 		"accepted":                          g.accepted.Load(),
+		"capture_admitted":                  g.captureAdmitted.Load(),
 		"rejected":                          g.rejected.Load(),
 		"publish_errors":                    g.publishErrors.Load(),
 		"retry_count":                       g.retryCount.Load(),
@@ -465,6 +474,17 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 		g.reject(w, "invalid_batch_size", http.StatusBadRequest)
 		return
 	}
+	for _, event := range events {
+		if event == nil {
+			g.reject(w, "invalid_event", http.StatusBadRequest)
+			return
+		}
+	}
+	captureAdmitted, captureFailure := g.captureSources.apply(r, events, started)
+	if captureFailure != "" {
+		g.reject(w, captureFailure, http.StatusForbidden)
+		return
+	}
 	// IG-2: per-tenant rate limit.
 	// RATE-LIMIT-BYPASS fix: derive effective tenant from payload first; X-Tenant-ID header
 	// is advisory only. If header and payload disagree, reject — prevents a caller from
@@ -502,6 +522,9 @@ func (g *Gateway) ingest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.accepted.Add(int64(len(events)))
+	if captureAdmitted {
+		g.captureAdmitted.Add(int64(len(events)))
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"accepted":   len(events),
 		"latency_ms": time.Since(started).Milliseconds(),
