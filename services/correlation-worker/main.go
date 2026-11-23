@@ -432,40 +432,7 @@ func (w *Worker) consumeOnceNative() {
 		w.processed.Add(int64(len(events)))
 		w.alerts.Add(int64(len(alerts)))
 		w.latencyMS.Store(elapsed)
-		shadowTraceID := ""
-		for _, rm := range rawMaps {
-			if tid, _ := rm["trace_id"].(string); tid != "" {
-				shadowTraceID = tid
-				break
-			}
-		}
-		if shadowAlerts := correlateEndpointShadowAll(rawMaps, w.iocLookupURL); len(shadowAlerts) > 0 {
-			w.shadowAlertsPublished.Add(int64(len(shadowAlerts)))
-			shadowPayload := map[string]any{
-				"trace_id":    shadowTraceID,
-				"source":      "correlation-worker",
-				"scope":       "endpoint-shadow",
-				"alerts":      shadowAlerts,
-				"shadow_mode": true,
-			}
-			if err := w.publish(w.shadowAlertsTopic, []map[string]any{shadowPayload}); err != nil {
-				w.publishErrors.Add(1)
-				log.Printf("endpoint shadow publish failed: %v", err)
-			}
-		}
-		if networkAlerts := shadowrules.CorrelateNetworkShadowAll(rawMaps); len(networkAlerts) > 0 {
-			networkPayload := map[string]any{
-				"trace_id":    shadowTraceID,
-				"source":      "correlation-worker",
-				"scope":       "network-shadow",
-				"alerts":      networkAlerts,
-				"shadow_mode": true,
-			}
-			if err := w.publish(w.networkShadowAlertsTopic, []map[string]any{networkPayload}); err != nil {
-				w.publishErrors.Add(1)
-				log.Printf("network shadow publish failed: %v", err)
-			}
-		}
+		w.publishShadowBatches(rawMaps)
 		if len(alerts) > 0 {
 			batchTraceID := ""
 			for _, ev := range events {
@@ -580,40 +547,7 @@ func (w *Worker) consumeOnce() {
 		w.processed.Add(int64(len(events)))
 		w.alerts.Add(int64(len(alerts)))
 		w.latencyMS.Store(elapsed)
-		shadowTraceID := ""
-		for _, rm := range rawMaps {
-			if tid, _ := rm["trace_id"].(string); tid != "" {
-				shadowTraceID = tid
-				break
-			}
-		}
-		if shadowAlerts := correlateEndpointShadowAll(rawMaps, w.iocLookupURL); len(shadowAlerts) > 0 {
-			w.shadowAlertsPublished.Add(int64(len(shadowAlerts)))
-			shadowPayload := map[string]any{
-				"trace_id":    shadowTraceID,
-				"source":      "correlation-worker",
-				"scope":       "endpoint-shadow",
-				"alerts":      shadowAlerts,
-				"shadow_mode": true,
-			}
-			if err := w.publish(w.shadowAlertsTopic, []map[string]any{shadowPayload}); err != nil {
-				w.publishErrors.Add(1)
-				log.Printf("endpoint shadow publish failed: %v", err)
-			}
-		}
-		if networkAlerts := shadowrules.CorrelateNetworkShadowAll(rawMaps); len(networkAlerts) > 0 {
-			networkPayload := map[string]any{
-				"trace_id":    shadowTraceID,
-				"source":      "correlation-worker",
-				"scope":       "network-shadow",
-				"alerts":      networkAlerts,
-				"shadow_mode": true,
-			}
-			if err := w.publish(w.networkShadowAlertsTopic, []map[string]any{networkPayload}); err != nil {
-				w.publishErrors.Add(1)
-				log.Printf("network shadow publish failed: %v", err)
-			}
-		}
+		w.publishShadowBatches(rawMaps)
 		if len(alerts) == 0 {
 			continue
 		}
@@ -1415,11 +1349,89 @@ func correlateEndpointShadowIOC(events []map[string]any, iocURL string) []shadow
 }
 
 func correlateEndpointShadowAll(events []map[string]any, iocURL string) []shadowrules.EndpointAlert {
-	alerts := shadowrules.CorrelateEndpointShadow(events)
-	alerts = append(alerts, correlateEndpointShadowIOC(events, iocURL)...)
-	alerts = append(alerts, shadowrules.CorrelateEndpointShadowCrossDomain(events)...)
-	alerts = append(alerts, shadowrules.CorrelateEndpointShadowStreaming(events)...)
-	return shadowrules.DedupeEndpointAlerts(alerts)
+	return evaluateShadowPerTenant(events, func(group []map[string]any) []shadowrules.EndpointAlert {
+		alerts := shadowrules.CorrelateEndpointShadow(group)
+		alerts = append(alerts, correlateEndpointShadowIOC(group, iocURL)...)
+		alerts = append(alerts, shadowrules.CorrelateEndpointShadowCrossDomain(group)...)
+		alerts = append(alerts, shadowrules.CorrelateEndpointShadowStreaming(group)...)
+		return shadowrules.DedupeEndpointAlerts(alerts)
+	})
+}
+
+func evaluateShadowPerTenant(events []map[string]any, evaluate func([]map[string]any) []shadowrules.EndpointAlert) []shadowrules.EndpointAlert {
+	groups := make(map[string][]map[string]any)
+	var order []string
+	for _, event := range events {
+		tenant, ok := event["tenant_id"].(string)
+		if (!ok && event["tenant_id"] != nil) || len(tenant) > 255 || strings.TrimSpace(tenant) != tenant ||
+			strings.ContainsRune(tenant, 0) {
+			continue
+		}
+		if _, exists := groups[tenant]; !exists {
+			order = append(order, tenant)
+		}
+		groups[tenant] = append(groups[tenant], event)
+	}
+	var findings []shadowrules.EndpointAlert
+	for _, tenant := range order {
+		alerts := evaluate(groups[tenant])
+		for i := range alerts {
+			alerts[i].TenantID = tenant
+			if tenant != "" {
+				id := sha256.Sum256([]byte(tenant + "\x00" + alerts[i].AlertID))
+				alerts[i].AlertID = hex.EncodeToString(id[:])[:40]
+			}
+		}
+		findings = append(findings, alerts...)
+	}
+	return findings
+}
+
+func shadowEnvelopes(scope string, alerts []shadowrules.EndpointAlert) []map[string]any {
+	type scopeKey struct{ tenant, trace string }
+	groups := make(map[scopeKey][]shadowrules.EndpointAlert)
+	var order []scopeKey
+	for _, alert := range alerts {
+		key := scopeKey{alert.TenantID, alert.TraceID}
+		if _, exists := groups[key]; !exists {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], alert)
+	}
+	var envelopes []map[string]any
+	for _, key := range order {
+		envelopes = append(envelopes, map[string]any{
+			"tenant_id": key.tenant, "trace_id": key.trace, "scope": scope,
+			"source": "correlation-worker", "shadow_mode": true, "alerts": groups[key],
+		})
+	}
+	return envelopes
+}
+
+func (w *Worker) publishShadowBatches(events []map[string]any) {
+	endpoint := correlateEndpointShadowAll(events, w.iocLookupURL)
+	if w.publishShadowFindings(w.shadowAlertsTopic, "endpoint-shadow", endpoint) {
+		w.shadowAlertsPublished.Add(int64(len(endpoint)))
+	}
+	network := evaluateShadowPerTenant(events, shadowrules.CorrelateNetworkShadowAll)
+	w.publishShadowFindings(w.networkShadowAlertsTopic, "network-shadow", network)
+}
+
+func (w *Worker) publishShadowFindings(topic, scope string, alerts []shadowrules.EndpointAlert) bool {
+	if len(alerts) == 0 {
+		return false
+	}
+	if topic == w.outputTopic || topic == "xdr.alerts" {
+		w.publishErrors.Add(1)
+		log.Printf("refusing %s publication to the active alert topic", scope)
+		return false
+	}
+	if err := w.publish(topic, shadowEnvelopes(scope, alerts)); err != nil {
+		w.publishErrors.Add(1)
+		log.Printf("%s publish failed: %v", scope, err)
+		return false
+	}
+	return true
 }
 
 // ---------------------------------------------------------------------------

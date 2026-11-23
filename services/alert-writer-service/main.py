@@ -881,9 +881,24 @@ def process(
 # Writes to advisory_findings table only (separate from security_alerts).
 # ---------------------------------------------------------------------------
 
-def shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]) -> str:
+def _legacy_shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]) -> str:
     material = "|".join([rule_id, actor or "unknown", ",".join(sorted(str(e) for e in evidence_ids))])
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def shadow_fingerprint(
+    rule_id: str, actor: str, evidence_ids: List[str], *, source_topic: str, tenant_id: Optional[str],
+) -> str:
+    identity = ["shadow-finding-v2", source_topic, tenant_id, rule_id, actor or None, sorted(evidence_ids)]
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def shadow_tenant(value: Any) -> Optional[str]:
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or value.strip() != value or len(value.encode("utf-8")) > 255 or "\x00" in value:
+        raise ValueError("Invalid advisory tenant identifier")
+    return value
 
 
 def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -> List[Dict[str, Any]]:
@@ -895,6 +910,7 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
         if not isinstance(value, dict):
             continue
         batch_trace_id = value.get("trace_id", "")
+        batch_tenant = shadow_tenant(value.get("tenant_id"))
         alerts = value.get("alerts") or []
         if not isinstance(alerts, list):
             continue
@@ -903,9 +919,16 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
                 continue
             rule_id      = alert.get("rule_id") or alert.get("alert_type") or "unknown"
             actor        = alert.get("host") or alert.get("user") or alert.get("actor") or ""
-            evidence_ids = alert.get("evidence_ids") or []
+            evidence_ids = alert.get("evidence_ids")
+            if evidence_ids is None:
+                evidence_ids = []
+            if not isinstance(evidence_ids, list) or any(not isinstance(event_id, str) for event_id in evidence_ids):
+                raise ValueError("Invalid advisory evidence identifiers")
+            tenant_id = shadow_tenant(alert.get("tenant_id"))
+            if "tenant_id" in value and tenant_id != batch_tenant:
+                raise ValueError("Advisory alert tenant does not match its batch")
             confidence   = float(alert.get("confidence") or 0.0)
-            fp           = shadow_fingerprint(rule_id, actor, evidence_ids)
+            fp = shadow_fingerprint(rule_id, actor, evidence_ids, source_topic=source_topic, tenant_id=tenant_id)
             findings.append({
                 "finding_id":       "adv-" + fp[:36],
                 "rule_id":          rule_id,
@@ -915,12 +938,13 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
                 "severity":         (alert.get("severity") or "medium").lower(),
                 "confidence":       confidence,
                 "actor_key":        actor or None,
-                "tenant_id":        alert.get("tenant_id") or None,
+                "tenant_id":        tenant_id,
                 "evidence":         json.dumps(alert.get("evidence") or {}),
                 "source_event_ids": json.dumps(evidence_ids),
                 "promotion_candidate": confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
                 "promotion_blocker":   _shadow_promotion_blocker(domain, confidence),
                 "fingerprint":     fp,
+                "legacy_fingerprint": _legacy_shadow_fingerprint(rule_id, actor, evidence_ids),
                 "trace_id":        alert.get("trace_id") or batch_trace_id,
             })
     return findings
@@ -936,13 +960,41 @@ def _shadow_promotion_blocker(domain: str, confidence: float) -> str:
 def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int) -> str:
     """Claim a broker delivery and upsert its finding in the same PostgreSQL transaction."""
     position = {"topic": finding["source_topic"], "partition": partition, "offset": offset}
-    material = json.dumps([position, finding["tenant_id"], finding["fingerprint"]], separators=(",", ":"))
-    receipt_id = "shadow-kafka-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+    finding_id, fingerprint_key = finding["finding_id"], finding["fingerprint"]
     now = datetime.now(timezone.utc).isoformat()
     with connect_pg() as conn:
         if conn is None:
             raise RuntimeError("Advisory PostgreSQL connection is not configured")
         with conn.cursor() as cur:
+            # Preserve a reviewed legacy row only when its full identity still matches.
+            cur.execute(
+                """
+                SELECT finding_id, fingerprint
+                FROM advisory_findings
+                WHERE source_topic = %s AND tenant_id IS NOT DISTINCT FROM %s
+                  AND (
+                    fingerprint = %s
+                    OR (
+                        fingerprint = %s AND rule_id = %s AND actor_key IS NOT DISTINCT FROM %s
+                        AND COALESCE(source_event_ids::jsonb, '[]'::jsonb) @> %s::jsonb
+                        AND COALESCE(source_event_ids::jsonb, '[]'::jsonb) <@ %s::jsonb
+                    )
+                  )
+                ORDER BY (fingerprint = %s) DESC
+                LIMIT 1 FOR UPDATE
+                """,
+                (
+                    finding["source_topic"], finding["tenant_id"], fingerprint_key, finding["legacy_fingerprint"],
+                    finding["rule_id"], finding["actor_key"], finding["source_event_ids"],
+                    finding["source_event_ids"], fingerprint_key,
+                ),
+            )
+            existing = cur.fetchone()
+            if existing is not None:
+                finding_id, fingerprint_key = existing
+
+            material = json.dumps([position, finding["tenant_id"], fingerprint_key], separators=(",", ":"))
+            receipt_id = "shadow-kafka-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
             cur.execute(
                 """
                 INSERT INTO advisory_finding_events
@@ -951,7 +1003,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
                 ON CONFLICT (event_id) DO NOTHING
                 RETURNING event_id
                 """,
-                (receipt_id, finding["finding_id"], finding["tenant_id"], json.dumps(position)),
+                (receipt_id, finding_id, finding["tenant_id"], json.dumps(position)),
             )
             if cur.fetchone() is None:
                 return "replayed"
@@ -982,7 +1034,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
                 RETURNING (xmax = 0) AS inserted
                 """,
                 (
-                    finding["finding_id"],
+                    finding_id,
                     finding["rule_id"],
                     finding["domain"],
                     finding["source_topic"],
@@ -995,7 +1047,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
                     finding["source_event_ids"],
                     finding["promotion_candidate"],
                     finding["promotion_blocker"],
-                    finding["fingerprint"],
+                    fingerprint_key,
                     now, now,
                 ),
             )

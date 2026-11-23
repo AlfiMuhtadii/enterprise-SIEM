@@ -40,6 +40,7 @@ type EndpointAlert struct {
 	Host        string         `json:"host"`
 	User        string         `json:"user"`
 	TraceID     string         `json:"trace_id"`
+	TenantID    string         `json:"tenant_id,omitempty"`
 	ShadowMode  bool           `json:"shadow_mode"`
 	EvidenceIDs []string       `json:"evidence_ids"`
 	EventType   string         `json:"event_type"`

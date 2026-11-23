@@ -2,7 +2,7 @@
 
 Covers the Python-side pieces:
 - normalize_shadow_records: parses EndpointAlert batch payloads into advisory finding dicts
-- shadow_fingerprint: deterministic, domain-stable fingerprint
+- shadow_fingerprint: deterministic, tenant- and topic-scoped fingerprint
 - shadow_event_loop lifecycle: consumer created, polls, writes, recovers on error
 - STRICT isolation: shadow loop never calls process_alerts or publishes to alerts.created
 """
@@ -53,34 +53,48 @@ import main as aw  # noqa: E402
 # ---------------------------------------------------------------------------
 
 class TestShadowFingerprint(unittest.TestCase):
+    def _fp(self, rule, actor, evidence, topic="xdr.alerts.shadow.endpoint", tenant=None):
+        return aw.shadow_fingerprint(rule, actor, evidence, source_topic=topic, tenant_id=tenant)
+
     def test_deterministic_for_same_inputs(self):
-        fp1 = aw.shadow_fingerprint("RULE_A", "host-1", ["e1", "e2"])
-        fp2 = aw.shadow_fingerprint("RULE_A", "host-1", ["e1", "e2"])
+        fp1 = self._fp("RULE_A", "host-1", ["e1", "e2"])
+        fp2 = self._fp("RULE_A", "host-1", ["e1", "e2"])
         self.assertEqual(fp1, fp2)
 
     def test_differs_for_different_rule(self):
-        fp1 = aw.shadow_fingerprint("RULE_A", "host-1", ["e1"])
-        fp2 = aw.shadow_fingerprint("RULE_B", "host-1", ["e1"])
+        fp1 = self._fp("RULE_A", "host-1", ["e1"])
+        fp2 = self._fp("RULE_B", "host-1", ["e1"])
         self.assertNotEqual(fp1, fp2)
 
     def test_differs_for_different_actor(self):
-        fp1 = aw.shadow_fingerprint("RULE_A", "host-1", ["e1"])
-        fp2 = aw.shadow_fingerprint("RULE_A", "host-2", ["e1"])
+        fp1 = self._fp("RULE_A", "host-1", ["e1"])
+        fp2 = self._fp("RULE_A", "host-2", ["e1"])
         self.assertNotEqual(fp1, fp2)
 
     def test_evidence_ids_order_independent(self):
-        fp1 = aw.shadow_fingerprint("RULE_A", "host-1", ["e1", "e2"])
-        fp2 = aw.shadow_fingerprint("RULE_A", "host-1", ["e2", "e1"])
+        fp1 = self._fp("RULE_A", "host-1", ["e1", "e2"])
+        fp2 = self._fp("RULE_A", "host-1", ["e2", "e1"])
         self.assertEqual(fp1, fp2)
 
     def test_empty_evidence_ids_returns_stable_hash(self):
-        fp = aw.shadow_fingerprint("RULE_A", "host-1", [])
+        fp = self._fp("RULE_A", "host-1", [])
         self.assertEqual(len(fp), 64)  # sha256 hex
 
-    def test_empty_actor_uses_unknown(self):
-        fp_empty  = aw.shadow_fingerprint("RULE_A", "", [])
-        fp_none   = aw.shadow_fingerprint("RULE_A", None, [])
+    def test_missing_actor_is_distinct_from_literal_unknown(self):
+        fp_empty = self._fp("RULE_A", "", [])
+        fp_none = self._fp("RULE_A", None, [])
         self.assertEqual(fp_empty, fp_none)
+        self.assertNotEqual(fp_empty, self._fp("RULE_A", "unknown", []))
+
+    def test_scopes_and_evidence_boundaries_are_distinct(self):
+        fingerprints = {
+            self._fp("R1", "same-host", ["one,two"], tenant="tenant-a"),
+            self._fp("R1", "same-host", ["one", "two"], tenant="tenant-a"),
+            self._fp("R1", "same-host", ["one,two"], tenant="tenant-b"),
+            self._fp("R1", "same-host", ["one,two"], topic="xdr.alerts.shadow.network", tenant="tenant-a"),
+            self._fp("R1", "same-host", ["one,two"]),
+        }
+        self.assertEqual(len(fingerprints), 5)
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +151,19 @@ class TestNormalizeShadowRecords(unittest.TestCase):
         records  = [self._make_record([self._endpoint_alert()])]
         findings = aw.normalize_shadow_records(records, "xdr.alerts.shadow.endpoint")
         self.assertEqual(findings[0]["actor_key"], "host-abc")
+
+    def test_explicit_envelope_scope_must_match_each_finding(self):
+        record = self._make_record([dict(self._endpoint_alert(), tenant_id="tenant-a")])
+        topic = "xdr.alerts.shadow.endpoint"
+        self.assertEqual(aw.normalize_shadow_records([record], topic)[0]["tenant_id"], "tenant-a")
+
+        for tenant in ("tenant-b", "", {"invalid": True}, " tenant-a"):
+            record["value"]["tenant_id"] = tenant
+            with self.subTest(tenant=tenant), self.assertRaises(ValueError):
+                aw.normalize_shadow_records([record], topic)
+
+        record["value"]["tenant_id"] = "tenant-a"
+        self.assertEqual(aw.normalize_shadow_records([record], topic)[0]["tenant_id"], "tenant-a")
 
     def test_multiple_alerts_in_one_batch(self):
         records  = [self._make_record([self._endpoint_alert("R1"), self._endpoint_alert("R2")])]

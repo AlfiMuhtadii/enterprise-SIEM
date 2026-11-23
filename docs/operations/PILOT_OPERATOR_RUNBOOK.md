@@ -532,9 +532,16 @@ its first poll. See [Redpanda HTTP Proxy offsets](https://docs.redpanda.com/stre
 
 Inspect `shadow_consumer_errors`, `shadow_findings_replayed`, and
 `shadow_offset_commits` separately. A persistent malformed batch, database
-error, or fingerprint collision across source topics or tenants blocks further
-commit for that batch and needs operator review. Do not reset offsets or
-backfill old demo fixtures as representative soak evidence.
+error, or inconsistent tenant in an advisory envelope blocks further commit
+for that batch and needs operator review. The worker evaluates endpoint and
+network findings within one labeled tenant at a time; unassigned records are
+separate and cannot be claimed as a named tenant's evidence.
+
+New finding identities include the exact source topic and tenant. A matching
+legacy finding in the same scope is reused without changing its ID, review
+status, or audit history. Legacy unassigned findings are not transferred to
+named tenants. This does not authenticate tenant labels supplied at ingress
+or classify old demo fixtures as representative soak evidence.
 
 ---
 
