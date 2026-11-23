@@ -1477,12 +1477,86 @@ def _collect_processes_proc(
     return events
 
 
+_WINDOWS_PROCESS_QUERY = r"""
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$rows = @(Get-CimInstance -ClassName Win32_Process -Property Name,ProcessId,ParentProcessId,CreationDate |
+    Select-Object -First 16385 | ForEach-Object {
+        [pscustomobject]@{
+            name = $_.Name
+            pid = $_.ProcessId
+            ppid = $_.ParentProcessId
+            created = if ($_.CreationDate) { $_.CreationDate.ToUniversalTime().Ticks } else { $null }
+        }
+    })
+if ($rows.Count -gt 16384) { throw 'Process snapshot exceeds limit' }
+ConvertTo-Json -InputObject $rows -Compress
+"""
+
+
 def _collect_processes_windows(
     state: CollectorState,
     agent_id: str,
     trace_id: str,
 ) -> list[dict[str, Any]]:
-    """Windows fallback: parse 'ps -eo pid,ppid,user,comm,args'."""
+    """Collect only local Windows process identity and ancestry using CIM."""
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    try:
+        result = subprocess.run(
+            [str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", _WINDOWS_PROCESS_QUERY],
+            capture_output=True, encoding="utf-8", timeout=10, check=True,
+        )
+        rows = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        log.warning("Windows CIM process snapshot unavailable")
+        return []
+
+    if not isinstance(rows, list) or len(rows) > 16384:
+        log.warning("Invalid Windows CIM process snapshot")
+        return []
+
+    processes: dict[int, tuple[int, int, str]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        pid, ppid, created, name = (row.get(k) for k in ("pid", "ppid", "created", "name"))
+        if (type(pid) is not int or pid <= 0 or type(ppid) is not int or ppid < 0
+                or type(created) is not int or created <= 0
+                or not isinstance(name, str) or not (1 <= len(name.strip()) <= 260)):
+            continue
+        processes[pid] = (ppid, created, name.strip())
+
+    if not processes:
+        log.warning("Windows CIM process snapshot contained no usable observations")
+        return []
+
+    events: list[dict[str, Any]] = []
+    current_pids: set[str] = set()
+    for pid, (ppid, created, name) in processes.items():
+        key = f"{pid}:{created}"
+        current_pids.add(key)
+        if key in state.known_pids:
+            continue
+        parent = processes.get(ppid)
+        # A reused parent PID may now identify a process younger than the child.
+        parent_name = parent[2] if parent and ppid != pid and parent[1] <= created else None
+        events.append(base_event("process_start", agent_id, trace_id, process_name=name, extra={
+            "pid": pid,
+            "ppid": ppid,
+            "parent_process_name": parent_name,
+            "event_id": make_event_id(HOSTNAME, "windows-cim-process", key),
+            "event_source": "windows-cim-process-snapshot",
+        }))
+    state.known_pids = current_pids
+    return events
+
+
+def _collect_processes_posix_fallback(
+    state: CollectorState,
+    agent_id: str,
+    trace_id: str,
+) -> list[dict[str, Any]]:
+    """Fallback for non-Linux POSIX hosts with a compatible ps."""
     events: list[dict[str, Any]] = []
     try:
         result = subprocess.run(
@@ -1537,7 +1611,9 @@ def collect_processes(
         return []
     if IS_LINUX or proc_root is not None:
         return _collect_processes_proc(state, agent_id, trace_id, proc_root)
-    return _collect_processes_windows(state, agent_id, trace_id)
+    if IS_WINDOWS:
+        return _collect_processes_windows(state, agent_id, trace_id)
+    return _collect_processes_posix_fallback(state, agent_id, trace_id)
 
 
 # ---------------------------------------------------------------------------

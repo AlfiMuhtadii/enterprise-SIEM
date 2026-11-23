@@ -9,12 +9,23 @@ Lightweight, telemetry-only Linux endpoint agent. No kernel driver, no packet sn
 ## Requirements
 
 - Python 3.9+ (stdlib only — no pip install needed)
-- Linux (primary). Windows: process/network collection falls back to `ps`/`ss` where available.
+- Linux (primary). Windows process polling uses local Windows PowerShell and
+  `Win32_Process` via CIM. Windows network collection still depends on the
+  availability of compatible network tools.
 - Access to `/proc` (standard on any Linux system; no root required for process snapshots of own processes)
 
 ---
 
 ## How to run locally
+
+Windows CIM polling sends process names, PIDs and parent IDs, plus the parent
+name when the parent can be identified in the same snapshot. It does not query
+process command lines, executable paths, or account names. The first poll
+observes already-running processes; later polls report newly observed process
+identities (including reused PIDs). This is a snapshot, not a kernel event
+stream. Short-lived processes may be missed. The source label is
+`windows-cim-process-snapshot`; this source cannot validate detections that
+require a command line.
 
 ```bash
 # 1. Copy the example config

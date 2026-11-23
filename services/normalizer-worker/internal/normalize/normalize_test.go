@@ -91,6 +91,22 @@ func TestEndpointFieldAliasing(t *testing.T) {
 	}
 }
 
+func TestEndpointPreservesWindowsProcessAncestryAndObservationSource(t *testing.T) {
+	raw := map[string]any{
+		"ts": "2026-01-01T00:00:00Z", "telemetry_type": "endpoint", "event_type": "process_start",
+		"event_source": "windows-cim-process-snapshot", "process_name": "client.exe",
+		"pid": float64(73), "ppid": float64(42), "parent_process_name": "parent.exe",
+	}
+	out, err := Event(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	process := out["process"].(map[string]any)
+	if process["parent_name"] != "parent.exe" || process["ppid"] != int64(42) || out["event_source"] != "windows-cim-process-snapshot" {
+		t.Fatalf("ancestry or observation source lost: %v", out)
+	}
+}
+
 func TestSysmonMarksAdvisoryOnly(t *testing.T) {
 	out, err := Sysmon(map[string]any{"process_name": "rundll32.exe"})
 	if err != nil {

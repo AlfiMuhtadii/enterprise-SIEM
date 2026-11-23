@@ -229,6 +229,62 @@ class TestProcessEventValid(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Native Windows process snapshots
+# ---------------------------------------------------------------------------
+
+class TestWindowsProcessSnapshot(unittest.TestCase):
+    def test_dispatch_collects_minimal_native_ancestry(self) -> None:
+        rows = [
+            {"pid": 42, "ppid": 1, "name": "parent.exe", "created": 100},
+            {"pid": 73, "ppid": 42, "name": "client.exe", "created": 200, "command_line": "not collected"},
+            {"pid": 74, "ppid": 42, "name": "older.exe", "created": 50},
+            {"pid": True, "ppid": 42, "name": "invalid.exe", "created": 50},
+        ]
+        with patch.object(ag, "IS_WINDOWS", True), patch.object(ag, "IS_LINUX", False):
+            with patch.object(ag.subprocess, "run", return_value=MagicMock(stdout=json.dumps(rows))) as run:
+                events = ag.collect_processes(ag.CollectorState(), "win-agent", "trace", _make_cfg())
+
+        command = run.call_args.args[0]
+        self.assertTrue(command[0].lower().endswith("powershell.exe"))
+        self.assertIn("Win32_Process", command[-1])
+        self.assertNotIn("CommandLine", command[-1])
+        self.assertTrue(run.call_args.kwargs["check"])
+        self.assertEqual(run.call_args.kwargs["timeout"], 10)
+        by_pid = {event["pid"]: event for event in events}
+        self.assertEqual(set(by_pid), {42, 73, 74})
+        child = by_pid[73]
+        self.assertEqual(child["event_source"], "windows-cim-process-snapshot")
+        self.assertEqual(child["trace_id"], "trace")
+        self.assertEqual(child["parent_process_name"], "parent.exe")
+        self.assertEqual(child["ppid"], 42)
+        self.assertIsNone(by_pid[74]["parent_process_name"])
+        self.assertNotIn("command_line", child)
+        self.assertIsNone(child["process_path"])
+        self.assertIsNone(child["user"])
+
+    def test_pid_reuse_emits_new_identity_and_cim_errors_keep_previous_state(self) -> None:
+        row = {"pid": 73, "ppid": 42, "name": "client.exe", "created": 200}
+        newer = dict(row, created=300)
+        responses = [
+            MagicMock(stdout=json.dumps([row])), MagicMock(stdout="invalid"),
+            ag.subprocess.TimeoutExpired("powershell.exe", 10),
+            MagicMock(stdout=json.dumps([row])), MagicMock(stdout=json.dumps([newer])),
+        ]
+        state = ag.CollectorState()
+        with patch.object(ag.subprocess, "run", side_effect=responses):
+            first = ag._collect_processes_windows(state, "win-agent", "trace")
+            with self.assertLogs(ag.log, level="WARNING"):
+                self.assertEqual(ag._collect_processes_windows(state, "win-agent", "trace"), [])
+                self.assertEqual(ag._collect_processes_windows(state, "win-agent", "trace"), [])
+            self.assertEqual(ag._collect_processes_windows(state, "win-agent", "trace"), [])
+            second = ag._collect_processes_windows(state, "win-agent", "trace")
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        self.assertNotEqual(first[0]["event_id"], second[0]["event_id"])
+
+
+# ---------------------------------------------------------------------------
 # Test 3 — network_event_valid
 # ---------------------------------------------------------------------------
 

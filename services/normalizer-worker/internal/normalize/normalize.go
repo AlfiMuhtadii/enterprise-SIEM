@@ -111,6 +111,7 @@ func Endpoint(raw map[string]any) (map[string]any, error) {
 			"name":         first(raw, "process_name"),
 			"pid":          rawIntField(raw, "pid"),
 			"ppid":         rawIntField(raw, "ppid"),
+			"parent_name":  first(raw, "parent_process_name"),
 			"command_line": first(raw, "command_line"),
 			"path":         first(raw, "process_path"),
 			"hash":         first(raw, "file_hash", "sha256"),

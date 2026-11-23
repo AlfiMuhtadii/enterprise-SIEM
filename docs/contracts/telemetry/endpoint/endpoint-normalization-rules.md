@@ -54,6 +54,7 @@ Present in all normalized endpoint events. Fields are null for event types where
 | `process.name` | `process_name` | — | process_start, process_exit, network_connection, file_write |
 | `process.pid` | `pid` | — | process_start, process_exit, network_connection, dns_query, file_write |
 | `process.ppid` | `ppid` | — | process_start, process_exit |
+| `process.parent_name` | `parent_process_name` | None | process_start, process_exit |
 | `process.command_line` | `command_line` | — | process_start |
 | `process.path` | `process_path` | — | process_start, process_exit |
 | `process.hash` | `file_hash` | `sha256` | process_start, process_exit (binary hash) |

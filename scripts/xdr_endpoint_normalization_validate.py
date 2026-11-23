@@ -146,6 +146,7 @@ def normalize_endpoint_local(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "name":         _first(raw, "process_name"),
             "pid":          raw.get("pid"),
             "ppid":         raw.get("ppid"),
+            "parent_name":  _first(raw, "parent_process_name"),
             "command_line": _first(raw, "command_line"),
             "path":         _first(raw, "process_path"),
             "hash":         _first(raw, "file_hash", "sha256"),

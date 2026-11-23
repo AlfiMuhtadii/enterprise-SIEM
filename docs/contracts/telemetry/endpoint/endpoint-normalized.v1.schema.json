@@ -84,6 +84,7 @@
         "name":         { "type": ["string", "null"], "description": "Process image name." },
         "pid":          { "type": ["integer", "null"], "description": "Process ID." },
         "ppid":         { "type": ["integer", "null"], "description": "Parent process ID." },
+        "parent_name":  { "type": ["string", "null"], "description": "Observed parent process image name, when provided by the source." },
         "command_line": { "type": ["string", "null"], "description": "Full command line." },
         "path":         { "type": ["string", "null"], "description": "Full path to process binary." },
         "hash":         { "type": ["string", "null"], "description": "SHA-256 of process binary." }
