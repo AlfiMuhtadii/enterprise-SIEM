@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class AdvisoryFinding extends Model
@@ -44,6 +45,19 @@ class AdvisoryFinding extends Model
     public const STATUSES = ['new', 'reviewed', 'dismissed', 'nominated'];
 
     public const SEVERITY_ORDER = ['critical' => 4, 'high' => 3, 'medium' => 2, 'low' => 1, 'info' => 0];
+
+    public function scopeWithoutRehearsal(Builder $query): Builder
+    {
+        return $query->where(function (Builder $records): void {
+            $records->whereNull('evidence->shadow_evidence_origin')
+                ->orWhere('evidence->shadow_evidence_origin', '!=', 'rehearsal');
+        });
+    }
+
+    public function isRehearsal(): bool
+    {
+        return ($this->evidence['shadow_evidence_origin'] ?? null) === 'rehearsal';
+    }
 
     public function events()
     {

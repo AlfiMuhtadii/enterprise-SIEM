@@ -1349,7 +1349,7 @@ func correlateEndpointShadowIOC(events []map[string]any, iocURL string) []shadow
 }
 
 func correlateEndpointShadowAll(events []map[string]any, iocURL string) []shadowrules.EndpointAlert {
-	return evaluateShadowPerTenant(events, func(group []map[string]any) []shadowrules.EndpointAlert {
+	return evaluateShadowByScope(events, func(group []map[string]any) []shadowrules.EndpointAlert {
 		alerts := shadowrules.CorrelateEndpointShadow(group)
 		alerts = append(alerts, correlateEndpointShadowIOC(group, iocURL)...)
 		alerts = append(alerts, shadowrules.CorrelateEndpointShadowCrossDomain(group)...)
@@ -1358,27 +1358,44 @@ func correlateEndpointShadowAll(events []map[string]any, iocURL string) []shadow
 	})
 }
 
-func evaluateShadowPerTenant(events []map[string]any, evaluate func([]map[string]any) []shadowrules.EndpointAlert) []shadowrules.EndpointAlert {
-	groups := make(map[string][]map[string]any)
-	var order []string
+func shadowEvidenceOrigin(event map[string]any) string {
+	if event["shadow_evidence_origin"] == "rehearsal" || event["synthetic"] == true || event["is_simulated"] == true ||
+		strings.TrimSpace(shadowrules.EpStr(event, "demo_run_id")) != "" ||
+		strings.TrimSpace(shadowrules.EpStr(event, "scenario_id")) != "" ||
+		event["event_source"] == "xdr-scenario-runner" {
+		return "rehearsal"
+	}
+	return "unverified"
+}
+
+func evaluateShadowByScope(events []map[string]any, evaluate func([]map[string]any) []shadowrules.EndpointAlert) []shadowrules.EndpointAlert {
+	type evidenceScope struct{ tenant, origin string }
+	groups := make(map[evidenceScope][]map[string]any)
+	var order []evidenceScope
 	for _, event := range events {
 		tenant, ok := event["tenant_id"].(string)
 		if (!ok && event["tenant_id"] != nil) || len(tenant) > 255 || strings.TrimSpace(tenant) != tenant ||
 			strings.ContainsRune(tenant, 0) {
 			continue
 		}
-		if _, exists := groups[tenant]; !exists {
-			order = append(order, tenant)
+		key := evidenceScope{tenant, shadowEvidenceOrigin(event)}
+		if _, exists := groups[key]; !exists {
+			order = append(order, key)
 		}
-		groups[tenant] = append(groups[tenant], event)
+		groups[key] = append(groups[key], event)
 	}
 	var findings []shadowrules.EndpointAlert
-	for _, tenant := range order {
-		alerts := evaluate(groups[tenant])
+	for _, key := range order {
+		alerts := evaluate(groups[key])
 		for i := range alerts {
-			alerts[i].TenantID = tenant
-			if tenant != "" {
-				id := sha256.Sum256([]byte(tenant + "\x00" + alerts[i].AlertID))
+			alerts[i].TenantID = key.tenant
+			alerts[i].EvidenceOrigin = key.origin
+			if key.tenant != "" {
+				id := sha256.Sum256([]byte(key.tenant + "\x00" + alerts[i].AlertID))
+				alerts[i].AlertID = hex.EncodeToString(id[:])[:40]
+			}
+			if key.origin == "rehearsal" {
+				id := sha256.Sum256([]byte("rehearsal\x00" + alerts[i].AlertID))
 				alerts[i].AlertID = hex.EncodeToString(id[:])[:40]
 			}
 		}
@@ -1388,11 +1405,11 @@ func evaluateShadowPerTenant(events []map[string]any, evaluate func([]map[string
 }
 
 func shadowEnvelopes(scope string, alerts []shadowrules.EndpointAlert) []map[string]any {
-	type scopeKey struct{ tenant, trace string }
+	type scopeKey struct{ tenant, trace, origin string }
 	groups := make(map[scopeKey][]shadowrules.EndpointAlert)
 	var order []scopeKey
 	for _, alert := range alerts {
-		key := scopeKey{alert.TenantID, alert.TraceID}
+		key := scopeKey{alert.TenantID, alert.TraceID, alert.EvidenceOrigin}
 		if _, exists := groups[key]; !exists {
 			order = append(order, key)
 		}
@@ -1401,7 +1418,7 @@ func shadowEnvelopes(scope string, alerts []shadowrules.EndpointAlert) []map[str
 	var envelopes []map[string]any
 	for _, key := range order {
 		envelopes = append(envelopes, map[string]any{
-			"tenant_id": key.tenant, "trace_id": key.trace, "scope": scope,
+			"tenant_id": key.tenant, "trace_id": key.trace, "scope": scope, "shadow_evidence_origin": key.origin,
 			"source": "correlation-worker", "shadow_mode": true, "alerts": groups[key],
 		})
 	}
@@ -1413,7 +1430,7 @@ func (w *Worker) publishShadowBatches(events []map[string]any) {
 	if w.publishShadowFindings(w.shadowAlertsTopic, "endpoint-shadow", endpoint) {
 		w.shadowAlertsPublished.Add(int64(len(endpoint)))
 	}
-	network := evaluateShadowPerTenant(events, shadowrules.CorrelateNetworkShadowAll)
+	network := evaluateShadowByScope(events, shadowrules.CorrelateNetworkShadowAll)
 	w.publishShadowFindings(w.networkShadowAlertsTopic, "network-shadow", network)
 }
 

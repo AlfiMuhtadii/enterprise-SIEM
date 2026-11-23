@@ -184,6 +184,23 @@ class TestNormalizeShadowRecords(unittest.TestCase):
         findings = aw.normalize_shadow_records(records, "xdr.alerts.shadow.endpoint")
         self.assertTrue(findings[0]["promotion_candidate"])
 
+    def test_rehearsal_is_stored_separately_and_cannot_be_a_promotion_candidate(self):
+        topic = "xdr.alerts.shadow.endpoint"
+        alert = self._endpoint_alert(confidence=0.90)
+        alert["evidence"]["shadow_evidence_origin"] = "representative"
+        record = self._make_record([alert])
+        record["value"]["shadow_evidence_origin"] = "representative"
+        unverified = aw.normalize_shadow_records([record], topic)[0]
+        self.assertEqual(json.loads(unverified["evidence"])["shadow_evidence_origin"], "unverified")
+
+        record["value"]["shadow_evidence_origin"] = "rehearsal"
+        rehearsal = aw.normalize_shadow_records([record], topic)[0]
+        self.assertEqual(json.loads(rehearsal["evidence"])["shadow_evidence_origin"], "rehearsal")
+        self.assertNotEqual(rehearsal["fingerprint"], unverified["fingerprint"])
+        self.assertIsNone(rehearsal["legacy_fingerprint"])
+        self.assertFalse(rehearsal["promotion_candidate"])
+        self.assertIn("rehearsal_only", rehearsal["promotion_blocker"])
+
     def test_promotion_candidate_false_for_low_confidence(self):
         records  = [self._make_record([self._endpoint_alert(confidence=0.50)])]
         findings = aw.normalize_shadow_records(records, "xdr.alerts.shadow.endpoint")

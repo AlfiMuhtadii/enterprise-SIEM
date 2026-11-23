@@ -888,8 +888,10 @@ def _legacy_shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]
 
 def shadow_fingerprint(
     rule_id: str, actor: str, evidence_ids: List[str], *, source_topic: str, tenant_id: Optional[str],
+    origin: str = "unverified",
 ) -> str:
-    identity = ["shadow-finding-v2", source_topic, tenant_id, rule_id, actor or None, sorted(evidence_ids)]
+    namespace = "shadow-finding-rehearsal-v1" if origin == "rehearsal" else "shadow-finding-v2"
+    identity = [namespace, source_topic, tenant_id, rule_id, actor or None, sorted(evidence_ids)]
     return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
@@ -927,8 +929,17 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
             tenant_id = shadow_tenant(alert.get("tenant_id"))
             if "tenant_id" in value and tenant_id != batch_tenant:
                 raise ValueError("Advisory alert tenant does not match its batch")
+            rehearsal = "rehearsal" in (value.get("shadow_evidence_origin"), alert.get("shadow_evidence_origin"))
+            origin = "rehearsal" if rehearsal else "unverified"
+            evidence = alert.get("evidence")
+            if evidence is None:
+                evidence = {}
+            if not isinstance(evidence, dict):
+                raise ValueError("Invalid advisory evidence object")
+            evidence = dict(evidence, shadow_evidence_origin=origin)
             confidence   = float(alert.get("confidence") or 0.0)
-            fp = shadow_fingerprint(rule_id, actor, evidence_ids, source_topic=source_topic, tenant_id=tenant_id)
+            fp = shadow_fingerprint(rule_id, actor, evidence_ids, source_topic=source_topic, tenant_id=tenant_id, origin=origin)
+            blocker = _shadow_promotion_blocker(domain, confidence)
             findings.append({
                 "finding_id":       "adv-" + fp[:36],
                 "rule_id":          rule_id,
@@ -939,12 +950,13 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
                 "confidence":       confidence,
                 "actor_key":        actor or None,
                 "tenant_id":        tenant_id,
-                "evidence":         json.dumps(alert.get("evidence") or {}),
+                "evidence":         json.dumps(evidence),
+                "shadow_evidence_origin": origin,
                 "source_event_ids": json.dumps(evidence_ids),
-                "promotion_candidate": confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
-                "promotion_blocker":   _shadow_promotion_blocker(domain, confidence),
+                "promotion_candidate": not rehearsal and confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
+                "promotion_blocker":   "rehearsal_only; " + blocker if rehearsal else blocker,
                 "fingerprint":     fp,
-                "legacy_fingerprint": _legacy_shadow_fingerprint(rule_id, actor, evidence_ids),
+                "legacy_fingerprint": None if rehearsal else _legacy_shadow_fingerprint(rule_id, actor, evidence_ids),
                 "trace_id":        alert.get("trace_id") or batch_trace_id,
             })
     return findings
@@ -995,6 +1007,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
 
             material = json.dumps([position, finding["tenant_id"], fingerprint_key], separators=(",", ":"))
             receipt_id = "shadow-kafka-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+            receipt_metadata = dict(position, shadow_evidence_origin=finding["shadow_evidence_origin"])
             cur.execute(
                 """
                 INSERT INTO advisory_finding_events
@@ -1003,7 +1016,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
                 ON CONFLICT (event_id) DO NOTHING
                 RETURNING event_id
                 """,
-                (receipt_id, finding_id, finding["tenant_id"], json.dumps(position)),
+                (receipt_id, finding_id, finding["tenant_id"], json.dumps(receipt_metadata)),
             )
             if cur.fetchone() is None:
                 return "replayed"

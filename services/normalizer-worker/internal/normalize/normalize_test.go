@@ -20,6 +20,31 @@ func TestEventDispatchesToEndpoint(t *testing.T) {
 	}
 }
 
+func TestEventCarriesRehearsalExclusionsButNeverAssertsVerifiedLive(t *testing.T) {
+	for _, marker := range []map[string]any{
+		{"demo_run_id": "rehearsal-1"}, {"demo_run_id": " ", "scenario_id": "scenario-1"},
+		{"synthetic": true}, {"is_simulated": true}, {"event_source": "xdr-scenario-runner"},
+		{"shadow_evidence_origin": "rehearsal"},
+	} {
+		raw := map[string]any{"ts": "2026-01-01T00:00:00Z", "event_type": "dns_query", "telemetry_type": "dns"}
+		for key, val := range marker {
+			raw[key] = val
+		}
+		out, err := Event(raw)
+		if err != nil || out["shadow_evidence_origin"] != "rehearsal" {
+			t.Fatalf("marker %v was not carried: %v (%v)", marker, out, err)
+		}
+	}
+	raw := map[string]any{
+		"ts": "2026-01-01T00:00:00Z", "event_type": "process_start", "telemetry_type": "endpoint",
+		"shadow_evidence_origin": "representative",
+	}
+	out, err := Event(raw)
+	if err != nil || out["shadow_evidence_origin"] != nil {
+		t.Fatalf("normalization promoted an unverified source: %v (%v)", out, err)
+	}
+}
+
 func TestEventDispatchesToEachTelemetryType(t *testing.T) {
 	cases := map[string]string{
 		"dns":               "dns-v1",

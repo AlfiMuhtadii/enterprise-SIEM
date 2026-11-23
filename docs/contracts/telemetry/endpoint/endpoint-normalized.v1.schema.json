@@ -73,6 +73,10 @@
       "type": ["string", "null"],
       "description": "EDR agent or vendor identifier."
     },
+    "shadow_evidence_origin": {
+      "const": "rehearsal",
+      "description": "Optional demo or simulation exclusion marker. Its absence does not authenticate the data source."
+    },
     "trace_id": {
       "type": ["string", "null"],
       "description": "Propagated trace ID. Null if not present in raw telemetry."

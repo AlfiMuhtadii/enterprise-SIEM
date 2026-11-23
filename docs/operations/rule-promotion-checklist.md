@@ -35,6 +35,15 @@ All must be true before a rule may enter shadow mode.
 
 All must be true before a rule may enter staged active mode.
 
+The advisory pipeline preserves `shadow_evidence_origin: rehearsal` for
+events with demo/scenario markers or explicit simulation flags. Rehearsal
+findings remain visible for audit, but are separate from unverified findings
+and excluded from nomination, the soak harness snapshot, preflight, and rule summaries.
+Missing or self-asserted origin is not proof of representative telemetry.
+The preflight's `preflight_ready` field means diagnostic readiness only:
+`promotion_evidence_verified` remains false. Maintain operator-reviewed live
+source records and the measured domain-specific 6h soak separately.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`

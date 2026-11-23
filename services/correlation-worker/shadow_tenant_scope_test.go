@@ -44,7 +44,7 @@ func TestNetworkShadowDoesNotJoinTenantAndUnassignedEvidence(t *testing.T) {
 			})
 		}
 	}
-	if alerts := evaluateShadowPerTenant(events, shadowrules.CorrelateNetworkShadowAll); len(alerts) != 0 {
+	if alerts := evaluateShadowByScope(events, shadowrules.CorrelateNetworkShadowAll); len(alerts) != 0 {
 		t.Fatalf("expected no combined tenant/unassigned network findings: %+v", alerts)
 	}
 }
@@ -78,5 +78,35 @@ func TestShadowPublicationRefusesBothActiveTopics(t *testing.T) {
 	}
 	if w.publishErrors.Load() != 2 {
 		t.Fatalf("refusals were not counted: %d", w.publishErrors.Load())
+	}
+}
+
+func TestShadowRulesAndEnvelopesSeparateRehearsalFromUnverified(t *testing.T) {
+	var events []map[string]any
+	for i := 0; i < 3; i++ {
+		ev := map[string]any{
+			"tenant_id": "tenant-a", "trace_id": "same-trace", "telemetry_type": "endpoint",
+			"event_type": "login_event", "host": "same-host", "normalized_event_id": strconv.Itoa(i),
+			"auth": map[string]any{"action": "login_failed"},
+		}
+		copy := map[string]any{}
+		for key, val := range ev {
+			copy[key] = val
+		}
+		copy["shadow_evidence_origin"] = "rehearsal"
+		events = append(events, ev, copy)
+	}
+	if alerts := correlateEndpointShadowAll(events[:4], ""); len(alerts) != 0 {
+		t.Fatalf("mixed sources satisfied a rule threshold: %+v", alerts)
+	}
+	alerts := correlateEndpointShadowAll(events, "")
+	if len(alerts) != 2 || alerts[0].AlertID == alerts[1].AlertID ||
+		alerts[0].EvidenceOrigin != "unverified" || alerts[1].EvidenceOrigin != "rehearsal" {
+		t.Fatalf("expected distinct findings with their source labels: %+v", alerts)
+	}
+	envelopes := shadowEnvelopes("endpoint-shadow", alerts)
+	if len(envelopes) != 2 || envelopes[0]["shadow_evidence_origin"] != "unverified" ||
+		envelopes[1]["shadow_evidence_origin"] != "rehearsal" {
+		t.Fatalf("envelopes merged different evidence classes: %+v", envelopes)
 	}
 }

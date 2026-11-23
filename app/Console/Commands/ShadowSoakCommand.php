@@ -8,7 +8,7 @@ use Illuminate\Console\Command;
 /**
  * Shadow domain soak harness runner.
  *
- * Advisory-only — records promotion evidence for shadow endpoint/network/UEBA findings.
+ * Advisory-only diagnostics for persisted shadow endpoint/network/UEBA findings.
  * NEVER promotes rules. NEVER modifies ACTIVE_ALLOWLIST. NEVER creates alerts/incidents.
  *
  * Usage:
@@ -24,7 +24,7 @@ class ShadowSoakCommand extends Command
         {--dry-run : Show what would run without writing evidence}
         {--list : List recent soak runs}';
 
-    protected $description = 'Run a shadow domain soak and record promotion evidence (advisory-only)';
+    protected $description = 'Review stored shadow findings without verifying a live soak or promotion evidence';
 
     public function handle(DomainSoakHarnessService $service): int
     {
@@ -58,7 +58,7 @@ class ShadowSoakCommand extends Command
 
         try {
             $snapshot   = $service->computeEvidence($run);
-            $this->line("Evidence: total_findings={$snapshot->total_findings}  high_conf_rate={$snapshot->high_confidence_rate}  suppression_rate={$snapshot->suppression_rate}");
+            $this->line("Advisory diagnostics: total_findings={$snapshot->total_findings}  high_conf_rate={$snapshot->high_confidence_rate}  suppression_rate={$snapshot->suppression_rate}");
 
             $gates      = $service->checkGates($run, $snapshot);
             foreach ($gates as $gate) {

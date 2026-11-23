@@ -159,6 +159,38 @@ class DomainSoakHarnessTest extends TestCase
         $this->assertEquals(0.0, $snapshot->high_confidence_rate);
     }
 
+    public function test_rehearsal_findings_are_excluded_from_preflight_and_soak_diagnostics(): void
+    {
+        $minimum = DomainSoakHarnessService::MIN_FINDINGS_FOR_SOAK;
+        $this->seedFindings('endpoint', $minimum, 0.20, 'dismissed', 'rehearsal-rule', 'rehearsal');
+        $result = $this->service->getPreflightStatus('endpoint');
+
+        $this->assertFalse($result['preflight_ready']);
+        $this->assertSame('WARN', $result['checks']['CHK-03']['status']);
+        $this->assertSame($minimum, $result['rehearsal_findings_excluded']);
+        $this->assertFalse($result['promotion_evidence_verified']);
+
+        $this->seedFindings('endpoint', $minimum, 0.90, 'new', 'ordinary-rule');
+        $result = $this->service->getPreflightStatus('endpoint');
+        $this->assertTrue($result['preflight_ready']);
+        $this->assertSame('unverified_advisory_diagnostics', $result['readiness_basis']);
+        $this->assertFalse($result['promotion_evidence_verified']);
+
+        $run = $this->service->startSoakRun('endpoint', 24);
+        $snapshot = $this->service->computeEvidence($run);
+        $this->assertSame($minimum, $snapshot->total_findings);
+        $this->assertSame($minimum, $snapshot->high_confidence_findings);
+        $this->assertSame(0, $snapshot->suppressed_findings);
+        $this->assertSame(1, $snapshot->rules_covered);
+        $summaries = $this->service->recordFindingSummaries($run);
+        $this->assertCount(1, $summaries);
+        $this->assertSame('ordinary-rule', $summaries[0]->rule_id);
+        $band = $this->service->recordConfidenceBands($run, $snapshot);
+        $this->assertEquals($minimum, $band->band_critical);
+        $this->assertEquals(0, $band->band_low);
+        $this->assertSame(1, $this->service->recordCoverageStats($run, $snapshot)->rules_with_findings);
+    }
+
     public function test_compute_evidence_calculates_high_confidence_rate(): void
     {
         $run = $this->service->startSoakRun('ueba', 24);
@@ -578,8 +610,14 @@ class DomainSoakHarnessTest extends TestCase
     // Helpers
     // =========================================================================
 
-    private function seedFindings(string $domain, int $count, float $confidence, string $status, string $ruleId = null): void
-    {
+    private function seedFindings(
+        string $domain,
+        int $count,
+        float $confidence,
+        string $status,
+        ?string $ruleId = null,
+        ?string $origin = null,
+    ): void {
         $ruleId ??= 'rule-' . $domain . '-001';
         for ($i = 0; $i < $count; $i++) {
             AdvisoryFinding::create([
@@ -591,7 +629,7 @@ class DomainSoakHarnessTest extends TestCase
                 'severity'            => 'medium',
                 'confidence'          => $confidence,
                 'actor_key'           => 'host-' . $i,
-                'evidence'            => ['test' => true],
+                'evidence'            => $origin === null ? ['test' => true] : ['shadow_evidence_origin' => $origin],
                 'promotion_candidate' => false,
                 'status'              => $status,
                 'fingerprint'         => 'fp-' . Str::random(16),

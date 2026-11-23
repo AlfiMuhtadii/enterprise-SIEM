@@ -364,6 +364,32 @@ class AdvisoryFindingsTest extends TestCase
         ]);
     }
 
+    public function test_rehearsal_can_be_reviewed_but_cannot_be_nominated(): void
+    {
+        $service = app(AdvisoryFindingService::class);
+        $payload = array_merge($this->samplePayload(), [
+            'evidence' => ['shadow_evidence_origin' => 'rehearsal'], 'confidence' => 0.99,
+        ]);
+        $finding = $service->upsertFromShadow($payload);
+        $service->upsertFromShadow($payload);
+        $service->upsertFromShadow($payload);
+        $this->assertFalse($finding->fresh()->promotion_candidate);
+
+        $analyst = User::factory()->create(['role' => 'analyst']);
+        $this->actingAs($analyst)
+            ->get('/advisory/findings/' . $finding->finding_id)
+            ->assertOk()
+            ->assertDontSee('Nominate for Promotion');
+        $route = '/advisory/findings/' . $finding->finding_id . '/review';
+        $this->post($route, ['action' => 'nominate'])->assertSessionHasErrors('action');
+        $this->assertSame('new', $finding->fresh()->status);
+        $this->assertDatabaseMissing('advisory_finding_events', [
+            'finding_id' => $finding->finding_id, 'event_type' => 'nominated_for_promotion',
+        ]);
+        $this->post($route, ['action' => 'review'])->assertRedirect();
+        $this->assertSame('reviewed', $finding->fresh()->status);
+    }
+
     public function test_review_post_rejects_invalid_action(): void
     {
         $svc     = app(AdvisoryFindingService::class);

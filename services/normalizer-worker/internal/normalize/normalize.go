@@ -15,6 +15,12 @@ func Event(raw map[string]any) (map[string]any, error) {
 	}
 	inboundTP, _ := raw["traceparent"].(string)
 	out["traceparent"] = traceparent.Propagate(inboundTP)
+	if raw["synthetic"] == true || raw["is_simulated"] == true ||
+		strings.TrimSpace(first(raw, "demo_run_id")) != "" || strings.TrimSpace(first(raw, "scenario_id")) != "" ||
+		first(raw, "event_source", "source_adapter", "vendor") == "xdr-scenario-runner" ||
+		raw["shadow_evidence_origin"] == "rehearsal" {
+		out["shadow_evidence_origin"] = "rehearsal"
+	}
 	return out, nil
 }
 

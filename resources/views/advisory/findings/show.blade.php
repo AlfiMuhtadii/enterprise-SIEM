@@ -97,10 +97,12 @@
                         <input type="radio" name="action" value="dismiss" class="accent-gray-500">
                         <span class="text-xs text-gray-400">Dismiss</span>
                     </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                        <input type="radio" name="action" value="nominate" class="accent-purple-500">
-                        <span class="text-xs text-purple-300">Nominate for Promotion</span>
-                    </label>
+                    @unless($finding->isRehearsal())
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="action" value="nominate" class="accent-purple-500">
+                            <span class="text-xs text-purple-300">Nominate for Promotion</span>
+                        </label>
+                    @endunless
                 </div>
                 <textarea name="note" placeholder="Optional analyst note (max 1000 chars)"
                     class="w-full bg-gray-900 border border-gray-700 text-gray-200 text-xs rounded px-3 py-2 h-20 resize-none"

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AdvisoryFinding;
 use App\Models\AdvisoryFindingEvent;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AdvisoryFindingService
 {
@@ -24,7 +25,7 @@ class AdvisoryFindingService
             $existing->increment('occurrence_count');
             $existing->last_seen_at = $now;
             // Refresh promotion candidacy on each occurrence
-            if (!$existing->promotion_candidate) {
+            if (!$existing->promotion_candidate && !$existing->isRehearsal()) {
                 $existing->promotion_candidate = $this->isPromotionCandidate(
                     (float) ($payload['confidence'] ?? 0),
                     $existing->occurrence_count,
@@ -40,7 +41,8 @@ class AdvisoryFindingService
             return $existing;
         }
 
-        $candidate = $this->isPromotionCandidate((float) ($payload['confidence'] ?? 0), 1);
+        $candidate = ($payload['evidence']['shadow_evidence_origin'] ?? null) !== 'rehearsal'
+            && $this->isPromotionCandidate((float) ($payload['confidence'] ?? 0), 1);
 
         $finding = AdvisoryFinding::create([
             'finding_id'          => $payload['finding_id'] ?? Str::uuid()->toString(),
@@ -109,6 +111,10 @@ class AdvisoryFindingService
 
     public function nominate(AdvisoryFinding $finding, int $analystId, string $note = ''): AdvisoryFinding
     {
+        if ($finding->isRehearsal()) {
+            throw ValidationException::withMessages(['action' => 'Rehearsal findings cannot be nominated for promotion.']);
+        }
+
         $finding->status      = 'nominated';
         $finding->reviewed_by = $analystId;
         $finding->reviewed_at = now();

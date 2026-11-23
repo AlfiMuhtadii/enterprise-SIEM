@@ -31,20 +31,21 @@ var LolbinNames = map[string]bool{
 
 
 type EndpointAlert struct {
-	AlertID     string         `json:"alert_id"`
-	RuleID      string         `json:"rule_id"`
-	Version     string         `json:"version"`
-	Title       string         `json:"title"`
-	Severity    string         `json:"severity"`
-	Confidence  float64        `json:"confidence"`
-	Host        string         `json:"host"`
-	User        string         `json:"user"`
-	TraceID     string         `json:"trace_id"`
-	TenantID    string         `json:"tenant_id,omitempty"`
-	ShadowMode  bool           `json:"shadow_mode"`
-	EvidenceIDs []string       `json:"evidence_ids"`
-	EventType   string         `json:"event_type"`
-	Evidence    map[string]any `json:"evidence"`
+	AlertID        string         `json:"alert_id"`
+	RuleID         string         `json:"rule_id"`
+	Version        string         `json:"version"`
+	Title          string         `json:"title"`
+	Severity       string         `json:"severity"`
+	Confidence     float64        `json:"confidence"`
+	Host           string         `json:"host"`
+	User           string         `json:"user"`
+	TraceID        string         `json:"trace_id"`
+	TenantID       string         `json:"tenant_id,omitempty"`
+	EvidenceOrigin string         `json:"shadow_evidence_origin,omitempty"`
+	ShadowMode     bool           `json:"shadow_mode"`
+	EvidenceIDs    []string       `json:"evidence_ids"`
+	EventType      string         `json:"event_type"`
+	Evidence       map[string]any `json:"evidence"`
 }
 
 func EpStr(event map[string]any, path ...string) string {

@@ -87,7 +87,7 @@ class DomainSoakHarnessService
     {
         $since = now()->subHours($run->window_hours);
 
-        $query = AdvisoryFinding::where('domain', $run->domain)
+        $query = AdvisoryFinding::withoutRehearsal()->where('domain', $run->domain)
             ->where('last_seen_at', '>=', $since);
 
         if ($run->tenant_id) {
@@ -122,6 +122,8 @@ class DomainSoakHarnessService
         ]);
 
         $this->audit($run->run_id, $run->domain, 'evidence_computed', null, [
+            'evidence_basis'       => 'unverified_advisory_diagnostics',
+            'promotion_evidence_verified' => false,
             'total_findings'       => $total,
             'high_confidence_rate' => $snapshot->high_confidence_rate,
             'suppression_rate'     => $snapshot->suppression_rate,
@@ -159,8 +161,8 @@ class DomainSoakHarnessService
         $evidencePass = $passRate >= self::PROMOTION_EVIDENCE_PASS_RATE;
 
         $note = $evidencePass
-            ? "Evidence gates PASS ({$passed}/{$checked}). A domain-specific 6h soak is still required before promotion."
-            : "Evidence gates FAIL ({$passed}/{$checked}). Not enough quality evidence for promotion consideration.";
+            ? "Advisory diagnostics PASS ({$passed}/{$checked}). Representative telemetry and a domain-specific 6h soak must be verified separately."
+            : "Advisory diagnostics FAIL ({$passed}/{$checked}). This assessment does not verify promotion evidence.";
 
         $assessment = ShadowSoakDomainAssessment::create([
             'assessment_id'         => 'ssa-' . Str::uuid(),
@@ -189,7 +191,7 @@ class DomainSoakHarnessService
     {
         $since = now()->subHours($run->window_hours);
 
-        $query = AdvisoryFinding::where('domain', $run->domain)
+        $query = AdvisoryFinding::withoutRehearsal()->where('domain', $run->domain)
             ->where('last_seen_at', '>=', $since)
             ->select('rule_id', 'confidence', 'severity', 'status');
 
@@ -224,7 +226,7 @@ class DomainSoakHarnessService
     {
         $since = now()->subHours($run->window_hours);
 
-        $query = AdvisoryFinding::where('domain', $run->domain)
+        $query = AdvisoryFinding::withoutRehearsal()->where('domain', $run->domain)
             ->where('last_seen_at', '>=', $since);
 
         if ($run->tenant_id) {
@@ -271,7 +273,7 @@ class DomainSoakHarnessService
         $totalRules = self::DOMAIN_SHADOW_RULE_COUNTS[$run->domain] ?? 0;
 
         $since = now()->subHours($run->window_hours);
-        $coveredRuleIds = AdvisoryFinding::where('domain', $run->domain)
+        $coveredRuleIds = AdvisoryFinding::withoutRehearsal()->where('domain', $run->domain)
             ->where('last_seen_at', '>=', $since)
             ->when($run->tenant_id, fn($q) => $q->where('tenant_id', $run->tenant_id))
             ->distinct('rule_id')
@@ -404,14 +406,16 @@ class DomainSoakHarnessService
         ];
 
         // CHK-03: advisory findings in last 24h
-        $recentFindings = \App\Models\AdvisoryFinding::where('domain', $domain)
-            ->where('last_seen_at', '>=', now()->subHours(24))
-            ->count();
+        $recent = AdvisoryFinding::where('domain', $domain)
+            ->where('last_seen_at', '>=', now()->subHours(24));
+        $recentFindings = (clone $recent)->withoutRehearsal()->count();
+        $rehearsalFindings = (clone $recent)->where('evidence->shadow_evidence_origin', 'rehearsal')->count();
         $findingsOk = $recentFindings >= self::MIN_FINDINGS_FOR_SOAK;
         $checks['CHK-03'] = [
-            'name'   => 'Advisory findings in last 24h (minimum evidence)',
+            'name'   => 'Unverified advisory findings in last 24h (diagnostic minimum)',
             'status' => $findingsOk ? 'PASS' : 'WARN',
-            'detail' => "{$recentFindings} findings in last 24h (minimum: " . self::MIN_FINDINGS_FOR_SOAK . ')',
+            'detail' => "{$recentFindings} unverified findings (minimum: " . self::MIN_FINDINGS_FOR_SOAK
+                . "); {$rehearsalFindings} marked rehearsal findings excluded",
         ];
 
         // CHK-04: no currently running soak for this domain
@@ -439,8 +443,11 @@ class DomainSoakHarnessService
         return [
             'domain'               => $domain,
             'preflight_ready'      => $ready,
+            'readiness_basis'      => 'unverified_advisory_diagnostics',
+            'promotion_evidence_verified' => false,
+            'rehearsal_findings_excluded' => $rehearsalFindings,
             'checks'               => $checks,
-            'note'                 => 'Advisory only — soak harness never promotes domains autonomously.',
+            'note'                 => 'Advisory diagnostics only. A ready result does not verify representative telemetry or a live soak.',
             'expected_shadow_rules'=> $expectedRules,
         ];
     }

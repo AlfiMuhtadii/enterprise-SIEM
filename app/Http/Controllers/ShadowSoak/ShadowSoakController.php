@@ -86,7 +86,7 @@ class ShadowSoakController extends Controller
             $result = $assessment->evidence_pass ? 'PASS' : 'FAIL';
             return redirect()
                 ->route('shadow-soak.show', $run->run_id)
-                ->with('success', "Soak complete — evidence {$result}. Promotion still requires domain-specific 6h soak.");
+                ->with('success', "Advisory diagnostics {$result}. Representative telemetry and a live 6h soak remain unverified.");
         } catch (\Throwable $e) {
             $this->service->failSoakRun($run, $e->getMessage());
             return redirect()
