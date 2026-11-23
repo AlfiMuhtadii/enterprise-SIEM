@@ -77,6 +77,33 @@ records using the event ID, tenant, type, and time window. The stamp does
 not validate the underlying observation or authorize promotion. Records from
 known rehearsal sources remain excluded even when transported using mTLS.
 
+Use the local read-only reconciler against Kafka data within a reviewed
+offset range. Retain the exact event JSONL at the collector **before** it
+is published; a Kafka export reused as source data is not independent.
+
+```powershell
+python scripts/xdr_reconcile_capture.py `
+    --capture approved-source-capture.jsonl --registry pilot-sources.json `
+    --source-id pilot-endpoint-01 --domain endpoint --telemetry-type endpoint `
+    --window-start 2026-01-01T00:00:00Z --window-end 2026-01-01T06:00:00Z `
+    --range 0:1200:1500
+```
+
+Replace the example dates and offsets with the recorded UTC observation
+window and reviewed topic partitions. An offset range starts inclusively
+and ends exclusively. Repeated `--range` flags select distinct partitions.
+The tool uses the [Redpanda partition read API](https://docs.redpanda.com/api/doc/http-proxy/operation/operation-get_topics_records)
+on the local loopback listener, without a consumer group or offset commits.
+Missing, changed, duplicate, or unlisted eligible records fail reconciliation.
+Observed and admitted timestamps must be in the window and within five minutes
+of each other. No event payloads or IDs are included in the report.
+
+A `MATCHED` result is scoped to the supplied source files and requested
+offsets. Restrict Kafka writes to authorized infrastructure and retain the
+independent capture and registry hashes with the report. It does not certify
+the collector or the dataset as representative and does not record a soak
+PASS, approve promotion, or inspect the active alert path.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`
