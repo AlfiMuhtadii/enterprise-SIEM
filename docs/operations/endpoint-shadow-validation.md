@@ -14,7 +14,8 @@ Operations guide for validating endpoint shadow correlation. Endpoint domain is 
 | `shadow_mode = true` on all alerts | `xdr_endpoint_shadow_correlation_validate.py` |
 | `trace_id` propagated from event to alert | `xdr_endpoint_shadow_correlation_validate.py` |
 | No duplicate alert IDs | `xdr_endpoint_shadow_correlation_validate.py` |
-| Shadow alerts publish to `xdr.alerts.shadow.endpoint` | correlation-worker `/metrics` + report `topic` field |
+| HTTP response identifies the endpoint advisory topic | `xdr_endpoint_shadow_correlation_validate.py` (`service_response.topic`); does not produce or inspect Kafka records |
+| Broker isolation and absence of active alert writes | Separate broker and persisted-alert check using the same trace IDs; not covered by HTTP replay |
 | Active identity-cloud flow unaffected | mini soak on identity-cloud events |
 
 ---
@@ -63,6 +64,13 @@ Invalid mTLS configuration exits `2` before fixture loading or report writes.
 Offline simulation (`--use-correlation-service 0`) remains certificate-independent
 and must not be combined with `--mtls-enabled`.
 
+The default live HTTP replay fails when the worker is unavailable, fixtures are
+missing or invalid, or the worker returns an incomplete or invalid response. It
+never falls back to offline simulation. Reports identify the mode as
+`live_http_fixture_replay` or `offline_simulation`.
+The scheduled-task, service-install, and repeated-connection fixtures require
+the live worker. Offline reports list them under `suspicious_skipped`.
+
 **Without correlation service (schema/logic validation only):**
 
 ```powershell
@@ -85,7 +93,11 @@ All of the following must be true for a PASS:
 | `all_alerts_have_rule_id` | `true` — every alert has non-empty `rule_id` |
 | `trace_id_propagated` | `true` — alert `trace_id` matches fixture event `trace_id` |
 | `no_duplicate_alert_ids` | `true` |
-| `no_active_incident_activation` | `true` — shadow_mode confirmed; not via `xdr.alerts` |
+
+Both modes report `broker_isolation: not_measured` and
+`promotion_evidence: false`. Neither a PASS nor an expected topic in the
+HTTP response proves where alerts were published or that no active incident
+was created. Domain-specific live evidence and the approval gate are separate.
 
 ---
 

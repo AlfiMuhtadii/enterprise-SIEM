@@ -10,14 +10,15 @@ replays them through the correlation-worker shadow endpoint
   - shadow_mode=true on all alerts.
   - trace_id is propagated from event to alert.
   - No duplicate alert IDs.
-  - Alerts are NOT published to xdr.alerts (shadow isolation).
+  - The HTTP response identifies the endpoint advisory topic.
 
-Endpoint domain remains shadow-only. No active cutover is performed.
+This is fixture replay, not a broker isolation check or promotion evidence.
 """
 
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import ssl
 import sys
@@ -40,6 +41,12 @@ EXPECTED_RULES: Dict[str, str] = {
     "suspicious_parent_child":      "suspicious_parent_child_process",
 }
 
+LIVE_ONLY_EXPECTED_RULES: Dict[str, str] = {
+    "suspicious_scheduled_task": "scheduled_task_persistence",
+    "suspicious_service_install": "new_service_persistence",
+    "suspicious_c2_beacon": "c2_beacon_pattern",
+}
+
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate endpoint shadow correlation rules")
@@ -54,7 +61,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--output",
                         default="reports/xdr_endpoint_shadow_correlation_validation.json",
                         help="Report output path")
-    parser.add_argument("--use-correlation-service", type=int, default=1,
+    parser.add_argument("--use-correlation-service", type=int, choices=(0, 1), default=1,
                         help="1=use HTTP service; 0=local rule simulation only")
     parser.add_argument("--mtls-enabled", action="store_true", dest="mtls_enabled")
     parser.add_argument("--mtls-ca", default=None, dest="mtls_ca")
@@ -91,7 +98,7 @@ def build_mtls_context(args: argparse.Namespace) -> ssl.SSLContext | None:
 
 # ---------------------------------------------------------------------------
 # Local shadow rule simulation (mirrors Go correlateEndpointShadow logic)
-# Used when the correlation service is not available.
+# Used only when the operator explicitly selects offline simulation.
 # ---------------------------------------------------------------------------
 
 def _ep(event: Dict[str, Any], *path: str) -> str:
@@ -261,6 +268,14 @@ def simulate_shadow_rules(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # HTTP service interaction
 # ---------------------------------------------------------------------------
 
+SHADOW_TOPIC = "xdr.alerts.shadow.endpoint"
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
+
+class ReplayEvidenceError(ValueError):
+    pass
+
+
 def correlation_health(url: str, ssl_context: ssl.SSLContext | None = None) -> bool:
     try:
         with urllib.request.urlopen(
@@ -275,7 +290,7 @@ def post_shadow_correlate(
     url: str,
     events: List[Dict[str, Any]],
     ssl_context: ssl.SSLContext | None = None,
-) -> Optional[Dict[str, Any]]:
+) -> Any:
     try:
         body = json.dumps(events).encode("utf-8")
         req = urllib.request.Request(
@@ -285,18 +300,66 @@ def post_shadow_correlate(
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=30, context=ssl_context) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:
-        return {"error": str(exc), "shadow_alerts": [], "alert_count": 0}
+            raw = resp.read(MAX_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_RESPONSE_BYTES:
+                raise ReplayEvidenceError("HTTP response exceeds the validation size limit")
+            if resp.status != 200:
+                raise ReplayEvidenceError(f"Shadow evaluation returned HTTP {resp.status}")
+            return json.loads(raw)
+    except urllib.error.HTTPError as exc:
+        raise ReplayEvidenceError(f"Shadow evaluation returned HTTP {exc.code}") from exc
+    except (OSError, http.client.HTTPException, UnicodeError, json.JSONDecodeError) as exc:
+        raise ReplayEvidenceError("Shadow evaluation returned no readable response") from exc
+
+
+def validate_live_response(response: Any, submitted: int) -> List[Dict[str, Any]]:
+    if not isinstance(response, dict) or response.get("error"):
+        raise ReplayEvidenceError("Invalid shadow evaluation response")
+    if response.get("shadow_mode") is not True or response.get("topic") != SHADOW_TOPIC:
+        raise ReplayEvidenceError("Response does not identify the endpoint advisory topic and shadow mode")
+    if type(response.get("events")) is not int or response["events"] != submitted:
+        raise ReplayEvidenceError("Service did not acknowledge the full fixture")
+
+    alerts = response.get("shadow_alerts")
+    count = response.get("alert_count")
+    if "shadow_alerts" in response and alerts is None and type(count) is int and count == 0:
+        alerts = []  # A Go nil slice can be serialized as null for zero alerts.
+    if not isinstance(alerts, list) or type(count) is not int or count != len(alerts):
+        raise ReplayEvidenceError("Invalid shadow alert collection or count")
+    if any(not isinstance(alert, dict) or not isinstance(alert.get("alert_id"), str)
+           or not alert["alert_id"] or not isinstance(alert.get("trace_id"), str) for alert in alerts):
+        raise ReplayEvidenceError("Shadow alert identity or trace has an invalid shape")
+    return alerts
+
+
+def collect_fixture_alerts(
+    events: List[Dict[str, Any]],
+    args: argparse.Namespace,
+    ssl_context: ssl.SSLContext | None,
+    result: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    if not args.use_correlation_service:
+        result["simulated"] = True
+        return simulate_shadow_rules(events)
+
+    response = post_shadow_correlate(args.correlation_url, events, ssl_context=ssl_context)
+    alerts = validate_live_response(response, len(events))
+    result["service_response"] = {key: response[key] for key in ("events", "alert_count", "shadow_mode", "topic")}
+    return alerts
 
 
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
 
+def has_rule_id(alert: Dict[str, Any]) -> bool:
+    rule_id = alert.get("rule_id")
+    return isinstance(rule_id, str) and bool(rule_id.strip())
+
+
 def validate_alert_shape(alert: Dict[str, Any], fixture_name: str) -> List[str]:
     failures = []
-    if not alert.get("rule_id"):
+    if not has_rule_id(alert):
         failures.append(f"{fixture_name}: alert missing rule_id")
     if alert.get("shadow_mode") is not True:
         failures.append(f"{fixture_name}: alert shadow_mode != true (got {alert.get('shadow_mode')!r})")
@@ -306,16 +369,13 @@ def validate_alert_shape(alert: Dict[str, Any], fixture_name: str) -> List[str]:
 def check_trace_id_propagation(
     events: List[Dict[str, Any]], alerts: List[Dict[str, Any]], fixture_name: str
 ) -> Tuple[bool, Optional[str]]:
-    """Verify that at least one alert carries the trace_id from the events."""
+    """Verify that every alert carries a trace from the fixture."""
     if not alerts:
         return True, None
     event_trace_ids = {ev.get("trace_id") for ev in events if ev.get("trace_id")}
-    if not event_trace_ids:
+    if event_trace_ids and all(alert.get("trace_id") in event_trace_ids for alert in alerts):
         return True, None
-    for alert in alerts:
-        if alert.get("trace_id") in event_trace_ids:
-            return True, None
-    return False, f"{fixture_name}: no alert carries trace_id from events (event trace_ids={event_trace_ids})"
+    return False, f"{fixture_name}: at least one alert lacks a matching fixture trace"
 
 
 def check_no_duplicates(alerts: List[Dict[str, Any]], fixture_name: str) -> Tuple[bool, Optional[str]]:
@@ -342,14 +402,16 @@ def check_no_duplicates(alerts: List[Dict[str, Any]], fixture_name: str) -> Tupl
 
 def load_fixtures(fixture_dir: Path) -> Dict[str, List[Dict[str, Any]]]:
     fixtures: Dict[str, List[Dict[str, Any]]] = {}
-    if not fixture_dir.exists():
-        return fixtures
     for path in sorted(fixture_dir.glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            fixtures[path.stem] = data if isinstance(data, list) else [data]
-        except Exception:
-            pass
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ReplayEvidenceError(f"Could not read fixture {path.name}") from exc
+        events = data if isinstance(data, list) else [data]
+        if not events or any(not isinstance(event, dict) or not isinstance(event.get("trace_id"), str)
+                             or not event["trace_id"] for event in events):
+            raise ReplayEvidenceError(f"Fixture {path.name} must contain nonempty event objects with trace IDs")
+        fixtures[path.stem] = events
     return fixtures
 
 
@@ -369,34 +431,55 @@ def main(args: argparse.Namespace | None = None) -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "correlation_url": args.correlation_url,
         "correlation_mtls_enabled": bool(correlation_ssl_context),
+        "verification_mode": "live_http_fixture_replay" if args.use_correlation_service else "offline_simulation",
+        "promotion_evidence": False,
+        "broker_isolation": "not_measured",
         "checks": {},
         "benign_results": [],
         "suspicious_results": [],
+        "suspicious_skipped": [],
         "all_failures": [],
         "errors": [],
     }
 
-    benign_fixtures = load_fixtures(benign_dir)
-    suspicious_fixtures = load_fixtures(suspicious_dir)
-
-    if not benign_fixtures and not suspicious_fixtures:
-        report["errors"].append("No fixtures found in benign or suspicious directories")
+    try:
+        benign_fixtures = load_fixtures(benign_dir)
+        suspicious_fixtures = load_fixtures(suspicious_dir)
+        if not benign_fixtures or not suspicious_fixtures:
+            raise ReplayEvidenceError("Both benign and suspicious fixture sets are required")
+        known_rules = EXPECTED_RULES | LIVE_ONLY_EXPECTED_RULES
+        unknown = sorted(suspicious_fixtures.keys() - known_rules.keys())
+        if unknown:
+            raise ReplayEvidenceError(f"Suspicious fixtures without rule expectations: {', '.join(unknown)}")
+        if suspicious_dir == root / "tests/fixtures/endpoint_shadow/suspicious":
+            missing = sorted(known_rules.keys() - suspicious_fixtures.keys())
+            if missing:
+                raise ReplayEvidenceError(f"Missing default suspicious fixtures: {', '.join(missing)}")
+        if not args.use_correlation_service:
+            report["suspicious_skipped"] = sorted(suspicious_fixtures.keys() & LIVE_ONLY_EXPECTED_RULES.keys())
+            suspicious_fixtures = {
+                name: events for name, events in suspicious_fixtures.items() if name in EXPECTED_RULES
+            }
+            if not suspicious_fixtures:
+                raise ReplayEvidenceError("No selected suspicious fixture is supported by offline simulation")
+    except ReplayEvidenceError as exc:
+        report["errors"].append(str(exc))
         report["validation_status"] = "FAIL"
         _write(report, root / args.output)
-        print(f"output={root / args.output}")
-        print("status=FAIL  no fixtures loaded")
+        print(f"status=FAIL  {exc}")
         return 2
 
-    service_available = False
     if args.use_correlation_service:
         service_available = correlation_health(
             args.correlation_url, ssl_context=correlation_ssl_context
         )
         report["correlation_service_available"] = service_available
         if not service_available:
-            report["errors"].append(
-                f"correlation service at {args.correlation_url} not available — using local simulation"
-            )
+            report["errors"].append("Correlation service unavailable; no live fixtures were evaluated")
+            report["validation_status"] = "FAIL"
+            _write(report, root / args.output)
+            print("status=FAIL  correlation service unavailable; no simulation fallback")
+            return 2
 
     all_failures: List[str] = []
 
@@ -404,15 +487,15 @@ def main(args: argparse.Namespace | None = None) -> int:
     benign_ok = True
     for name, events in benign_fixtures.items():
         result: Dict[str, Any] = {"fixture": name, "expected_alerts": 0}
-        if service_available:
-            resp = post_shadow_correlate(
-                args.correlation_url, events, ssl_context=correlation_ssl_context
-            )
-            alerts = resp.get("shadow_alerts", []) if resp else []
-            result["service_response"] = resp
-        else:
-            alerts = simulate_shadow_rules(events)
-            result["simulated"] = True
+        try:
+            alerts = collect_fixture_alerts(events, args, correlation_ssl_context, result)
+        except ReplayEvidenceError as exc:
+            msg = f"{name}: {exc}"
+            all_failures.append(msg)
+            result.update(ok=False, failure=msg)
+            report["benign_results"].append(result)
+            benign_ok = False
+            continue
         result["alert_count"] = len(alerts)
         result["ok"] = len(alerts) == 0
         if not result["ok"]:
@@ -429,30 +512,28 @@ def main(args: argparse.Namespace | None = None) -> int:
     all_have_rule_id = True
     trace_id_ok = True
     no_dup_ok = True
+    all_suspicious_evaluated = True
 
     for name, events in suspicious_fixtures.items():
-        expected_rule = EXPECTED_RULES.get(name)
+        expected_rule = known_rules[name]
         result = {"fixture": name, "expected_rule": expected_rule}
 
-        if service_available:
-            resp = post_shadow_correlate(
-                args.correlation_url, events, ssl_context=correlation_ssl_context
-            )
-            alerts = resp.get("shadow_alerts", []) if resp else []
-            result["service_response"] = {
-                "alert_count": resp.get("alert_count") if resp else 0,
-                "shadow_mode": resp.get("shadow_mode"),
-                "topic": resp.get("topic"),
-            }
-        else:
-            alerts = simulate_shadow_rules(events)
-            result["simulated"] = True
+        try:
+            alerts = collect_fixture_alerts(events, args, correlation_ssl_context, result)
+        except ReplayEvidenceError as exc:
+            msg = f"{name}: {exc}"
+            all_failures.append(msg)
+            result.update(ok=False, failure=msg)
+            report["suspicious_results"].append(result)
+            suspicious_ok = False
+            all_suspicious_evaluated = False
+            continue
 
         result["alert_count"] = len(alerts)
         result["rule_ids_found"] = [a.get("rule_id") for a in alerts]
 
         # Check expected alert produced
-        found_expected = expected_rule and any(a.get("rule_id") == expected_rule for a in alerts)
+        found_expected = any(a.get("rule_id") == expected_rule for a in alerts)
         result["expected_rule_found"] = found_expected
         if not found_expected and expected_rule:
             msg = f"{name}: expected rule '{expected_rule}' not in alerts {result['rule_ids_found']}"
@@ -466,7 +547,7 @@ def main(args: argparse.Namespace | None = None) -> int:
             shape_failures.extend(validate_alert_shape(alert, name))
             if alert.get("shadow_mode") is not True:
                 all_shadow_mode = False
-            if not alert.get("rule_id"):
+            if not has_rule_id(alert):
                 all_have_rule_id = False
         all_failures.extend(shape_failures)
         result["shape_failures"] = shape_failures
@@ -487,18 +568,19 @@ def main(args: argparse.Namespace | None = None) -> int:
                 all_failures.append(msg)
                 result["duplicate_failure"] = msg
 
-        result["ok"] = found_expected and not shape_failures
+        result["ok"] = found_expected and not shape_failures and not any(
+            key in result for key in ("trace_id_failure", "duplicate_failure")
+        )
         report["suspicious_results"].append(result)
 
     # ---- Aggregate checks ----
     report["checks"] = {
         "benign_fixtures_produce_no_alerts": benign_ok,
         "suspicious_fixtures_produce_expected_alerts": suspicious_ok,
-        "all_alerts_shadow_mode": all_shadow_mode,
-        "all_alerts_have_rule_id": all_have_rule_id,
-        "trace_id_propagated": trace_id_ok,
-        "no_duplicate_alert_ids": no_dup_ok,
-        "no_active_incident_activation": True,  # enforced by shadow_mode=true and separate topic
+        "all_alerts_shadow_mode": all_shadow_mode if all_suspicious_evaluated else None,
+        "all_alerts_have_rule_id": all_have_rule_id if all_suspicious_evaluated else None,
+        "trace_id_propagated": trace_id_ok if all_suspicious_evaluated else None,
+        "no_duplicate_alert_ids": no_dup_ok if all_suspicious_evaluated else None,
     }
     report["all_failures"] = all_failures
     report["summary"] = {
@@ -506,6 +588,7 @@ def main(args: argparse.Namespace | None = None) -> int:
         "suspicious_fixtures": len(suspicious_fixtures),
         "benign_passed": sum(1 for r in report["benign_results"] if r.get("ok")),
         "suspicious_passed": sum(1 for r in report["suspicious_results"] if r.get("ok")),
+        "suspicious_skipped": len(report["suspicious_skipped"]),
         "total_failures": len(all_failures),
     }
     report["validation_status"] = "PASS" if all(report["checks"].values()) else "FAIL"
@@ -513,12 +596,13 @@ def main(args: argparse.Namespace | None = None) -> int:
     _write(report, root / args.output)
     print(f"output={root / args.output}")
     print(
-        "status={status} benign={b_ok}/{b_total} suspicious={s_ok}/{s_total} failures={failures}".format(
+        "status={status} benign={b_ok}/{b_total} suspicious={s_ok}/{s_total} skipped={skipped} failures={failures}".format(
             status=report["validation_status"],
             b_ok=report["summary"]["benign_passed"],
             b_total=report["summary"]["benign_fixtures"],
             s_ok=report["summary"]["suspicious_passed"],
             s_total=report["summary"]["suspicious_fixtures"],
+            skipped=report["summary"]["suspicious_skipped"],
             failures=report["summary"]["total_failures"],
         )
     )
