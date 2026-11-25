@@ -7,6 +7,7 @@ use App\Models\BaselineObservation;
 use App\Models\EntityBehaviorBaseline;
 use App\Models\PeerGroupProfile;
 use App\Models\User;
+use App\Services\TenantContextAuthority;
 use App\Services\UEBABaselineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -589,7 +590,8 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_detect_api_includes_advisory_fields(): void
     {
         $user = $this->analyst();
-        $this->actingAs($user);
+        app(TenantContextAuthority::class)->grantMembership($user->id, 'tenant-demo', $this->admin()->id);
+        $this->actingAs($user)->withHeader('X-Tenant-ID', 'tenant-demo');
 
         $response = $this->postJson('/api/ueba/detect', [
             'entity_key' => 'testuser@example.com',
@@ -605,7 +607,8 @@ class UEBABaselineAnalyticsTest extends TestCase
     public function test_ueba_detect_api_disclaimer_is_present(): void
     {
         $user = $this->analyst();
-        $this->actingAs($user);
+        app(TenantContextAuthority::class)->grantMembership($user->id, 'tenant-demo', $this->admin()->id);
+        $this->actingAs($user)->withHeader('X-Tenant-ID', 'tenant-demo');
 
         $response = $this->postJson('/api/ueba/detect', [
             'entity_key' => 'testhost',

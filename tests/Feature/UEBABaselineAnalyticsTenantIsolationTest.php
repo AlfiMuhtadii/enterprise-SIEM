@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\BaselineAnomalyScore;
+use App\Models\EndpointStreamEvent;
 use App\Models\PeerGroupProfile;
 use App\Models\User;
 use App\Services\TenantContextAuthority;
@@ -18,11 +20,6 @@ use Tests\TestCase;
  * deriveGroupKey()'s global keys (e.g. "user_role:admin") meant two
  * tenants' admin users shared the exact same peer group — mixing
  * behavioral baselines and leaking anomaly footprints across tenants.
- *
- * Bounded scope: collectCurrentObservations() (used internally by
- * detectAnomalies()) is deliberately NOT tenant-scoped — its source
- * tables (identity_provider_events, saas_audit_events, endpoint_agents,
- * etc.) have no tenant_id column at all, a documented residual gap.
  */
 class UEBABaselineAnalyticsTenantIsolationTest extends TestCase
 {
@@ -39,6 +36,119 @@ class UEBABaselineAnalyticsTenantIsolationTest extends TestCase
     private function admin(): User
     {
         return User::factory()->create(['role' => 'admin']);
+    }
+
+    private function addBaseline(string $key, string $type, string $dimension, ?string $tenantId): void
+    {
+        foreach ([1.0, 2.0, 3.0, 4.0, 5.0] as $value) {
+            $this->svc->recordObservation($key, $type, $dimension, $value, tenantId: $tenantId);
+        }
+        $this->assertNotNull($this->svc->computeBaseline($key, $type, $dimension, $tenantId));
+    }
+
+    private function addEndpointObservation(string $agentId, ?string $tenantId, int $count): void
+    {
+        $now = now();
+        $id = DB::table('endpoint_agents')->insertGetId([
+            'agent_id' => $agentId, 'host_fingerprint' => $agentId, 'host_id' => 'shared-host',
+            'hostname' => 'shared-host', 'tenant_id' => $tenantId,
+        ]);
+        $snapshotId = DB::table('endpoint_process_snapshots')->insertGetId([
+            'snapshot_id' => 'snapshot-'.$agentId, 'agent_id' => $id, 'collected_at' => $now,
+        ]);
+        for ($i = 1; $i <= $count; $i++) {
+            DB::table('endpoint_process_entries')->insert([
+                'snapshot_id' => $snapshotId, 'agent_id' => $id, 'created_at' => $now,
+            ]);
+            DB::table('endpoint_behavioral_findings')->insert([
+                'finding_id' => "finding-{$agentId}-{$i}", 'agent_id' => $id, 'finding_type' => 'test-observation',
+                'severity' => 'low', 'confidence' => 0.80, 'title' => 'Test observation',
+                'detected_at' => $now, 'created_at' => $now,
+            ]);
+            DB::table('endpoint_stream_events')->insert([
+                'event_id' => "stream-{$agentId}-{$i}", 'agent_id' => $agentId, 'host_id' => 'shared-host',
+                'event_type' => EndpointStreamEvent::TYPE_OUTBOUND_CONNECTION_OPENED, 'sequence_id' => $i,
+                'occurred_at' => $now, 'connection_dest' => "destination-{$agentId}-{$i}.test",
+            ]);
+        }
+    }
+
+    public function test_live_endpoint_dimensions_are_scoped_by_agent_ownership(): void
+    {
+        $this->addEndpointObservation('other', 'tenant-b', 5);
+        $this->addEndpointObservation('own-first', 'tenant-a', 2);
+        $this->addEndpointObservation('own-second', 'tenant-a', 1);
+        $this->addEndpointObservation('legacy', null, 4);
+        DB::table('endpoint_stream_events')->insert([
+            'event_id' => 'unregistered-label', 'agent_id' => 'unregistered', 'host_id' => 'shared-host',
+            'event_type' => EndpointStreamEvent::TYPE_OUTBOUND_CONNECTION_OPENED, 'sequence_id' => 1,
+            'occurred_at' => now(), 'connection_dest' => 'unregistered.test',
+        ]);
+
+        $dimensions = ['process_execution_frequency', 'host_usage', 'network_destination_frequency'];
+        foreach (['tenant-a', null] as $tenantId) {
+            foreach ($dimensions as $dimension) {
+                $this->addBaseline('shared-host', 'host', $dimension, $tenantId);
+            }
+            $this->svc->detectAnomalies('shared-host', 'host', $tenantId);
+            $scores = BaselineAnomalyScore::where('entity_key', 'shared-host')->where('tenant_id', $tenantId)->get();
+            $this->assertEqualsCanonicalizing($dimensions, $scores->pluck('dimension')->all());
+            foreach ($scores as $score) {
+                $this->assertEquals($tenantId === null ? 4 : 3, $score->observed_value);
+                $this->assertTrue($score->is_advisory);
+                $this->assertFalse($score->acted_on);
+            }
+        }
+    }
+
+    public function test_scoped_user_detection_reports_excluded_unowned_identity_and_saas_inputs(): void
+    {
+        $key = 'shared-user@example.test';
+        $integration = DB::table('external_integrations')->insertGetId([
+            'integration_id' => 'legacy-provider', 'integration_type' => 'idp',
+            'provider' => 'legacy-provider', 'name' => 'Legacy',
+        ]);
+        DB::table('identity_provider_events')->insert([
+            'event_id' => 'identity-1', 'integration_id' => $integration,
+            'provider' => 'legacy-provider', 'event_type' => 'login', 'user_email' => $key, 'occurred_at' => now(),
+        ]);
+        DB::table('saas_audit_events')->insert([
+            'event_id' => 'saas-1', 'integration_id' => $integration,
+            'provider' => 'legacy-provider', 'action' => 'view_file', 'actor_email' => $key, 'occurred_at' => now(),
+        ]);
+        foreach (['login_frequency', 'saas_action_frequency'] as $dimension) {
+            $this->addBaseline($key, 'user', $dimension, 'tenant-a');
+            $this->addBaseline($key, 'user', $dimension, null);
+        }
+
+        $admin = $this->admin();
+        $user = User::factory()->create(['role' => 'analyst']);
+        app(TenantContextAuthority::class)->grantMembership($user->id, 'tenant-a', $admin->id);
+        $body = ['entity_key' => $key, 'entity_type' => 'user'];
+        $this->actingAs($user)
+            ->postJson(route('api.ueba.detect'), $body)
+            ->assertForbidden();
+        $this->assertDatabaseMissing('baseline_anomaly_scores', ['entity_key' => $key]);
+
+        $this
+            ->withHeader('X-Tenant-ID', 'tenant-a')
+            ->postJson(route('api.ueba.detect'), $body)
+            ->assertOk()
+            ->assertJsonPath('current_observation_status', 'unattributed_sources_excluded')
+            ->assertJsonPath('anomalies_detected', 0)
+            ->assertJsonPath('autonomous_action', false);
+        $this->assertDatabaseMissing('baseline_anomaly_scores', ['entity_key' => $key, 'tenant_id' => 'tenant-a']);
+
+        $this->actingAs($admin)
+            ->withHeader('X-Tenant-ID', TenantContextAuthority::GLOBAL_SCOPE)
+            ->postJson(route('api.ueba.detect'), $body)
+            ->assertOk()
+            ->assertJsonPath('current_observation_status', 'legacy_unscoped');
+        foreach (['login_frequency', 'saas_action_frequency'] as $dimension) {
+            $this->assertDatabaseHas('baseline_anomaly_scores', [
+                'entity_key' => $key, 'tenant_id' => null, 'dimension' => $dimension, 'observed_value' => 1,
+            ]);
+        }
     }
 
     public function test_baseline_computation_is_isolated_per_tenant(): void

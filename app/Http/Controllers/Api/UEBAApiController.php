@@ -136,21 +136,33 @@ class UEBAApiController extends Controller
             'entity_type' => 'required|in:user,host,ip,domain,process',
         ]);
 
-        $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user());
+        $user = $request->user();
+        $tenantId = $this->tenantAuthority->validateAndResolve(
+            $request, $user, requireTenantContext: true, requireExplicitScope: true
+        );
+        abort_if($tenantId === null && !$this->tenantAuthority->isAdminBypass($user), 403, 'Tenant context required for detection.');
+        $entityType = $request->input('entity_type');
         $scores = $this->uebaService->detectAnomalies(
             $request->input('entity_key'),
-            $request->input('entity_type'),
+            $entityType,
             $tenantId
         );
 
-        return response()->json([
+        $result = [
             'ok'                  => true,
             'advisory_only'       => true,
             'autonomous_action'   => false,
             'anomalies_detected'  => $scores->count(),
             'scores'              => $scores->values(),
             'disclaimer'          => 'Behavioral analytics are advisory-only and explainable. No automatic enforcement is executed.',
-        ]);
+        ];
+        if ($entityType === 'user') {
+            $result['current_observation_status'] = $tenantId === null
+                ? 'legacy_unscoped'
+                : 'unattributed_sources_excluded';
+        }
+
+        return response()->json($result);
     }
 
     public function computeBaseline(Request $request): JsonResponse

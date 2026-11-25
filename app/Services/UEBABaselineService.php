@@ -298,7 +298,7 @@ class UEBABaselineService
         $scores = collect();
 
         // Collect current observed values from recent activity
-        $observed = $this->collectCurrentObservations($entityKey, $entityType);
+        $observed = $this->collectCurrentObservations($entityKey, $entityType, $tenantId);
 
         foreach ($observed as $dimension => $value) {
             $score = $this->scoreAnomaly($entityKey, $entityType, $dimension, $value, [], [], null, $tenantId);
@@ -585,23 +585,17 @@ class UEBABaselineService
      * Uses last 24h window for current-state comparison.
      * Degrades gracefully if a source table is unavailable or has no matching column.
      *
-     * ENT-TENANCY-UEBA: deliberately NOT tenant-scoped. Its source tables
-     * (identity_provider_events, saas_audit_events, endpoint_agents,
-     * endpoint_process_entries, endpoint_behavioral_findings,
-     * endpoint_stream_events) have no tenant_id column at all — scoping
-     * this method would require new migrations across a half-dozen
-     * unrelated tables, out of bounds for this task. Documented residual
-     * gap: a same-keyed entity's "current" observation window can still
-     * include another tenant's activity, even though the resulting
-     * baseline/score persisted from it is correctly tenant-tagged.
+     * Endpoint records inherit scope from the enrolled agent, not the host label.
+     * The legacy identity/SaaS integrations have no tenant ownership metadata;
+     * keep those sources out of tenant-scoped scoring.
      */
-    private function collectCurrentObservations(string $entityKey, string $entityType): array
+    private function collectCurrentObservations(string $entityKey, string $entityType, ?string $tenantId): array
     {
         $since    = now()->subDay();
         $observed = [];
 
         try {
-            if ($entityType === 'user') {
+            if ($entityType === 'user' && $tenantId === null) {
                 // login_frequency: logins in last 24h
                 $loginCount = DB::table('identity_provider_events')
                     ->where('user_email', $entityKey)
@@ -644,31 +638,32 @@ class UEBABaselineService
         try {
             if ($entityType === 'host' || $entityType === 'ip') {
                 // process_execution_frequency: processes started on this host
-                // Use subquery to avoid ambiguous 'created_at' in JOIN
-                $agentId = DB::table('endpoint_agents')
-                    ->where('hostname', $entityKey)->value('id');
-                if ($agentId) {
-                    $procCount = DB::table('endpoint_process_entries')
-                        ->where('agent_id', $agentId)
-                        ->where('endpoint_process_entries.created_at', '>=', $since)
-                        ->count();
-                    if ($procCount > 0) {
-                        $observed['process_execution_frequency'] = (float) $procCount;
-                    }
+                $agents = DB::table('endpoint_agents')
+                    ->where('tenant_id', $tenantId)
+                    ->where(fn ($q) => $q->where('hostname', $entityKey)
+                        ->orWhere(fn ($q) => $q->whereNull('hostname')->where('agent_id', $entityKey)));
+                $agentIds = (clone $agents)->select('id');
+                $procCount = DB::table('endpoint_process_entries')
+                    ->whereIn('agent_id', $agentIds)
+                    ->where('created_at', '>=', $since)
+                    ->count();
+                if ($procCount > 0) {
+                    $observed['process_execution_frequency'] = (float) $procCount;
+                }
 
-                    // host_usage: behavioral finding frequency
-                    $findingCount = DB::table('endpoint_behavioral_findings')
-                        ->where('agent_id', $agentId)
-                        ->where('endpoint_behavioral_findings.created_at', '>=', $since)
-                        ->count();
-                    if ($findingCount > 0) {
-                        $observed['host_usage'] = (float) $findingCount;
-                    }
+                // host_usage: behavioral finding frequency
+                $findingCount = DB::table('endpoint_behavioral_findings')
+                    ->whereIn('agent_id', $agentIds)
+                    ->where('created_at', '>=', $since)
+                    ->count();
+                if ($findingCount > 0) {
+                    $observed['host_usage'] = (float) $findingCount;
                 }
 
                 // network_destination_frequency: distinct outbound destinations
                 $destCount = DB::table('endpoint_stream_events')
                     ->where('host_id', $entityKey)
+                    ->whereIn('agent_id', $agents->select('agent_id'))
                     ->where('occurred_at', '>=', $since)
                     ->where('event_type', EndpointStreamEvent::TYPE_OUTBOUND_CONNECTION_OPENED)
                     ->distinct()->count('connection_dest');

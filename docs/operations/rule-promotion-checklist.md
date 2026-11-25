@@ -128,6 +128,15 @@ bounded to 256 entries each; a truncated list is incomplete even when the
 aggregate counted more contributors. Complete
 lineage alone does not verify representative telemetry or a live soak.
 
+UEBA current endpoint observations resolve tenant ownership through the enrolled
+agent rather than matching a hostname across tenants. Tenant-scoped user
+detection excludes identity and SaaS integrations without tenant attribution;
+an API result of `unattributed_sources_excluded` is not evidence of a clean
+observation window. Detection requires tenant context for non-admins. The
+admin-only `legacy_unscoped` user scores and historical scores computed before
+this isolation are not proof of tenant-scoped activity. This control does not
+establish a UEBA Kafka producer or a live soak.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`
