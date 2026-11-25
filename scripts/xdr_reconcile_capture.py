@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare independent source events with explicitly bounded, read-only Kafka ranges."""
+"""Check independent source events against bounded raw and optional normalized Kafka ranges."""
 
 from __future__ import annotations
 
@@ -56,6 +56,13 @@ class Scope:
         return event.get("tenant_id") == self.tenant_id and event.get("telemetry_type") == self.telemetry_type
 
 
+@dataclass(frozen=True)
+class CaptureRecord:
+    payload_sha256: str
+    trace_id: str
+    observed_timestamp: str
+
+
 def unique_keys(pairs):
     result = {}
     for key, value in pairs:
@@ -108,6 +115,21 @@ def parse_range(value: str) -> OffsetRange:
     if partition > 2**31 - 1 or end > 2**63 - 1 or not 1 <= end - start <= MAX_RECORDS:
         raise InvalidEvidence("Offset range is invalid or exceeds the record limit")
     return OffsetRange(partition, start, end)
+
+
+def read_ranges(values: list[str]) -> list[OffsetRange]:
+    if len(values) > 8:
+        raise InvalidEvidence("Use at most eight partitions per topic")
+    ranges = [parse_range(value) for value in values]
+    if (len({span.partition for span in ranges}) != len(ranges)
+            or sum(span.end_exclusive - span.start for span in ranges) > MAX_RECORDS):
+        raise InvalidEvidence("Use distinct partitions within the bounded record limit")
+    return ranges
+
+
+def validate_topic(topic: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,248}", topic):
+        raise InvalidEvidence("Invalid broker topic name")
 
 
 def read_scope(args) -> tuple[Scope, str]:
@@ -168,7 +190,7 @@ def payload_digest(event: dict) -> str:
     return hashlib.sha256(wire.encode("ascii")).hexdigest()
 
 
-def read_capture(path: Path, scope: Scope) -> tuple[dict[str, str], str]:
+def read_capture(path: Path, scope: Scope) -> tuple[dict[str, CaptureRecord], str]:
     data = read_bounded(path, MAX_CAPTURE_BYTES)
     expected = {}
     for line in data.splitlines():
@@ -180,17 +202,18 @@ def read_capture(path: Path, scope: Scope) -> tuple[dict[str, str], str]:
         if not valid_id(event.get("trace_id")) or rehearsal(event) or "capture_admission" in event:
             raise InvalidEvidence("Capture must be pre-ingestion, traced, and not marked rehearsal")
         event_id = event["event_id"]
-        if event_id in expected or len(expected) >= MAX_RECORDS or not scope.includes(utc_timestamp(event.get("ts"))):
+        observed_at = utc_timestamp(event.get("ts"))
+        if event_id in expected or len(expected) >= MAX_RECORDS or not scope.includes(observed_at):
             raise InvalidEvidence("Duplicate, out-of-window, or excessive capture records")
-        expected[event_id] = payload_digest(event)
+        expected[event_id] = CaptureRecord(payload_digest(event), event["trace_id"], event["ts"])
     if not expected:
         raise InvalidEvidence("No eligible records in independent capture")
     return expected, hashlib.sha256(data).hexdigest()
 
 
-def broker_records(topic: str, ranges: list[OffsetRange]):
+def broker_records(topic: str, ranges: list[OffsetRange], *, port: int = 8082):
     """Use direct partition GETs, never the consumer group API."""
-    client = http.client.HTTPConnection("127.0.0.1", 8082, timeout=5)
+    client = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     deadline = time.monotonic() + 60
     try:
         for span in ranges:
@@ -229,7 +252,7 @@ def admitted_by(event: dict, scope: Scope) -> bool:
     return isinstance(stamp, dict) and stamp.get("method") == "verified_mtls" and stamp.get("source_id") == scope.source_id
 
 
-def reconcile(expected: dict[str, str], records, scope: Scope) -> dict:
+def reconcile(expected: dict[str, CaptureRecord], records, scope: Scope) -> dict:
     seen = Counter()
     outcomes = {}
     unrelated_scope = set()
@@ -253,7 +276,7 @@ def reconcile(expected: dict[str, str], records, scope: Scope) -> dict:
             outcomes[event_id] = "rehearsal"
         elif not admitted_by(event, scope):
             outcomes[event_id] = "missing_admission"
-        elif payload_digest(event) != expected[event_id]:
+        elif payload_digest(event) != expected[event_id].payload_sha256:
             outcomes[event_id] = "payload_mismatch"
         else:
             received = utc_timestamp(event["capture_admission"].get("received_at"))
@@ -272,6 +295,40 @@ def reconcile(expected: dict[str, str], records, scope: Scope) -> dict:
     return dict(counts)
 
 
+def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Scope) -> dict:
+    seen = Counter()
+    outcomes = {}
+    unrelated_scope = set()
+    for event in records:
+        raw_id = event.get("raw_event_id")
+        normalized_id = event.get("normalized_event_id")
+        # Check either ID so a row with only one intact ID is a mismatch, not missing.
+        ids = {value for value in (raw_id, normalized_id) if isinstance(value, str) and value in expected}
+        if not scope.matches(event):
+            unrelated_scope.update(ids)
+            continue
+        for event_id in ids:
+            seen[event_id] += 1
+            source = expected[event_id]
+            if rehearsal(event):
+                outcomes[event_id] = "rehearsal"
+            elif raw_id != event_id or normalized_id != event_id or event.get("trace_id") != source.trace_id:
+                outcomes[event_id] = "lineage_mismatch"
+            elif event.get("ts") != source.observed_timestamp:
+                outcomes[event_id] = "timestamp_mismatch"
+            else:
+                outcomes[event_id] = "matched"
+    counts = Counter()
+    for event_id in expected:
+        if seen[event_id] > 1:
+            counts["duplicate"] += 1
+        elif event_id in outcomes:
+            counts[outcomes[event_id]] += 1
+        else:
+            counts["scope_mismatch" if event_id in unrelated_scope else "missing"] += 1
+    return dict(counts)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture", required=True, type=Path, help="JSONL retained at source before publication")
@@ -283,28 +340,48 @@ def main(argv=None) -> int:
     parser.add_argument("--window-end", required=True)
     parser.add_argument("--topic", default="telemetry.raw")
     parser.add_argument("--range", dest="ranges", required=True, action="append", help="PARTITION:START:END_EXCLUSIVE")
+    parser.add_argument("--normalized-topic", default="telemetry.normalized")
+    parser.add_argument("--normalized-range", action="append", default=[], help="PARTITION:START:END_EXCLUSIVE")
+    parser.add_argument("--broker-port", type=int, default=8082, help="Local broker HTTP proxy port")
     args = parser.parse_args(argv)
     report = {"status": "ERROR", "promotion_evidence_verified": False, "representative_telemetry_verified": False}
     try:
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,248}", args.topic):
-            raise InvalidEvidence("Invalid broker topic name")
-        ranges = [parse_range(value) for value in args.ranges]
-        if (len(ranges) > 8 or len({span.partition for span in ranges}) != len(ranges)
-                or sum(span.end_exclusive - span.start for span in ranges) > MAX_RECORDS):
-            raise InvalidEvidence("Use distinct partitions within the bounded record limit")
+        if not 1 <= args.broker_port <= 65535:
+            raise InvalidEvidence("Invalid local broker port")
+        validate_topic(args.topic)
+        ranges = read_ranges(args.ranges)
+        normalized_ranges = read_ranges(args.normalized_range)
+        if normalized_ranges:
+            validate_topic(args.normalized_topic)
+            if args.normalized_topic == args.topic:
+                raise InvalidEvidence("Raw and normalized topics must differ")
         scope, registry_sha256 = read_scope(args)
         expected, capture_sha256 = read_capture(args.capture, scope)
-        with closing(broker_records(args.topic, ranges)) as records:
+        with closing(broker_records(args.topic, ranges, port=args.broker_port)) as records:
             counts = reconcile(expected, records, scope)
+        matched = counts.get("matched") == len(expected) and counts["unlisted"] == 0
         report.update(
-            status="MATCHED" if counts.get("matched") == len(expected) and counts["unlisted"] == 0 else "MISMATCH",
             source_id=scope.source_id, tenant_id=scope.tenant_id, telemetry_type=scope.telemetry_type,
             domain=scope.domain, window_start=scope.start.isoformat(), window_end=scope.end.isoformat(),
             capture_sha256=capture_sha256, capture_record_count=len(expected),
             registry_sha256=registry_sha256,
-            broker_topic=args.topic, ranges=[asdict(span) for span in ranges], counts=counts,
+            broker_port=args.broker_port, broker_topic=args.topic, ranges=[asdict(span) for span in ranges], counts=counts,
             verification_scope="specified_local_broker_offsets_only",
         )
+        if normalized_ranges:
+            normalized = {
+                "topic": args.normalized_topic,
+                "ranges": [asdict(span) for span in normalized_ranges],
+                "status": "SKIPPED_RAW_MISMATCH",
+            }
+            report["normalized_lineage"] = normalized
+            if matched:
+                normalized["status"] = "ERROR"
+                with closing(broker_records(args.normalized_topic, normalized_ranges, port=args.broker_port)) as records:
+                    normalized_counts = reconcile_normalized(expected, records, scope)
+                matched = normalized_counts.get("matched") == len(expected)
+                normalized.update(status="MATCHED" if matched else "MISMATCH", counts=normalized_counts)
+        report["status"] = "MATCHED" if matched else "MISMATCH"
     except InvalidEvidence as exc:
         report["error"] = str(exc)
     except (OSError, http.client.HTTPException, UnicodeError):

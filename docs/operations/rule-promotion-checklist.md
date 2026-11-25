@@ -86,17 +86,31 @@ python scripts/xdr_reconcile_capture.py `
     --capture approved-source-capture.jsonl --registry pilot-sources.json `
     --source-id pilot-endpoint-01 --domain endpoint --telemetry-type endpoint `
     --window-start 2026-01-01T00:00:00Z --window-end 2026-01-01T06:00:00Z `
-    --range 0:1200:1500
+    --range 0:1200:1500 --normalized-range 0:490:760
 ```
 
 Replace the example dates and offsets with the recorded UTC observation
 window and reviewed topic partitions. An offset range starts inclusively
-and ends exclusively. Repeated `--range` flags select distinct partitions.
+and ends exclusively. Repeated `--range` flags select distinct raw partitions;
+`--normalized-range` selects independently recorded offsets in
+`telemetry.normalized`. Do not reuse raw offsets on the normalized topic.
 The tool uses the [Redpanda partition read API](https://docs.redpanda.com/api/doc/http-proxy/operation/operation-get_topics_records)
 on the local loopback listener, without a consumer group or offset commits.
 Missing, changed, duplicate, or unlisted eligible records fail reconciliation.
 Observed and admitted timestamps must be in the window and within five minutes
 of each other. No event payloads or IDs are included in the report.
+
+For correlation-input lineage, require `normalized_lineage.status=MATCHED`.
+Without `--normalized-range`, the check stops at raw admission. With that
+option, each admitted source record must have a unique normalized output
+with the same tenant, telemetry type, raw and normalized event IDs, trace
+ID, and unchanged source timestamp. An unrelated normalized record is not evidence
+against the capture because the normalized stream can mix sources. A missing,
+rehearsed, duplicate, or altered matching output fails the combined check.
+This does not compare transformed payloads, prove that the correlation worker
+consumed the output, or certify the completeness of the supplied offsets.
+`--broker-port` may select an isolated local HTTP proxy; its host remains
+loopback.
 
 A `MATCHED` result is scoped to the supplied source files and requested
 offsets. Restrict Kafka writes to authorized infrastructure and retain the
