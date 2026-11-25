@@ -1,14 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-cyan-100 leading-tight">Real Domain Soak Execution Plan</h2>
-        <p class="text-xs text-amber-400/80 mt-1">ENTERPRISE-060 — Advisory-only. real_execution_gated = true. Run <code>php artisan soak:plan-review</code>.</p>
+        <h2 class="font-semibold text-xl text-cyan-100 leading-tight">Domain Soak Readiness</h2>
     </x-slot>
     <div class="py-6 px-4 max-w-7xl mx-auto space-y-4">
         <div class="rounded border border-amber-400/30 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
-            <strong>Advisory:</strong> Promotion remains BLOCKED for endpoint/network/threat-intel until real 6h soak PASS. Each phase requires explicit operator trigger. This plan is advisory-only.
+            <strong>Advisory diagnostics:</strong> No live soak or rule promotion is authorized by this plan.
         </div>
         {{-- Summary cards --}}
-        <div class="grid grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div class="glass-card p-4 text-center">
                 <div class="text-2xl font-bold text-white">{{ $plan['phases_total'] ?? 4 }}</div>
                 <div class="text-xs text-gray-400 mt-1">Phases</div>
@@ -18,8 +17,8 @@
                 <div class="text-xs text-gray-400 mt-1">Gates Passed</div>
             </div>
             <div class="glass-card p-4 text-center">
-                <div class="text-2xl font-bold {{ ($plan['overall_readiness'] ?? '') === 'READY_TO_SCHEDULE' ? 'text-green-400' : 'text-yellow-400' }}">
-                    {{ $plan['overall_readiness'] ?? 'NOT_RUN' }}
+                <div class="text-base font-semibold break-words {{ ($plan['overall_readiness'] ?? '') === 'DIAGNOSTIC_READY' ? 'text-green-400' : 'text-yellow-400' }}">
+                    {{ str_replace('_', ' ', $plan['overall_readiness'] ?? 'NOT_RUN') }}
                 </div>
                 <div class="text-xs text-gray-400 mt-1">Overall Readiness</div>
             </div>
@@ -31,17 +30,17 @@
         {{-- Phase cards --}}
         @if($phases->isEmpty())
             <div class="glass-card p-4 text-center text-gray-500 text-sm">
-                No plan run yet. Run <code class="text-cyan-400">php artisan soak:plan-review --dry-run</code> to evaluate gates.
+                No readiness review recorded.
             </div>
         @else
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid gap-4 md:grid-cols-2">
         @foreach($phases as $p)
             @php $p = (array) $p; $phaseGates = $gates->where('phase_number', $p['phase_number']); @endphp
             <div class="glass-card p-4 space-y-2">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="text-xs font-semibold text-cyan-300">Phase {{ $p['phase_number'] }}: {{ $p['phase_name'] ?? '' }}</span>
-                    <span class="text-xs px-2 py-0.5 rounded {{ ($p['readiness_status'] ?? '') === 'READY' ? 'bg-green-900/40 text-green-300' : (($p['readiness_status'] ?? '') === 'BLOCKED' ? 'bg-red-900/40 text-red-300' : 'bg-yellow-900/40 text-yellow-300') }}">
-                        {{ $p['readiness_status'] ?? '' }}
+                    <span class="text-xs px-2 py-0.5 rounded {{ ($p['readiness_status'] ?? '') === 'DIAGNOSTIC_READY' ? 'bg-green-900/40 text-green-300' : (($p['readiness_status'] ?? '') === 'BLOCKED' ? 'bg-red-900/40 text-red-300' : 'bg-yellow-900/40 text-yellow-300') }}">
+                        {{ str_replace('_', ' ', $p['readiness_status'] ?? '') }}
                     </span>
                 </div>
                 <p class="text-xs text-gray-400">{{ $p['rule_scope'] ?? '' }}</p>
@@ -63,13 +62,13 @@
         @endif
         {{-- Phase definitions (always visible) --}}
         <div class="glass-card p-4">
-            <h3 class="text-sm font-semibold text-cyan-300 mb-3">Phase Execution Guide</h3>
+            <h3 class="text-sm font-semibold text-cyan-300 mb-3">Phase Diagnostics</h3>
             <div class="space-y-3">
             @foreach($definitions as $num => $def)
                 <div class="border-b border-white/5 pb-2">
                     <div class="text-xs font-semibold text-white">Phase {{ $num }}: {{ $def['name'] }}</div>
                     <div class="text-xs text-gray-400 mt-1">{{ $def['purpose'] }}</div>
-                    <div class="text-xs text-cyan-400 font-mono mt-1">{{ $def['soak_command'] }}</div>
+                    <div class="text-xs text-cyan-400 font-mono break-words mt-1">{{ $def['diagnostic_command'] }}</div>
                 </div>
             @endforeach
             </div>

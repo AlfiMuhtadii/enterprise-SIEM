@@ -11,7 +11,7 @@ class SoakPlanReviewCommand extends Command
     protected $signature   = 'soak:plan-review
                               {--phase= : Focus on specific phase 1-4}
                               {--dry-run : Evaluate gates without persisting}';
-    protected $description = 'Display the real domain soak execution plan and evaluate pre-soak readiness gates.';
+    protected $description = 'Review advisory diagnostic readiness without scheduling or verifying a live soak.';
 
     public function __construct(private readonly RealDomainSoakPlanService $service)
     {
@@ -23,7 +23,7 @@ class SoakPlanReviewCommand extends Command
         $dryRun = (bool) $this->option('dry-run');
         $phase  = $this->option('phase') ? (int) $this->option('phase') : null;
 
-        $this->line('ENTERPRISE-060: Real Domain Soak Execution Plan');
+        $this->line('ENTERPRISE-060: Domain Soak Readiness');
         $this->line('ADVISORY_ONLY=true  REAL_EXECUTION_GATED=true');
         $this->line(str_repeat('-', 60));
 
@@ -31,6 +31,7 @@ class SoakPlanReviewCommand extends Command
         $plan   = $result['plan'];
         $phases = $result['phases'];
         $gates  = $result['gates'];
+        $definitions = $this->service->getPhaseDefinitions();
 
         $this->line("Overall readiness : {$plan['overall_readiness']}");
         $this->line("Gates passed      : {$plan['gates_passed']}/{$plan['total_gates']}");
@@ -43,6 +44,7 @@ class SoakPlanReviewCommand extends Command
             $this->line("  scope        : {$p['rule_scope']}");
             $this->line("  readiness    : {$p['readiness_status']}  ({$p['gates_passed']}/{$p['gates_total']} gates)");
             $this->line("  promo_gated  : true (real soak required before promotion)");
+            $this->line('  diagnostic   : ' . $definitions[$p['phase_number']]['diagnostic_command']);
 
             $phaseGates = array_filter($gates, fn ($g) => $g['phase_number'] === $p['phase_number']);
             foreach ($phaseGates as $g) {
@@ -58,7 +60,7 @@ class SoakPlanReviewCommand extends Command
         } else {
             $this->warn('Dry-run mode: plan not persisted.');
         }
-        $this->warn('Actual soak execution: .\\scripts\\run_xdr_correlation_soak_6h.ps1');
+        $this->warn('Diagnostic readiness is not authorization to schedule a live soak or promote rules.');
 
         return self::SUCCESS;
     }

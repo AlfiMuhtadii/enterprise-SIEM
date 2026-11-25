@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\SoakPlanRun;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -11,11 +10,8 @@ use Illuminate\Support\Str;
 /**
  * ENTERPRISE-060: Real Domain Soak Execution Plan
  *
- * Structures the 4-phase soak plan starting from the smallest/safest scope:
- *   Phase 1 — 12 staged_active empirical rules: live proof / soak repeat
- *   Phase 2 — top-12 shadow-ready rules: first real soak evidence
- *   Phase 3 — 12 tier_1 fixture-backed rules: replay validation
- *   Phase 4 — endpoint tier_1 next batch (requires Phase 1-3 complete)
+ * Plans checks and records advisory diagnostic readiness. This service
+ * never schedules a soak or treats fixture/rehearsal evidence as a live result.
  *
  * ADVISORY_ONLY = true.
  * REAL_EXECUTION_GATED = true — each phase requires explicit operator trigger.
@@ -27,34 +23,39 @@ class RealDomainSoakPlanService
     public const REAL_EXECUTION_GATED = true;
     public const PHASES_TOTAL         = 4;
 
+    private const READINESS_POLICY = 'diagnostics-v1';
+    private const DIAGNOSTIC_READY = 'DIAGNOSTIC_READY';
+
+    public function __construct(private readonly DomainSoakHarnessService $harness) {}
+
     private const PHASE_DEFINITIONS = [
         1 => [
-            'name'         => 'Staged-Active Empirical Rules — Live Proof Repeat',
+            'name'         => 'Staged-Active Baseline Diagnostics',
             'rule_scope'   => 'staged_active (identity/cloud/saas — 12 empirical rules)',
             'rule_count'   => 12,
-            'purpose'      => 'Re-confirm all 12 staged_active rules fire on live traffic after E056 fixture validation. Lowest risk — rules already active.',
-            'soak_command' => '.\\scripts\\run_xdr_correlation_soak_6h.ps1',
+            'purpose'      => 'Check the active correlation baseline. Fixture inventory is not a live result.',
+            'diagnostic_command' => 'php artisan xdr:strangler-status',
         ],
         2 => [
             'name'         => 'Top Shadow-Ready Rules — Real Soak Evidence',
-            'rule_scope'   => 'shadow (endpoint/network/threat-intel — top-12 by confidence)',
+            'rule_scope'   => 'endpoint, network, and UEBA advisory sources',
             'rule_count'   => 12,
-            'purpose'      => 'Generate first real soak evidence for highest-confidence shadow rules. Promotion remains BLOCKED until 6h soak PASS.',
-            'soak_command' => '.\\scripts\\run_xdr_correlation_soak_6h.ps1 --domain=endpoint-shadow',
+            'purpose'      => 'Check domain prerequisites; independent representative source evidence is required.',
+            'diagnostic_command' => 'php artisan domain:soak-preflight endpoint',
         ],
         3 => [
             'name'         => 'Tier-1 Fixture-Backed Rules — Replay Validation',
             'rule_scope'   => 'tier_1_immediate (has_replay_fixture=true, confidence_source=empirical)',
             'rule_count'   => 12,
-            'purpose'      => 'Replay tier_1 fixture events through live pipeline. Confirms fixture→alert correlation chain end-to-end.',
-            'soak_command' => 'php artisan rule:run-fixtures --tier=tier_1_immediate',
+            'purpose'      => 'Review tier_1 fixture evidence separately from field telemetry.',
+            'diagnostic_command' => 'php artisan rule:run-fixtures --tier=tier_1_immediate --dry-run',
         ],
         4 => [
             'name'         => 'Endpoint Tier-1 Next Batch',
             'rule_scope'   => 'endpoint shadow (tier_2_next_batch — count TBD from registry)',
             'rule_count'   => 0,
-            'purpose'      => 'After Phase 1-3 complete, build tier_2 fixtures and run endpoint soak for next batch. Requires all prior phases READY.',
-            'soak_command' => '.\\scripts\\run_xdr_correlation_soak_6h.ps1 --domain=endpoint-tier2',
+            'purpose'      => 'Evaluate the endpoint candidate batch only after the preceding diagnostic gates pass.',
+            'diagnostic_command' => 'php artisan domain:soak-preflight endpoint',
         ],
     ];
 
@@ -70,7 +71,7 @@ class RealDomainSoakPlanService
         $notes  = [];
 
         for ($phaseNum = 1; $phaseNum <= self::PHASES_TOTAL; $phaseNum++) {
-            $phaseGates  = $this->evaluatePhaseGates($planId, $phaseNum, $ts);
+            $phaseGates  = $this->evaluatePhaseGates($planId, $phaseNum, $ts, $phases);
             $gates       = array_merge($gates, $phaseGates);
 
             $passed  = count(array_filter($phaseGates, fn ($g) => $g['status'] === 'pass'));
@@ -79,7 +80,7 @@ class RealDomainSoakPlanService
 
             $readiness = match(true) {
                 $failed > 0         => 'BLOCKED',
-                $passed === $total  => 'READY',
+                $passed === $total  => self::DIAGNOSTIC_READY,
                 default             => 'PARTIAL',
             };
 
@@ -101,8 +102,8 @@ class RealDomainSoakPlanService
             $notes[] = [
                 'plan_run_id'  => $planId,
                 'phase_number' => $phaseNum,
-                'note_type'    => 'soak_command',
-                'note_text'    => "Phase {$phaseNum} soak command: {$def['soak_command']}",
+                'note_type'    => 'diagnostic_command',
+                'note_text'    => $def['diagnostic_command'],
                 'is_advisory'  => true,
                 'recorded_at'  => $ts,
             ];
@@ -116,7 +117,15 @@ class RealDomainSoakPlanService
             ];
         }
 
-        $phasesReady   = count(array_filter($phases, fn ($p) => $p['readiness_status'] === 'READY'));
+        $notes[] = [
+            'plan_run_id' => $planId,
+            'phase_number' => 2,
+            'note_type' => 'readiness_policy',
+            'note_text' => self::READINESS_POLICY,
+            'is_advisory' => true,
+            'recorded_at' => $ts,
+        ];
+        $phasesReady   = count(array_filter($phases, fn ($p) => $p['readiness_status'] === self::DIAGNOSTIC_READY));
         $phasesBlocked = count(array_filter($phases, fn ($p) => $p['readiness_status'] === 'BLOCKED'));
         $totalGates    = count($gates);
         $gatesPassed   = count(array_filter($gates, fn ($g) => $g['status'] === 'pass'));
@@ -129,7 +138,11 @@ class RealDomainSoakPlanService
             'phases_blocked'     => $phasesBlocked,
             'total_gates'        => $totalGates,
             'gates_passed'       => $gatesPassed,
-            'overall_readiness'  => $phasesBlocked === 0 ? 'READY_TO_SCHEDULE' : 'PARTIAL',
+            'overall_readiness'  => match (true) {
+                $phasesBlocked > 0 => 'BLOCKED',
+                $phasesReady === self::PHASES_TOTAL => self::DIAGNOSTIC_READY,
+                default => 'PARTIAL',
+            },
             'real_execution_gated' => true,
             'is_advisory'        => true,
             'created_at'         => $ts,
@@ -147,16 +160,27 @@ class RealDomainSoakPlanService
         if (!Schema::hasTable('soak_plan_runs')) {
             return null;
         }
-        $run = SoakPlanRun::orderByDesc('created_at')->first();
+        $run = SoakPlanRun::orderByDesc('created_at')->orderByDesc('id')->first();
         if (!$run) {
             return null;
         }
         $planId = $run->plan_run_id;
+        $plan = $run->toArray();
+        $phases = DB::table('soak_plan_phases')->where('plan_run_id', $planId)->orderBy('phase_number')->get();
+        $notes = DB::table('soak_plan_readiness_notes')->where('plan_run_id', $planId)->get();
+        $currentPolicy = $notes->contains(fn ($note) => $note->note_type === 'readiness_policy'
+            && $note->note_text === self::READINESS_POLICY);
+        if (!$currentPolicy) {
+            // Preserve stored reports; never surface their old verdicts as current readiness.
+            $plan['overall_readiness'] = 'UNVERIFIED';
+            $phases = $phases->map(fn ($phase) => array_replace((array) $phase, ['readiness_status' => 'UNVERIFIED']));
+            $notes = $notes->reject(fn ($note) => $note->note_type === 'soak_command')->values();
+        }
         return [
-            'plan'   => $run->toArray(),
-            'phases' => DB::table('soak_plan_phases')->where('plan_run_id', $planId)->orderBy('phase_number')->get()->toArray(),
+            'plan'   => $plan,
+            'phases' => $phases->all(),
             'gates'  => DB::table('soak_plan_gates')->where('plan_run_id', $planId)->get()->toArray(),
-            'notes'  => DB::table('soak_plan_readiness_notes')->where('plan_run_id', $planId)->get()->toArray(),
+            'notes'  => $notes->all(),
         ];
     }
 
@@ -167,13 +191,13 @@ class RealDomainSoakPlanService
 
     // ── Gate evaluation per phase ─────────────────────────────────────────────
 
-    private function evaluatePhaseGates(string $planId, int $phase, string $ts): array
+    private function evaluatePhaseGates(string $planId, int $phase, string $ts, array $priorPhases): array
     {
         return match($phase) {
             1 => $this->phase1Gates($planId, $ts),
             2 => $this->phase2Gates($planId, $ts),
             3 => $this->phase3Gates($planId, $ts),
-            4 => $this->phase4Gates($planId, $ts),
+            4 => $this->phase4Gates($planId, $ts, $priorPhases),
             default => [],
         };
     }
@@ -212,31 +236,33 @@ class RealDomainSoakPlanService
 
     private function phase2Gates(string $planId, string $ts): array
     {
-        // P2-01: domain soak simulations run for all 3 domains
-        $simDomains = Schema::hasTable('domain_soak_simulations')
-            ? DB::table('domain_soak_simulations')->distinct()->pluck('domain')->count()
-            : 0;
-        $g[] = $this->gate($planId, 2, 'SPG-P2-01', 'domain soak simulations run for 3 domains (E057)',
-            $simDomains >= 3 ? 'pass' : 'warn',
-            "domains_simulated={$simDomains} (run domain:soak-simulate)", $ts);
-
-        // P2-02: endpoint structural_match_rate >= 0.80
-        $epSim = Schema::hasTable('domain_soak_simulations')
-            ? DB::table('domain_soak_simulations')
-                ->where('domain', 'endpoint')
-                ->orderByDesc('simulated_at')
-                ->first()
-            : null;
-        $rate = $epSim ? round((float) $epSim->structural_match_rate, 3) : 0.0;
-        $g[] = $this->gate($planId, 2, 'SPG-P2-02', 'endpoint structural_match_rate >= 0.80',
-            $rate >= 0.80 ? 'pass' : 'warn',
-            "endpoint_structural_match_rate={$rate}", $ts);
-
-        // P2-03: DomainSoakHarnessService exists (BACKLOG-018)
-        $harness = class_exists(\App\Services\DomainSoakHarnessService::class);
-        $g[] = $this->gate($planId, 2, 'SPG-P2-03', 'DomainSoakHarnessService deployed (BACKLOG-018)',
-            $harness ? 'pass' : 'warn',
-            $harness ? 'harness service available' : 'harness missing — run BACKLOG-018 first', $ts);
+        $domains = DomainSoakHarnessService::SUPPORTED_DOMAINS;
+        $available = Schema::hasTable('advisory_findings') && Schema::hasTable('shadow_soak_runs');
+        $diagnosticReady = [];
+        $verifiedSources = [];
+        if ($available) {
+            foreach ($domains as $domain) {
+                $report = $this->harness->getPreflightStatus($domain);
+                if (($report['preflight_ready'] ?? false) === true) {
+                    $diagnosticReady[] = $domain;
+                }
+                if (($report['promotion_evidence_verified'] ?? false) === true) {
+                    $verifiedSources[] = $domain;
+                }
+            }
+        }
+        $unverified = array_diff($domains, $verifiedSources);
+        $g[] = $this->gate($planId, 2, 'SPG-P2-01', 'Advisory diagnostic prerequisites by domain',
+            count($diagnosticReady) === count($domains) ? 'pass' : 'warn',
+            'diagnostic_ready=' . (implode(',', $diagnosticReady) ?: 'none'), $ts);
+        $g[] = $this->gate($planId, 2, 'SPG-P2-02', 'Representative source evidence verified',
+            $unverified === [] ? 'pass' : 'fail',
+            $unverified === [] ? 'Independent source evidence verified'
+                : 'unverified=' . implode(',', $unverified) . '; fixtures and diagnostic counts do not qualify',
+            $ts);
+        $g[] = $this->gate($planId, 2, 'SPG-P2-03', 'Advisory diagnostic tables available',
+            $available ? 'pass' : 'fail',
+            $available ? 'advisory finding and soak tables present' : 'advisory finding or soak table unavailable', $ts);
 
         // P2-04: safety constant — PROMOTION_RECOMMENDED = false
         $safe = \App\Services\DomainSoakSimulationService::PROMOTION_RECOMMENDED === false;
@@ -282,40 +308,29 @@ class RealDomainSoakPlanService
         return $g;
     }
 
-    private function phase4Gates(string $planId, string $ts): array
+    private function phase4Gates(string $planId, string $ts, array $priorPhases): array
     {
-        // P4-01: Phase 1 proxy — fixture files on disk
-        $dir   = base_path('tests/fixtures/detection/tier1_batch1');
-        $count = is_dir($dir) ? count(glob($dir . '/*.json')) : 0;
-        $g[] = $this->gate($planId, 4, 'SPG-P4-01', 'Phase 1 proxy ready (fixture files >= 12 on disk)',
-            $count >= 12 ? 'pass' : 'warn',
-            "fixture_files={$count}", $ts);
-
-        // P4-02: Phase 2 proxy — domain simulations run
-        $simDomains = Schema::hasTable('domain_soak_simulations')
-            ? DB::table('domain_soak_simulations')->distinct()->pluck('domain')->count()
-            : 0;
-        $g[] = $this->gate($planId, 4, 'SPG-P4-02', 'Phase 2 proxy ready (domain sims >= 3)',
-            $simDomains >= 3 ? 'pass' : 'warn',
-            "domains_simulated={$simDomains}", $ts);
-
-        // P4-03: Phase 3 proxy — fixture service + batch run
-        $svc    = class_exists(\App\Services\DetectionReplayFixtureService::class);
-        $batch  = Schema::hasTable('detection_fixture_batches')
-            ? DB::table('detection_fixture_batches')->count()
-            : 0;
-        $g[] = $this->gate($planId, 4, 'SPG-P4-03', 'Phase 3 proxy ready (fixture service + batch run)',
-            ($svc && $batch >= 1) ? 'pass' : 'warn',
-            "service={$svc}, batches_run={$batch}", $ts);
+        foreach (['SPG-P4-01' => 1, 'SPG-P4-02' => 2, 'SPG-P4-03' => 3] as $id => $phase) {
+            $status = $priorPhases[$phase - 1]['readiness_status'] ?? 'BLOCKED';
+            $g[] = $this->gate($planId, 4, $id, "Phase {$phase} diagnostic gates pass",
+                match ($status) {
+                    self::DIAGNOSTIC_READY => 'pass',
+                    'BLOCKED' => 'fail',
+                    default => 'warn',
+                }, "phase_{$phase}_status={$status}", $ts);
+        }
 
         // P4-04: endpoint shadow rules in registry
         $registryPath  = base_path('docs/detection/rules/registry.v1.json');
         $endpointCount = 0;
-        if (file_exists($registryPath)) {
-            $data          = json_decode(file_get_contents($registryPath), true);
-            $endpointCount = count(array_filter($data['rules'] ?? [],
-                fn ($r) => ($r['domain'] ?? '') === 'endpoint' && ($r['status'] ?? '') === 'shadow'
-            ));
+        if (is_readable($registryPath)) {
+            $raw = file_get_contents($registryPath);
+            $data = is_string($raw) ? json_decode($raw, true) : null;
+            if (isset($data['rules']) && is_array($data['rules'])) {
+                $endpointCount = count(array_filter($data['rules'],
+                    fn ($r) => is_array($r) && ($r['domain'] ?? '') === 'endpoint' && ($r['status'] ?? '') === 'shadow'
+                ));
+            }
         }
         $g[] = $this->gate($planId, 4, 'SPG-P4-04', 'endpoint shadow rules in registry >= 1',
             $endpointCount >= 1 ? 'pass' : 'warn',

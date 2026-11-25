@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\SoakPlanRun;
 use App\Models\User;
+use App\Services\DomainSoakHarnessService;
 use App\Services\RealDomainSoakPlanService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -184,13 +185,45 @@ class RealDomainSoakPlanTest extends TestCase
         }
     }
 
-    public function test_notes_include_soak_command_per_phase(): void
+    public function test_notes_only_offer_diagnostics_per_phase(): void
     {
         $result = $this->service->buildPlan(true);
         for ($phase = 1; $phase <= 4; $phase++) {
-            $cmdNotes = array_filter($result['notes'], fn ($n) => $n['phase_number'] === $phase && $n['note_type'] === 'soak_command');
-            $this->assertNotEmpty($cmdNotes, "Phase {$phase} must have a soak_command note");
+            $cmdNotes = array_filter($result['notes'], fn ($n) => $n['phase_number'] === $phase && $n['note_type'] === 'diagnostic_command');
+            $this->assertCount(1, $cmdNotes, "Phase {$phase} must have one diagnostic command");
+            $note = reset($cmdNotes);
+            $this->assertStringNotContainsString('run_xdr_correlation_soak_6h', $note['note_text']);
+            $this->assertStringNotContainsString('--domain=', $note['note_text']);
         }
+    }
+
+    public function test_diagnostics_cannot_substitute_for_verified_source_evidence(): void
+    {
+        $harness = $this->mock(DomainSoakHarnessService::class);
+        foreach (DomainSoakHarnessService::SUPPORTED_DOMAINS as $domain) {
+            $harness->shouldReceive('getPreflightStatus')->once()->with($domain)->andReturn([
+                'preflight_ready' => true,
+                'promotion_evidence_verified' => false,
+            ]);
+        }
+        $result = app(RealDomainSoakPlanService::class)->buildPlan(true);
+        $gates = array_column($result['gates'], null, 'gate_id');
+        $this->assertSame('pass', $gates['SPG-P2-01']['status']);
+        $this->assertSame('fail', $gates['SPG-P2-02']['status']);
+        $this->assertSame('fail', $gates['SPG-P4-02']['status']);
+        $this->assertSame('BLOCKED', $result['plan']['overall_readiness']);
+        $this->assertSame('BLOCKED', $result['phases'][1]['readiness_status']);
+        $this->assertSame('BLOCKED', $result['phases'][3]['readiness_status']);
+    }
+
+    public function test_review_command_does_not_offer_the_synthetic_benchmark_as_a_live_soak(): void
+    {
+        $this->artisan('soak:plan-review', ['--phase' => 2, '--dry-run' => true])
+            ->expectsOutput('Overall readiness : BLOCKED')
+            ->expectsOutput('  diagnostic   : php artisan domain:soak-preflight endpoint')
+            ->expectsOutput('Diagnostic readiness is not authorization to schedule a live soak or promote rules.')
+            ->assertSuccessful();
+        $this->assertDatabaseCount('soak_plan_runs', 0);
     }
 
     // ── dry-run does not persist ──────────────────────────────────────────────
@@ -263,6 +296,26 @@ class RealDomainSoakPlanTest extends TestCase
         $this->assertArrayHasKey('phases', $latest);
         $this->assertArrayHasKey('gates', $latest);
         $this->assertArrayHasKey('notes', $latest);
+        $this->assertSame('BLOCKED', $latest['plan']['overall_readiness']);
+    }
+
+    public function test_legacy_plan_is_unverified_without_rewriting_historical_rows(): void
+    {
+        $shaped = $this->service->buildPlan(true);
+        $id = $shaped['plan']['plan_run_id'];
+        DB::table('soak_plan_runs')->insert(array_replace($shaped['plan'], ['overall_readiness' => 'READY_TO_SCHEDULE']));
+        DB::table('soak_plan_phases')->insert(array_replace($shaped['phases'][1], ['readiness_status' => 'READY']));
+        DB::table('soak_plan_readiness_notes')->insert([
+            'plan_run_id' => $id, 'phase_number' => 2, 'note_type' => 'soak_command', 'note_text' => 'superseded',
+        ]);
+
+        $response = $this->actingAs(User::factory()->create(['role' => 'admin']))
+            ->getJson('/detection/soak-execution-plan')->assertOk();
+        $response->assertJsonPath('plan.overall_readiness', 'UNVERIFIED')
+            ->assertJsonPath('phases.0.readiness_status', 'UNVERIFIED')
+            ->assertJsonCount(0, 'notes');
+        $this->assertDatabaseHas('soak_plan_runs', ['plan_run_id' => $id, 'overall_readiness' => 'READY_TO_SCHEDULE']);
+        $this->assertDatabaseHas('soak_plan_readiness_notes', ['plan_run_id' => $id, 'note_type' => 'soak_command']);
     }
 
     public function test_get_latest_plan_phases_in_order(): void
