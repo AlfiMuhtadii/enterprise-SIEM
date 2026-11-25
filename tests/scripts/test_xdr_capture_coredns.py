@@ -24,6 +24,10 @@ def query(stamp=STAMP, fields="38101|57451|IN|A|status.detector.test.|NOERROR"):
     return f"{stamp} {dns.MARKER}{fields}\n".encode()
 
 
+def client_query(address, port=38101, query_id=57451):
+    return f"{STAMP} {dns.CLIENT_MARKER}{address}|{port}|{query_id}|IN|A|status.detector.test.|NOERROR\n".encode()
+
+
 class CoreDNSCaptureTest(unittest.TestCase):
     def test_preserves_source_time_type_and_outcome_without_client_details(self):
         result, = dns.capture(query(), **OPTIONS)
@@ -139,3 +143,46 @@ class CoreDNSCaptureTest(unittest.TestCase):
                         self.assertEqual(dns.main([*args, *options]), 2)
                         publish.assert_not_called()
                         self.assertFalse(output.exists())
+
+    def test_client_aliases_preserve_grouping_without_raw_address(self):
+        data = (client_query("192.0.2.11") + client_query("[::ffff:c000:20b]", port=38102)
+                + client_query("192.0.2.22"))
+        one, repeated, other = dns.capture(data, **OPTIONS, alias_key=b"a" * 32)
+        self.assertEqual(one["host_id"], repeated["host_id"])
+        self.assertNotEqual(one["event_id"], repeated["event_id"])
+        self.assertNotEqual(one["host_id"], other["host_id"])
+        self.assertNotEqual(one["event_id"], other["event_id"])
+        self.assertRegex(one["host_id"], r"^dns-client-[a-f0-9]{32}$")
+        serial = json.dumps([one, repeated, other])
+        for private in ("192.0.2.11", "192.0.2.22", "::ffff", "source_ip"):
+            self.assertNotIn(private, serial)
+
+    def test_client_alias_separates_source_tenant_and_secret(self):
+        key = b"a" * 32
+        expected = dns.client_alias("[2001:db8::1]", "resolver-01", "tenant-a", key)
+        self.assertEqual(expected, dns.client_alias("2001:0db8:0:0:0:0:0:1", "resolver-01", "tenant-a", key))
+        for scope in (("resolver-02", "tenant-a", key), ("resolver-01", "tenant-b", key),
+                      ("resolver-01", "tenant-a", b"b" * 32)):
+            self.assertNotEqual(expected, dns.client_alias("2001:db8::1", *scope))
+
+    def test_client_mode_rejects_missing_key_legacy_mix_and_invalid_client(self):
+        key = b"a" * 32
+        cases = (
+            (client_query("192.0.2.11"), None),
+            (client_query("192.0.2.11") + query(), key),
+            (client_query("192.0.2.999"), key),
+            (client_query("[2001:db8::1"), key),
+            (client_query("[fe80::1%eth0]"), key),
+        )
+        for data, alias_key in cases:
+            with self.subTest(data=data), self.assertRaises(dns.InvalidEvidence):
+                dns.capture(data, **OPTIONS, alias_key=alias_key)
+
+    def test_alias_key_must_be_32_bytes_in_hex(self):
+        with TemporaryDirectory() as tmp:
+            key_file = Path(tmp) / "private.hex"
+            key_file.write_bytes(b"AB" * 32 + b"\r\n")
+            self.assertEqual(dns.read_alias_key(key_file), b"\xab" * 32)
+            key_file.write_bytes(b"AB" * 31)
+            with self.assertRaises(dns.InvalidEvidence):
+                dns.read_alias_key(key_file)

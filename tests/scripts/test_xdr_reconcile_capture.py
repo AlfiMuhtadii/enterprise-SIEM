@@ -102,6 +102,20 @@ class TestEvidenceMatching(unittest.TestCase):
             with self.subTest(reason=reason, rows=rows):
                 self.assertEqual(evidence.reconcile_normalized(self.expected, rows, SCOPE), {reason: 1})
 
+    def test_normalized_dns_lineage_requires_the_captured_client_alias(self):
+        alias = "dns-client-" + "a" * 32
+        scope = evidence.Scope("sensor-1", "tenant-a", "dns", "network", SCOPE.start, SCOPE.end)
+        event = dict(RAW, telemetry_type="dns", host_id=alias)
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "capture.jsonl"
+            path.write_text(json.dumps(event), encoding="utf-8")
+            expected, _ = evidence.read_capture(path, scope)
+        for host_id, outcome in ((alias, "matched"), (None, "client_alias_mismatch"),
+                                 ("dns-client-" + "b" * 32, "client_alias_mismatch")):
+            with self.subTest(outcome=outcome):
+                row = normalized(telemetry_type="dns", host_id=host_id)
+                self.assertEqual(evidence.reconcile_normalized(expected, [row], scope), {outcome: 1})
+
 
 class TestBrokerRead(unittest.TestCase):
     @staticmethod

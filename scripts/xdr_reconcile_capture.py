@@ -23,6 +23,7 @@ MAX_CAPTURE_BYTES = 8 * 1024 * 1024
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 MAX_ARRIVAL_DELAY = timedelta(minutes=5)
 TOKEN = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
+DNS_CLIENT_ALIAS = re.compile(r"dns-client-[a-f0-9]{32}")
 DOMAINS = {
     "endpoint": {"endpoint", "sysmon", "powershell", "security_event"},
     "network": {"dns", "proxy", "firewall"},
@@ -61,6 +62,7 @@ class CaptureRecord:
     payload_sha256: str
     trace_id: str
     observed_timestamp: str
+    dns_client_alias: str | None = None
 
 
 def unique_keys(pairs):
@@ -205,7 +207,10 @@ def read_capture(path: Path, scope: Scope) -> tuple[dict[str, CaptureRecord], st
         observed_at = utc_timestamp(event.get("ts"))
         if event_id in expected or len(expected) >= MAX_RECORDS or not scope.includes(observed_at):
             raise InvalidEvidence("Duplicate, out-of-window, or excessive capture records")
-        expected[event_id] = CaptureRecord(payload_digest(event), event["trace_id"], event["ts"])
+        host_id = event.get("host_id")
+        client_alias = (host_id if scope.telemetry_type == "dns" and isinstance(host_id, str)
+                        and DNS_CLIENT_ALIAS.fullmatch(host_id) else None)
+        expected[event_id] = CaptureRecord(payload_digest(event), event["trace_id"], event["ts"], client_alias)
     if not expected:
         raise InvalidEvidence("No eligible records in independent capture")
     return expected, hashlib.sha256(data).hexdigest()
@@ -316,6 +321,8 @@ def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Sco
                 outcomes[event_id] = "lineage_mismatch"
             elif event.get("ts") != source.observed_timestamp:
                 outcomes[event_id] = "timestamp_mismatch"
+            elif source.dns_client_alias is not None and event.get("host_id") != source.dns_client_alias:
+                outcomes[event_id] = "client_alias_mismatch"
             else:
                 outcomes[event_id] = "matched"
     counts = Counter()

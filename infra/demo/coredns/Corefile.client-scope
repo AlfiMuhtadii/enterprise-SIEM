@@ -1,0 +1,7 @@
+. {
+    hosts /dev/null detector.test {
+        192.0.2.10 status.detector.test
+        no_reverse
+    }
+    log detector.test "detector-dns-v2|{remote}|{port}|{>id}|{class}|{type}|{name}|{rcode}"
+}
