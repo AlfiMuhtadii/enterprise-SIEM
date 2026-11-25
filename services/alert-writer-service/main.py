@@ -889,9 +889,15 @@ def _legacy_shadow_fingerprint(rule_id: str, actor: str, evidence_ids: List[str]
 def shadow_fingerprint(
     rule_id: str, actor: str, evidence_ids: List[str], *, source_topic: str, tenant_id: Optional[str],
     origin: str = "unverified",
+    lineage_complete: bool = True,
+    aggregate_ref: Optional[str] = None,
 ) -> str:
     namespace = "shadow-finding-rehearsal-v1" if origin == "rehearsal" else "shadow-finding-v2"
+    if not lineage_complete:
+        namespace += "-incomplete"
     identity = [namespace, source_topic, tenant_id, rule_id, actor or None, sorted(evidence_ids)]
+    if aggregate_ref is not None:
+        identity.append(aggregate_ref)
     return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
@@ -937,9 +943,19 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
             if not isinstance(evidence, dict):
                 raise ValueError("Invalid advisory evidence object")
             evidence = dict(evidence, shadow_evidence_origin=origin)
+            truncated = evidence.get("evidence_lineage_truncated") is True
+            incomplete = truncated or evidence.get("evidence_lineage_complete") is False
+            if truncated:
+                evidence["evidence_lineage_complete"] = False
+            aggregate_ref = alert.get("alert_id") if truncated else None
+            if truncated and (not isinstance(aggregate_ref, str) or not aggregate_ref or len(aggregate_ref) > 255):
+                raise ValueError("Truncated advisory lineage requires a stable aggregate alert ID")
             confidence   = float(alert.get("confidence") or 0.0)
-            fp = shadow_fingerprint(rule_id, actor, evidence_ids, source_topic=source_topic, tenant_id=tenant_id, origin=origin)
+            fp = shadow_fingerprint(rule_id, actor, evidence_ids, source_topic=source_topic, tenant_id=tenant_id,
+                                    origin=origin, lineage_complete=not incomplete, aggregate_ref=aggregate_ref)
             blocker = _shadow_promotion_blocker(domain, confidence)
+            if incomplete:
+                blocker = "incomplete_lineage; " + blocker
             findings.append({
                 "finding_id":       "adv-" + fp[:36],
                 "rule_id":          rule_id,
@@ -953,10 +969,10 @@ def normalize_shadow_records(records: List[Dict[str, Any]], source_topic: str) -
                 "evidence":         json.dumps(evidence),
                 "shadow_evidence_origin": origin,
                 "source_event_ids": json.dumps(evidence_ids),
-                "promotion_candidate": not rehearsal and confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
+                "promotion_candidate": not rehearsal and not incomplete and confidence >= _SHADOW_PROMOTION_CONFIDENCE_THRESHOLD,
                 "promotion_blocker":   "rehearsal_only; " + blocker if rehearsal else blocker,
                 "fingerprint":     fp,
-                "legacy_fingerprint": None if rehearsal else _legacy_shadow_fingerprint(rule_id, actor, evidence_ids),
+                "legacy_fingerprint": None if rehearsal or incomplete else _legacy_shadow_fingerprint(rule_id, actor, evidence_ids),
                 "trace_id":        alert.get("trace_id") or batch_trace_id,
             })
     return findings

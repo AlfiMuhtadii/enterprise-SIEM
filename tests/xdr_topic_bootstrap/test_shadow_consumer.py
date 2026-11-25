@@ -206,6 +206,31 @@ class TestNormalizeShadowRecords(unittest.TestCase):
         findings = aw.normalize_shadow_records(records, "xdr.alerts.shadow.endpoint")
         self.assertFalse(findings[0]["promotion_candidate"])
 
+    def test_incomplete_lineage_is_not_combined_with_complete_findings(self):
+        topic = "xdr.alerts.shadow.network"
+        alert = self._endpoint_alert(confidence=0.95)
+        record = self._make_record([alert])
+        complete = aw.normalize_shadow_records([record], topic)[0]
+        alert["evidence"]["evidence_lineage_complete"] = False
+        incomplete = aw.normalize_shadow_records([record], topic)[0]
+        self.assertTrue(complete["promotion_candidate"])
+        self.assertFalse(incomplete["promotion_candidate"])
+        self.assertIn("incomplete_lineage", incomplete["promotion_blocker"])
+        self.assertIsNone(incomplete["legacy_fingerprint"])
+        self.assertNotEqual(incomplete["fingerprint"], complete["fingerprint"])
+
+    def test_truncated_aggregates_use_the_full_aggregate_id_not_the_visible_subset(self):
+        topic = "xdr.alerts.shadow.network"
+        alert = self._endpoint_alert(confidence=0.95)
+        alert["evidence"]["evidence_lineage_truncated"] = True
+        record = self._make_record([alert])
+        first = aw.normalize_shadow_records([record], topic)[0]
+        alert["alert_id"] = "another-aggregate"
+        second = aw.normalize_shadow_records([record], topic)[0]
+        self.assertFalse(json.loads(first["evidence"])["evidence_lineage_complete"])
+        self.assertFalse(first["promotion_candidate"])
+        self.assertNotEqual(first["fingerprint"], second["fingerprint"])
+
     def test_promotion_blocker_always_contains_domain_soak_required(self):
         records  = [self._make_record([self._endpoint_alert()])]
         findings = aw.normalize_shadow_records(records, "xdr.alerts.shadow.endpoint")

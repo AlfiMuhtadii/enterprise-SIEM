@@ -390,6 +390,25 @@ class AdvisoryFindingsTest extends TestCase
         $this->assertSame('reviewed', $finding->fresh()->status);
     }
 
+    public function test_incomplete_lineage_remains_reviewable_but_cannot_be_nominated(): void
+    {
+        $service = app(AdvisoryFindingService::class);
+        $payload = array_merge($this->samplePayload(), [
+            'evidence' => ['evidence_lineage_complete' => false], 'confidence' => 0.99,
+        ]);
+        $finding = $service->upsertFromShadow($payload);
+        $service->upsertFromShadow($payload);
+        $service->upsertFromShadow($payload);
+        $this->assertFalse($finding->fresh()->promotion_candidate);
+        $this->actingAs(User::factory()->create(['role' => 'analyst']));
+        $this->get('/advisory/findings/' . $finding->finding_id)->assertOk()->assertDontSee('Nominate for Promotion');
+        $route = '/advisory/findings/' . $finding->finding_id . '/review';
+        $this->post($route, ['action' => 'nominate'])->assertSessionHasErrors('action');
+        $this->assertSame('new', $finding->fresh()->status);
+        $this->post($route, ['action' => 'review'])->assertRedirect();
+        $this->assertSame('reviewed', $finding->fresh()->status);
+    }
+
     public function test_review_post_rejects_invalid_action(): void
     {
         $svc     = app(AdvisoryFindingService::class);

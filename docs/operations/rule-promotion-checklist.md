@@ -104,6 +104,16 @@ independent capture and registry hashes with the report. It does not certify
 the collector or the dataset as representative and does not record a soak
 PASS, approve promotion, or inspect the active alert path.
 
+For repeated DNS TXT/NXDOMAIN, proxy egress, and denied firewall aggregates,
+use the finding's source event IDs to tie it back to the capture. Repeated
+deliveries of the same event ID do not add to the trigger count. A finding
+has a single trace only when every contributor has that trace; otherwise
+inspect `source_trace_ids` and the individual event IDs. Known incomplete
+lineage remains reviewable but cannot be nominated for promotion. Lists are
+bounded to 256 entries each; a truncated list is incomplete even when the
+aggregate counted more contributors. Complete
+lineage alone does not verify representative telemetry or a live soak.
+
 ### Contract and Schema
 - [ ] Event contract validation passes: `python scripts/xdr_contract_validate.py`
 - [ ] Docker compose config valid: `docker compose config --quiet`

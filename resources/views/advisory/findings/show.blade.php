@@ -97,7 +97,7 @@
                         <input type="radio" name="action" value="dismiss" class="accent-gray-500">
                         <span class="text-xs text-gray-400">Dismiss</span>
                     </label>
-                    @unless($finding->isRehearsal())
+                    @unless($finding->isRehearsal() || $finding->hasIncompleteLineage())
                         <label class="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="action" value="nominate" class="accent-purple-500">
                             <span class="text-xs text-purple-300">Nominate for Promotion</span>

@@ -59,6 +59,12 @@ class AdvisoryFinding extends Model
         return ($this->evidence['shadow_evidence_origin'] ?? null) === 'rehearsal';
     }
 
+    public function hasIncompleteLineage(): bool
+    {
+        return ($this->evidence['evidence_lineage_complete'] ?? null) === false
+            || ($this->evidence['evidence_lineage_truncated'] ?? null) === true;
+    }
+
     public function events()
     {
         return $this->hasMany(AdvisoryFindingEvent::class, 'finding_id', 'finding_id');

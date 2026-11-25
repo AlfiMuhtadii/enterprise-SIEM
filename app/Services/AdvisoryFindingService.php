@@ -25,7 +25,7 @@ class AdvisoryFindingService
             $existing->increment('occurrence_count');
             $existing->last_seen_at = $now;
             // Refresh promotion candidacy on each occurrence
-            if (!$existing->promotion_candidate && !$existing->isRehearsal()) {
+            if (!$existing->promotion_candidate && !$existing->isRehearsal() && !$existing->hasIncompleteLineage()) {
                 $existing->promotion_candidate = $this->isPromotionCandidate(
                     (float) ($payload['confidence'] ?? 0),
                     $existing->occurrence_count,
@@ -42,6 +42,8 @@ class AdvisoryFindingService
         }
 
         $candidate = ($payload['evidence']['shadow_evidence_origin'] ?? null) !== 'rehearsal'
+            && ($payload['evidence']['evidence_lineage_complete'] ?? null) !== false
+            && ($payload['evidence']['evidence_lineage_truncated'] ?? null) !== true
             && $this->isPromotionCandidate((float) ($payload['confidence'] ?? 0), 1);
 
         $finding = AdvisoryFinding::create([
@@ -113,6 +115,9 @@ class AdvisoryFindingService
     {
         if ($finding->isRehearsal()) {
             throw ValidationException::withMessages(['action' => 'Rehearsal findings cannot be nominated for promotion.']);
+        }
+        if ($finding->hasIncompleteLineage()) {
+            throw ValidationException::withMessages(['action' => 'Findings with incomplete event lineage cannot be nominated for promotion.']);
         }
 
         $finding->status      = 'nominated';

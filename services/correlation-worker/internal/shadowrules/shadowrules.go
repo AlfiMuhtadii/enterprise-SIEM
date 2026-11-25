@@ -7,7 +7,9 @@ package shadowrules
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -147,6 +149,100 @@ func CorrelateNetworkShadowAll(events []map[string]any) []EndpointAlert {
 	return alerts
 }
 
+type networkEvidenceGroup struct {
+	host                string
+	events              []map[string]any
+	seen                map[string]string
+	conflictingIdentity bool
+}
+
+const maxNetworkLineageRefs = 256
+
+func networkEvidenceID(event map[string]any) string {
+	for _, field := range []string{"normalized_event_id", "raw_event_id"} {
+		if id, ok := event[field].(string); ok && id != "" && len(id) <= 255 &&
+			strings.TrimSpace(id) == id && !strings.ContainsRune(id, 0) {
+			return id
+		}
+	}
+	return ""
+}
+
+func networkEvidenceGroups(events []map[string]any, kind string, contributes func(map[string]any) bool) []*networkEvidenceGroup {
+	groups := map[string]*networkEvidenceGroup{}
+	var hosts []string
+	for _, event := range events {
+		host := EpStr(event, "host_id")
+		if host == "" || EpStr(event, "telemetry_type") != kind || !contributes(event) {
+			continue
+		}
+		group := groups[host]
+		if group == nil {
+			group = &networkEvidenceGroup{host: host, seen: map[string]string{}}
+			groups[host] = group
+			hosts = append(hosts, host)
+		}
+		if id := networkEvidenceID(event); id != "" {
+			trace := EpStr(event, "trace_id")
+			if previous, duplicate := group.seen[id]; duplicate {
+				group.conflictingIdentity = group.conflictingIdentity || previous != trace
+				continue
+			}
+			group.seen[id] = trace
+		}
+		group.events = append(group.events, event)
+	}
+	sort.Strings(hosts)
+	out := make([]*networkEvidenceGroup, 0, len(hosts))
+	for _, host := range hosts {
+		out = append(out, groups[host])
+	}
+	return out
+}
+
+func (g *networkEvidenceGroup) alert(rule, title, severity string, confidence float64) EndpointAlert {
+	ids := make([]string, 0, len(g.seen))
+	for id := range g.seen {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	traces := map[string]bool{}
+	hasUntraced := g.conflictingIdentity
+	for _, event := range g.events {
+		if trace := EpStr(event, "trace_id"); trace != "" && len(trace) <= 255 {
+			traces[trace] = true
+		} else {
+			hasUntraced = true
+		}
+	}
+	traceIDs := make([]string, 0, len(traces))
+	for trace := range traces {
+		traceIDs = append(traceIDs, trace)
+	}
+	sort.Strings(traceIDs)
+	truncated := len(ids) > maxNetworkLineageRefs || len(traceIDs) > maxNetworkLineageRefs
+	complete := !truncated && !g.conflictingIdentity && len(ids) == len(g.events)
+
+	a := MakeEndpointAlert(rule, "v1", title, severity, confidence, map[string]any{"host": g.host})
+	identity, _ := json.Marshal([]any{"network-aggregate-v1", rule, g.host, ids, complete})
+	sum := sha256.Sum256(identity)
+	a.AlertID = hex.EncodeToString(sum[:])[:40]
+	a.EvidenceIDs = ids[:min(len(ids), maxNetworkLineageRefs)]
+	if len(traceIDs) == 1 && !hasUntraced {
+		a.TraceID = traceIDs[0]
+	}
+	a.Evidence["source_trace_ids"] = traceIDs[:min(len(traceIDs), maxNetworkLineageRefs)]
+	a.Evidence["evidence_lineage_complete"] = complete
+	a.Evidence["source_event_count"] = len(g.events)
+	if truncated {
+		a.Evidence["evidence_lineage_truncated"] = true
+	}
+	a.Evidence["host"] = g.host
+	a.Evidence["advisory"] = "network_shadow_only"
+	a.Evidence["no_blocking"] = true
+	return a
+}
+
 func ruleNetworkSuspiciousDnsTld(events []map[string]any) []EndpointAlert {
 	// Detect DNS queries to suspicious TLDs. Advisory-only, no blocking.
 	suspiciousTlds := map[string]bool{
@@ -190,26 +286,17 @@ func ruleNetworkSuspiciousDnsTld(events []map[string]any) []EndpointAlert {
 
 func ruleNetworkDnsTxtQueryPattern(events []map[string]any) []EndpointAlert {
 	// Detect ≥2 TXT DNS queries from same host in batch. Advisory-only.
-	hostTxtCount := map[string]int{}
-	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "dns" || strings.ToUpper(EpStr(ev, "query_type")) != "TXT" {
-			continue
-		}
-		host := EpStr(ev, "host_id")
-		if host != "" {
-			hostTxtCount[host]++
-		}
-	}
+	groups := networkEvidenceGroups(events, "dns", func(ev map[string]any) bool {
+		return strings.EqualFold(EpStr(ev, "query_type"), "TXT")
+	})
 	var alerts []EndpointAlert
-	for host, count := range hostTxtCount {
+	for _, group := range groups {
+		count := len(group.events)
 		if count < 2 {
 			continue
 		}
-		a := MakeEndpointAlert("dns_txt_query_pattern", "v1", "Repeated DNS TXT Queries Detected", "medium", 0.68, map[string]any{})
-		a.Evidence["host"]        = host
-		a.Evidence["txt_count"]   = count
-		a.Evidence["advisory"]    = "network_shadow_only"
-		a.Evidence["no_blocking"] = true
+		a := group.alert("dns_txt_query_pattern", "Repeated DNS TXT Queries Detected", "medium", 0.68)
+		a.Evidence["txt_count"] = count
 		alerts = append(alerts, a)
 	}
 	return alerts
@@ -217,29 +304,17 @@ func ruleNetworkDnsTxtQueryPattern(events []map[string]any) []EndpointAlert {
 
 func ruleNetworkRepeatedNxdomain(events []map[string]any) []EndpointAlert {
 	// Detect ≥5 NXDOMAIN responses for same host in batch. Advisory-only.
-	hostNxCount := map[string]int{}
-	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "dns" {
-			continue
-		}
-		if strings.ToUpper(EpStr(ev, "response_code")) != "NXDOMAIN" {
-			continue
-		}
-		host := EpStr(ev, "host_id")
-		if host != "" {
-			hostNxCount[host]++
-		}
-	}
+	groups := networkEvidenceGroups(events, "dns", func(ev map[string]any) bool {
+		return strings.EqualFold(EpStr(ev, "response_code"), "NXDOMAIN")
+	})
 	var alerts []EndpointAlert
-	for host, count := range hostNxCount {
+	for _, group := range groups {
+		count := len(group.events)
 		if count < 5 {
 			continue
 		}
-		a := MakeEndpointAlert("repeated_nxdomain", "v1", "Repeated NXDOMAIN Responses Detected", "medium", 0.74, map[string]any{})
-		a.Evidence["host"]         = host
+		a := group.alert("repeated_nxdomain", "Repeated NXDOMAIN Responses Detected", "medium", 0.74)
 		a.Evidence["nxdomain_count"] = count
-		a.Evidence["advisory"]     = "network_shadow_only"
-		a.Evidence["no_blocking"]  = true
 		alerts = append(alerts, a)
 	}
 	return alerts
@@ -274,30 +349,26 @@ func ruleNetworkSuspiciousUserAgent(events []map[string]any) []EndpointAlert {
 
 func ruleNetworkHighVolumeProxyEgress(events []map[string]any) []EndpointAlert {
 	// Detect high total bytes_out via proxy per host in batch. Advisory-only.
-	hostBytes := map[string]int64{}
-	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "proxy" {
-			continue
-		}
-		host := EpStr(ev, "host_id")
-		if host == "" {
-			continue
-		}
-		if b, ok := ev["bytes_out"].(float64); ok {
-			hostBytes[host] += int64(b)
-		}
-	}
+	groups := networkEvidenceGroups(events, "proxy", func(ev map[string]any) bool {
+		return EpInt64(ev, "bytes_out") > 0
+	})
 	const threshold int64 = 50 * 1024 * 1024
 	var alerts []EndpointAlert
-	for host, total := range hostBytes {
+	for _, group := range groups {
+		var total int64
+		for _, event := range group.events {
+			bytesOut := EpInt64(event, "bytes_out")
+			if bytesOut > math.MaxInt64-total {
+				total = math.MaxInt64
+				break
+			}
+			total += bytesOut
+		}
 		if total < threshold {
 			continue
 		}
-		a := MakeEndpointAlert("high_volume_proxy_egress", "v1", "High Volume Proxy Egress Detected", "high", 0.76, map[string]any{})
-		a.Evidence["host"]        = host
-		a.Evidence["bytes_out"]   = total
-		a.Evidence["advisory"]    = "network_shadow_only"
-		a.Evidence["no_blocking"] = true
+		a := group.alert("high_volume_proxy_egress", "High Volume Proxy Egress Detected", "high", 0.76)
+		a.Evidence["bytes_out"] = total
 		alerts = append(alerts, a)
 	}
 	return alerts
@@ -305,30 +376,18 @@ func ruleNetworkHighVolumeProxyEgress(events []map[string]any) []EndpointAlert {
 
 func ruleNetworkRepeatedDeniedOutbound(events []map[string]any) []EndpointAlert {
 	// Detect ≥5 denied firewall flows per host. Advisory-only.
-	hostDenyCount := map[string]int{}
-	for _, ev := range events {
-		if EpStr(ev, "telemetry_type") != "firewall" {
-			continue
-		}
+	groups := networkEvidenceGroups(events, "firewall", func(ev map[string]any) bool {
 		action := strings.ToLower(EpStr(ev, "action"))
-		if action != "deny" && action != "drop" {
-			continue
-		}
-		host := EpStr(ev, "host_id")
-		if host != "" {
-			hostDenyCount[host]++
-		}
-	}
+		return action == "deny" || action == "drop"
+	})
 	var alerts []EndpointAlert
-	for host, count := range hostDenyCount {
+	for _, group := range groups {
+		count := len(group.events)
 		if count < 5 {
 			continue
 		}
-		a := MakeEndpointAlert("repeated_denied_outbound", "v1", "Repeated Denied Outbound Firewall Flows Detected", "high", 0.80, map[string]any{})
-		a.Evidence["host"]        = host
-		a.Evidence["deny_count"]  = count
-		a.Evidence["advisory"]    = "network_shadow_only"
-		a.Evidence["no_blocking"] = true
+		a := group.alert("repeated_denied_outbound", "Repeated Denied Outbound Firewall Flows Detected", "high", 0.80)
+		a.Evidence["deny_count"] = count
 		alerts = append(alerts, a)
 	}
 	return alerts
