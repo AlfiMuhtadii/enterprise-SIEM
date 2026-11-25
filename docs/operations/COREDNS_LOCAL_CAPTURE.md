@@ -37,11 +37,32 @@ to submit again.
 
 `ACCEPTED_BY_GATEWAY` only acknowledges ingest. Check the same event ID,
 trace, timestamp, and response code in `telemetry.raw` and
-`telemetry.normalized` (`normalization_version=dns-v1`). Local publication
-does not provide mTLS capture admission, prove representative traffic
-or substitute for a six-hour soak. No rule is enabled by this workflow.
-For an operator-approved pilot, retain the original log and capture and
-follow the [promotion evidence checklist](rule-promotion-checklist.md).
+`telemetry.normalized` (`normalization_version=dns-v1`).
+
+## Verify Source Admission
+
+Use a separate loopback pilot gateway that requires mTLS and signed HMAC v2.
+Follow the [promotion evidence checklist](rule-promotion-checklist.md)
+to register the client certificate fingerprint for the same `--source-id`
+and `--tenant-id`, with allowed type `dns`. The gateway certificate must be
+valid for `127.0.0.1`. Keep keys private and mount only gateway-side
+credentials into the gateway.
+
+Publish the newly observed window with `--output`, `--publish-local`,
+`--gateway-port`, and all three PEM options: `--mtls-ca`, `--mtls-cert`,
+and `--mtls-key`. The client verifies the gateway certificate and presents
+its client identity. Partial configuration or a TLS error does not fall
+back to HTTP. The report shows `transport: https_mtls` but does not itself
+verify capture admission.
+
+Record an end time that covers both the DNS log timestamp and the expected
+gateway receipt, and publish within five minutes of the observation. Retain
+the raw log and pre-ingestion capture. Run `xdr_reconcile_capture.py` with
+`--domain network --telemetry-type dns`, the registered source, the same
+window, and independently recorded `--range` and `--normalized-range`
+values. Require `status=MATCHED` and `normalized_lineage.status=MATCHED`.
+This proves lineage only within the supplied offsets. It does not certify
+representative traffic, pass a six-hour soak, or enable any rule.
 
 CoreDNS reference: [query log format](https://coredns.io/plugins/log/) and
 [static hosts configuration](https://coredns.io/plugins/hosts/).

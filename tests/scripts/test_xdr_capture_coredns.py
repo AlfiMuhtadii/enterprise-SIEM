@@ -4,6 +4,7 @@ import hmac
 import io
 import json
 from pathlib import Path
+import ssl
 import sys
 from tempfile import TemporaryDirectory
 import unittest
@@ -98,3 +99,43 @@ class CoreDNSCaptureTest(unittest.TestCase):
             with self.assertRaises(dns.InvalidEvidence):
                 dns.publish_local(events, 18091, "lab-secret")
             self.assertEqual(client.close.call_count, 2)
+
+    def test_mtls_uses_hostname_verification_and_client_identity(self):
+        context = ssl.create_default_context()
+        with patch.object(dns.ssl, "create_default_context", return_value=context) as create, patch.object(
+                context, "load_cert_chain") as load:
+            self.assertIs(dns.mtls_context(Path("ca.pem"), Path("client.pem"), Path("client-key.pem")), context)
+        create.assert_called_once_with(cafile="ca.pem")
+        load.assert_called_once_with(certfile="client.pem", keyfile="client-key.pem", password=b"")
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertEqual(context.minimum_version, ssl.TLSVersion.TLSv1_2)
+
+    def test_mtls_transport_never_falls_back_on_tls_failure(self):
+        events = dns.capture(query(), **OPTIONS)
+        context = ssl.create_default_context()
+        with patch.object(dns.http.client, "HTTPSConnection") as https, patch.object(
+                dns.http.client, "HTTPConnection") as http:
+            client = https.return_value
+            client.request.side_effect = ssl.SSLCertVerificationError("wrong gateway CA")
+            with self.assertRaises(ssl.SSLCertVerificationError):
+                dns.publish_local(events, 18091, "lab-secret", context=context)
+            https.assert_called_once_with("127.0.0.1", 18091, timeout=10, context=context)
+            http.assert_not_called()
+            client.close.assert_called_once()
+
+    def test_cli_requires_complete_mtls_configuration_before_writing(self):
+        with TemporaryDirectory() as tmp:
+            log = Path(tmp) / "source.log"
+            log.write_bytes(query())
+            output = Path(tmp) / "capture.jsonl"
+            args = [str(log), "--source-id", OPTIONS["source_id"], "--tenant-id", OPTIONS["tenant_id"],
+                    "--zone", OPTIONS["zone"], "--window-start", START, "--window-end", END,
+                    "--output", str(output)]
+            tls = ["--mtls-ca", "ca.pem", "--mtls-cert", "client.pem", "--mtls-key", "key.pem"]
+            with patch.dict(dns.os.environ, {"XDR_INGEST_SECRET": "secret"}), redirect_stderr(io.StringIO()):
+                for options in (tls, ["--publish-local", *tls[:4]], ["--publish-local", *tls]):
+                    with self.subTest(options=options), patch.object(dns, "publish_local") as publish:
+                        self.assertEqual(dns.main([*args, *options]), 2)
+                        publish.assert_not_called()
+                        self.assertFalse(output.exists())
