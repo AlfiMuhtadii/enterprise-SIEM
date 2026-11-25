@@ -77,6 +77,10 @@ records using the event ID, tenant, type, and time window. The stamp does
 not validate the underlying observation or authorize promotion. Records from
 known rehearsal sources remain excluded even when transported using mTLS.
 
+The [local CoreDNS capture runbook](COREDNS_LOCAL_CAPTURE.md) collects actual
+benign lab DNS queries for connectivity checks. Those checks are not
+representative traffic or mTLS admission evidence.
+
 Use the local read-only reconciler against Kafka data within a reviewed
 offset range. Retain the exact event JSONL at the collector **before** it
 is published; a Kafka export reused as source data is not independent.
