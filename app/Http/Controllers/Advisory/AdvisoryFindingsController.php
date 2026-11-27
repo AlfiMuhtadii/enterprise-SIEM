@@ -9,6 +9,7 @@ use App\Services\AdvisoryFindingService;
 use App\Services\TenantBoundaryService;
 use App\Services\TenantContextAuthority;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdvisoryFindingsController extends Controller
 {
@@ -50,9 +51,10 @@ class AdvisoryFindingsController extends Controller
     {
         $this->authorize('soc:advisory.review');
 
-        $request->validate([
+        $validated = $request->validate([
             'action' => 'required|in:review,dismiss,nominate',
             'note'   => 'nullable|string|max:1000',
+            'review_outcome' => ['exclude_unless:action,review', 'nullable', Rule::in(array_keys(AdvisoryFinding::REVIEW_OUTCOMES))],
         ]);
 
         $tenantId = $this->tenantAuthority->validateAndResolve($request, $request->user(), requireTenantContext: true);
@@ -61,10 +63,10 @@ class AdvisoryFindingsController extends Controller
         $this->tenantBoundary->assertAccess($finding->tenant_id, $tenantId);
 
         $analystId = auth()->id();
-        $note      = $request->input('note', '');
+        $note      = $validated['note'] ?? '';
 
         match ($request->input('action')) {
-            'review'   => $this->service->review($finding, $analystId, $note),
+            'review'   => $this->service->review($finding, $analystId, $note, $validated['review_outcome'] ?? null),
             'dismiss'  => $this->service->dismiss($finding, $analystId, $note),
             'nominate' => $this->service->nominate($finding, $analystId, $note),
         };

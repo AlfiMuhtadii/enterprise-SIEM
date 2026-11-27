@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\AdvisoryFinding;
 use App\Models\AdvisoryFindingEvent;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -16,16 +18,23 @@ class AdvisoryFindingService
 
     public function upsertFromShadow(array $payload): AdvisoryFinding
     {
+        return DB::transaction(fn () => $this->persistShadowFinding($payload));
+    }
+
+    private function persistShadowFinding(array $payload): AdvisoryFinding
+    {
         $fingerprint = $payload['fingerprint'];
         $now         = now();
 
-        $existing = AdvisoryFinding::where('fingerprint', $fingerprint)->first();
+        $existing = AdvisoryFinding::where('fingerprint', $fingerprint)->lockForUpdate()->first();
 
         if ($existing) {
             $existing->increment('occurrence_count');
             $existing->last_seen_at = $now;
             // Refresh promotion candidacy on each occurrence
-            if (!$existing->promotion_candidate && !$existing->isRehearsal() && !$existing->hasIncompleteLineage()) {
+            if ($existing->reviewBlocksPromotion()) {
+                $existing->promotion_candidate = false;
+            } elseif (!$existing->promotion_candidate && !$existing->isRehearsal() && !$existing->hasIncompleteLineage()) {
                 $existing->promotion_candidate = $this->isPromotionCandidate(
                     (float) ($payload['confidence'] ?? 0),
                     $existing->occurrence_count,
@@ -77,50 +86,64 @@ class AdvisoryFindingService
         return $finding;
     }
 
-    public function review(AdvisoryFinding $finding, int $analystId, string $note = ''): AdvisoryFinding
+    public function review(AdvisoryFinding $finding, int $analystId, string $note = '', ?string $outcome = null): AdvisoryFinding
     {
-        $finding->status      = 'reviewed';
-        $finding->reviewed_by = $analystId;
-        $finding->reviewed_at = now();
-        if ($note !== '') {
-            $finding->review_note = $note;
+        if ($outcome !== null && !isset(AdvisoryFinding::REVIEW_OUTCOMES[$outcome])) {
+            throw ValidationException::withMessages(['review_outcome' => 'Invalid review outcome.']);
         }
-        $finding->save();
+        if ($outcome !== null && trim($note) === '') {
+            throw ValidationException::withMessages(['note' => 'A note is required for a classified review.']);
+        }
 
-        $this->appendEvent($finding->finding_id, 'reviewed', $analystId, [
-            'note' => $note,
-        ], $finding->tenant_id);
-
-        return $finding;
+        return DB::transaction(function () use ($finding, $analystId, $note, $outcome): AdvisoryFinding {
+            $locked = AdvisoryFinding::whereKey($finding->getKey())->lockForUpdate()->firstOrFail();
+            $previous = $locked->review_outcome;
+            if ($outcome !== null) {
+                $locked->review_outcome = $outcome;
+            }
+            if ($locked->reviewBlocksPromotion()) {
+                $locked->promotion_candidate = false;
+            }
+            $this->recordAction($locked, 'reviewed', 'reviewed', $analystId, $note, [
+                'review_outcome' => $locked->review_outcome,
+                'previous_review_outcome' => $previous,
+            ]);
+            return $locked;
+        });
     }
 
     public function dismiss(AdvisoryFinding $finding, int $analystId, string $note = ''): AdvisoryFinding
     {
-        $finding->status      = 'dismissed';
-        $finding->reviewed_by = $analystId;
-        $finding->reviewed_at = now();
-        if ($note !== '') {
-            $finding->review_note = $note;
-        }
-        $finding->save();
-
-        $this->appendEvent($finding->finding_id, 'dismissed', $analystId, [
-            'note' => $note,
-        ], $finding->tenant_id);
-
-        return $finding;
+        return DB::transaction(function () use ($finding, $analystId, $note): AdvisoryFinding {
+            $locked = AdvisoryFinding::whereKey($finding->getKey())->lockForUpdate()->firstOrFail();
+            $this->recordAction($locked, 'dismissed', 'dismissed', $analystId, $note);
+            return $locked;
+        });
     }
 
     public function nominate(AdvisoryFinding $finding, int $analystId, string $note = ''): AdvisoryFinding
     {
-        if ($finding->isRehearsal()) {
-            throw ValidationException::withMessages(['action' => 'Rehearsal findings cannot be nominated for promotion.']);
-        }
-        if ($finding->hasIncompleteLineage()) {
-            throw ValidationException::withMessages(['action' => 'Findings with incomplete event lineage cannot be nominated for promotion.']);
-        }
+        return DB::transaction(function () use ($finding, $analystId, $note): AdvisoryFinding {
+            $locked = AdvisoryFinding::whereKey($finding->getKey())->lockForUpdate()->firstOrFail();
+            if ($locked->isRehearsal()) {
+                throw ValidationException::withMessages(['action' => 'Rehearsal findings cannot be nominated for promotion.']);
+            }
+            if ($locked->hasIncompleteLineage()) {
+                throw ValidationException::withMessages(['action' => 'Findings with incomplete event lineage cannot be nominated for promotion.']);
+            }
+            if ($locked->reviewBlocksPromotion()) {
+                throw ValidationException::withMessages(['action' => 'False-positive and inconclusive findings cannot be nominated for promotion.']);
+            }
+            $this->recordAction($locked, 'nominated', 'nominated_for_promotion', $analystId, $note, [
+                'promotion_blocker' => $locked->promotion_blocker,
+            ]);
+            return $locked;
+        });
+    }
 
-        $finding->status      = 'nominated';
+    private function recordAction(AdvisoryFinding $finding, string $status, string $event, int $analystId, string $note, array $metadata = []): void
+    {
+        $finding->status      = $status;
         $finding->reviewed_by = $analystId;
         $finding->reviewed_at = now();
         if ($note !== '') {
@@ -128,12 +151,7 @@ class AdvisoryFindingService
         }
         $finding->save();
 
-        $this->appendEvent($finding->finding_id, 'nominated_for_promotion', $analystId, [
-            'note'              => $note,
-            'promotion_blocker' => $finding->promotion_blocker,
-        ], $finding->tenant_id);
-
-        return $finding;
+        $this->appendEvent($finding->finding_id, $event, $analystId, ['note' => $note] + $metadata, $finding->tenant_id);
     }
 
     public function getSummary(?string $tenantId = null): array
@@ -149,7 +167,7 @@ class AdvisoryFindingService
             'reviewed'            => (clone $base)->where('status', 'reviewed')->count(),
             'dismissed'           => (clone $base)->where('status', 'dismissed')->count(),
             'nominated'           => (clone $base)->where('status', 'nominated')->count(),
-            'promotion_candidates' => (clone $base)->where('promotion_candidate', true)->count(),
+            'promotion_candidates' => (clone $base)->reviewPromotionCandidate()->count(),
             'by_domain'           => (clone $base)->selectRaw('domain, count(*) as cnt')
                 ->groupBy('domain')->pluck('cnt', 'domain')->toArray(),
             'by_severity'         => (clone $base)->selectRaw('severity, count(*) as cnt')
@@ -174,13 +192,38 @@ class AdvisoryFindingService
             $q->where('severity', $filters['severity']);
         }
         if (isset($filters['promotion_candidate'])) {
-            $q->where('promotion_candidate', (bool) $filters['promotion_candidate']);
+            $q->reviewPromotionCandidate((bool) $filters['promotion_candidate']);
         }
         if (!empty($filters['rule_id'])) {
             $q->where('rule_id', 'like', '%' . $filters['rule_id'] . '%');
         }
 
         return $q->paginate(50);
+    }
+
+    public function getReviewOutcomes(string $tenantId, string $ruleId, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $counts = AdvisoryFinding::withoutRehearsal()
+            ->where('tenant_id', $tenantId)->where('rule_id', $ruleId)
+            ->where('first_seen_at', '>=', $start)->where('first_seen_at', '<', $end)
+            ->selectRaw("coalesce(review_outcome, 'unclassified') as outcome, count(*) as total")
+            ->groupBy('outcome')->pluck('total', 'outcome')->all();
+        $counts = array_map('intval', $counts + array_fill_keys([...array_keys(AdvisoryFinding::REVIEW_OUTCOMES), 'unclassified'], 0));
+        $definitive = $counts['confirmed_detection'] + $counts['false_positive'];
+        $total = array_sum($counts);
+
+        return [
+            'tenant_id' => $tenantId,
+            'rule_id' => $ruleId,
+            'first_seen_start' => $start->toIso8601ZuluString(),
+            'first_seen_end_exclusive' => $end->toIso8601ZuluString(),
+            'findings' => $total,
+            'outcomes' => $counts,
+            'definitive_review_coverage' => $total > 0 ? round($definitive / $total, 4) : null,
+            'false_positive_share_of_definitive_reviews' => $definitive > 0 ? round($counts['false_positive'] / $definitive, 4) : null,
+            'evidence_basis' => 'analyst_verdicts_on_non_rehearsal_findings',
+            'promotion_evidence_verified' => false,
+        ];
     }
 
     private function isPromotionCandidate(float $confidence, int $occurrences): bool

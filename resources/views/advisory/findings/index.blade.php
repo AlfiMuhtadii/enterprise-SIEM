@@ -128,7 +128,7 @@
                         <td class="px-3 py-2 text-center font-bold {{ $f->occurrence_count > 10 ? 'text-red-400' : 'text-gray-300' }}">{{ $f->occurrence_count }}</td>
                         <td class="px-3 py-2 text-gray-400">{{ $f->last_seen_at->diffForHumans() }}</td>
                         <td class="px-3 py-2 text-center">
-                            @if($f->promotion_candidate)
+                            @if($f->isReviewPromotionCandidate())
                                 <span class="text-green-400" title="{{ $f->promotion_blocker }}">★</span>
                             @else
                                 <span class="text-gray-600">—</span>

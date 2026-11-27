@@ -77,3 +77,28 @@ Take offsets from each topic independently. Do not assume results cover
 records outside these ranges, unreviewed late arrivals, or other sources.
 Even a match proves lineage only; a legitimate resolver query can still
 produce a false positive. The report never marks promotion evidence verified.
+
+## Review the Candidate Findings
+
+In Advisory Findings, record an analyst verdict and a note: confirmed
+detection, false positive, or inconclusive. The verdict and prior verdict
+are written to the audit trail. Dismissing a finding or adding a note
+without a verdict does not infer a false positive. False-positive and
+inconclusive findings cannot be nominated while that verdict is current.
+
+```powershell
+php artisan advisory:review-summary --tenant=pilot-tenant --rule=dns_txt_query_pattern `
+    --start=2026-11-27T00:00:00Z --end=2026-11-28T00:00:00Z
+```
+
+The selected UTC bounds apply to the findings' first-seen times in the
+SOC database, not the original DNS window. The read-only report excludes
+rehearsals and counts each finding once. It distinguishes unclassified and
+inconclusive from the denominator for false-positive share (confirmed
+detections plus false positives). With no definitive reviews the share
+is null, not zero. This is a share of reviewed findings, not a classical
+false-positive rate over all telemetry and not proof of representativeness.
+
+Apply the advisory review outcome migration before starting the matching
+alert-writer image, which uses the new verdict column to preserve vetoes
+on redelivery and recurrence.

@@ -1054,6 +1054,7 @@ def write_advisory_finding(finding: Dict[str, Any], partition: int, offset: int)
                     occurrence_count = advisory_findings.occurrence_count + 1,
                     last_seen_at     = excluded.last_seen_at,
                     promotion_candidate = CASE
+                        WHEN advisory_findings.review_outcome IN ('false_positive', 'inconclusive') THEN false
                         WHEN advisory_findings.promotion_candidate THEN true
                         ELSE excluded.promotion_candidate
                     END,

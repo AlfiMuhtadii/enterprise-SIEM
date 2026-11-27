@@ -10,6 +10,13 @@
                 {{ session('success') }}
             </div>
         @endif
+        @if($errors->any())
+            <div role="alert" class="rounded border border-red-500/30 bg-red-900/20 px-4 py-2 text-sm text-red-300">
+                @foreach($errors->all() as $error)
+                    <p>{{ $error }}</p>
+                @endforeach
+            </div>
+        @endif
 
         {{-- Finding header --}}
         <div class="glass-card p-5 space-y-3">
@@ -51,7 +58,7 @@
             {{-- Promotion candidacy --}}
             <div class="border-t border-gray-700 pt-3 text-xs">
                 <span class="text-gray-400">Promotion Candidate: </span>
-                @if($finding->promotion_candidate)
+                @if($finding->isReviewPromotionCandidate())
                     <span class="text-green-400 font-bold">YES</span>
                 @else
                     <span class="text-gray-500">No</span>
@@ -88,7 +95,7 @@
             <div class="text-xs text-gray-400 uppercase mb-3">Analyst Action</div>
             <form method="POST" action="{{ route('advisory.findings.review', $finding->finding_id) }}" class="space-y-3">
                 @csrf
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
                     <label class="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="action" value="review" class="accent-cyan-500" required>
                         <span class="text-xs text-cyan-300">Mark Reviewed</span>
@@ -97,16 +104,25 @@
                         <input type="radio" name="action" value="dismiss" class="accent-gray-500">
                         <span class="text-xs text-gray-400">Dismiss</span>
                     </label>
-                    @unless($finding->isRehearsal() || $finding->hasIncompleteLineage())
+                    @unless($finding->isRehearsal() || $finding->hasIncompleteLineage() || $finding->reviewBlocksPromotion())
                         <label class="flex items-center gap-1.5 cursor-pointer">
                             <input type="radio" name="action" value="nominate" class="accent-purple-500">
                             <span class="text-xs text-purple-300">Nominate for Promotion</span>
                         </label>
                     @endunless
                 </div>
+                <label class="block text-xs text-gray-300">
+                    Review outcome
+                    <select name="review_outcome" class="block mt-1 bg-gray-900 border border-gray-700 text-gray-200 text-xs rounded px-2 py-1">
+                        <option value="">No change</option>
+                        @foreach(\App\Models\AdvisoryFinding::REVIEW_OUTCOMES as $outcome => $label)
+                        <option value="{{ $outcome }}" @selected(old('review_outcome') === $outcome)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </label>
                 <textarea name="note" placeholder="Optional analyst note (max 1000 chars)"
                     class="w-full bg-gray-900 border border-gray-700 text-gray-200 text-xs rounded px-3 py-2 h-20 resize-none"
-                    maxlength="1000"></textarea>
+                    maxlength="1000">{{ is_string(old('note')) ? old('note') : '' }}</textarea>
                 <div class="flex gap-3 items-center">
                     <button type="submit" class="px-4 py-1.5 text-xs bg-cyan-700 text-white rounded hover:bg-cyan-600">Submit</button>
                     <span class="text-xs text-amber-400/60">Nominating does not promote the rule — promotion requires domain soak PASS.</span>
@@ -117,9 +133,12 @@
         @endcan
 
         {{-- Review note --}}
-        @if($finding->review_note)
+        @if($finding->review_note || $finding->review_outcome)
         <div class="glass-card p-4">
             <div class="text-xs text-gray-400 uppercase mb-2">Review Note</div>
+            @if($finding->review_outcome)
+                <p class="text-sm text-cyan-200">{{ \App\Models\AdvisoryFinding::REVIEW_OUTCOMES[$finding->review_outcome] }}</p>
+            @endif
             <p class="text-sm text-gray-300">{{ $finding->review_note }}</p>
             <p class="text-xs text-gray-500 mt-1">Reviewed {{ $finding->reviewed_at?->format('Y-m-d H:i') }} by analyst #{{ $finding->reviewed_by }}</p>
         </div>

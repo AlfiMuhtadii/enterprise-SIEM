@@ -25,6 +25,7 @@ class AdvisoryFinding extends Model
         'reviewed_by',
         'reviewed_at',
         'review_note',
+        'review_outcome',
         'fingerprint',
         'occurrence_count',
         'first_seen_at',
@@ -43,6 +44,14 @@ class AdvisoryFinding extends Model
     ];
 
     public const STATUSES = ['new', 'reviewed', 'dismissed', 'nominated'];
+
+    public const REVIEW_OUTCOMES = [
+        'confirmed_detection' => 'Confirmed Detection',
+        'false_positive' => 'False Positive',
+        'inconclusive' => 'Inconclusive',
+    ];
+
+    private const OUTCOMES_BLOCKING_PROMOTION = ['false_positive', 'inconclusive'];
 
     public const SEVERITY_ORDER = ['critical' => 4, 'high' => 3, 'medium' => 2, 'low' => 1, 'info' => 0];
 
@@ -63,6 +72,29 @@ class AdvisoryFinding extends Model
     {
         return ($this->evidence['evidence_lineage_complete'] ?? null) === false
             || ($this->evidence['evidence_lineage_truncated'] ?? null) === true;
+    }
+
+    public function reviewBlocksPromotion(): bool
+    {
+        return in_array($this->review_outcome, self::OUTCOMES_BLOCKING_PROMOTION, true);
+    }
+
+    public function isReviewPromotionCandidate(): bool
+    {
+        return $this->promotion_candidate && !$this->reviewBlocksPromotion();
+    }
+
+    public function scopeReviewPromotionCandidate(Builder $query, bool $candidate = true): Builder
+    {
+        if ($candidate) {
+            return $query->where('promotion_candidate', true)->where(function (Builder $eligible): void {
+                $eligible->whereNull('review_outcome')->orWhereNotIn('review_outcome', self::OUTCOMES_BLOCKING_PROMOTION);
+            });
+        }
+
+        return $query->where(function (Builder $ineligible): void {
+            $ineligible->where('promotion_candidate', false)->orWhereIn('review_outcome', self::OUTCOMES_BLOCKING_PROMOTION);
+        });
     }
 
     public function events()
