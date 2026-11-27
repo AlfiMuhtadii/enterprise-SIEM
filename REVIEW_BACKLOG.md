@@ -11,7 +11,6 @@ It is synchronized with GitHub Issues. Developers/writing agents (e.g., Claude) 
 
 | Task ID | Title | File / Component | Priority | Status |
 |---|---|---|---|---|
-| **SHADOW-NETWORK-PUBLISH-ACK** | Require valid broker acknowledgments for correlation publication and distinguish confirmed network findings from failed publish attempts in soak metrics. | Go correlation worker and promotion checklist | High | Ongoing (Codex, 2026-11-27) |
 | **SHADOW-DNS-POLL-INDEPENDENT-WINDOW** | Replace poll-batch-dependent DNS aggregate thresholds with reviewed event-time windows, tenant/client isolation, durable state across restarts, and deterministic replay. Validate with real controlled traffic split across polls before treating results as soak evidence. | `services/correlation-worker/internal/shadowrules`, normalized stream | High | Proposed |
 | **ENT-TENANCY-NO-DB-ENFORCEMENT** | [Enterprise BLOCKER] Isolation is app-layer `where('tenant_id')` only (ASSET-TENANT-OVERWRITE proves it leaks); no DB RLS. Supersedes deferred TENANT-ENFORCE-RLS — mandatory for multi-tenant SaaS | `app/Services/TenantBoundaryService.php`, Postgres RLS | High | Ongoing (Codex, 2026-08-28) |
 | **CODE-STRUCT-DECOMPOSE** (correlation-worker, normalizer-worker, alert-writer-service, incident-builder-service, ThreatHuntingService, ReportExportService, UEBABaselineService, EntityRiskScoringService decomposed; Pandaproxy/Kafka transport intentionally remains) | See detail section below | see detail section | Medium | Proposed (reduced) |

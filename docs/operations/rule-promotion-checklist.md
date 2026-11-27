@@ -160,7 +160,8 @@ establish a UEBA Kafka producer or a live soak.
 - [ ] Rule has run in shadow mode for a minimum observation period (recommended: 48 hours on representative traffic)
 - [ ] Shadow alert volume reviewed (not generating implausible alert volumes)
 - [ ] No goroutine leak or memory growth observed during shadow soak
-- [ ] `shadow_alerts_published` metric is non-zero (confirms rule is firing)
+- [ ] Confirm advisory delivery and investigate any increase in `shadow_publish_errors`. The worker exposes `shadow_alerts_published` for endpoint and `network_shadow_alerts_published` for network. These are broker-confirmed transport totals, not proof that a specific candidate fired, persisted, or completed a soak.
+- [ ] Validate the candidate's time-window behavior on the live stream. Current network DNS aggregate rules evaluate the records in one consumer poll; a batch test is not evidence that the same results hold when events arrive in separate polls.
 
 ### Documentation
 - [ ] `validation_evidence` field populated in registry (reference to soak report or validation artifact)

@@ -112,6 +112,8 @@ type Worker struct {
 	consumerRecreateCount    atomic.Int64
 	retryCount               atomic.Int64
 	shadowAlertsPublished    atomic.Int64
+	networkShadowPublished   atomic.Int64
+	shadowPublishErrors      atomic.Int64
 	dlqWritten               atomic.Int64
 	dlqWriteErrors           atomic.Int64
 	// OBS-OTEL-TRACING: OTLP/HTTP span export, disabled unless an endpoint
@@ -335,6 +337,9 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 			}
 			return "permissive"
 		}(),
+
+		"network_shadow_alerts_published": w.networkShadowPublished.Load(),
+		"shadow_publish_errors":           w.shadowPublishErrors.Load(),
 	})
 }
 
@@ -659,6 +664,9 @@ func (w *Worker) consumerPoll(baseURI string) ([]map[string]any, error) {
 }
 
 func (w *Worker) publish(topic string, events []map[string]any) error {
+	if len(events) == 0 {
+		return nil
+	}
 	if w.nativeProducer != nil {
 		return w.publishNative(topic, events)
 	}
@@ -666,8 +674,14 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 	for _, event := range events {
 		records = append(records, map[string]any{"value": event})
 	}
-	payload, _ := json.Marshal(map[string]any{"records": records})
-	req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/topics/%s", w.redpandaREST, topic), bytes.NewReader(payload))
+	payload, err := json.Marshal(map[string]any{"records": records})
+	if err != nil {
+		return fmt.Errorf("publish_marshal: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/topics/%s", w.redpandaREST, topic), bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("publish_request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/vnd.kafka.json.v2+json")
 	req.Header.Set("Accept", "application/vnd.kafka.v2+json")
 	resp, err := httpClient.Do(req)
@@ -675,9 +689,40 @@ func (w *Worker) publish(topic string, events []map[string]any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("publish_failed status=%d body=%s", resp.StatusCode, string(body))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("publish_failed status=%d", resp.StatusCode)
+	}
+	return validateProduceReceipt(resp.Body, len(events))
+}
+
+const maxProduceReceiptBytes = 256 * 1024
+
+func validateProduceReceipt(reader io.Reader, recordCount int) error {
+	body, err := io.ReadAll(io.LimitReader(reader, maxProduceReceiptBytes+1))
+	if err != nil || len(body) > maxProduceReceiptBytes {
+		return fmt.Errorf("publish_receipt_unreadable")
+	}
+	var receipt struct {
+		Offsets []struct {
+			Partition *int32          `json:"partition"`
+			Offset    *int64          `json:"offset"`
+			ErrorCode json.RawMessage `json:"error_code"`
+		} `json:"offsets"`
+	}
+	// Pandaproxy reports one base offset per partition, not one offset per record.
+	if json.Unmarshal(body, &receipt) != nil || len(receipt.Offsets) == 0 || len(receipt.Offsets) > recordCount {
+		return fmt.Errorf("publish_receipt_invalid")
+	}
+	seenPartitions := make(map[int32]bool, len(receipt.Offsets))
+	for _, ack := range receipt.Offsets {
+		if len(ack.ErrorCode) != 0 && string(ack.ErrorCode) != "0" {
+			return fmt.Errorf("publish_partition_rejected")
+		}
+		if ack.Partition == nil || *ack.Partition < 0 || ack.Offset == nil || *ack.Offset < 0 ||
+			seenPartitions[*ack.Partition] {
+			return fmt.Errorf("publish_partition_receipt_invalid")
+		}
+		seenPartitions[*ack.Partition] = true
 	}
 	return nil
 }
@@ -1427,9 +1472,7 @@ func shadowEnvelopes(scope string, alerts []shadowrules.EndpointAlert) []map[str
 
 func (w *Worker) publishShadowBatches(events []map[string]any) {
 	endpoint := correlateEndpointShadowAll(events, w.iocLookupURL)
-	if w.publishShadowFindings(w.shadowAlertsTopic, "endpoint-shadow", endpoint) {
-		w.shadowAlertsPublished.Add(int64(len(endpoint)))
-	}
+	w.publishShadowFindings(w.shadowAlertsTopic, "endpoint-shadow", endpoint)
 	network := evaluateShadowByScope(events, shadowrules.CorrelateNetworkShadowAll)
 	w.publishShadowFindings(w.networkShadowAlertsTopic, "network-shadow", network)
 }
@@ -1440,13 +1483,21 @@ func (w *Worker) publishShadowFindings(topic, scope string, alerts []shadowrules
 	}
 	if topic == w.outputTopic || topic == "xdr.alerts" {
 		w.publishErrors.Add(1)
+		w.shadowPublishErrors.Add(1)
 		log.Printf("refusing %s publication to the active alert topic", scope)
 		return false
 	}
 	if err := w.publish(topic, shadowEnvelopes(scope, alerts)); err != nil {
 		w.publishErrors.Add(1)
+		w.shadowPublishErrors.Add(1)
 		log.Printf("%s publish failed: %v", scope, err)
 		return false
+	}
+	switch scope {
+	case "endpoint-shadow":
+		w.shadowAlertsPublished.Add(int64(len(alerts)))
+	case "network-shadow":
+		w.networkShadowPublished.Add(int64(len(alerts)))
 	}
 	return true
 }
