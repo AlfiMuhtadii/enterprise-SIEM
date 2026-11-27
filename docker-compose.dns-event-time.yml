@@ -1,0 +1,13 @@
+services:
+  correlation-worker:
+    environment:
+      XDR_KAFKA_TRANSPORT: native
+      XDR_CORRELATION_EVENT_LOOP_ENABLED: "true"
+      XDR_CORRELATION_SCOPE: identity-cloud
+      XDR_DNS_EVENT_TIME_CHECKPOINT: /var/lib/detector/dns/window.json
+      XDR_DNS_EVENT_TIME_START_OFFSET: "${XDR_DNS_EVENT_TIME_START_OFFSET:-}"
+    volumes:
+      - dns_window_state:/var/lib/detector/dns
+
+volumes:
+  dns_window_state:

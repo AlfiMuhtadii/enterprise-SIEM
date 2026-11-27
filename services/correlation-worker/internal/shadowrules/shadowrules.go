@@ -133,13 +133,23 @@ func DedupeEndpointAlerts(alerts []EndpointAlert) []EndpointAlert {
 // ---------------------------------------------------------------------------
 
 func CorrelateNetworkShadowAll(events []map[string]any) []EndpointAlert {
+	return correlateNetworkShadow(events, true)
+}
+
+func CorrelateNetworkShadowWithoutDNSAggregates(events []map[string]any) []EndpointAlert {
+	return correlateNetworkShadow(events, false)
+}
+
+func correlateNetworkShadow(events []map[string]any, pollDNSAggregates bool) []EndpointAlert {
 	if len(events) == 0 {
 		return nil
 	}
 	var alerts []EndpointAlert
 	alerts = append(alerts, ruleNetworkSuspiciousDnsTld(events)...)
-	alerts = append(alerts, ruleNetworkDnsTxtQueryPattern(events)...)
-	alerts = append(alerts, ruleNetworkRepeatedNxdomain(events)...)
+	if pollDNSAggregates {
+		alerts = append(alerts, ruleNetworkDnsTxtQueryPattern(events)...)
+		alerts = append(alerts, ruleNetworkRepeatedNxdomain(events)...)
+	}
 	alerts = append(alerts, ruleNetworkSuspiciousUserAgent(events)...)
 	alerts = append(alerts, ruleNetworkHighVolumeProxyEgress(events)...)
 	alerts = append(alerts, ruleNetworkRepeatedDeniedOutbound(events)...)

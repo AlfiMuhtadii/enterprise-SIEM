@@ -122,6 +122,7 @@ type Worker struct {
 	// ARCH-KAFKA-NATIVE: nil unless XDR_KAFKA_TRANSPORT=native.
 	nativeProducer *kafkanative.Producer
 	nativeConsumer *kafkanative.Consumer
+	dnsWindow      *dnsWindowLane
 }
 
 func validateCorrelationSecrets() {
@@ -199,7 +200,13 @@ func main() {
 	// ARCH-KAFKA-NATIVE: off by default (XDR_KAFKA_TRANSPORT=pandaproxy) --
 	// zero behavior change unless an operator opts in. The consumer is only
 	// needed when the event loop itself is enabled.
-	if env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native" {
+	nativeKafka := env("XDR_KAFKA_TRANSPORT", "pandaproxy") == "native"
+	eventLoop := envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false)
+	dnsCheckpointPath := env("XDR_DNS_EVENT_TIME_CHECKPOINT", "")
+	if dnsCheckpointPath != "" && (!nativeKafka || !eventLoop) {
+		log.Fatal("DNS event-time pilot requires native Kafka and the correlation event loop")
+	}
+	if nativeKafka {
 		brokers := splitBrokers(env("XDR_REDPANDA_KAFKA_BROKERS", "redpanda:9092"))
 		w.group = nativeConsumerGroup(w.group, env("XDR_CORRELATION_NATIVE_GROUP", ""))
 		kafkaTLSEnabled := envBool("XDR_REDPANDA_KAFKA_TLS_ENABLED", false)
@@ -217,12 +224,22 @@ func main() {
 			log.Fatalf("xdr correlation worker: native kafka producer init failed: %v", err)
 		}
 		w.nativeProducer = producer
-		if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
+		if eventLoop {
 			consumer, err := kafkanative.NewConsumerTLS(brokers, w.group, []string{w.inputTopic}, kafkaTLS)
 			if err != nil {
 				log.Fatalf("xdr correlation worker: native kafka consumer init failed: %v", err)
 			}
 			w.nativeConsumer = consumer
+		}
+		if dnsCheckpointPath != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			lane, err := openDNSWindowLane(ctx, w, brokers, kafkaTLS, dnsCheckpointPath,
+				env("XDR_DNS_EVENT_TIME_START_OFFSET", ""))
+			cancel()
+			if err != nil {
+				log.Fatalf("DNS event-time checkpoint setup failed: %v", err)
+			}
+			w.dnsWindow = lane
 		}
 		log.Printf("xdr correlation worker: using native kafka transport brokers=%v tls=%v", brokers, kafkaTLSEnabled)
 	}
@@ -260,7 +277,19 @@ func main() {
 	mux.HandleFunc("/metrics", w.metrics)
 	mux.HandleFunc("/v1/correlate", w.correlateHTTP)
 	mux.HandleFunc("/v1/correlate-endpoint-shadow", w.correlateEndpointShadowHTTP)
-	if envBool("XDR_CORRELATION_EVENT_LOOP_ENABLED", false) {
+	if w.dnsWindow != nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			w.dnsWindow.run(ctx)
+		}()
+		defer func() {
+			cancel()
+			<-done
+		}()
+	}
+	if eventLoop {
 		go w.consumeLoop()
 	}
 	server := &http.Server{
@@ -308,7 +337,7 @@ func (w *Worker) ready(rw http.ResponseWriter, r *http.Request) {
 func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
-	writeJSON(rw, http.StatusOK, map[string]any{
+	report := map[string]any{
 		"processed":                w.processed.Load(),
 		"alerts":                   w.alerts.Load(),
 		"last_latency_ms":          w.latencyMS.Load(),
@@ -340,7 +369,16 @@ func (w *Worker) metrics(rw http.ResponseWriter, r *http.Request) {
 
 		"network_shadow_alerts_published": w.networkShadowPublished.Load(),
 		"shadow_publish_errors":           w.shadowPublishErrors.Load(),
-	})
+	}
+	report["dns_event_time_enabled"] = w.dnsWindow != nil
+	if lane := w.dnsWindow; lane != nil {
+		report["dns_event_time_ready"] = lane.ready.Load()
+		report["dns_event_time_failed"] = lane.failed.Load()
+		report["dns_event_time_next_offset"] = lane.cursor.Load()
+		report["dns_event_time_late"] = lane.late.Load()
+		report["dns_event_time_invalid"] = lane.invalid.Load()
+	}
+	writeJSON(rw, http.StatusOK, report)
 }
 
 func (w *Worker) writeDLQRecord(record map[string]any) error {
@@ -1473,7 +1511,11 @@ func shadowEnvelopes(scope string, alerts []shadowrules.EndpointAlert) []map[str
 func (w *Worker) publishShadowBatches(events []map[string]any) {
 	endpoint := correlateEndpointShadowAll(events, w.iocLookupURL)
 	w.publishShadowFindings(w.shadowAlertsTopic, "endpoint-shadow", endpoint)
-	network := evaluateShadowByScope(events, shadowrules.CorrelateNetworkShadowAll)
+	evaluateNetwork := shadowrules.CorrelateNetworkShadowAll
+	if w.dnsWindow != nil {
+		evaluateNetwork = shadowrules.CorrelateNetworkShadowWithoutDNSAggregates
+	}
+	network := evaluateShadowByScope(events, evaluateNetwork)
 	w.publishShadowFindings(w.networkShadowAlertsTopic, "network-shadow", network)
 }
 

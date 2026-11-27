@@ -161,7 +161,7 @@ establish a UEBA Kafka producer or a live soak.
 - [ ] Shadow alert volume reviewed (not generating implausible alert volumes)
 - [ ] No goroutine leak or memory growth observed during shadow soak
 - [ ] Confirm advisory delivery and investigate any increase in `shadow_publish_errors`. The worker exposes `shadow_alerts_published` for endpoint and `network_shadow_alerts_published` for network. These are broker-confirmed transport totals, not proof that a specific candidate fired, persisted, or completed a soak.
-- [ ] Validate the candidate's time-window behavior on the live stream. Current network DNS aggregate rules evaluate the records in one consumer poll; a batch test is not evidence that the same results hold when events arrive in separate polls.
+- [ ] Validate the candidate's time-window behavior on the live stream. The default DNS aggregators use one consumer poll. The optional event-time mode must be independently checked on the intended pilot source; a batch test is not enough.
 
 See [DNS event-time window implementation status](DNS_EVENT_TIME_WINDOWS.md)
 for the separate evaluator and remaining runtime requirements.
