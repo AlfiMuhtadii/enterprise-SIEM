@@ -51,3 +51,29 @@ Monitor `dns_event_time_ready`, `dns_event_time_failed`,
 back to the old DNS aggregators. Investigate any failure or gaps before
 using results for a soak. Review real traffic and false positives separately
 before any promotion decision.
+
+## Reconcile an Advisory
+
+After capturing real DNS input with the registered mTLS resolver, collect
+the independently retained JSONL and actual offsets for all three topics.
+Use a UTC observation window containing the entire candidate minute and
+the gateway receipt times. This example uses placeholder offsets:
+
+```powershell
+python scripts/xdr_reconcile_capture.py `
+    --capture source.jsonl --registry pilot-sources.json `
+    --source-id lab-coredns --domain network --telemetry-type dns `
+    --window-start 2026-11-27T14:49:00Z --window-end 2026-11-27T14:51:00Z `
+    --range 0:20:23 --normalized-range 0:90:93 `
+    --dns-advisory-rule dns_txt_query_pattern --advisory-range 0:7:8
+```
+
+Repeat using `repeated_nxdomain` when reviewing that candidate. The check
+reads only `xdr.alerts.shadow.network`, verifies matching source IDs and
+traces, and rejects incomplete, duplicate, or rehearsal findings. It
+requires explicit normalized DNS query types/response codes and a scoped
+alias for each contributor. A window without a candidate is not a pass.
+Take offsets from each topic independently. Do not assume results cover
+records outside these ranges, unreviewed late arrivals, or other sources.
+Even a match proves lineage only; a legitimate resolver query can still
+produce a false positive. The report never marks promotion evidence verified.

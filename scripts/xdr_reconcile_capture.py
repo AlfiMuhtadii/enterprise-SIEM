@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check independent source events against bounded raw and optional normalized Kafka ranges."""
+"""Check source events against bounded raw, normalized, and DNS advisory Kafka ranges."""
 
 from __future__ import annotations
 
@@ -24,6 +24,11 @@ MAX_PAGE_BYTES = 2 * 1024 * 1024
 MAX_ARRIVAL_DELAY = timedelta(minutes=5)
 TOKEN = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 DNS_CLIENT_ALIAS = re.compile(r"dns-client-[a-f0-9]{32}")
+DNS_ADVISORY_TOPIC = "xdr.alerts.shadow.network"
+DNS_ADVISORY_RULES = {
+    "dns_txt_query_pattern": ("dns_query_type", "TXT", 2, "txt_count"),
+    "repeated_nxdomain": ("dns_response_code", "NXDOMAIN", 5, "nxdomain_count"),
+}
 DOMAINS = {
     "endpoint": {"endpoint", "sysmon", "powershell", "security_event"},
     "network": {"dns", "proxy", "firewall"},
@@ -63,6 +68,8 @@ class CaptureRecord:
     trace_id: str
     observed_timestamp: str
     dns_client_alias: str | None = None
+    dns_query_type: str | None = None
+    dns_response_code: str | None = None
 
 
 def unique_keys(pairs):
@@ -210,7 +217,12 @@ def read_capture(path: Path, scope: Scope) -> tuple[dict[str, CaptureRecord], st
         host_id = event.get("host_id")
         client_alias = (host_id if scope.telemetry_type == "dns" and isinstance(host_id, str)
                         and DNS_CLIENT_ALIAS.fullmatch(host_id) else None)
-        expected[event_id] = CaptureRecord(payload_digest(event), event["trace_id"], event["ts"], client_alias)
+        query_type, response_code = event.get("query_type"), event.get("response_code")
+        expected[event_id] = CaptureRecord(
+            payload_digest(event), event["trace_id"], event["ts"], client_alias,
+            query_type.upper() if isinstance(query_type, str) else None,
+            response_code.upper() if isinstance(response_code, str) else None,
+        )
     if not expected:
         raise InvalidEvidence("No eligible records in independent capture")
     return expected, hashlib.sha256(data).hexdigest()
@@ -300,7 +312,7 @@ def reconcile(expected: dict[str, CaptureRecord], records, scope: Scope) -> dict
     return dict(counts)
 
 
-def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Scope) -> dict:
+def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Scope, *, verify_dns_values=False) -> dict:
     seen = Counter()
     outcomes = {}
     unrelated_scope = set()
@@ -323,6 +335,9 @@ def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Sco
                 outcomes[event_id] = "timestamp_mismatch"
             elif source.dns_client_alias is not None and event.get("host_id") != source.dns_client_alias:
                 outcomes[event_id] = "client_alias_mismatch"
+            elif verify_dns_values and (event.get("query_type") != source.dns_query_type
+                                        or event.get("response_code") != source.dns_response_code):
+                outcomes[event_id] = "dns_value_mismatch"
             else:
                 outcomes[event_id] = "matched"
     counts = Counter()
@@ -333,6 +348,115 @@ def reconcile_normalized(expected: dict[str, CaptureRecord], records, scope: Sco
             counts[outcomes[event_id]] += 1
         else:
             counts["scope_mismatch" if event_id in unrelated_scope else "missing"] += 1
+    return dict(counts)
+
+
+def dns_candidate_windows(expected: dict[str, CaptureRecord], scope: Scope, rule: str) -> dict:
+    field, value, minimum, _ = DNS_ADVISORY_RULES[rule]
+    windows = {}
+    for event_id, event in expected.items():
+        if not all(isinstance(field, str) and re.fullmatch(r"[A-Z0-9]{1,16}", field)
+                   for field in (event.dns_query_type, event.dns_response_code)):
+            raise InvalidEvidence("DNS advisory reconciliation requires explicit query types and response codes")
+        if getattr(event, field) != value:
+            continue
+        if event.dns_client_alias is None:
+            raise InvalidEvidence("DNS advisory contributors require scoped client aliases")
+        start = utc_timestamp(event.observed_timestamp).replace(second=0, microsecond=0)
+        if start < scope.start or start + timedelta(minutes=1) > scope.end:
+            continue
+        windows.setdefault((event.dns_client_alias, start), set()).add(event_id)
+    return {key: ids for key, ids in windows.items() if len(ids) >= minimum}
+
+
+def identifier_set(value) -> set[str] | None:
+    if (not isinstance(value, list) or not 1 <= len(value) <= 256 or
+            any(not valid_id(item) for item in value) or len(set(value)) != len(value)):
+        return None
+    return set(value)
+
+
+def reconcile_dns_advisories(expected: dict[str, CaptureRecord], records, scope: Scope, rule: str) -> dict:
+    windows = dns_candidate_windows(expected, scope, rule)
+    aliases = {event.dns_client_alias for event in expected.values() if event.dns_client_alias}
+    count_field = DNS_ADVISORY_RULES[rule][3]
+    counts = Counter(expected_windows=len(windows))
+    matched = set()
+    alert_ids = set()
+    alerts_read = 0
+    for envelope in records:
+        alerts = envelope.get("alerts")
+        if not isinstance(alerts, list) or not alerts:
+            raise InvalidEvidence("Invalid network advisory envelope")
+        alerts_read += len(alerts)
+        if alerts_read > MAX_RECORDS:
+            raise InvalidEvidence("Too many advisories in the selected offset ranges")
+        for alert in alerts:
+            if not isinstance(alert, dict):
+                raise InvalidEvidence("Invalid network advisory record")
+            if alert.get("rule_id") != rule:
+                continue
+            host = alert.get("host")
+            raw_refs = alert.get("evidence_ids")
+            refs = identifier_set(raw_refs)
+            uses_capture = isinstance(raw_refs, list) and any(
+                isinstance(item, str) and item in expected for item in raw_refs
+            )
+            known_client = isinstance(host, str) and host in aliases
+            if not uses_capture and not known_client:
+                continue
+            if (envelope.get("tenant_id") != scope.tenant_id or alert.get("tenant_id") != scope.tenant_id
+                    or envelope.get("scope") != "network-shadow" or envelope.get("source") != "correlation-worker"
+                    or envelope.get("shadow_mode") is not True or alert.get("shadow_mode") is not True
+                    or envelope.get("shadow_evidence_origin") != "unverified"
+                    or alert.get("shadow_evidence_origin") != "unverified"
+                    or rehearsal(envelope) or rehearsal(alert) or not known_client):
+                counts["scope_mismatch"] += 1
+                continue
+            evidence = alert.get("evidence")
+            if not isinstance(evidence, dict) or evidence.get("aggregation_mode") != "dns-event-time-v1":
+                counts["invalid_window"] += 1
+                continue
+            try:
+                start = utc_timestamp(evidence.get("window_start"))
+                end = utc_timestamp(evidence.get("window_end"))
+            except InvalidEvidence:
+                counts["invalid_window"] += 1
+                continue
+            if (start.second != 0 or start.microsecond != 0 or end - start != timedelta(minutes=1)
+                    or evidence["window_start"] != start.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    or evidence["window_end"] != end.strftime("%Y-%m-%dT%H:%M:%SZ")):
+                counts["invalid_window"] += 1
+                continue
+            if not uses_capture and (start < scope.start or end > scope.end):
+                continue
+            key = (host, start)
+            contributors = windows.get(key)
+            if contributors is None:
+                counts["unexpected_window"] += 1
+                continue
+            traces = {expected[event_id].trace_id for event_id in contributors}
+            trace_id = next(iter(traces)) if len(traces) == 1 else ""
+            alert_id = alert.get("alert_id")
+            if (refs != contributors or evidence.get("host") != host
+                    or evidence.get("advisory") != "network_shadow_only" or evidence.get("no_blocking") is not True
+                    or evidence.get("evidence_lineage_complete") is not True
+                    or evidence.get("evidence_lineage_truncated") is True
+                    or type(evidence.get("source_event_count")) is not int
+                    or evidence["source_event_count"] != len(contributors)
+                    or type(evidence.get(count_field)) is not int or evidence[count_field] != len(contributors)
+                    or identifier_set(evidence.get("source_trace_ids")) != traces
+                    or envelope.get("trace_id") != trace_id or alert.get("trace_id") != trace_id
+                    or not isinstance(alert_id, str) or not re.fullmatch(r"[a-f0-9]{40}", alert_id)):
+                counts["evidence_mismatch"] += 1
+                continue
+            if key in matched or alert_id in alert_ids:
+                counts["duplicate"] += 1
+                continue
+            matched.add(key)
+            alert_ids.add(alert_id)
+    counts["matched"] = len(matched)
+    counts["missing"] = len(windows) - len(matched)
     return dict(counts)
 
 
@@ -349,6 +473,8 @@ def main(argv=None) -> int:
     parser.add_argument("--range", dest="ranges", required=True, action="append", help="PARTITION:START:END_EXCLUSIVE")
     parser.add_argument("--normalized-topic", default="telemetry.normalized")
     parser.add_argument("--normalized-range", action="append", default=[], help="PARTITION:START:END_EXCLUSIVE")
+    parser.add_argument("--dns-advisory-rule", choices=sorted(DNS_ADVISORY_RULES))
+    parser.add_argument("--advisory-range", action="append", default=[], help="PARTITION:START:END_EXCLUSIVE")
     parser.add_argument("--broker-port", type=int, default=8082, help="Local broker HTTP proxy port")
     args = parser.parse_args(argv)
     report = {"status": "ERROR", "promotion_evidence_verified": False, "representative_telemetry_verified": False}
@@ -358,6 +484,12 @@ def main(argv=None) -> int:
         validate_topic(args.topic)
         ranges = read_ranges(args.ranges)
         normalized_ranges = read_ranges(args.normalized_range)
+        advisory_ranges = read_ranges(args.advisory_range)
+        if bool(advisory_ranges) != bool(args.dns_advisory_rule):
+            raise InvalidEvidence("DNS advisory reconciliation requires a rule and advisory ranges")
+        if advisory_ranges and (not normalized_ranges or args.domain != "network" or args.telemetry_type != "dns"
+                                or DNS_ADVISORY_TOPIC in (args.topic, args.normalized_topic)):
+            raise InvalidEvidence("DNS advisory verification requires raw and normalized network DNS evidence")
         if normalized_ranges:
             validate_topic(args.normalized_topic)
             if args.normalized_topic == args.topic:
@@ -385,9 +517,25 @@ def main(argv=None) -> int:
             if matched:
                 normalized["status"] = "ERROR"
                 with closing(broker_records(args.normalized_topic, normalized_ranges, port=args.broker_port)) as records:
-                    normalized_counts = reconcile_normalized(expected, records, scope)
+                    normalized_counts = reconcile_normalized(expected, records, scope,
+                                                             verify_dns_values=bool(advisory_ranges))
                 matched = normalized_counts.get("matched") == len(expected)
                 normalized.update(status="MATCHED" if matched else "MISMATCH", counts=normalized_counts)
+        if advisory_ranges:
+            advisory = {
+                "rule": args.dns_advisory_rule, "topic": DNS_ADVISORY_TOPIC,
+                "ranges": [asdict(span) for span in advisory_ranges], "status": "SKIPPED_UPSTREAM_MISMATCH",
+            }
+            report["advisory_lineage"] = advisory
+            if matched:
+                advisory["status"] = "ERROR"
+                with closing(broker_records(DNS_ADVISORY_TOPIC, advisory_ranges, port=args.broker_port)) as records:
+                    advisory_counts = reconcile_dns_advisories(expected, records, scope, args.dns_advisory_rule)
+                observed = advisory_counts["expected_windows"]
+                faults = sum(value for key, value in advisory_counts.items() if key not in {"expected_windows", "matched"})
+                matched = observed > 0 and faults == 0
+                status = "MATCHED" if matched else ("NO_CANDIDATE_EVIDENCE" if observed == 0 and not faults else "MISMATCH")
+                advisory.update(status=status, counts=advisory_counts)
         report["status"] = "MATCHED" if matched else "MISMATCH"
     except InvalidEvidence as exc:
         report["error"] = str(exc)
